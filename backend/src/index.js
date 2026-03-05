@@ -53,7 +53,8 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+// path-to-regexp v8+ requires a named wildcard (e.g. /*splat), not '*' or '(.*)'
+app.options('/*splat', cors(corsOptions));
 app.use(express.json({ limit: '1gb' }));
 app.use(express.urlencoded({ extended: true, limit: '1gb' }));
 app.use(cookieParser());
