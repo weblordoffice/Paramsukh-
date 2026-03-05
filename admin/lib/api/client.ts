@@ -1,11 +1,11 @@
 import axios from 'axios';
 import { useAuthStore } from '@/lib/store/authStore';
+import { API_BASE_URL } from './config';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3000';
 const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || 'dev-admin-key-123';
 
 export const apiClient = axios.create({
-    baseURL: API_URL,
+    baseURL: API_BASE_URL,
     headers: {
         'Content-Type': 'application/json',
         'X-Admin-API-Key': ADMIN_API_KEY,
@@ -44,7 +44,7 @@ apiClient.interceptors.response.use(
             }
         } else if (error.request) {
             // Request made but no response (network error/backend not running)
-            console.error('Network Error: Backend server may not be running at', API_URL);
+            console.error('Network Error: Backend server may not be running at', API_BASE_URL);
         } else {
             console.error('Error:', error.message);
         }

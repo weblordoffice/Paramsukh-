@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
             },
         ],
     },
+    // NEXT_PUBLIC_API_URL: set in .env.local (e.g. https://api.getbill.in for production)
     env: {
         NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3000',
     },

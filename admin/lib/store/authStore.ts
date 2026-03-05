@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import axios from 'axios';
+import { API_BASE_URL } from '@/lib/api/config';
 
 interface AdminUser {
     _id: string;
@@ -20,8 +21,6 @@ interface AuthState {
     hasPermission: (permission: string) => boolean;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3000';
-
 export type LoginResult = { ok: true } | { ok: false; message: string };
 
 export const useAuthStore = create<AuthState>()(
@@ -34,7 +33,7 @@ export const useAuthStore = create<AuthState>()(
             exchangeGoogleToken: async (tokens: { idToken?: string; accessToken?: string }): Promise<LoginResult> => {
                 try {
                     const response = await axios.post(
-                        `${API_URL}/api/admin/auth/google`,
+                        `${API_BASE_URL}/api/admin/auth/google`,
                         { idToken: tokens.idToken, accessToken: tokens.accessToken },
                         { timeout: 15000 }
                     );
