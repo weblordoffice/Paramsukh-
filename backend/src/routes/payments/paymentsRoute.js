@@ -7,8 +7,10 @@ import {
   createMembershipPaymentLink,
   confirmMembershipPaymentLink,
   syncMembershipFromRazorpay,
-  verifyMembershipPayment,
   createBookingOrder,
+  createBookingPaymentLink,
+  confirmBookingPaymentLink,
+  verifyMembershipPayment,
   handleWebhook,
   getPaymentHistory
 } from '../../controller/payments/payments.controller.js';
@@ -38,6 +40,13 @@ router.post('/sync-membership', protectedRoutes, paymentLimiter, syncMembershipF
 // Create payment order for booking/counseling
 // POST /api/payments/create-booking-order
 router.post('/create-booking-order', protectedRoutes, createBookingOrder);
+
+// Create payment link for counseling booking (hosted checkout)
+// POST /api/payments/booking-link
+router.post('/booking-link', protectedRoutes, paymentLimiter, createBookingPaymentLink);
+// Confirm booking payment link
+// POST /api/payments/booking-link/confirm
+router.post('/booking-link/confirm', protectedRoutes, paymentLimiter, confirmBookingPaymentLink);
 
 // ========================================
 // Payment Verification Routes

@@ -102,6 +102,8 @@ interface EventState {
         paymentAmount?: number;
     }>;
     createEventOrder: (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string }) => Promise<{ success: boolean; data?: { registrationId: string; razorpay: { orderId: string; amount: number; currency: string; keyId: string } }; message?: string }>;
+    createEventPaymentLink: (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string }) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; registrationId?: string; message?: string }>;
+    confirmEventPaymentByLink: (eventId: string, paymentLinkId: string) => Promise<{ success: boolean; message?: string }>;
     confirmEventPayment: (eventId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => Promise<{ success: boolean; message?: string }>;
     cancelEventRegistration: (eventId: string) => Promise<boolean>;
     checkRegistrationStatus: (eventId: string) => Promise<boolean>;
@@ -264,6 +266,52 @@ export const useEventStore = create<EventState>((set, get) => ({
             const response = await axios.post(
                 `${API_URL}/events/${eventId}/register/confirm`,
                 paymentData,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data?.success) {
+                set((state) => ({
+                    events: state.events.map((e) => (e._id === eventId ? { ...e, isRegistered: true, currentAttendees: (e.currentAttendees || 0) + 1 } : e)),
+                    currentEvent: state.currentEvent?._id === eventId
+                        ? { ...state.currentEvent, isRegistered: true, currentAttendees: (state.currentEvent.currentAttendees || 0) + 1 }
+                        : state.currentEvent
+                }));
+                return { success: true, message: response.data.message };
+            }
+            return { success: false, message: response.data?.message || 'Payment confirmation failed' };
+        } catch (error: any) {
+            return { success: false, message: error.response?.data?.message || 'Payment confirmation failed' };
+        }
+    },
+
+    createEventPaymentLink: async (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string }) => {
+        try {
+            const token = useAuthStore.getState().token;
+            if (!token) return { success: false, message: 'Please sign in to register.' };
+            const response = await axios.post(
+                `${API_URL}/events/${eventId}/register/link`,
+                payload,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data?.success && response.data?.data)
+                return {
+                    success: true,
+                    url: response.data.data.url,
+                    paymentLinkId: response.data.data.paymentLinkId,
+                    registrationId: response.data.data.registrationId,
+                };
+            return { success: false, message: response.data?.message || 'Failed to create payment link' };
+        } catch (error: any) {
+            return { success: false, message: error.response?.data?.message || 'Failed to create payment link' };
+        }
+    },
+
+    confirmEventPaymentByLink: async (eventId: string, paymentLinkId: string) => {
+        try {
+            const token = useAuthStore.getState().token;
+            if (!token) return { success: false, message: 'Please sign in.' };
+            const response = await axios.post(
+                `${API_URL}/events/${eventId}/register/confirm-link`,
+                { paymentLinkId },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             if (response.data?.success) {

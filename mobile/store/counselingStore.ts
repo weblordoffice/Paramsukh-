@@ -24,6 +24,8 @@ interface CounselingState {
     checkAvailability: (date: string, counselorType: string) => Promise<string[]>;
     bookSession: (bookingData: any) => Promise<{ success: boolean; message?: string; bookingId?: string }>;
     createBookingOrder: (bookingId: string, amount: number) => Promise<{ success: boolean; data?: { razorpay: { orderId: string; amount: number; currency: string; keyId: string } }; message?: string }>;
+    createBookingPaymentLink: (bookingId: string) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; message?: string }>;
+    confirmBookingPaymentLink: (paymentLinkId: string, bookingId: string) => Promise<{ success: boolean; message?: string }>;
     verifyCounselingPayment: (bookingId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => Promise<{ success: boolean; message?: string }>;
 }
 
@@ -135,6 +137,44 @@ export const useCounselingStore = create<CounselingState>((set) => ({
             return { success: false, message: response.data?.message || 'Failed to create payment order' };
         } catch (error: any) {
             return { success: false, message: error.response?.data?.message || 'Failed to create payment order' };
+        }
+    },
+
+    createBookingPaymentLink: async (bookingId: string) => {
+        try {
+            const token = useAuthStore.getState().token;
+            if (!token) return { success: false, message: 'Please sign in to pay.' };
+            const response = await axios.post(
+                `${API_URL}/payments/booking-link`,
+                { bookingId },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data?.success && response.data?.data) {
+                return {
+                    success: true,
+                    url: response.data.data.url,
+                    paymentLinkId: response.data.data.paymentLinkId
+                };
+            }
+            return { success: false, message: response.data?.message || 'Failed to create payment link' };
+        } catch (error: any) {
+            return { success: false, message: error.response?.data?.message || 'Failed to create payment link' };
+        }
+    },
+
+    confirmBookingPaymentLink: async (paymentLinkId: string, bookingId: string) => {
+        try {
+            const token = useAuthStore.getState().token;
+            if (!token) return { success: false, message: 'Please sign in.' };
+            const response = await axios.post(
+                `${API_URL}/payments/booking-link/confirm`,
+                { paymentLinkId, bookingId },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data?.success) return { success: true, message: response.data.message };
+            return { success: false, message: response.data?.message || 'Payment confirmation failed' };
+        } catch (error: any) {
+            return { success: false, message: error.response?.data?.message || 'Payment confirmation failed' };
         }
     },
 

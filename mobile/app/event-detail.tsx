@@ -2,11 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, Linking, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import RazorpayCheckout from 'react-native-razorpay';
+import * as WebBrowser from 'expo-web-browser';
 import Header from '../components/Header';
 import { useEventStore } from '../store/eventStore';
 import { useAuthStore } from '../store/authStore';
-import { RAZORPAY_KEY_ID } from '../config/api';
 
 export default function EventDetailScreen() {
   const router = useRouter();
@@ -20,8 +19,8 @@ export default function EventDetailScreen() {
     fetchEventDetails,
     checkRegistrationStatus,
     registerForEvent,
-    createEventOrder,
-    confirmEventPayment,
+    createEventPaymentLink,
+    confirmEventPaymentByLink,
     cancelEventRegistration,
     isLoading
   } = useEventStore();
@@ -130,54 +129,38 @@ export default function EventDetailScreen() {
     if (!eventId || !validateForm()) return;
     setProcessing(true);
     try {
-      const orderResult = await createEventOrder(eventId, {
+      const linkResult = await createEventPaymentLink(eventId, {
         name: form.name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim()
       });
-      if (!orderResult.success || !orderResult.data?.razorpay) {
-        Alert.alert('Error', orderResult.message || 'Could not create order.');
+      if (!linkResult.success || !linkResult.url) {
+        Alert.alert('Error', linkResult.message || 'Could not create payment.');
         setProcessing(false);
         return;
       }
-      const { orderId, amount, currency, keyId } = orderResult.data.razorpay;
-      const options = {
-        description: `Event: ${event?.title || 'Event'}`,
-        currency: currency || 'INR',
-        key: keyId || RAZORPAY_KEY_ID,
-        amount,
-        name: 'ParamSukh',
-        order_id: orderId,
-        prefill: {
-          email: form.email.trim() || user?.email || '',
-          contact: (form.phone.trim() || user?.phone || '').replace('+91', '').trim() || '9999999999',
-          name: form.name.trim() || user?.displayName || 'ParamSukh User'
-        },
-        theme: { color: eventColor || '#F1842D' }
-      };
-      const data = await RazorpayCheckout.open(options);
-      const confirmResult = await confirmEventPayment(eventId, {
-        razorpay_payment_id: data.razorpay_payment_id,
-        razorpay_order_id: data.razorpay_order_id,
-        razorpay_signature: data.razorpay_signature
+      await WebBrowser.openBrowserAsync(linkResult.url, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        enableBarCollapsing: true,
+        showTitle: true
       });
-      setProcessing(false);
-      setShowRegisterForm(false);
-      if (confirmResult.success) {
-        await checkRegistrationStatus(eventId);
-        Alert.alert(
-          'Registered',
-          'You are registered for this event. This purchase is non-refundable.',
-          [{ text: 'OK' }]
-        );
-      } else {
-        Alert.alert('Payment failed', confirmResult.message || 'Could not confirm payment.');
-      }
+      if (linkResult.paymentLinkId) {
+        const confirmResult = await confirmEventPaymentByLink(eventId, linkResult.paymentLinkId);
+        setProcessing(false);
+        setShowRegisterForm(false);
+        if (confirmResult.success) {
+          await checkRegistrationStatus(eventId);
+          Alert.alert(
+            'Registered',
+            'You are registered for this event. This purchase is non-refundable.',
+            [{ text: 'OK' }]
+          );
+        } else {
+          Alert.alert('Payment', confirmResult.message || 'If you paid, registration will update shortly.');
+        }
+      } else setProcessing(false);
     } catch (err: any) {
       setProcessing(false);
-      if (err?.code === 2 || err?.description === 'User cancelled the payment flow') {
-        return;
-      }
       Alert.alert('Payment failed', err?.message || 'Could not complete payment. Please try again.');
     }
   };
@@ -488,7 +471,7 @@ export default function EventDetailScreen() {
                     onPress={handlePaidEventPayment}
                   >
                     <Text className="text-white font-semibold">
-                      {processing ? 'Processing...' : `Pay Rs. ${priceValue} with Razorpay`}
+                      {processing ? 'Processing...' : `Pay Rs. ${priceValue}`}
                     </Text>
                   </TouchableOpacity>
                 </>

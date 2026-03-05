@@ -10,7 +10,9 @@ import {
   requestReturn,
   trackOrder,
   getInvoice,
-  verifyOrderPayment
+  verifyOrderPayment,
+  createOrderPaymentLink,
+  verifyOrderPaymentByLink
 } from '../../controller/orders/orders.controller.js';
 import {
   updateOrderStatusAdmin,
@@ -30,6 +32,8 @@ router.use(protectedRoutes);
 router.post('/create', createOrder);
 router.get('/my-orders', getMyOrders);
 router.post('/verify-payment', verifyOrderPayment);
+router.post('/confirm-payment-link', verifyOrderPaymentByLink);
+router.post('/:orderId/payment-link', createOrderPaymentLink);
 router.get('/:id', getOrderDetails);
 router.patch('/:id/cancel', cancelOrder);
 router.post('/:id/return', requestReturn);

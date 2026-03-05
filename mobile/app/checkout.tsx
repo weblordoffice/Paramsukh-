@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput, Modal } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as WebBrowser from 'expo-web-browser';
 import { useCartStore } from '../store/cartStore';
 import { useOrderStore } from '../store/orderStore';
 import { useAddressStore } from '../store/addressStore';
-import RazorpayCheckout from 'react-native-razorpay';
-import { RAZORPAY_KEY_ID } from '../config/api';
 
 export default function CheckoutScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { cart, clearCart, fetchCart } = useCartStore();
-    const { createOrder, verifyPayment, isLoading: isOrderLoading } = useOrderStore(); // Added verifyPayment
+    const { createOrder, createOrderPaymentLink, confirmOrderPaymentLink, isLoading: isOrderLoading } = useOrderStore();
     const { addresses, fetchAddresses, addAddress, isLoading: isAddressLoading } = useAddressStore();
 
     const [paymentMethod, setPaymentMethod] = useState('cod');
@@ -65,56 +64,25 @@ export default function CheckoutScreen() {
         }
 
         // 2. Handle Payment Flow
-        if (paymentMethod === 'razorpay' && result.razorpay) {
-            const { orderId: rzpOrderId, amount, currency, keyId } = result.razorpay;
+        if (paymentMethod === 'razorpay' && result.orderId) {
             const orderId = result.orderId;
-
-            const options = {
-                description: 'Paramsukh Order Payment',
-                image: 'https://res.cloudinary.com/dvhpsrh6j/image/upload/v1740924000/paramsukh-logo.png', // Optional: Add your logo URL
-                currency: currency,
-                key: keyId || RAZORPAY_KEY_ID, // Use backend provided key or fallback to config
-                amount: amount,
-                name: 'Paramsukh',
-                order_id: rzpOrderId,
-                prefill: {
-                    email: 'user@example.com', // ideally get from user store
-                    contact: '9999999999',    // ideally get from user store
-                    name: 'Paramsukh User'    // ideally get from user store
-                },
-                theme: { color: '#111827' }
-            };
-
-            RazorpayCheckout.open(options)
-                .then(async (data: any) => {
-                    // handle success
-                    // data: { razorpay_payment_id, razorpay_order_id, razorpay_signature }
-                    const verifyResult = await verifyPayment({
-                        orderId: orderId!,
-                        razorpayPaymentId: data.razorpay_payment_id,
-                        razorpayOrderId: data.razorpay_order_id,
-                        razorpaySignature: data.razorpay_signature
-                    });
-
-                    if (verifyResult.success) {
-                        Alert.alert("Success", "Payment successful! Order confirmed.", [
-                            {
-                                text: "OK", onPress: () => {
-                                    clearCart();
-                                    router.replace('/orders');
-                                }
-                            }
-                        ]);
-                    } else {
-                        Alert.alert("Payment Verification Failed", verifyResult.message || "Please contact support.");
-                    }
-                })
-                .catch((error: any) => {
-                    // handle failure
-                    console.log('Razorpay Error:', error);
-                    Alert.alert("Payment Cancelled", `Error: ${error.description || 'Payment was cancelled'}`);
-                });
-
+            const linkResult = await createOrderPaymentLink(orderId);
+            if (!linkResult.success || !linkResult.url || !linkResult.paymentLinkId) {
+                Alert.alert("Error", linkResult.message || "Could not create payment link.");
+                return;
+            }
+            const { url, paymentLinkId } = linkResult;
+            const browserResult = await WebBrowser.openBrowserAsync(url, { presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN });
+            const confirmResult = await confirmOrderPaymentLink(orderId, paymentLinkId);
+            if (confirmResult.success) {
+                Alert.alert("Success", "Payment successful! Order confirmed.", [
+                    { text: "OK", onPress: () => { clearCart(); router.replace('/orders'); } }
+                ]);
+            } else {
+                Alert.alert("Payment Verification", confirmResult.message || "Payment may still be processing. Check My Orders.");
+            }
+        } else if (paymentMethod === 'razorpay') {
+            Alert.alert("Error", "Could not create order for online payment.");
         } else {
             // COD or other methods
             Alert.alert("Success", "Order placed successfully!", [

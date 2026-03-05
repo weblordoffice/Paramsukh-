@@ -4,7 +4,7 @@ import Product from '../../models/product.models.js';
 import Shop from '../../models/shop.models.js';
 import Address from '../../models/address.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
-import { createRazorpayOrder, verifyRazorpaySignature } from '../../services/razorpayService.js';
+import { createRazorpayOrder, verifyRazorpaySignature, createRazorpayPaymentLink, fetchPaymentLink } from '../../services/razorpayService.js';
 import { sendOrderConfirmationEmail } from '../../services/emailService.js';
 
 
@@ -600,5 +600,114 @@ export const verifyOrderPayment = async (req, res) => {
       message: 'Payment verification failed',
       error: error.message
     });
+  }
+};
+
+// @desc    Create Razorpay payment link for existing order (hosted checkout – works without native SDK)
+// @route   POST /api/orders/:orderId/payment-link
+// @access  Private
+export const createOrderPaymentLink = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { orderId } = req.params;
+    const order = await Order.findOne({ _id: orderId, user: userId });
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (order.status !== 'pending' || order.payment?.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'Order is not pending payment' });
+    }
+    const amount = order.pricing?.total ?? 0;
+    if (amount <= 0) return res.status(400).json({ success: false, message: 'Invalid order total' });
+    const customer = {
+      name: req.user?.displayName || req.user?.name || order.deliveryAddress?.fullName || 'Customer',
+      email: req.user?.email || undefined,
+      contact: order.deliveryAddress?.phone || req.user?.phone ? String(req.user.phone).replace('+91', '').trim() : undefined,
+    };
+    const link = await createRazorpayPaymentLink({
+      amount,
+      currency: 'INR',
+      description: `Order #${order.orderNumber} · Paramsukh`,
+      customer,
+      notes: { type: 'order', orderId: String(orderId), userId: String(userId) },
+    });
+    return res.status(200).json({
+      success: true,
+      data: { url: link.short_url, paymentLinkId: link.id },
+    });
+  } catch (error) {
+    console.error('[CreateOrderPaymentLink] Error:', error);
+    return res.status(500).json({ success: false, message: error?.message || 'Failed to create payment link' });
+  }
+};
+
+// @desc    Confirm order payment link and mark order paid
+// @route   POST /api/orders/confirm-payment-link
+// @access  Private
+export const verifyOrderPaymentByLink = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { orderId, paymentLinkId } = req.body;
+    if (!orderId || !paymentLinkId) {
+      return res.status(400).json({ success: false, message: 'orderId and paymentLinkId required' });
+    }
+    const link = await fetchPaymentLink(paymentLinkId);
+    const status = String(link?.status || '').toLowerCase();
+    const notes = link?.notes || {};
+    if (notes?.userId && String(notes.userId) !== String(userId)) {
+      return res.status(403).json({ success: false, message: 'Payment link does not belong to you' });
+    }
+    if (status !== 'paid' && status !== 'captured') {
+      return res.status(200).json({ success: true, data: { status: link?.status }, message: 'Payment not completed yet' });
+    }
+    const order = await Order.findOne({ _id: orderId, user: userId });
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+    if (order.status !== 'pending' || order.payment?.status !== 'pending') {
+      return res.status(200).json({ success: true, data: { order }, message: 'Order already confirmed' });
+    }
+    const paymentsRaw = link?.payments;
+    const firstPayment = Array.isArray(paymentsRaw) ? paymentsRaw[0] : paymentsRaw;
+    const razorpayPaymentId = firstPayment?.payment_id || link?.payment_id;
+    order.status = 'confirmed';
+    order.payment.status = 'completed';
+    order.payment.razorpayPaymentId = razorpayPaymentId || `pay_${Date.now()}`;
+    order.payment.paidAt = Date.now();
+    await order.save();
+
+    const cart = await Cart.findOne({ user: userId });
+    if (cart) {
+      cart.items = [];
+      cart.subtotal = 0;
+      cart.discount = 0;
+      cart.shippingCharge = 0;
+      cart.tax = 0;
+      cart.total = 0;
+      await cart.save();
+    }
+    try {
+      await sendOrderConfirmationEmail(req.user, order);
+    } catch (e) {
+      console.error('Order confirmation email failed:', e);
+    }
+    try {
+      await sendNotification(userId, {
+        type: 'order',
+        title: 'Order Confirmed! ✅',
+        message: `Payment successful! Your order #${order.orderNumber} is confirmed.`,
+        icon: '📦',
+        priority: 'high',
+        relatedId: order._id,
+        relatedType: 'order',
+        actionUrl: `/orders/${order._id}`,
+      });
+    } catch (e) {
+      console.error('Notification failed:', e);
+    }
+    return res.status(200).json({
+      success: true,
+      message: 'Payment verified and order confirmed',
+      data: { order },
+    });
+  } catch (error) {
+    console.error('[VerifyOrderPaymentByLink] Error:', error);
+    return res.status(500).json({ success: false, message: error?.message || 'Payment verification failed' });
   }
 };

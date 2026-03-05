@@ -21,7 +21,9 @@ import {
   checkInUser,
   updatePaymentStatus,
   createEventRegistrationOrder,
-  confirmEventPayment
+  confirmEventPayment,
+  createEventRegistrationLink,
+  confirmEventPaymentByLink
 } from '../../controller/events/eventRegistration.controller.js';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
@@ -92,9 +94,15 @@ router.get('/my-registrations', protectedRoutes, getMyRegistrations);
 // Create Razorpay order for paid event (books spot, then user pays)
 // POST /api/events/:eventId/register/order
 router.post('/:eventId/register/order', protectedRoutes, createEventRegistrationOrder);
+// Create payment link for event (hosted checkout – works without native SDK)
+// POST /api/events/:eventId/register/link
+router.post('/:eventId/register/link', protectedRoutes, createEventRegistrationLink);
 // Confirm event payment after Razorpay success (adds to My Purchases)
 // POST /api/events/:eventId/register/confirm
 router.post('/:eventId/register/confirm', protectedRoutes, confirmEventPayment);
+// Confirm event payment link
+// POST /api/events/:eventId/register/confirm-link
+router.post('/:eventId/register/confirm-link', protectedRoutes, confirmEventPaymentByLink);
 // Register for an event (free events only; paid events use order + confirm)
 // POST /api/events/:eventId/register
 router.post('/:eventId/register', protectedRoutes, registerForEvent);

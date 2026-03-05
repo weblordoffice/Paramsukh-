@@ -50,6 +50,8 @@ interface OrderState {
         razorpayOrderId: string;
         razorpaySignature: string;
     }) => Promise<{ success: boolean; message?: string }>;
+    createOrderPaymentLink: (orderId: string) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; message?: string }>;
+    confirmOrderPaymentLink: (orderId: string, paymentLinkId: string) => Promise<{ success: boolean; message?: string }>;
     fetchOrderDetails: (orderId: string) => Promise<void>;
     cancelOrder: (orderId: string) => Promise<void>;
 }
@@ -127,6 +129,43 @@ export const useOrderStore = create<OrderState>((set) => ({
             console.error('Verify Payment Error:', error);
             set({ isLoading: false, error: 'Payment verification failed' });
             return { success: false, message: error.response?.data?.message || 'Verification failed' };
+        }
+    },
+
+    createOrderPaymentLink: async (orderId: string) => {
+        const token = useAuthStore.getState().token;
+        if (!token) return { success: false, message: 'Please login' };
+        try {
+            const response = await axios.post(
+                `${API_URL}/orders/${orderId}/payment-link`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data?.success && response.data?.data)
+                return {
+                    success: true,
+                    url: response.data.data.url,
+                    paymentLinkId: response.data.data.paymentLinkId
+                };
+            return { success: false, message: response.data?.message || 'Failed to create payment link' };
+        } catch (error: any) {
+            return { success: false, message: error.response?.data?.message || 'Failed to create payment link' };
+        }
+    },
+
+    confirmOrderPaymentLink: async (orderId: string, paymentLinkId: string) => {
+        const token = useAuthStore.getState().token;
+        if (!token) return { success: false, message: 'Please login' };
+        try {
+            const response = await axios.post(
+                `${API_URL}/orders/confirm-payment-link`,
+                { orderId, paymentLinkId },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data?.success) return { success: true, message: response.data.message };
+            return { success: false, message: response.data?.message || 'Payment confirmation failed' };
+        } catch (error: any) {
+            return { success: false, message: error.response?.data?.message || 'Payment confirmation failed' };
         }
     },
 

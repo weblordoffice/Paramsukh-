@@ -3,26 +3,20 @@ import { ScrollView, Text, TouchableOpacity, View, TextInput, Alert } from 'reac
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import RazorpayCheckout from 'react-native-razorpay';
+import * as WebBrowser from 'expo-web-browser';
 import { useCounselingStore } from '../store/counselingStore';
 import { useAuthStore } from '../store/authStore';
-import { RAZORPAY_KEY_ID } from '../config/api';
 
 export default function BookCounselingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  /* 
-   * Params now contain all the service details from the previous screen
-   * id, title, description, price, counselorName, duration, color, etc.
-   */
   const { id, title, description, price, counselorName, duration, color, bgColor, isFree } = params;
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
 
-  const { checkAvailability, bookSession, createBookingOrder, verifyCounselingPayment, isLoading } = useCounselingStore();
-  const user = useAuthStore((s) => s.user);
+  const { checkAvailability, bookSession, createBookingPaymentLink, confirmBookingPaymentLink, isLoading } = useCounselingStore();
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [processing, setProcessing] = useState(false);
 
@@ -97,7 +91,7 @@ export default function BookCounselingScreen() {
         return;
       }
 
-      // Paid: create Razorpay order and open checkout
+      // Paid: create payment link and open in browser (payment captured on confirm)
       const bookingId = result.bookingId;
       if (!bookingId) {
         Alert.alert('Error', 'Could not create booking. Please try again.');
@@ -105,51 +99,34 @@ export default function BookCounselingScreen() {
         return;
       }
 
-      const orderResult = await createBookingOrder(bookingId, numericPrice);
-      if (!orderResult.success || !orderResult.data?.razorpay) {
-        Alert.alert('Payment Error', orderResult.message || 'Could not start payment.');
+      const linkResult = await createBookingPaymentLink(bookingId);
+      if (!linkResult.success || !linkResult.url) {
+        Alert.alert('Payment Error', linkResult.message || 'Could not start payment.');
         setProcessing(false);
         return;
       }
 
-      const { orderId, amount, currency, keyId } = orderResult.data.razorpay;
-      const options = {
-        description: `${title} - Counseling`,
-        currency: currency || 'INR',
-        key: keyId || RAZORPAY_KEY_ID,
-        amount,
-        name: 'ParamSukh',
-        order_id: orderId,
-        prefill: {
-          email: user?.email || '',
-          contact: (user?.phone || '').replace('+91', '').trim() || '9999999999',
-          name: user?.displayName || 'ParamSukh User'
-        },
-        theme: { color: (color as string) || '#3B82F6' }
-      };
-
-      const data = await RazorpayCheckout.open(options);
-      const confirmResult = await verifyCounselingPayment(bookingId, {
-        razorpay_payment_id: data.razorpay_payment_id,
-        razorpay_order_id: data.razorpay_order_id,
-        razorpay_signature: data.razorpay_signature
+      await WebBrowser.openBrowserAsync(linkResult.url, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        enableBarCollapsing: true,
+        showTitle: true,
       });
 
-      setProcessing(false);
-      if (confirmResult.success) {
-        Alert.alert(
-          'Booking Confirmed! 🎉',
-          `Your session with ${counselorName || 'Counselor'} on ${dateObj?.day}, ${dateObj?.date} ${dateObj?.month} at ${selectedTime} has been booked. Payment received.`,
-          [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
-        );
-      } else {
-        Alert.alert('Payment Failed', confirmResult.message || 'Could not confirm payment.');
+      if (linkResult.paymentLinkId) {
+        const confirmResult = await confirmBookingPaymentLink(linkResult.paymentLinkId, bookingId);
+        if (confirmResult.success) {
+          Alert.alert(
+            'Booking Confirmed! 🎉',
+            `Your session with ${counselorName || 'Counselor'} on ${dateObj?.day}, ${dateObj?.date} ${dateObj?.month} at ${selectedTime} has been booked. Payment received.`,
+            [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
+          );
+        } else {
+          Alert.alert('Payment', confirmResult.message || 'If you paid, your booking will be confirmed shortly. Otherwise please try again.');
+        }
       }
+      setProcessing(false);
     } catch (e: any) {
       setProcessing(false);
-      if (e?.code === 2 || e?.description === 'Payment cancelled') {
-        return; // User closed Razorpay
-      }
       Alert.alert('Error', e?.message || 'An unexpected error occurred.');
     }
   };
@@ -319,7 +296,7 @@ export default function BookCounselingScreen() {
               {processing || isLoading
                 ? (showPayment ? 'Opening payment...' : 'Booking...')
                 : showPayment
-                  ? 'Proceed to Payment (Razorpay)'
+                  ? 'Proceed to Payment'
                   : 'Confirm Booking'}
             </Text>
           </TouchableOpacity>

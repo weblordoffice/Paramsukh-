@@ -1,7 +1,7 @@
 import { EventRegistration } from '../../models/eventRegistration.models.js';
 import { Event } from '../../models/event.models.js';
 import { User } from '../../models/user.models.js';
-import { createRazorpayOrder, verifyRazorpaySignature, fetchPaymentDetails } from '../../services/razorpayService.js';
+import { createRazorpayOrder, createRazorpayPaymentLink, verifyRazorpaySignature, fetchPaymentDetails, fetchPaymentLink } from '../../services/razorpayService.js';
 
 /**
  * Register user for an event
@@ -600,6 +600,149 @@ export const confirmEventPayment = async (req, res) => {
       success: false,
       message: error.message || "Failed to confirm payment"
     });
+  }
+};
+
+/**
+ * Create payment link for event registration (hosted checkout – works without native SDK)
+ * POST /api/events/:eventId/register/link
+ */
+export const createEventRegistrationLink = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user._id;
+    const { name, email, phone, notes } = req.body;
+
+    const event = await Event.findById(eventId);
+    if (!event) return res.status(404).json({ success: false, message: "Event not found" });
+    if (!event.canRegister()) return res.status(400).json({ success: false, message: "Registration not available" });
+
+    const currentPrice = event.getCurrentPrice?.() ?? event.price ?? 0;
+    if (currentPrice <= 0) return res.status(400).json({ success: false, message: "Use free registration for this event" });
+
+    let registration = await EventRegistration.findOne({ userId, eventId, status: { $ne: 'cancelled' } });
+    if (registration?.status === 'confirmed') return res.status(400).json({ success: false, message: "Already registered" });
+
+    const user = await User.findById(userId).select('displayName name email phone');
+    const participantName = name || user?.displayName || user?.name || '';
+    const participantEmail = email || user?.email || '';
+    const participantPhone = phone || user?.phone || '';
+
+    if (!registration) {
+      registration = await EventRegistration.create({
+        userId,
+        eventId,
+        participantName,
+        participantEmail,
+        participantPhone,
+        notes,
+        paymentAmount: currentPrice,
+        paymentStatus: 'pending',
+        status: 'pending'
+      });
+    } else {
+      registration.participantName = participantName;
+      registration.participantEmail = participantEmail;
+      registration.participantPhone = participantPhone;
+      if (notes !== undefined) registration.notes = notes;
+      registration.paymentAmount = currentPrice;
+      await registration.save();
+    }
+
+    const customer = {
+      name: participantName || 'Participant',
+      email: participantEmail || undefined,
+      contact: participantPhone ? String(participantPhone).replace('+91', '').trim() : undefined,
+    };
+    const link = await createRazorpayPaymentLink({
+      amount: currentPrice,
+      currency: (event.currency || 'INR').toUpperCase(),
+      description: `Event: ${event.title || 'Event'}`,
+      customer,
+      notes: {
+        type: 'event',
+        eventId: String(eventId),
+        registrationId: String(registration._id),
+        userId: String(userId),
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        url: link.short_url,
+        paymentLinkId: link.id,
+        registrationId: registration._id.toString(),
+      },
+    });
+  } catch (error) {
+    console.error("❌ Create event link error:", error);
+    return res.status(500).json({ success: false, message: error?.message || "Failed to create payment link" });
+  }
+};
+
+/**
+ * Confirm event payment link and mark registration confirmed
+ * POST /api/events/:eventId/register/confirm-link
+ */
+export const confirmEventPaymentByLink = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user._id;
+    const { paymentLinkId } = req.body;
+    if (!paymentLinkId) return res.status(400).json({ success: false, message: "paymentLinkId required" });
+
+    const link = await fetchPaymentLink(paymentLinkId);
+    const status = String(link?.status || '').toLowerCase();
+    const notes = link?.notes || {};
+    if (notes?.userId && String(notes.userId) !== String(userId)) {
+      return res.status(403).json({ success: false, message: "Payment link does not belong to you" });
+    }
+    if (status !== 'paid' && status !== 'captured') {
+      return res.status(200).json({ success: true, data: { status: link?.status }, message: "Payment not completed yet" });
+    }
+
+    const registrationId = notes?.registrationId;
+    if (!registrationId) return res.status(400).json({ success: false, message: "Invalid payment link" });
+    const registration = await EventRegistration.findOne({ _id: registrationId, userId, eventId });
+    if (!registration) return res.status(404).json({ success: false, message: "Registration not found" });
+
+    const paymentsRaw = link?.payments;
+    const firstPayment = Array.isArray(paymentsRaw) ? paymentsRaw[0] : paymentsRaw;
+    const paymentId = firstPayment?.payment_id || link?.payment_id;
+    registration.paymentStatus = 'completed';
+    registration.paymentId = paymentId || `pay_${Date.now()}`;
+    registration.paidAt = new Date();
+    registration.status = 'confirmed';
+    await registration.save();
+
+    const event = await Event.findById(eventId).select('title');
+    const user = await User.findById(userId).select('payments');
+    if (user) {
+      user.payments = user.payments || [];
+      user.payments.push({
+        orderId: paymentLinkId,
+        paymentId: registration.paymentId,
+        amount: registration.paymentAmount,
+        plan: `Event - ${event?.title || 'Event'}`,
+        status: 'completed',
+        date: new Date(),
+      });
+      await user.save();
+    }
+    if (event && typeof event.updateAttendeeCount === 'function') {
+      await event.updateAttendeeCount();
+      await event.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment confirmed. You are registered for this event.",
+      data: { registration: { _id: registration._id, status: registration.status, paymentStatus: registration.paymentStatus } },
+    });
+  } catch (error) {
+    console.error("❌ Confirm event link error:", error);
+    return res.status(500).json({ success: false, message: error?.message || "Failed to confirm payment" });
   }
 };
 

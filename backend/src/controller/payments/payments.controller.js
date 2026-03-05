@@ -15,6 +15,107 @@ import Order from '../../models/order.models.js';
 import { Course } from '../../models/course.models.js';
 import { Enrollment } from '../../models/enrollment.models.js';
 import { Group, GroupMember } from '../../models/community.models.js';
+import { sendNotification } from '../notifications/notifications.controller.js';
+
+/**
+ * Create Razorpay payment link for counseling booking (hosted checkout)
+ * POST /api/payments/booking-link
+ */
+export const createBookingPaymentLink = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { bookingId } = req.body;
+    if (!bookingId) {
+      return res.status(400).json({ success: false, message: 'bookingId is required' });
+    }
+    const booking = await Booking.findOne({ _id: bookingId, user: userId });
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+    if (booking.isFree) {
+      return res.status(400).json({ success: false, message: 'Free booking does not require payment' });
+    }
+    const amount = Number(booking.amount) || 0;
+    if (amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid booking amount' });
+    }
+    const user = await User.findById(userId).select('email phone displayName name');
+    const customer = {
+      name: user?.displayName || user?.name || 'Customer',
+      email: user?.email || undefined,
+      contact: user?.phone ? String(user.phone).replace('+91', '').trim() : undefined,
+    };
+    const link = await createRazorpayPaymentLink({
+      amount,
+      currency: 'INR',
+      description: `Counseling booking · ${booking.bookingTitle || 'Session'}`,
+      customer,
+      notes: { type: 'counseling', bookingId: String(bookingId), userId: String(userId) },
+    });
+    return res.status(200).json({
+      success: true,
+      data: { url: link.short_url, paymentLinkId: link.id },
+    });
+  } catch (error) {
+    console.error('❌ Create booking link error:', error);
+    return res.status(500).json({ success: false, message: error.message, error: error.message });
+  }
+};
+
+/**
+ * Confirm counseling booking payment link and mark booking paid
+ * POST /api/payments/booking-link/confirm
+ */
+export const confirmBookingPaymentLink = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { paymentLinkId, bookingId } = req.body;
+    if (!paymentLinkId || !bookingId) {
+      return res.status(400).json({ success: false, message: 'paymentLinkId and bookingId are required' });
+    }
+    const link = await fetchPaymentLink(paymentLinkId);
+    const status = String(link?.status || '').toLowerCase();
+    const notes = link?.notes || {};
+    if (notes?.userId && String(notes.userId) !== String(userId)) {
+      return res.status(403).json({ success: false, message: 'Payment link does not belong to you' });
+    }
+    if (status !== 'paid' && status !== 'captured') {
+      return res.status(200).json({ success: true, data: { status: link?.status }, message: 'Payment not completed yet' });
+    }
+    const booking = await Booking.findOne({ _id: bookingId, user: userId });
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+    const paymentsRaw = link?.payments;
+    const firstPayment = Array.isArray(paymentsRaw) ? paymentsRaw[0] : paymentsRaw;
+    const paymentId = firstPayment?.payment_id || link?.payment_id;
+    booking.paymentId = paymentId || `pay_${Date.now()}`;
+    booking.paymentMethod = 'razorpay';
+    booking.paymentStatus = 'paid';
+    booking.paidAt = new Date();
+    booking.status = 'confirmed';
+    await booking.save();
+    try {
+      await sendNotification(userId, {
+        type: 'system',
+        title: 'Payment Confirmed',
+        message: `Payment of ₹${booking.amount} received. Your counseling session is confirmed for ${booking.bookingDate?.toLocaleDateString?.() || 'the selected date'}`,
+        icon: '✅',
+        priority: 'high',
+        relatedId: booking._id,
+        relatedType: 'booking',
+      });
+    } catch (_) {}
+    return res.status(200).json({
+      success: true,
+      message: 'Payment confirmed',
+      data: { booking },
+    });
+  } catch (error) {
+    console.error('❌ Confirm booking link error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
 
 /**
  * Create payment order for membership
@@ -651,8 +752,10 @@ export default {
   createMembershipPaymentLink,
   confirmMembershipPaymentLink,
   syncMembershipFromRazorpay,
-  verifyMembershipPayment,
   createBookingOrder,
+  createBookingPaymentLink,
+  confirmBookingPaymentLink,
+  verifyMembershipPayment,
   handleWebhook,
   getPaymentHistory
 };
