@@ -1,117 +1,337 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useRef, useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Dimensions,
+  ActivityIndicator,
+  StyleSheet,
+  StatusBar,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
 import { useCourseStore } from '../store/courseStore';
+import { useAuthStore } from '../store/authStore';
 
 const { width } = Dimensions.get('window');
+
+// Direct video URLs (Cloudinary, .mp4, etc.) — play in-app. Others — open in browser.
+function isDirectVideoUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const u = url.toLowerCase();
+  return (
+    u.includes('cloudinary.com') ||
+    u.includes('.mp4') ||
+    u.includes('.m3u8') ||
+    u.includes('.webm') ||
+    u.includes('video/upload')
+  );
+}
 
 export default function VideoPlayerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { markVideoComplete } = useCourseStore();
+  const { token } = useAuthStore();
 
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  // Parse params
-  const courseTitle = params.courseTitle as string || 'Course';
-  const courseColor = params.courseColor as string || '#8B5CF6';
-  const videoTitle = params.videoTitle as string || 'Video';
-  const videoDuration = params.videoDuration as string || '0:00';
+  const courseTitle = (params.courseTitle as string) || 'Course';
+  const courseColor = (params.courseColor as string) || '#8B5CF6';
+  const videoTitle = (params.videoTitle as string) || 'Video';
+  const videoDuration = (params.videoDuration as string) || '0:00';
   const videoUrl = params.videoUrl as string;
   const courseId = params.courseId as string;
   const videoId = params.videoId as string;
 
-  const handlePlay = async () => {
-    if (videoUrl) {
-      // Mark video as complete when user starts watching
-      if (courseId && videoId) {
-        await markVideoComplete(courseId, videoId);
-      }
-      await WebBrowser.openBrowserAsync(videoUrl);
-    } else {
-      setIsPlaying(true);
+  const useNativePlayer = videoUrl && isDirectVideoUrl(videoUrl);
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [marked, setMarked] = useState(false);
+
+  // expo-video player (only created when needed)
+  const player = useVideoPlayer(
+    useNativePlayer ? { uri: videoUrl } : null,
+    (p) => {
+      p.loop = false;
+      p.play();
     }
+  );
+
+  const markComplete = useCallback(async () => {
+    if (!token || !courseId || !videoId || marked) return;
+    const ok = await markVideoComplete(courseId, videoId);
+    if (ok) setMarked(true);
+  }, [courseId, videoId, token, marked]);
+
+  const handleExternalPlay = async () => {
+    if (!videoUrl) return;
+    markComplete();
+    await WebBrowser.openBrowserAsync(videoUrl);
   };
 
   return (
-    <View className="flex-1 bg-black">
-      {/* Header */}
-      <View
-        className="flex-row items-center pt-[50px] px-4 pb-4"
-        style={{ backgroundColor: courseColor }}
-      >
-        <TouchableOpacity
-          className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3"
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+
+      {/* ── Header ── */}
+      <View style={[styles.header, { backgroundColor: courseColor }]}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
-        <View className="flex-1">
-          <Text className="text-base font-semibold text-white" numberOfLines={1}>
-            {courseTitle}
-          </Text>
-          <Text className="text-xs text-white/80" numberOfLines={1}>
-            {videoTitle}
-          </Text>
+        <View style={styles.headerText}>
+          <Text style={styles.headerCourse} numberOfLines={1}>{courseTitle}</Text>
+          <Text style={styles.headerVideo} numberOfLines={1}>{videoTitle}</Text>
         </View>
       </View>
 
-      {/* Video Player */}
-      <View className="flex-1 bg-black items-center justify-center">
-        <View className="w-full bg-gray-900 items-center justify-center" style={{ height: width * 0.56 }}>
-          {!isPlaying ? (
+      {/* ── Video area ── */}
+      <View style={styles.videoArea}>
+        {useNativePlayer ? (
+          <View style={styles.videoBox}>
+            <VideoView
+              player={player}
+              style={styles.videoView}
+              allowsFullscreen
+              allowsPictureInPicture
+              onLayout={() => {
+                setLoading(false);
+                markComplete();
+              }}
+            />
+            {loading && (
+              <View style={styles.videoOverlay}>
+                <ActivityIndicator size="large" color="#FFFFFF" />
+              </View>
+            )}
+            {error && (
+              <View style={styles.videoOverlay}>
+                <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+                <Text style={styles.errorText}>{error}</Text>
+                <TouchableOpacity
+                  style={[styles.dismissBtn, { backgroundColor: courseColor }]}
+                  onPress={() => setError(null)}
+                >
+                  <Text style={styles.dismissText}>Dismiss</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        ) : (
+          /* External / unsupported URL — show play button that opens browser */
+          <View style={styles.videoBox}>
+            <View style={styles.extPlayerBg} />
             <TouchableOpacity
-              className="w-24 h-24 rounded-full items-center justify-center"
-              style={{ backgroundColor: courseColor + 'E6' }}
-              onPress={handlePlay}
+              style={[styles.extPlayBtn, { backgroundColor: courseColor + 'E6' }]}
+              onPress={handleExternalPlay}
+              activeOpacity={0.8}
             >
               <Ionicons name="play" size={48} color="#FFFFFF" />
             </TouchableOpacity>
-          ) : (
-            <View className="w-full h-full items-center justify-center">
-              <Text className="text-lg text-white mb-5">Video Playing...</Text>
-              <TouchableOpacity
-                className="w-20 h-20 rounded-full items-center justify-center"
-                style={{ backgroundColor: courseColor + 'E6' }}
-                onPress={() => setIsPlaying(false)}
-              >
-                <Ionicons name="pause" size={36} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
+            <Text style={styles.extPlayHint}>Tap to open in browser</Text>
+          </View>
+        )}
       </View>
 
-      {/* Video Info */}
-      <View className="bg-gray-900 px-4 py-4">
-        <Text className="text-xl font-bold text-white mb-2">{videoTitle}</Text>
-        <View className="flex-row items-center gap-4">
-          <View className="flex-row items-center gap-1.5">
-            <Ionicons name="time-outline" size={16} color="#9CA3AF" />
-            <Text className="text-sm text-gray-400">{videoDuration}</Text>
+      {/* ── Video info ── */}
+      <View style={styles.infoSection}>
+        <Text style={styles.infoTitle}>{videoTitle}</Text>
+        <View style={styles.infoMeta}>
+          <View style={styles.infoMetaItem}>
+            <Ionicons name="time-outline" size={15} color="#9CA3AF" />
+            <Text style={styles.infoMetaText}>{videoDuration}</Text>
           </View>
-          <View className="flex-row items-center gap-1.5">
-            <Ionicons name="videocam-outline" size={16} color="#9CA3AF" />
-            <Text className="text-sm text-gray-400">Video</Text>
+          <View style={styles.infoMetaDivider} />
+          <View style={styles.infoMetaItem}>
+            <Ionicons name="videocam-outline" size={15} color="#9CA3AF" />
+            <Text style={styles.infoMetaText}>
+              {useNativePlayer ? 'In-app player' : 'External link'}
+            </Text>
           </View>
         </View>
       </View>
 
-      {/* Action Buttons */}
-      <View className="bg-gray-900 px-4 pb-6 pt-2">
-        <View className="flex-row gap-3">
+      {/* ── Mark complete ── */}
+      {token && (
+        <View style={styles.actionSection}>
           <TouchableOpacity
-            className="flex-1 flex-row items-center justify-center gap-2 py-3 rounded-xl"
-            style={{ backgroundColor: courseColor }}
+            onPress={markComplete}
+            style={[
+              styles.markBtn,
+              marked
+                ? { backgroundColor: '#10B981' }
+                : { backgroundColor: courseColor },
+            ]}
+            activeOpacity={0.85}
+            disabled={marked}
           >
-            <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-            <Text className="text-base font-semibold text-white">Mark Complete</Text>
+            <Ionicons
+              name={marked ? 'checkmark-circle' : 'checkmark-circle-outline'}
+              size={20}
+              color="#FFFFFF"
+            />
+            <Text style={styles.markBtnText}>
+              {marked ? 'Completed ✓' : 'Mark as Complete'}
+            </Text>
           </TouchableOpacity>
         </View>
-      </View>
+      )}
     </View>
   );
 }
 
+const VIDEO_HEIGHT = width * 0.5625; // 16:9
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+  },
+
+  /* Header */
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 48,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerText: { flex: 1 },
+  headerCourse: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  headerVideo: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.75)',
+    marginTop: 1,
+  },
+
+  /* Video */
+  videoArea: {
+    width: '100%',
+    backgroundColor: '#000',
+  },
+  videoBox: {
+    width: '100%',
+    height: VIDEO_HEIGHT,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  videoView: {
+    width: '100%',
+    height: '100%',
+  },
+  videoOverlay: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  errorText: {
+    color: '#FFF',
+    fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
+  dismissBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  dismissText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+
+  /* External player */
+  extPlayerBg: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: '#111827',
+  },
+  extPlayBtn: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  extPlayHint: {
+    position: 'absolute',
+    bottom: 16,
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
+  },
+
+  /* Info */
+  infoSection: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(148,163,184,0.1)',
+  },
+  infoTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#F1F5F9',
+    marginBottom: 10,
+    lineHeight: 24,
+  },
+  infoMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  infoMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  infoMetaText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  infoMetaDivider: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#374151',
+    marginHorizontal: 10,
+  },
+
+  /* Action */
+  actionSection: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  markBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  markBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+});

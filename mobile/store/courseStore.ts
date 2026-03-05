@@ -48,6 +48,7 @@ export interface Course {
     category: string;
     tags: string[];
     status: 'draft' | 'published' | 'archived';
+    includedInPlans: string[];
 
     // Content Statistics
     totalVideos: number;
@@ -161,7 +162,12 @@ export const useCourseStore = create<CourseState>((set) => ({
                 set({ enrollmentProgress: response.data.data });
             }
         } catch (error: any) {
-            console.error('Fetch Progress Error:', error);
+            // 404 = user is not enrolled yet — this is expected, not a real error
+            if (error?.response?.status !== 404) {
+                if (__DEV__) {
+                    console.log('Progress not available:', error?.response?.status || 'Network error');
+                }
+            }
         }
     },
 
@@ -179,7 +185,10 @@ export const useCourseStore = create<CourseState>((set) => ({
             }
             return false;
         } catch (error: any) {
-            console.error('Mark Video Complete Error:', error);
+            // 404 = user not enrolled — expected, don't log as error
+            if (error?.response?.status !== 404 && __DEV__) {
+                console.log('Mark video complete failed:', error?.response?.status || 'Network error');
+            }
             return false;
         }
     },

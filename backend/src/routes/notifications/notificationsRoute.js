@@ -8,7 +8,8 @@ import {
   markAllAsRead,
   deleteNotification,
   deleteAllNotifications,
-  createTestNotification
+  createTestNotification,
+  registerDeviceToken
 } from '../../controller/notifications/notifications.controller.js';
 import {
   getAllNotifications,
@@ -19,38 +20,29 @@ import {
 
 const router = express.Router();
 
-// Admin routes
+// ========================================
+// Admin Routes
+// ========================================
 router.get('/all', adminAuth, getAllNotifications);
 router.post('/broadcast', adminAuth, sendBroadcastNotification);
 router.delete('/:id/admin', adminAuth, deleteNotificationAdmin);
 router.patch('/:id/read/admin', adminAuth, markNotificationReadAdmin);
 
-// All other routes are protected (require authentication)
-router.use(protectedRoutes);
-
 // ========================================
+// Protected User Routes
+// ========================================
+router.use(protectedRoutes); // Apply auth middleware
+
+// Device Token Registration
+router.post('/device-token', registerDeviceToken);
+
 // Notification Routes
-// ========================================
-
-// Get all notifications (with pagination and filters)
 router.get('/', getNotifications);
-
-// Get unread notification count
 router.get('/unread-count', getUnreadCount);
-
-// Mark all notifications as read
 router.patch('/read-all', markAllAsRead);
-
-// Delete all notifications
 router.delete('/all', deleteAllNotifications);
-
-// Create test notification (for development)
 router.post('/test', createTestNotification);
-
-// Mark specific notification as read
 router.patch('/:id/read', markAsRead);
-
-// Delete specific notification
 router.delete('/:id', deleteNotification);
 
 export default router;

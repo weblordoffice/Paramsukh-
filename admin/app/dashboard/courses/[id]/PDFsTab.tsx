@@ -1,14 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { Plus, Edit, Trash2, FileText, X, ExternalLink } from 'lucide-react';
+import { Plus, Edit, Trash2, FileText, X, ExternalLink, Upload } from 'lucide-react';
 
+// Backend returns pdfUrl; we use url in the UI
 interface PDF {
     _id: string;
     title: string;
-    url: string;
+    url?: string;
+    pdfUrl?: string;
     thumbnailUrl?: string;
     description?: string;
     fileSize?: string;
@@ -32,13 +34,19 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
     });
     const [submitting, setSubmitting] = useState(false);
     const [deleting, setDeleting] = useState<string | null>(null);
+    const [uploadingFile, setUploadingFile] = useState(false);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const pdfUrl = (p: PDF) => p.url ?? p.pdfUrl ?? '';
 
     const openModal = (pdf?: PDF) => {
+        setSelectedFile(null);
         if (pdf) {
             setEditingPDF(pdf);
             setFormData({
                 title: pdf.title,
-                url: pdf.url,
+                url: pdfUrl(pdf),
                 thumbnailUrl: pdf.thumbnailUrl || '',
                 description: pdf.description || '',
                 fileSize: pdf.fileSize || '',
@@ -59,6 +67,7 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
     const closeModal = () => {
         setIsModalOpen(false);
         setEditingPDF(null);
+        setSelectedFile(null);
         setFormData({
             title: '',
             url: '',
@@ -66,18 +75,67 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
             description: '',
             fileSize: '',
         });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.type !== 'application/pdf') {
+            toast.error('Please select a PDF file');
+            return;
+        }
+        if (file.size > 50 * 1024 * 1024) {
+            toast.error('PDF must be under 50MB');
+            return;
+        }
+        setSelectedFile(file);
+        setUploadingFile(true);
+        try {
+            const form = new FormData();
+            form.append('pdf', file);
+            const res = await apiClient.post('/api/upload/pdf', form);
+            const url = res.data?.data?.url;
+            if (url) {
+                setFormData((prev) => ({ ...prev, url }));
+                toast.success('PDF uploaded. Add title and save.');
+            } else {
+                toast.error('Upload failed');
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to upload PDF');
+        } finally {
+            setUploadingFile(false);
+            e.target.value = '';
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        const pdfUrl = formData.url?.trim();
+        if (!pdfUrl) {
+            toast.error('Enter a PDF URL or upload a file from your computer');
+            return;
+        }
         setSubmitting(true);
-
         try {
             if (editingPDF) {
-                await apiClient.put(`/api/courses/${courseId}/pdfs/${editingPDF._id}`, formData);
+                await apiClient.put(`/api/courses/${courseId}/pdfs/${editingPDF._id}`, {
+                    title: formData.title.trim(),
+                    pdfUrl,
+                    description: formData.description?.trim() || '',
+                    thumbnailUrl: formData.thumbnailUrl?.trim() || '',
+                });
                 toast.success('PDF updated successfully');
             } else {
-                await apiClient.post(`/api/courses/${courseId}/pdfs`, formData);
+                await apiClient.post(`/api/courses/${courseId}/pdfs`, {
+                    title: formData.title.trim(),
+                    pdfUrl,
+                    description: formData.description?.trim() || '',
+                    thumbnailUrl: formData.thumbnailUrl?.trim() || '',
+                    order: pdfs.length,
+                    isFree: false,
+                });
                 toast.success('PDF added successfully');
             }
             closeModal();
@@ -171,7 +229,7 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
 
                                 <div className="flex items-center gap-2">
                                     <a
-                                        href={pdf.url}
+                                        href={pdfUrl(pdf)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="flex-1 flex items-center justify-center gap-2 px-3 py-2 text-sm text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition-colors"
@@ -233,19 +291,54 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        PDF URL *
+                                        PDF URL
                                     </label>
                                     <input
                                         type="url"
-                                        required
                                         value={formData.url}
                                         onChange={(e) => setFormData({ ...formData, url: e.target.value })}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        placeholder="https://example.com/file.pdf"
+                                        placeholder="https://example.com/file.pdf or upload below"
                                     />
                                     <p className="text-xs text-gray-500 mt-1">
-                                        Direct link to the PDF file
+                                        Direct link to the PDF file, or upload from your computer below
                                     </p>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Or upload from computer
+                                    </label>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        accept="application/pdf"
+                                        onChange={handleFileSelect}
+                                        className="hidden"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={uploadingFile}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-gray-600"
+                                    >
+                                        {uploadingFile ? (
+                                            <>
+                                                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                                                <span>Uploading...</span>
+                                            </>
+                                        ) : selectedFile || formData.url ? (
+                                            <>
+                                                <FileText className="w-5 h-5 text-green-600" />
+                                                <span>{selectedFile ? selectedFile.name : 'PDF URL set'}</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Upload className="w-5 h-5" />
+                                                <span>Choose PDF file (max 50MB)</span>
+                                            </>
+                                        )}
+                                    </button>
                                 </div>
 
                                 <div>

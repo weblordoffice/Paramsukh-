@@ -1,29 +1,56 @@
 import React, { useState, useEffect } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Header from '../../components/Header';
 import { useMembershipStore } from '../../store/membershipStore';
+import { useAuthStore } from '../../store/authStore';
 import { useRouter } from 'expo-router';
+import apiClient from '../../utils/apiClient';
+
+const PENDING_LINK_KEY = 'pending_membership_payment_link';
 
 export default function MembershipScreen() {
   const router = useRouter();
-  const { currentSubscription, isLoading, isPurchasing, fetchCurrentSubscription, purchaseMembership, error } = useMembershipStore();
+  const { user } = useAuthStore();
+  const { currentSubscription, isLoading, isPurchasing, fetchCurrentSubscription, purchaseMembership, clearError, error } = useMembershipStore();
 
   const [selectedPlan, setSelectedPlan] = useState('silver');
-  const [pricingType, setPricingType] = useState<'regular' | 'offer'>('offer');
+  const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCurrentSubscription();
   }, []);
 
-  // Only show 3 plans as per backend support
+  // If user paid and came back later (or app was closed), confirm any pending payment link
+  useEffect(() => {
+    if (!currentSubscription || currentSubscription.status === 'active') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(PENDING_LINK_KEY);
+        if (!raw || cancelled) return;
+        const { paymentLinkId, plan } = JSON.parse(raw);
+        if (!paymentLinkId || !plan) return;
+        const res = await apiClient.post('/payments/membership-link/confirm', { paymentLinkId, plan });
+        if (res.data?.success && res.data?.data?.status === 'active') {
+          await AsyncStorage.removeItem(PENDING_LINK_KEY);
+          await fetchCurrentSubscription();
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [currentSubscription?.status]);
 
+  // Only show 3 plans as per backend support (single price per plan)
   const plans = [
     {
       id: 'bronze',
       name: 'Bronze',
-      regularPrice: 5000,
-      offerPrice: 2999,
+      price: 2999,
       emoji: '🥉',
       color: '#CD7F32',
       gradient: ['#FEF3C7', '#FDE68A'],
@@ -43,8 +70,7 @@ export default function MembershipScreen() {
     {
       id: 'copper',
       name: 'Copper',
-      regularPrice: 10000,
-      offerPrice: 5999,
+      price: 5999,
       emoji: '🔶',
       color: '#B87333',
       gradient: ['#FED7AA', '#FDBA74'],
@@ -64,8 +90,7 @@ export default function MembershipScreen() {
     {
       id: 'silver',
       name: 'Silver',
-      regularPrice: 30000,
-      offerPrice: 16999,
+      price: 16999,
       emoji: '🥈',
       color: '#C0C0C0',
       gradient: ['#F3F4F6', '#E5E7EB'],
@@ -84,62 +109,69 @@ export default function MembershipScreen() {
     }
   ];
 
-  const getDisplayPrice = (plan: typeof plans[0]) => {
-    const price = pricingType === 'regular' ? plan.regularPrice : plan.offerPrice;
-    return `₹${price.toLocaleString('en-IN')}`;
-  };
-
-  const getSavings = (plan: typeof plans[0]) => {
-    if (!plan.regularPrice || !plan.offerPrice) return 0;
-    return Math.round(((plan.regularPrice - plan.offerPrice) / plan.regularPrice) * 100);
-  };
+  const getDisplayPrice = (plan: typeof plans[0]) => `₹${plan.price.toLocaleString('en-IN')}`;
 
   const handlePurchase = async (plan: typeof plans[0]) => {
-    // Check if user already has this plan or higher
     if (currentSubscription?.plan === plan.id && currentSubscription?.status === 'active') {
       Alert.alert('Already Subscribed', `You already have the ${plan.name} plan!`);
       return;
     }
 
-    // Mock Razorpay payment for testing
-    Alert.alert(
-      'Confirm Purchase',
-      `Purchase ${plan.name} plan for ${getDisplayPrice(plan)}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Pay Now (Test)',
-          onPress: async () => {
-            // Mock payment ID (in production, this would come from Razorpay)
-            const mockPaymentId = `pay_test_${Date.now()}`;
+    setPurchasingPlanId(plan.id);
+    clearError();
 
-            const success = await purchaseMembership(plan.id, mockPaymentId);
+    try {
+      // Create Razorpay hosted checkout URL from backend
+      const linkRes = await apiClient.post('/payments/membership-link', {
+        plan: plan.id,
+        amount: plan.price
+      });
 
-            if (success) {
-              Alert.alert(
-                'Success! 🎉',
-                `You've successfully purchased the ${plan.name} plan!\n\n` +
-                `✅ Enrolled in courses\n` +
-                `✅ Added to community groups\n` +
-                `✅ Full access activated`,
-                [
-                  {
-                    text: 'View Courses',
-                    onPress: () => router.push('/(home)/courses')
-                  },
-                  {
-                    text: 'OK',
-                    style: 'cancel'
-                  }
-                ]
-              );
-            } else {
-              Alert.alert('Error', error || 'Failed to complete purchase. Please try again.');
-            }
-          }
+      if (!linkRes.data?.success || !linkRes.data?.data?.url) {
+        Alert.alert('Error', linkRes.data?.message || 'Failed to create payment link.');
+        setPurchasingPlanId(null);
+        return;
+      }
+
+      const url = linkRes.data.data.url as string;
+      const paymentLinkId = linkRes.data.data.paymentLinkId as string | undefined;
+
+      if (paymentLinkId) {
+        await AsyncStorage.setItem(PENDING_LINK_KEY, JSON.stringify({ paymentLinkId, plan: plan.id }));
+      }
+
+      // Open Razorpay payment page (hosted checkout)
+      await WebBrowser.openBrowserAsync(url, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        enableBarCollapsing: true,
+        showTitle: true,
+      });
+
+      let activated = false;
+      if (paymentLinkId) {
+        const confirmRes = await apiClient.post('/payments/membership-link/confirm', {
+          paymentLinkId,
+          plan: plan.id,
+        });
+        if (confirmRes.data?.success) {
+          await AsyncStorage.removeItem(PENDING_LINK_KEY);
+          activated = confirmRes.data?.data?.status === 'active';
         }
-      ]
-    );
+      }
+
+      await fetchCurrentSubscription();
+      Alert.alert(
+        'Payment',
+        activated
+          ? `${plan.name} membership is now active. You can access your courses.`
+          : 'If you completed payment, your plan will activate shortly. Pull down to refresh or reopen this screen.'
+      );
+    } catch (err: any) {
+      console.error('Membership payment error:', err);
+      Alert.alert('Payment Failed', err?.description || err?.message || 'Could not complete payment. Please try again.');
+    } finally {
+      setPurchasingPlanId(null);
+    }
   };
 
   const isPlanActive = (planId: string) => {
@@ -170,30 +202,6 @@ export default function MembershipScreen() {
                 </Text>
               </View>
             )}
-          </View>
-
-          {/* Pricing Toggle */}
-          <View className="flex-row bg-white rounded-xl p-1 mb-5 shadow-sm">
-            <TouchableOpacity
-              className={`flex-1 py-3 px-4 rounded-lg items-center ${pricingType === 'offer' ? 'bg-green-500' : ''
-                }`}
-              onPress={() => setPricingType('offer')}
-            >
-              <Text className={`text-[15px] font-semibold ${pricingType === 'offer' ? 'text-white' : 'text-gray-500'
-                }`}>
-                Offer Price
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              className={`flex-1 py-3 px-4 rounded-lg items-center ${pricingType === 'regular' ? 'bg-gray-800' : ''
-                }`}
-              onPress={() => setPricingType('regular')}
-            >
-              <Text className={`text-[15px] font-semibold ${pricingType === 'regular' ? 'text-white' : 'text-gray-500'
-                }`}>
-                Regular Price
-              </Text>
-            </TouchableOpacity>
           </View>
 
           {/* Special Features Banner */}
@@ -260,24 +268,7 @@ export default function MembershipScreen() {
 
                 {/* Price */}
                 <View className="mb-5">
-                  <View className="flex-row items-baseline flex-wrap">
-                    <Text className="text-3xl font-black" style={{ color: plan.color }}>{displayPrice}</Text>
-                    {plan.regularPrice && plan.offerPrice && pricingType === 'regular' && (
-                      <View className="ml-2 bg-red-100 px-2 py-1 rounded-lg">
-                        <Text className="text-xs font-bold text-red-600">
-                          Save {getSavings(plan)}%
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-                  {plan.regularPrice && plan.offerPrice && (
-                    <Text className="text-xs text-gray-500 mt-1">
-                      {pricingType === 'offer'
-                        ? `Regular: ₹${plan.regularPrice.toLocaleString('en-IN')}`
-                        : `Offer: ₹${plan.offerPrice.toLocaleString('en-IN')}`
-                      }
-                    </Text>
-                  )}
+                  <Text className="text-3xl font-black" style={{ color: plan.color }}>{displayPrice}</Text>
                 </View>
 
                 {/* Features */}
@@ -307,10 +298,10 @@ export default function MembershipScreen() {
                     }`}
                   style={isPlanActive(plan.id) ? {} : isSelected ? { backgroundColor: plan.color } : { borderColor: plan.color }}
                   onPress={() => isPlanActive(plan.id) ? null : handlePurchase(plan)}
-                  disabled={isPurchasing || isPlanActive(plan.id)}
+                  disabled={purchasingPlanId !== null || isPlanActive(plan.id)}
                 >
-                  {isPurchasing && isSelected ? (
-                    <ActivityIndicator color={isSelected ? '#FFFFFF' : plan.color} />
+                  {purchasingPlanId === plan.id ? (
+                    <ActivityIndicator color="#FFFFFF" />
                   ) : (
                     <>
                       <Text

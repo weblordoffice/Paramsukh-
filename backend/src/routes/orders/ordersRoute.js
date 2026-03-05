@@ -9,7 +9,8 @@ import {
   cancelOrder,
   requestReturn,
   trackOrder,
-  getInvoice
+  getInvoice,
+  verifyOrderPayment
 } from '../../controller/orders/orders.controller.js';
 import {
   updateOrderStatusAdmin,
@@ -28,6 +29,7 @@ router.use(protectedRoutes);
 
 router.post('/create', createOrder);
 router.get('/my-orders', getMyOrders);
+router.post('/verify-payment', verifyOrderPayment);
 router.get('/:id', getOrderDetails);
 router.patch('/:id/cancel', cancelOrder);
 router.post('/:id/return', requestReturn);

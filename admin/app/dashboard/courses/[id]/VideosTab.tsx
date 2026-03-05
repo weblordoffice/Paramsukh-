@@ -59,11 +59,11 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
         if (video) {
             setEditingVideo(video);
             setFormData({
-                title: video.title,
-                url: video.videoUrl || video.url || '',
-                duration: video.duration,
-                thumbnailUrl: video.thumbnailUrl || '',
-                description: video.description || '',
+                title: video.title ?? '',
+                url: video.videoUrl ?? video.url ?? '',
+                duration: video.duration ?? 0,
+                thumbnailUrl: video.thumbnailUrl ?? '',
+                description: video.description ?? '',
             });
         } else {
             setEditingVideo(null);
@@ -123,15 +123,16 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
 
             if (response.data.success) {
                 if (type === 'video') {
+                    const data = response.data?.data;
                     setFormData(prev => ({
                         ...prev,
-                        url: response.data.data.url,
-                        duration: response.data.data.duration ? Math.round(response.data.data.duration / 60) : prev.duration // Convert seconds to minutes
+                        url: data?.url ?? prev.url ?? '',
+                        duration: data?.duration != null ? Math.round(Number(data.duration) / 60) : (prev.duration ?? 0)
                     }));
                 } else {
                     setFormData(prev => ({
                         ...prev,
-                        thumbnailUrl: response.data.data.url
+                        thumbnailUrl: response.data?.data?.url ?? prev.thumbnailUrl ?? ''
                     }));
                 }
                 toast.success(`${type} uploaded successfully!`);
@@ -318,9 +319,9 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
                                     <input
                                         type="text"
                                         required
-                                        value={formData.title}
+                                        value={formData.title ?? ''}
                                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-500"
                                         placeholder="Introduction to the Course"
                                     />
                                 </div>
@@ -334,9 +335,9 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
                                             <input
                                                 type="url"
                                                 required
-                                                value={formData.url}
+                                                value={formData.url ?? ''}
                                                 onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-500"
                                                 placeholder="https://vimeo.com/..."
                                             />
                                         </div>
@@ -386,9 +387,9 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
                                         required
                                         min="0"
                                         step="0.1"
-                                        value={formData.duration}
+                                        value={formData.duration ?? ''}
                                         onChange={(e) => setFormData({ ...formData, duration: parseFloat(e.target.value) || 0 })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-500"
                                         placeholder="30"
                                     />
                                     <p className="text-xs text-gray-500 mt-1">Auto-calculated on video upload</p>
@@ -420,9 +421,9 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
                                         <div className="flex-1">
                                             <input
                                                 type="url"
-                                                value={formData.thumbnailUrl}
+                                                value={formData.thumbnailUrl ?? ''}
                                                 onChange={(e) => setFormData({ ...formData, thumbnailUrl: e.target.value })}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-500"
                                                 placeholder="https://example.com/image.jpg"
                                             />
                                         </div>
@@ -455,10 +456,10 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
                                         Description
                                     </label>
                                     <textarea
-                                        value={formData.description}
+                                        value={formData.description ?? ''}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                         rows={3}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-500"
                                         placeholder="Brief description of the video content..."
                                     />
                                 </div>

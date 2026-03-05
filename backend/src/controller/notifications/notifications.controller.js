@@ -1,4 +1,39 @@
-import Notification from '../../models/notification.models.js';
+import Notification, { DeviceToken } from '../../models/notification.models.js';
+
+// @desc    Register device token for push notifications
+// @route   POST /api/notifications/device-token
+// @access  Private
+export const registerDeviceToken = async (req, res) => {
+  try {
+    const { token, platform } = req.body;
+    const userId = req.user._id;
+
+    if (!token) {
+      return res.status(400).json({ success: false, message: 'Device token is required' });
+    }
+
+    // Upsert token
+    const deviceToken = await DeviceToken.findOneAndUpdate(
+      { token },
+      {
+        user: userId,
+        token,
+        platform: platform || 'android',
+        lastUsedAt: Date.now()
+      },
+      { upsert: true, new: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Device token registered successfully',
+      data: deviceToken
+    });
+  } catch (error) {
+    console.error('Register Device Token Error:', error);
+    res.status(500).json({ success: false, message: 'Failed to register device token' });
+  }
+};
 
 // @desc    Get all notifications for current user
 // @route   GET /api/notifications
@@ -9,7 +44,7 @@ export const getNotifications = async (req, res) => {
     const { page = 1, limit = 20, unreadOnly = false } = req.query;
 
     const query = { user: userId };
-    
+
     if (unreadOnly === 'true') {
       query.isRead = false;
     }
@@ -53,9 +88,9 @@ export const getUnreadCount = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const count = await Notification.countDocuments({ 
-      user: userId, 
-      isRead: false 
+    const count = await Notification.countDocuments({
+      user: userId,
+      isRead: false
     });
 
     res.status(200).json({
@@ -82,9 +117,9 @@ export const markAsRead = async (req, res) => {
     const userId = req.user._id;
     const { id } = req.params;
 
-    const notification = await Notification.findOne({ 
-      _id: id, 
-      user: userId 
+    const notification = await Notification.findOne({
+      _id: id,
+      user: userId
     });
 
     if (!notification) {
@@ -128,11 +163,11 @@ export const markAllAsRead = async (req, res) => {
 
     const result = await Notification.updateMany(
       { user: userId, isRead: false },
-      { 
-        $set: { 
-          isRead: true, 
-          readAt: Date.now() 
-        } 
+      {
+        $set: {
+          isRead: true,
+          readAt: Date.now()
+        }
       }
     );
 
@@ -161,9 +196,9 @@ export const deleteNotification = async (req, res) => {
     const userId = req.user._id;
     const { id } = req.params;
 
-    const notification = await Notification.findOneAndDelete({ 
-      _id: id, 
-      user: userId 
+    const notification = await Notification.findOneAndDelete({
+      _id: id,
+      user: userId
     });
 
     if (!notification) {

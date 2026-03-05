@@ -16,10 +16,11 @@ const getHost = () => {
   return null;
 };
 
-// Known fallback IPs (Office, Home, etc.) - You can add more here
+// Your machine's IP — find it: run "ipconfig" and use the IPv4 under Wi-Fi or Ethernet (not 172.x)
 const FALLBACK_IPS = [
-  '192.168.0.103', // Home/Current
-  '192.168.1.11',  // Office
+  '192.168.0.104', // This PC (from ipconfig)
+  '192.168.0.103',
+  '192.168.1.11',
 ];
 
 // Select the IP: Dynamic Host > First Fallback > Localhost
@@ -27,25 +28,19 @@ const LOCAL_IP = getHost() || FALLBACK_IPS[0];
 
 // Determine the Base URL (without /api/auth or /api)
 const getBaseUrl = () => {
+  // In development, ALWAYS prioritize local server
+  if (__DEV__) {
+    console.log('🚧 Running in DEV mode, using local backend:', `http://${LOCAL_IP}:3000`);
+    return `http://${LOCAL_IP}:3000`;
+  }
+
+  // Only use config API URL in production
   if (Constants.expoConfig?.extra?.apiUrl) {
     return Constants.expoConfig.extra.apiUrl.replace('/api', '').replace('/auth', '');
   }
 
-  if (__DEV__) {
-    if (Platform.OS === 'android') {
-      // Android emulator
-      // return 'http://10.0.2.2:3000';
-      return `http://${LOCAL_IP}:3000`;
-    } else if (Platform.OS === 'ios') {
-      // iOS simulator
-      return 'http://localhost:3000';
-    } else {
-      // Web / Other
-      return `http://${LOCAL_IP}:3000`;
-    }
-  }
-
-  return 'http://localhost:3000';
+  // Fallback production URL
+  return 'http://72.60.204.27:3000';
 };
 
 export const BASE_URL = getBaseUrl();
@@ -58,3 +53,6 @@ console.log('🌐 API Configuration:', {
   API_BASE_URL,
   API_URL
 });
+
+export const RAZORPAY_KEY_ID = 'rzp_test_SHVs60hci108TL';
+

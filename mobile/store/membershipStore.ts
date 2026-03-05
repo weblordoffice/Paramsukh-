@@ -7,8 +7,7 @@ import apiClient from '../utils/apiClient';
 export interface MembershipPlan {
     id: string;
     name: string;
-    regularPrice: number;
-    offerPrice: number;
+    price: number;
     emoji: string;
     color: string;
     gradient: string[];

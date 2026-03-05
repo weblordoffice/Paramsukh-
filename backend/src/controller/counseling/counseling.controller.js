@@ -1,22 +1,98 @@
 import Booking from '../../models/booking.models.js';
 import { User } from '../../models/user.models.js';
+import CounselingService from '../../models/counselingService.model.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
+import { verifyRazorpaySignature } from '../../services/razorpayService.js';
+export const getAllServices = async (req, res) => {
+  try {
+    const services = await CounselingService.find({ isActive: true });
+    res.status(200).json({
+      success: true,
+      data: { services }
+    });
+  } catch (error) {
+    console.error('Get Counseling Services Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch services',
+      error: error.message
+    });
+  }
+};
 
-// @desc    Get available time slots
-// @route   GET /api/counseling/availability
-// @access  Private
+export const createService = async (req, res) => {
+  try {
+    const service = await CounselingService.create(req.body);
+    res.status(201).json({
+      success: true,
+      data: { service }
+    });
+  } catch (error) {
+    console.error('Create Service Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create service',
+      error: error.message
+    });
+  }
+};
+
+export const updateService = async (req, res) => {
+  try {
+    const service = await CounselingService.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true
+    });
+    if (!service) {
+      return res.status(404).json({ success: false, message: 'Service not found' });
+    }
+    res.status(200).json({
+      success: true,
+      data: { service }
+    });
+  } catch (error) {
+    console.error('Update Service Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update service',
+      error: error.message
+    });
+  }
+};
+
+export const deleteService = async (req, res) => {
+  try {
+    const service = await CounselingService.findById(req.params.id);
+    if (!service) {
+      return res.status(404).json({ success: false, message: 'Service not found' });
+    }
+    await service.deleteOne();
+    res.status(200).json({
+      success: true,
+      message: 'Service deleted'
+    });
+  } catch (error) {
+    console.error('Delete Service Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete service',
+      error: error.message
+    });
+  }
+};
+
 export const getAvailability = async (req, res) => {
   try {
     const { date, counselorType } = req.query;
 
-    if (!date || !counselorType) {
+    if (!date) {
       return res.status(400).json({
         success: false,
-        message: 'Date and counselor type are required'
+        message: 'Date is required'
       });
     }
 
-    const availableSlots = await Booking.getAvailableSlots(date, counselorType);
+    const availableSlots = await Booking.getAvailableSlots(date, counselorType || 'general');
 
     res.status(200).json({
       success: true,
@@ -37,9 +113,6 @@ export const getAvailability = async (req, res) => {
   }
 };
 
-// @desc    Book a counseling session
-// @route   POST /api/counseling/book
-// @access  Private
 export const bookCounseling = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -100,7 +173,7 @@ export const bookCounseling = async (req, res) => {
       bookingDate: new Date(bookingDate),
       bookingTime,
       userNotes: userNotes || '',
-      userPhone: user.phoneNumber,
+      userPhone: user.phone || 'N/A',
       userEmail: user.email || '',
       isFree,
       amount: bookingAmount,
@@ -188,7 +261,7 @@ export const getBookingDetails = async (req, res) => {
     const booking = await Booking.findOne({
       _id: bookingId,
       user: userId
-    }).populate('user', 'fullName email phoneNumber');
+    }).populate('user', 'displayName email phone');
 
     if (!booking) {
       return res.status(404).json({
@@ -371,14 +444,21 @@ export const rescheduleBooking = async (req, res) => {
   }
 };
 
-// @desc    Update payment status
+// @desc    Update payment status (Razorpay: verify signature then confirm booking)
 // @route   POST /api/counseling/:bookingId/payment
 // @access  Private
 export const updatePaymentStatus = async (req, res) => {
   try {
     const userId = req.user._id;
     const { bookingId } = req.params;
-    const { paymentId, paymentMethod, paymentStatus } = req.body;
+    const {
+      paymentId,
+      paymentMethod,
+      paymentStatus,
+      razorpay_payment_id,
+      razorpay_order_id,
+      razorpay_signature
+    } = req.body;
 
     const booking = await Booking.findOne({
       _id: bookingId,
@@ -399,12 +479,29 @@ export const updatePaymentStatus = async (req, res) => {
       });
     }
 
-    booking.paymentId = paymentId;
-    booking.paymentMethod = paymentMethod;
+    // If Razorpay IDs provided, verify signature before updating
+    const paymentIdToUse = razorpay_payment_id || paymentId;
+    const orderIdToUse = razorpay_order_id;
+    if (paymentIdToUse && orderIdToUse) {
+      const isValid = verifyRazorpaySignature(
+        orderIdToUse,
+        paymentIdToUse,
+        razorpay_signature || 'test_signature'
+      );
+      if (!isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Payment verification failed'
+        });
+      }
+    }
+
+    booking.paymentId = paymentIdToUse || paymentId;
+    booking.paymentMethod = paymentMethod || 'razorpay';
     booking.paymentStatus = paymentStatus || 'paid';
-    booking.paidAt = Date.now();
-    
-    if (paymentStatus === 'paid') {
+    booking.paidAt = new Date();
+
+    if (paymentStatus === 'paid' || booking.paymentStatus === 'paid') {
       booking.status = 'confirmed';
     }
 

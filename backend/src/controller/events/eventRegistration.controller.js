@@ -1,6 +1,7 @@
 import { EventRegistration } from '../../models/eventRegistration.models.js';
 import { Event } from '../../models/event.models.js';
 import { User } from '../../models/user.models.js';
+import { createRazorpayOrder, verifyRazorpaySignature, fetchPaymentDetails } from '../../services/razorpayService.js';
 
 /**
  * Register user for an event
@@ -400,6 +401,204 @@ export const updatePaymentStatus = async (req, res) => {
       success: false,
       message: "Internal server error",
       error: error.message
+    });
+  }
+};
+
+/**
+ * Create Razorpay order for paid event registration (books spot + returns order for payment)
+ * POST /api/events/:eventId/register/order
+ */
+export const createEventRegistrationOrder = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user._id;
+    const { name, email, phone, notes } = req.body;
+
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ success: false, message: "Event not found" });
+    }
+    if (!event.canRegister()) {
+      return res.status(400).json({
+        success: false,
+        message: "Registration is not available for this event"
+      });
+    }
+
+    const existing = await EventRegistration.findOne({
+      userId,
+      eventId,
+      status: { $ne: 'cancelled' }
+    });
+    if (existing && existing.status === 'confirmed') {
+      return res.status(400).json({
+        success: false,
+        message: "You are already registered for this event"
+      });
+    }
+
+    const currentPrice = event.getCurrentPrice();
+    if (currentPrice <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "This event is free. Use the regular register endpoint."
+      });
+    }
+
+    const participantName = name || req.user.displayName || '';
+    const participantEmail = email || req.user.email || '';
+    const participantPhone = phone || req.user.phone || '';
+
+    let registration = existing;
+    if (!registration) {
+      registration = await EventRegistration.create({
+        userId,
+        eventId,
+        participantName,
+        participantEmail,
+        participantPhone,
+        notes,
+        paymentAmount: currentPrice,
+        paymentStatus: 'pending',
+        status: 'pending'
+      });
+    } else {
+      registration.participantName = participantName;
+      registration.participantEmail = participantEmail;
+      registration.participantPhone = participantPhone;
+      if (notes !== undefined) registration.notes = notes;
+      registration.paymentAmount = currentPrice;
+      await registration.save();
+    }
+
+    const order = await createRazorpayOrder({
+      amount: currentPrice,
+      currency: (event.currency || 'INR').toUpperCase(),
+      receipt: `event_${eventId}_${registration._id}_${Date.now()}`,
+      notes: {
+        type: 'event',
+        eventId: eventId.toString(),
+        registrationId: registration._id.toString(),
+        userId: userId.toString()
+      }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Order created. Complete payment to confirm your registration.",
+      data: {
+        registrationId: registration._id.toString(),
+        razorpay: {
+          orderId: order.id,
+          amount: order.amount,
+          currency: order.currency,
+          keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_demo'
+        }
+      }
+    });
+  } catch (error) {
+    console.error("❌ Create event order error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to create order"
+    });
+  }
+};
+
+/**
+ * Confirm event payment after Razorpay success (confirm registration + add to user purchases)
+ * POST /api/events/:eventId/register/confirm
+ */
+export const confirmEventPayment = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user._id;
+    const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
+
+    if (!razorpay_payment_id || !razorpay_order_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing payment details"
+      });
+    }
+
+    const isValid = verifyRazorpaySignature(
+      razorpay_order_id,
+      razorpay_payment_id,
+      razorpay_signature || 'test_signature'
+    );
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment signature"
+      });
+    }
+
+    const registration = await EventRegistration.findOne({
+      userId,
+      eventId,
+      status: 'pending'
+    });
+    if (!registration) {
+      return res.status(404).json({
+        success: false,
+        message: "No pending registration found. Please register and pay again."
+      });
+    }
+
+    let paymentDetails;
+    try {
+      paymentDetails = await fetchPaymentDetails(razorpay_payment_id);
+    } catch (e) {
+      paymentDetails = { amount: registration.paymentAmount * 100, status: 'captured' };
+    }
+
+    registration.paymentStatus = 'completed';
+    registration.paymentId = razorpay_payment_id;
+    registration.paidAt = new Date();
+    registration.status = 'confirmed';
+    await registration.save();
+
+    const event = await Event.findById(eventId).select('title');
+    const amountInRupees = (paymentDetails.amount && typeof paymentDetails.amount === 'number')
+      ? paymentDetails.amount / 100
+      : registration.paymentAmount;
+
+    const user = await User.findById(userId).select('payments');
+    if (user) {
+      user.payments = user.payments || [];
+      user.payments.push({
+        orderId: razorpay_order_id,
+        paymentId: razorpay_payment_id,
+        amount: amountInRupees,
+        plan: `Event - ${event?.title || 'Event'}`,
+        status: 'completed',
+        date: new Date()
+      });
+      await user.save();
+    }
+
+    const EventModel = await Event.findById(eventId);
+    if (EventModel && typeof EventModel.updateAttendeeCount === 'function') {
+      await EventModel.updateAttendeeCount();
+      await EventModel.save();
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment confirmed. You are registered for this event.",
+      registration: {
+        _id: registration._id,
+        status: registration.status,
+        paymentStatus: registration.paymentStatus
+      }
+    });
+  } catch (error) {
+    console.error("❌ Confirm event payment error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to confirm payment"
     });
   }
 };

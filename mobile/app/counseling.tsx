@@ -24,8 +24,14 @@ export default function CounselingScreen() {
       router.push({
         pathname: '/book-counseling',
         params: {
-          type: selectedType,
+          id: selected?.id,
           title: selected?.title,
+          description: selected?.description,
+          price: selected?.price ? selected.price.toString() : '0',
+          counselorName: (selected as any)?.counselorName, // Assuming counselorName is added to interface
+          duration: selected?.duration,
+          color: selected?.color,
+          bgColor: selected?.bgColor,
           isFree: selected?.isFree ? 'true' : 'false',
         }
       });

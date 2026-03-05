@@ -6,6 +6,7 @@ import {
   uploadSingleImage as uploadSingleImageMiddleware,
   uploadMultipleImages as uploadMultipleImagesMiddleware,
   uploadSingleVideo,
+  uploadSinglePdf,
   uploadProfilePhoto as uploadProfilePhotoMiddleware,
   handleMulterError
 } from '../../middleware/uploadMiddleware.js';
@@ -14,6 +15,7 @@ import {
   uploadImages,
   uploadProfilePhoto,
   uploadVideoFile,
+  uploadPdfFile,
   uploadProductImages,
   uploadCourseMedia,
   deleteUploadedFile,
@@ -112,6 +114,16 @@ router.post('/video',
   uploadSingleVideo,
   handleMulterError,
   uploadVideoFile
+);
+
+// Upload PDF (for course materials)
+// POST /api/upload/pdf
+// @multipart file: PDF file (max 50MB)
+router.post('/pdf',
+  adminOrUserAuth,
+  uploadSinglePdf,
+  handleMulterError,
+  uploadPdfFile
 );
 
 // ========================================

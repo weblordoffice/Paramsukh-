@@ -98,14 +98,14 @@ notificationSchema.index({ user: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 }); // Auto-delete
 
 // Mark as read
-notificationSchema.methods.markAsRead = function() {
+notificationSchema.methods.markAsRead = function () {
   this.isRead = true;
   this.readAt = Date.now();
   return this.save();
 };
 
 // Static method to create notification
-notificationSchema.statics.createNotification = async function(data) {
+notificationSchema.statics.createNotification = async function (data) {
   try {
     const notification = new this(data);
     await notification.save();
@@ -117,13 +117,13 @@ notificationSchema.statics.createNotification = async function(data) {
 };
 
 // Static method to send notification to multiple users
-notificationSchema.statics.sendToMultipleUsers = async function(userIds, notificationData) {
+notificationSchema.statics.sendToMultipleUsers = async function (userIds, notificationData) {
   try {
     const notifications = userIds.map(userId => ({
       ...notificationData,
       user: userId
     }));
-    
+
     const created = await this.insertMany(notifications);
     return created;
   } catch (error) {
@@ -132,6 +132,34 @@ notificationSchema.statics.sendToMultipleUsers = async function(userIds, notific
   }
 };
 
+const deviceTokenSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
+  token: {
+    type: String,
+    required: true,
+    unique: true
+  },
+  platform: {
+    type: String,
+    enum: ['ios', 'android', 'web'],
+    default: 'android'
+  },
+  lastUsedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+deviceTokenSchema.index({ user: 1, token: 1 });
+
 const Notification = mongoose.model('Notification', notificationSchema);
+export const DeviceToken = mongoose.model('DeviceToken', deviceTokenSchema);
 
 export default Notification;

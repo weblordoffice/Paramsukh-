@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { useAuthStore } from '@/lib/store/authStore';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3000';
 const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || 'dev-admin-key-123';
 
 export const apiClient = axios.create({
@@ -11,10 +12,16 @@ export const apiClient = axios.create({
     },
 });
 
-// Request interceptor
+// Request interceptor: add admin JWT, and let browser set Content-Type for FormData
 apiClient.interceptors.request.use(
     (config) => {
-        // Add any auth tokens here if needed
+        const token = useAuthStore.getState().token;
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        if (config.data instanceof FormData) {
+            delete config.headers['Content-Type'];
+        }
         return config;
     },
     (error) => {

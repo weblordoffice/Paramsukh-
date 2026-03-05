@@ -99,7 +99,7 @@ cartSchema.methods.calculateTotals = function() {
 };
 
 // Add item to cart
-cartSchema.methods.addItem = async function(productId, quantity, price, variant = null) {
+cartSchema.methods.addItem = async function(productId, quantity, price, variant = undefined) {
   const existingItemIndex = this.items.findIndex(item => 
     item.product.toString() === productId.toString() &&
     JSON.stringify(item.variant) === JSON.stringify(variant)
@@ -110,12 +110,15 @@ cartSchema.methods.addItem = async function(productId, quantity, price, variant 
     this.items[existingItemIndex].quantity += quantity;
   } else {
     // Add new item
-    this.items.push({
+    const newItem = {
       product: productId,
       quantity,
-      price,
-      variant
-    });
+      price
+    };
+    if (variant && typeof variant === 'object' && Object.keys(variant).length > 0) {
+      newItem.variant = variant;
+    }
+    this.items.push(newItem);
   }
   
   this.calculateTotals();

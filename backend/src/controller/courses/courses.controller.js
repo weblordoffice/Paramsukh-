@@ -2,7 +2,7 @@ import { Course } from '../../models/course.models.js';
 
 export const createCourse = async (req, res) => {
     try {
-        const { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status } = req.body;
+        const { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status, includedInPlans } = req.body;
 
         // validate the request body
         if (!title || !description || !color || !icon || !thumbnailUrl || !bannerUrl || !duration || !category || !tags || !status) {
@@ -23,7 +23,9 @@ export const createCourse = async (req, res) => {
             duration,
             category,
             tags,
-            status
+            tags,
+            status,
+            includedInPlans: includedInPlans || []
         })
 
         return res.status(201).json({
@@ -86,7 +88,7 @@ export const updateCourse = async (req, res) => {
                 message: "Course ID is required"
             })
         }
-        const { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status } = req.body;
+        const { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status, includedInPlans } = req.body;
         if (!title || !description || !color || !icon || !thumbnailUrl || !bannerUrl || !duration || !category || !tags || !status) {
             return res.status(400).json({
                 success: false,
@@ -94,7 +96,7 @@ export const updateCourse = async (req, res) => {
             })
         }
 
-        const course = await Course.findByIdAndUpdate(id, { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status }, { new: true });
+        const course = await Course.findByIdAndUpdate(id, { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status, includedInPlans }, { new: true });
         if (!course) {
             return res.status(404).json({
                 success: false,
@@ -119,16 +121,16 @@ export const updateCourse = async (req, res) => {
 export const getAllCourses = async (req, res) => {
     try {
         const courses = await Course.find()
-            .select('title description thumbnailUrl bannerUrl color icon duration category tags status totalVideos totalPdfs enrollmentCount completionCount averageRating reviewCount createdAt')
+            .select('title description thumbnailUrl bannerUrl color icon duration category tags status totalVideos totalPdfs enrollmentCount completionCount averageRating reviewCount includedInPlans createdAt')
             .sort({ createdAt: -1 });
-        
+
         if (!courses || courses.length === 0) {
             return res.status(404).json({
                 success: false,
                 message: "courses not found"
             })
         }
-        
+
         return res.status(200).json({
             success: true,
             message: "courses fetched successfully",

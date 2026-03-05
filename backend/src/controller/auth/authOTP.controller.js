@@ -1,6 +1,8 @@
+import jwt from 'jsonwebtoken';
 import { User } from "../../models/user.models.js";
 import { sendOTP, verifyOTP } from "../../services/otpService.js";
 import { generateTokens } from "../../lib/generateTokens.js";
+import { sendWelcomeEmail } from "../../services/emailService.js";
 
 /**
  * Send OTP for signup or signin
@@ -36,10 +38,10 @@ export const sendOTPController = async (req, res) => {
       isNewUser
     };
 
-    // Only include OTP in development mode
-    if (process.env.NODE_ENV === 'development') {
-      responsePayload.otp = result.otp;
-    }
+    // TEMPORARY: Always include OTP for testing
+    // if (process.env.NODE_ENV === 'development') {
+    responsePayload.otp = result.otp;
+    // }
 
     return res.json(responsePayload);
   } catch (error) {
@@ -128,12 +130,27 @@ export const verifyOTPController = async (req, res) => {
     }
 
     const token = generateTokens(user._id, res);
+    const refreshToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '30d' }
+    );
+
+    // Send welcome email if new user
+    if (isNewUser && user.email) {
+      try {
+        sendWelcomeEmail(user).catch(err => console.error('Failed to send welcome email:', err));
+      } catch (e) {
+        console.error('Email error:', e);
+      }
+    }
 
     return res.json({
       success: true,
       message: isNewUser ? "Account created successfully" : "Signed in successfully",
       isNewUser,
       token,
+      refreshToken,
       user: {
         _id: user._id,
         phone: user.phone,
@@ -148,6 +165,7 @@ export const verifyOTPController = async (req, res) => {
         assessmentCompletedAt: user.assessmentCompletedAt || null
       }
     });
+
   } catch (error) {
     console.error("❌ Verify OTP error:", error);
     return res.status(500).json({

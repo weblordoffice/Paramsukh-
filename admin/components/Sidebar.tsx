@@ -11,32 +11,51 @@ import {
     ClipboardList,
     Home,
     Crown,
-    X
+    X,
+    Mic,
+    Settings
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
+import { useAuthStore } from '@/lib/store/authStore';
 
 interface SidebarProps {
     isOpen?: boolean;
     onClose?: () => void;
 }
 
-const menuItems = [
+interface MenuItem {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    href: string;
+    /** Only super_admin sees this item */
+    superAdminOnly?: boolean;
+    /** For role 'admin': need this permission to see the item (ignored for super_admin) */
+    permission?: string;
+}
+
+const menuItems: MenuItem[] = [
     { icon: Home, label: 'Dashboard', href: '/dashboard' },
-    { icon: Users, label: 'Users', href: '/dashboard/users' },
-    { icon: Crown, label: 'Memberships', href: '/dashboard/memberships' },
-    { icon: BookOpen, label: 'Courses', href: '/dashboard/courses' },
-    { icon: Calendar, label: 'Events', href: '/dashboard/events' },
-    { icon: ShoppingCart, label: 'Products', href: '/dashboard/products' },
-    { icon: Package, label: 'Orders', href: '/dashboard/orders' },
-    { icon: ClipboardList, label: 'Bookings', href: '/dashboard/bookings' },
-    { icon: MessageSquare, label: 'Community', href: '/dashboard/community' },
-    { icon: Bell, label: 'Notifications', href: '/dashboard/notifications' },
+    { icon: Users, label: 'Users', href: '/dashboard/users', permission: 'manage_users' },
+    { icon: Crown, label: 'Memberships', href: '/dashboard/memberships', permission: 'manage_users' },
+    { icon: BookOpen, label: 'Courses', href: '/dashboard/courses', permission: 'manage_courses' },
+    { icon: Mic, label: 'Podcasts', href: '/dashboard/podcasts', permission: 'manage_content' },
+    { icon: Calendar, label: 'Events', href: '/dashboard/events', permission: 'manage_events' },
+    { icon: ShoppingCart, label: 'Products', href: '/dashboard/products', permission: 'manage_shop' },
+    { icon: Package, label: 'Orders', href: '/dashboard/orders', permission: 'manage_orders' },
+    { icon: ClipboardList, label: 'Bookings', href: '/dashboard/bookings', permission: 'manage_content' },
+    { icon: MessageSquare, label: 'Community', href: '/dashboard/community', permission: 'manage_community' },
+    { icon: MessageSquare, label: 'Counseling', href: '/dashboard/counseling', permission: 'manage_content' },
+    { icon: Bell, label: 'Notifications', href: '/dashboard/notifications', permission: 'manage_content' },
+    { icon: Settings, label: 'Settings', href: '/dashboard/settings', superAdminOnly: true },
 ];
 
 export default function Sidebar({ isOpen, onClose }: SidebarProps) {
     const pathname = usePathname();
+    const user = useAuthStore((s) => s.user);
+    const hasPermission = useAuthStore((s) => s.hasPermission);
+    const isSuperAdmin = user?.role === 'super_admin';
 
     return (
         <>
@@ -80,6 +99,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                 <nav className="flex-1 overflow-y-auto py-4">
                     <ul className="space-y-1 px-3">
                         {menuItems.map((item) => {
+                            if (item.superAdminOnly && !isSuperAdmin) return null;
+                            if (item.permission && !isSuperAdmin && !hasPermission(item.permission)) return null;
                             const Icon = item.icon;
                             const isActive = pathname === item.href;
 

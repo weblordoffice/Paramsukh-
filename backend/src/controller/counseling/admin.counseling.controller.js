@@ -15,12 +15,13 @@ export const getAllBookings = async (req, res) => {
             query.$or = [
                 { bookingTitle: { $regex: search, $options: 'i' } },
                 { counselorName: { $regex: search, $options: 'i' } },
-                { userPhone: { $regex: search, $options: 'i' } }
+                { userPhone: { $regex: search, $options: 'i' } },
+                { userEmail: { $regex: search, $options: 'i' } }
             ];
         }
 
         const bookings = await Booking.find(query)
-            .populate('user', 'displayName email phoneNumber')
+            .populate('user', 'displayName email phone')
             .sort({ bookingDate: -1 })
             .limit(limit * 1)
             .skip((page - 1) * limit)
@@ -57,7 +58,7 @@ export const getBookingDetailsAdmin = async (req, res) => {
         const { id } = req.params;
 
         const booking = await Booking.findById(id)
-            .populate('user', 'displayName email phoneNumber');
+            .populate('user', 'displayName email phone');
 
         if (!booking) {
             return res.status(404).json({
@@ -133,6 +134,63 @@ export const updateBookingStatusAdmin = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to update booking status',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Update meeting details for a booking (Admin – add Zoom/Meet link to take session)
+// @route   PATCH /api/counseling/admin/:id/meeting
+// @access  Admin
+export const updateBookingMeetingAdmin = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { meetingLink, meetingId, meetingPassword, meetingPlatform } = req.body;
+
+        const booking = await Booking.findById(id);
+
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: 'Booking not found'
+            });
+        }
+
+        if (meetingLink !== undefined) booking.meetingLink = meetingLink;
+        if (meetingId !== undefined) booking.meetingId = meetingId;
+        if (meetingPassword !== undefined) booking.meetingPassword = meetingPassword;
+        if (meetingPlatform !== undefined) {
+            const allowed = ['zoom', 'google_meet', 'phone', 'in_person'];
+            if (allowed.includes(String(meetingPlatform).toLowerCase())) {
+                booking.meetingPlatform = meetingPlatform.toLowerCase();
+            }
+        }
+
+        await booking.save();
+
+        // Notify user when meeting link is added so they can join
+        if (meetingLink) {
+            await sendNotification(booking.user, {
+                type: 'booking_status',
+                title: 'Session meeting link added',
+                message: `Your counseling session on ${new Date(booking.bookingDate).toLocaleDateString()} at ${booking.bookingTime}: join link has been added. Check your booking details.`,
+                icon: '🔗',
+                priority: 'high',
+                relatedId: booking._id,
+                relatedType: 'booking'
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Meeting details updated',
+            data: { booking }
+        });
+    } catch (error) {
+        console.error('Update Booking Meeting Admin Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update meeting details',
             error: error.message
         });
     }

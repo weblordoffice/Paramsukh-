@@ -101,6 +101,8 @@ interface EventState {
         paymentRequired?: boolean;
         paymentAmount?: number;
     }>;
+    createEventOrder: (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string }) => Promise<{ success: boolean; data?: { registrationId: string; razorpay: { orderId: string; amount: number; currency: string; keyId: string } }; message?: string }>;
+    confirmEventPayment: (eventId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => Promise<{ success: boolean; message?: string }>;
     cancelEventRegistration: (eventId: string) => Promise<boolean>;
     checkRegistrationStatus: (eventId: string) => Promise<boolean>;
 }
@@ -235,6 +237,47 @@ export const useEventStore = create<EventState>((set, get) => ({
                 success: false,
                 message: error.response?.data?.message || 'Registration failed'
             };
+        }
+    },
+
+    createEventOrder: async (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string }) => {
+        try {
+            const token = useAuthStore.getState().token;
+            if (!token) return { success: false, message: 'Please sign in to register.' };
+            const response = await axios.post(
+                `${API_URL}/events/${eventId}/register/order`,
+                payload,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data?.success && response.data?.data)
+                return { success: true, data: response.data.data, message: response.data.message };
+            return { success: false, message: response.data?.message || 'Failed to create order' };
+        } catch (error: any) {
+            return { success: false, message: error.response?.data?.message || 'Failed to create order' };
+        }
+    },
+
+    confirmEventPayment: async (eventId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
+        try {
+            const token = useAuthStore.getState().token;
+            if (!token) return { success: false, message: 'Please sign in.' };
+            const response = await axios.post(
+                `${API_URL}/events/${eventId}/register/confirm`,
+                paymentData,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+            if (response.data?.success) {
+                set((state) => ({
+                    events: state.events.map((e) => (e._id === eventId ? { ...e, isRegistered: true, currentAttendees: (e.currentAttendees || 0) + 1 } : e)),
+                    currentEvent: state.currentEvent?._id === eventId
+                        ? { ...state.currentEvent, isRegistered: true, currentAttendees: (state.currentEvent.currentAttendees || 0) + 1 }
+                        : state.currentEvent
+                }));
+                return { success: true, message: response.data.message };
+            }
+            return { success: false, message: response.data?.message || 'Payment confirmation failed' };
+        } catch (error: any) {
+            return { success: false, message: error.response?.data?.message || 'Payment confirmation failed' };
         }
     },
 

@@ -41,6 +41,16 @@ const orderItemSchema = new mongoose.Schema({
   }
 });
 
+// Strip null/empty variants to avoid cast errors
+orderItemSchema.pre('validate', function (next) {
+  if (this.variant == null) {
+    this.variant = undefined;
+  } else if (typeof this.variant === 'object' && Object.keys(this.variant).length === 0) {
+    this.variant = undefined;
+  }
+  next();
+});
+
 const orderSchema = new mongoose.Schema({
   // Order number
   orderNumber: {
@@ -88,7 +98,7 @@ const orderSchema = new mongoose.Schema({
   payment: {
     method: {
       type: String,
-      enum: ['upi', 'card', 'netbanking', 'wallet', 'cod'],
+      enum: ['upi', 'card', 'netbanking', 'wallet', 'cod', 'razorpay', 'online'],
       required: true
     },
     status: {
@@ -99,7 +109,10 @@ const orderSchema = new mongoose.Schema({
     transactionId: String,
     paidAt: Date,
     refundedAt: Date,
-    refundAmount: Number
+    refundAmount: Number,
+    razorpayOrderId: String,
+    razorpayPaymentId: String,
+    razorpayReceiptId: String
   },
   // Order status
   status: {
@@ -169,7 +182,7 @@ orderSchema.index({ status: 1 });
 orderSchema.index({ 'payment.status': 1 });
 
 // Generate order number
-orderSchema.pre('save', async function(next) {
+orderSchema.pre('save', async function (next) {
   if (!this.orderNumber) {
     const date = new Date();
     const year = date.getFullYear().toString().slice(-2);
@@ -181,7 +194,7 @@ orderSchema.pre('save', async function(next) {
 });
 
 // Add status to history
-orderSchema.methods.updateStatus = async function(newStatus, comment = '', updatedBy = null) {
+orderSchema.methods.updateStatus = async function (newStatus, comment = '', updatedBy = null) {
   this.status = newStatus;
   this.statusHistory.push({
     status: newStatus,
@@ -189,14 +202,14 @@ orderSchema.methods.updateStatus = async function(newStatus, comment = '', updat
     updatedBy,
     timestamp: new Date()
   });
-  
+
   // Update timestamps
   if (newStatus === 'confirmed') this.confirmedAt = new Date();
   if (newStatus === 'shipped') this.shippedAt = new Date();
   if (newStatus === 'delivered') this.deliveredAt = new Date();
   if (newStatus === 'cancelled') this.cancelledAt = new Date();
   if (newStatus === 'returned') this.returnedAt = new Date();
-  
+
   await this.save();
   return this;
 };

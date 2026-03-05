@@ -36,11 +36,15 @@ export default function Home() {
 
         // If we have a token, fetch fresh user data from server
         if (currentToken) {
-          await fetchCurrentUser();
-          
-          // Small delay to ensure state is updated
+          const fetchOk = await fetchCurrentUser();
+          if (!isMounted) return;
+          // If /auth/me failed (401/400/403), we cleared user in store - go to signin
+          if (!fetchOk && !useAuthStore.getState().user) {
+            setHasChecked(true);
+            router.replace('/signin');
+            return;
+          }
           await new Promise(resolve => setTimeout(resolve, 50));
-          
           if (!isMounted) return;
         }
 
@@ -67,14 +71,13 @@ export default function Home() {
       }
     };
 
-    // Timeout fallback - redirect to signin after 3 seconds if still loading
+    // Timeout fallback - if still loading after 5s, redirect to signin (avoids stuck spinner)
     const timeoutId = setTimeout(() => {
       if (!hasChecked && isMounted) {
-        console.log('Timeout: Redirecting to signin');
         setHasChecked(true);
         router.replace('/signin');
       }
-    }, 3000);
+    }, 5000);
 
     // Only run once on mount
     if (!hasChecked) {

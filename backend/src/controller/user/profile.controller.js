@@ -12,7 +12,7 @@ export const getProfile = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const user = await User.findById(userId)    .select('-__v');
+    const user = await User.findById(userId).select('-__v');
 
     if (!user) {
       return res.status(404).json({
@@ -44,11 +44,11 @@ export const getProfile = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { displayName  , photoURL } = req.body;
+    const { displayName, photoURL } = req.body;
 
     // Build update object (only include provided fields)
     const updateData = {};
-    
+
     if (displayName !== undefined) {
       if (!displayName || displayName.trim().length < 2) {
         return res.status(400).json({
@@ -59,7 +59,7 @@ export const updateProfile = async (req, res) => {
       updateData.displayName = displayName.trim();
     }
 
-   
+
 
     if (photoURL !== undefined) {
       updateData.photoURL = photoURL;
@@ -76,7 +76,7 @@ export const updateProfile = async (req, res) => {
       userId,
       updateData,
       { new: true, runValidators: true }
-    )    .select('-__v');
+    ).select('-__v');
 
     if (!user) {
       return res.status(404).json({
@@ -96,7 +96,7 @@ export const updateProfile = async (req, res) => {
   } catch (error) {
     console.error("❌ Error updating profile:", error);
 
-   
+
 
     return res.status(500).json({
       success: false,
@@ -126,7 +126,7 @@ export const updateProfilePhoto = async (req, res) => {
       userId,
       { photoURL },
       { new: true }
-    )    .select('-__v');
+    ).select('-__v');
 
     if (!user) {
       return res.status(404).json({
@@ -163,7 +163,7 @@ export const removeProfilePhoto = async (req, res) => {
       userId,
       { photoURL: null },
       { new: true }
-    )    .select('-__v');
+    ).select('-__v');
 
     if (!user) {
       return res.status(404).json({
@@ -261,7 +261,7 @@ export const getSubscription = async (req, res) => {
 
     const now = new Date();
     const isTrialActive = user.subscriptionStatus === 'trial' && user.trialEndsAt > now;
-    const trialDaysLeft = isTrialActive 
+    const trialDaysLeft = isTrialActive
       ? Math.ceil((user.trialEndsAt - now) / (1000 * 60 * 60 * 24))
       : 0;
 
@@ -292,7 +292,7 @@ export const getSubscription = async (req, res) => {
  * GET /api/user/stats
  */
 export const getUserStats = async (req, res) => {
-  try {
+  try {image.png
     const userId = req.user._id;
 
     // Import models dynamically to avoid circular dependencies
@@ -447,42 +447,18 @@ export const purchaseMembership = async (req, res) => {
       });
     }
 
-    // Get courses that should be auto-enrolled for this plan
-    const courseTitles = MEMBERSHIP_COURSE_ACCESS[plan];
-    if (!courseTitles || courseTitles.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: `No courses configured for ${plan} plan`
-      });
-    }
-
-    // Find courses by title (case-insensitive, trim whitespace)
-    const courseTitlePatterns = courseTitles.map(title => ({
-      $expr: { $eq: [{ $trim: [{ $toLower: '$title' }] }, title.toLowerCase().trim()] }
-    }));
-    
+    // Get courses that are configured for this plan via includedInPlans field
     const courses = await Course.find({
-      $or: courseTitlePatterns,
+      includedInPlans: plan,
       status: 'published'
     });
 
     if (courses.length === 0) {
-      console.error(`❌ NO courses found for ${plan} plan. Looking for:`, courseTitles);
-      // List available published courses for debugging
-      const allPublishedCourses = await Course.find({ status: 'published' }).select('title').lean();
-      console.error('Available published courses:', allPublishedCourses.map(c => c.title));
-      return res.status(400).json({
-        success: false,
-        message: `No published courses found for ${plan} plan. Available courses: ${allPublishedCourses.map(c => c.title).join(', ') || 'None'}`
-      });
-    }
-
-    if (courses.length !== courseTitles.length) {
-      const foundTitles = courses.map(c => c.title);
-      const missingTitles = courseTitles.filter(t => !foundTitles.some(ft => ft.toLowerCase().trim() === t.toLowerCase().trim()));
-      console.warn(`⚠️ Some courses not found for ${plan} plan. Missing:`, missingTitles);
-      // Log what we found for debugging
-      console.log('Found courses:', courses.map(c => c.title));
+      console.warn(`⚠️ No courses found for ${plan} plan in database configuration.`);
+      // We process the membership update anyway, assuming admin might add courses later
+      // or this might be a plan without courses (unlikely but possible)
+    } else {
+      console.log(`Found ${courses.length} courses for plan ${plan}:`, courses.map(c => c.title));
     }
 
     // Update user subscription
@@ -499,11 +475,11 @@ export const purchaseMembership = async (req, res) => {
           courseId: course._id,
           currentVideoId: course.videos.length > 0 ? course.videos[0]._id : null
         });
-        
+
         // Update course enrollment count
         course.enrollmentCount += 1;
         await course.save();
-        
+
         return enrollment;
       }
       return existingEnrollment;
@@ -515,7 +491,7 @@ export const purchaseMembership = async (req, res) => {
     const groupPromises = courses.map(async (course) => {
       // Check if group exists for this course
       let group = await Group.findOne({ courseId: course._id });
-      
+
       if (!group) {
         // Create group if it doesn't exist
         group = await Group.create({
@@ -529,9 +505,9 @@ export const purchaseMembership = async (req, res) => {
       }
 
       // Add user to group (skip if already member)
-      const existingMembership = await GroupMember.findOne({ 
-        groupId: group._id, 
-        userId 
+      const existingMembership = await GroupMember.findOne({
+        groupId: group._id,
+        userId
       });
 
       if (!existingMembership) {
@@ -550,7 +526,7 @@ export const purchaseMembership = async (req, res) => {
         // Reactivate membership if it was deactivated
         existingMembership.isActive = true;
         await existingMembership.save();
-        
+
         group.memberCount += 1;
         await group.save();
       }

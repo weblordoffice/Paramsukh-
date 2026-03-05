@@ -24,10 +24,10 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
   const [formData, setFormData] = useState({
     subscriptionPlan: user.subscriptionPlan,
     subscriptionStatus: user.subscriptionStatus,
-    subscriptionStartDate: user.subscriptionStartDate 
+    subscriptionStartDate: user.subscriptionStartDate
       ? new Date(user.subscriptionStartDate).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0],
-    subscriptionEndDate: user.subscriptionEndDate 
+    subscriptionEndDate: user.subscriptionEndDate
       ? new Date(user.subscriptionEndDate).toISOString().split('T')[0]
       : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   });
@@ -82,7 +82,7 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
 
   const handlePlanChange = (plan: string) => {
     setFormData({ ...formData, subscriptionPlan: plan });
-    
+
     // If upgrading from free to paid, suggest activation
     if (user.subscriptionPlan === 'free' && plan !== 'free') {
       setFormData(prev => ({ ...prev, subscriptionStatus: 'active' }));
@@ -136,11 +136,10 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
               {plans.map((plan) => (
                 <label
                   key={plan.value}
-                  className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-all ${
-                    formData.subscriptionPlan === plan.value
+                  className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-all ${formData.subscriptionPlan === plan.value
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-3">
                     <input
@@ -173,11 +172,10 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
               {statuses.map((status) => (
                 <label
                   key={status.value}
-                  className={`flex items-center justify-center p-3 border rounded-lg cursor-pointer transition-all ${
-                    formData.subscriptionStatus === status.value
+                  className={`flex items-center justify-center p-3 border rounded-lg cursor-pointer transition-all ${formData.subscriptionStatus === status.value
                       ? 'border-blue-500 bg-blue-50'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <input
                     type="radio"
@@ -206,7 +204,7 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
                   type="date"
                   value={formData.subscriptionStartDate}
                   onChange={(e) => setFormData({ ...formData, subscriptionStartDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black"
                 />
               </div>
               <div>
@@ -217,7 +215,7 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
                   type="date"
                   value={formData.subscriptionEndDate}
                   onChange={(e) => setFormData({ ...formData, subscriptionEndDate: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-black"
                 />
               </div>
             </div>

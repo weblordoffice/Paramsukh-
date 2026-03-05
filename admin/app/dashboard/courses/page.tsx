@@ -133,7 +133,7 @@ export default function CoursesPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-secondary">Courses Management</h1>
-                    <p className="text-accent mt-1">Manage all courses and content</p>
+                    <p className="text-gray-900 mt-1">Manage all courses and content</p>
                 </div>
                 <button
                     onClick={handleCreate}
@@ -147,13 +147,13 @@ export default function CoursesPage() {
             {/* Search Bar */}
             <div className="bg-white rounded-xl p-4 shadow-md">
                 <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-accent" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-900" />
                     <input
                         type="text"
                         placeholder="Search courses by title or tags..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-gray-900 placeholder:text-gray-500"
                     />
                 </div>
             </div>
@@ -161,7 +161,7 @@ export default function CoursesPage() {
             {/* Courses Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredCourses.length === 0 ? (
-                    <div className="col-span-full text-center py-12 text-accent">
+                    <div className="col-span-full text-center py-12 text-gray-900">
                         No courses found
                     </div>
                 ) : (
@@ -201,7 +201,7 @@ export default function CoursesPage() {
                                     <h3 className="text-xl font-bold text-secondary mb-2 line-clamp-1">
                                         {course.title}
                                     </h3>
-                                    <p className="text-accent text-sm line-clamp-2">
+                                    <p className="text-gray-900 text-sm line-clamp-2">
                                         {course.description}
                                     </p>
                                 </div>
@@ -209,7 +209,7 @@ export default function CoursesPage() {
                                 <div className="flex items-center justify-between text-sm">
                                     <div className="flex flex-wrap gap-2">
                                         {course.tags?.slice(0, 3).map((tag, index) => (
-                                            <span key={index} className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">
+                                            <span key={index} className="px-2 py-0.5 bg-gray-100 text-gray-900 rounded text-xs">
                                                 {tag}
                                             </span>
                                         ))}
@@ -221,7 +221,7 @@ export default function CoursesPage() {
                                         <span className="font-medium text-secondary">
                                             {course.duration} min
                                         </span>
-                                        <span className="text-accent">
+                                        <span className="text-gray-900">
                                             {course.totalVideos || course.videos?.length || 0} videos
                                         </span>
                                     </div>
@@ -232,7 +232,7 @@ export default function CoursesPage() {
                                                 {course.enrollmentCount || 0}
                                             </span>
                                         </div>
-                                        <span className="text-gray-500 text-xs">enrolled</span>
+                                        <span className="text-gray-900 text-xs">enrolled</span>
                                     </div>
                                 </div>
 

@@ -2,6 +2,7 @@
 
 import { useAuthStore } from '@/lib/store/authStore';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import { Menu, LogOut, User } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -11,10 +12,12 @@ interface HeaderProps {
 
 export default function Header({ onSidebarToggle }: HeaderProps) {
     const router = useRouter();
-    const { email, logout } = useAuthStore();
+    const user = useAuthStore((s) => s.user);
+    const logout = useAuthStore((s) => s.logout);
 
     const handleLogout = () => {
         logout();
+        signOut({ callbackUrl: '/' });
         toast.success('Logged out successfully');
         router.push('/');
     };
@@ -40,7 +43,7 @@ export default function Header({ onSidebarToggle }: HeaderProps) {
                 <div className="flex items-center space-x-2 md:space-x-4">
                     <div className="hidden md:flex items-center space-x-2 px-4 py-2 bg-gray-100 rounded-lg">
                         <User className="w-5 h-5 text-accent" />
-                        <span className="text-sm font-medium text-secondary">{email}</span>
+                        <span className="text-sm font-medium text-secondary">{user?.email ?? user?.name ?? 'Admin'}</span>
                     </div>
 
                     <button

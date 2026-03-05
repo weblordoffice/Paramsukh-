@@ -59,7 +59,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
         if (event) {
             const eventDate = new Date(event.eventDate);
             const localDate = eventDate.toISOString().split('T')[0];
-            
+
             setFormData({
                 title: event.title || '',
                 description: event.description || '',
@@ -268,7 +268,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         required
                                         value={formData.title}
                                         onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                         placeholder="Morning Meditation Session"
                                     />
                                 </div>
@@ -281,7 +281,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         type="text"
                                         value={formData.shortDescription}
                                         onChange={(e) => setFormData({ ...formData, shortDescription: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                         placeholder="Brief one-line description"
                                     />
                                 </div>
@@ -294,7 +294,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                         rows={4}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                         placeholder="Detailed event description..."
                                     />
                                 </div>
@@ -307,7 +307,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         type="text"
                                         value={formData.emoji}
                                         onChange={(e) => setFormData({ ...formData, emoji: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                         placeholder="📅"
                                     />
                                 </div>
@@ -320,7 +320,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         type="text"
                                         value={formData.color}
                                         onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                         placeholder="#8B5CF6"
                                     />
                                 </div>
@@ -334,7 +334,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                             type="url"
                                             value={formData.thumbnailUrl}
                                             onChange={(e) => setFormData({ ...formData, thumbnailUrl: e.target.value })}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                             placeholder="https://..."
                                         />
                                         <div className="relative">
@@ -365,7 +365,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                             type="url"
                                             value={formData.bannerUrl}
                                             onChange={(e) => setFormData({ ...formData, bannerUrl: e.target.value })}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                             placeholder="https://..."
                                         />
                                         <div className="relative">
@@ -402,7 +402,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         required
                                         value={formData.eventDate}
                                         onChange={(e) => setFormData({ ...formData, eventDate: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                     />
                                 </div>
 
@@ -415,7 +415,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         required
                                         value={formData.eventTime}
                                         onChange={(e) => setFormData({ ...formData, eventTime: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                     />
                                 </div>
                             </div>
@@ -433,7 +433,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         required
                                         value={formData.locationType}
                                         onChange={(e) => setFormData({ ...formData, locationType: e.target.value as any })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                     >
                                         <option value="physical">Physical</option>
                                         <option value="online">Online</option>
@@ -450,7 +450,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         required
                                         value={formData.location}
                                         onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                         placeholder="Venue name or Online"
                                     />
                                 </div>
@@ -464,7 +464,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                             type="url"
                                             value={formData.onlineMeetingLink}
                                             onChange={(e) => setFormData({ ...formData, onlineMeetingLink: e.target.value })}
-                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                             placeholder="Zoom/Meet link"
                                         />
                                     </div>
@@ -478,7 +478,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                                 type="text"
                                                 value={formData.address.city}
                                                 onChange={(e) => setFormData({ ...formData, address: { ...formData.address, city: e.target.value } })}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                             />
                                         </div>
                                         <div>
@@ -487,7 +487,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                                 type="text"
                                                 value={formData.address.state}
                                                 onChange={(e) => setFormData({ ...formData, address: { ...formData.address, state: e.target.value } })}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                             />
                                         </div>
                                     </>
@@ -507,7 +507,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         required
                                         value={formData.category}
                                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                     >
                                         <option value="Meditation">Meditation</option>
                                         <option value="Discourse">Discourse</option>
@@ -529,7 +529,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                             value={tagInput}
                                             onChange={(e) => setTagInput(e.target.value)}
                                             onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-500"
                                             placeholder="Add tag and press Enter"
                                         />
                                         <button
@@ -588,7 +588,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                                 min="0"
                                                 value={formData.price}
                                                 onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                             />
                                         </div>
                                         <div>
@@ -598,24 +598,12 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                             <select
                                                 value={formData.currency}
                                                 onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                             >
                                                 <option value="INR">INR</option>
                                                 <option value="USD">USD</option>
                                                 <option value="EUR">EUR</option>
                                             </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Early Bird Price
-                                            </label>
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                value={formData.earlyBirdPrice}
-                                                onChange={(e) => setFormData({ ...formData, earlyBirdPrice: parseFloat(e.target.value) || 0 })}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            />
                                         </div>
                                     </>
                                 )}
@@ -635,7 +623,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         min="1"
                                         value={formData.maxAttendees || ''}
                                         onChange={(e) => setFormData({ ...formData, maxAttendees: e.target.value ? parseInt(e.target.value) : undefined })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                         placeholder="Unlimited"
                                     />
                                 </div>
@@ -660,7 +648,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         type="text"
                                         value={formData.organizer}
                                         onChange={(e) => setFormData({ ...formData, organizer: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                         placeholder="Organizer name"
                                     />
                                 </div>
@@ -679,7 +667,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         value={formData.additionalInfo}
                                         onChange={(e) => setFormData({ ...formData, additionalInfo: e.target.value })}
                                         rows={3}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                         placeholder="Any other important information..."
                                     />
                                 </div>

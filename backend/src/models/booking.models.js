@@ -10,7 +10,6 @@ const bookingSchema = new mongoose.Schema({
   // Counselor selection
   counselorType: {
     type: String,
-    enum: ['team', 'gurudev'],
     required: true
   },
   counselorName: {
@@ -20,15 +19,6 @@ const bookingSchema = new mongoose.Schema({
   // Booking type/purpose
   bookingType: {
     type: String,
-    enum: [
-      'physical_wellness',
-      'mental_wellness',
-      'spiritual_guidance',
-      'financial_wellness',
-      'relationship_counseling',
-      'disease_management',
-      'general_counseling'
-    ],
     required: true
   },
   bookingTitle: {
@@ -90,7 +80,7 @@ const bookingSchema = new mongoose.Schema({
   },
   paymentMethod: {
     type: String,
-    enum: ['upi', 'card', 'netbanking', 'wallet', 'cash', 'free']
+    enum: ['upi', 'card', 'netbanking', 'wallet', 'cash', 'free', 'razorpay']
   },
   paidAt: {
     type: Date
@@ -172,7 +162,7 @@ bookingSchema.index({ counselorType: 1, bookingDate: 1, status: 1 });
 bookingSchema.index({ bookingDate: 1, bookingTime: 1 });
 
 // Virtual for formatted date
-bookingSchema.virtual('formattedDate').get(function() {
+bookingSchema.virtual('formattedDate').get(function () {
   return this.bookingDate.toLocaleDateString('en-IN', {
     weekday: 'long',
     year: 'numeric',
@@ -182,35 +172,35 @@ bookingSchema.virtual('formattedDate').get(function() {
 });
 
 // Method to check if booking can be cancelled
-bookingSchema.methods.canBeCancelled = function() {
+bookingSchema.methods.canBeCancelled = function () {
   if (this.status === 'cancelled' || this.status === 'completed') {
     return false;
   }
-  
+
   // Check if booking is at least 24 hours away
   const now = new Date();
   const bookingDateTime = new Date(this.bookingDate);
   const hoursUntilBooking = (bookingDateTime - now) / (1000 * 60 * 60);
-  
+
   return hoursUntilBooking >= 24;
 };
 
 // Method to check if booking can be rescheduled
-bookingSchema.methods.canBeRescheduled = function() {
+bookingSchema.methods.canBeRescheduled = function () {
   if (this.status === 'cancelled' || this.status === 'completed') {
     return false;
   }
-  
+
   // Check if booking is at least 48 hours away
   const now = new Date();
   const bookingDateTime = new Date(this.bookingDate);
   const hoursUntilBooking = (bookingDateTime - now) / (1000 * 60 * 60);
-  
+
   return hoursUntilBooking >= 48;
 };
 
 // Static method to get available slots
-bookingSchema.statics.getAvailableSlots = async function(date, counselorType) {
+bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
   const bookings = await this.find({
     bookingDate: {
       $gte: new Date(date).setHours(0, 0, 0, 0),

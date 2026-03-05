@@ -4,6 +4,9 @@ import { paymentLimiter } from '../../middleware/rateLimiter.js';
 import { validateCreateOrder, validateVerifyPayment } from '../../middleware/validators.js';
 import {
   createMembershipOrder,
+  createMembershipPaymentLink,
+  confirmMembershipPaymentLink,
+  syncMembershipFromRazorpay,
   verifyMembershipPayment,
   createBookingOrder,
   handleWebhook,
@@ -19,6 +22,18 @@ const router = express.Router();
 // Create payment order for membership
 // POST /api/payments/create-order
 router.post('/create-order', protectedRoutes, createMembershipOrder);
+
+// Create hosted payment link for membership (opens Razorpay checkout page)
+// POST /api/payments/membership-link
+router.post('/membership-link', protectedRoutes, paymentLimiter, createMembershipPaymentLink);
+
+// Confirm payment link status and activate (fallback for local dev when webhook can't reach)
+// POST /api/payments/membership-link/confirm
+router.post('/membership-link/confirm', protectedRoutes, paymentLimiter, confirmMembershipPaymentLink);
+
+// Sync membership from Razorpay (find paid link for this user and activate – e.g. "I already paid")
+// POST /api/payments/sync-membership
+router.post('/sync-membership', protectedRoutes, paymentLimiter, syncMembershipFromRazorpay);
 
 // Create payment order for booking/counseling
 // POST /api/payments/create-booking-order

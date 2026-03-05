@@ -2,9 +2,11 @@ import {
   uploadImage, 
   uploadVideo, 
   uploadMultipleImages,
+  uploadRawFile,
   deleteFile,
   isTestMode 
 } from '../../services/cloudinaryService.js';
+import fs from 'fs/promises';
 
 /**
  * Upload single image
@@ -154,6 +156,7 @@ export const uploadProfilePhoto = async (req, res) => {
  * @query folder: optional folder name
  */
 export const uploadVideoFile = async (req, res) => {
+  const tmpPath = req.file?.path;
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -165,16 +168,26 @@ export const uploadVideoFile = async (req, res) => {
     const folder = req.query.folder || 'videos';
     const filename = req.file.originalname;
 
-    // Upload to Cloudinary
-    const result = await uploadVideo(req.file.buffer, folder, filename);
+    // Upload to Cloudinary (use tmp file path for large uploads; buffer only as fallback)
+    const result = await uploadVideo(tmpPath || req.file.buffer, folder, filename);
 
-    console.log(`✅ Video uploaded: ${result.url}`);
+    const url = result?.url;
+    if (!url) {
+      console.error('❌ Upload succeeded but no URL in result:', result);
+      return res.status(500).json({
+        success: false,
+        message: 'Video upload did not return a URL',
+        error: 'No URL in upload result'
+      });
+    }
+
+    console.log(`✅ Video uploaded: ${url}`);
 
     return res.status(200).json({
       success: true,
       message: 'Video uploaded successfully',
       data: {
-        url: result.url,
+        url,
         publicId: result.publicId,
         duration: result.duration,
         width: result.width,
@@ -190,6 +203,51 @@ export const uploadVideoFile = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to upload video',
+      error: error.message
+    });
+  } finally {
+    // Cleanup tmp file if we used disk storage
+    if (tmpPath) {
+      try { await fs.unlink(tmpPath); } catch {}
+    }
+  }
+};
+
+/**
+ * Upload PDF file
+ * POST /api/upload/pdf
+ * @multipart file: PDF file
+ * @query folder: optional folder name (default: pdfs)
+ */
+export const uploadPdfFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No PDF file uploaded'
+      });
+    }
+
+    const folder = req.query.folder || 'pdfs';
+    const filename = req.file.originalname || 'document.pdf';
+
+    const result = await uploadRawFile(req.file.buffer, folder, filename);
+
+    return res.status(200).json({
+      success: true,
+      message: 'PDF uploaded successfully',
+      data: {
+        url: result.url,
+        publicId: result.publicId,
+        size: result.bytes,
+        testMode: result.testMode || false
+      }
+    });
+  } catch (error) {
+    console.error('❌ Upload PDF error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to upload PDF',
       error: error.message
     });
   }

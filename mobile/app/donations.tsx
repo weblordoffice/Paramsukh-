@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useDonationStore } from '@/store/donationStore';
 
 export default function DonationsScreen() {
   const router = useRouter();
   const [showQR, setShowQR] = useState(false);
+  const { recordDonation } = useDonationStore();
 
   const accountDetails = {
     accountName: 'Paramsukh Foundation',
@@ -16,29 +18,53 @@ export default function DonationsScreen() {
     upiId: 'paramsukh@sbi'
   };
 
-  const handlePay = () => {
+  const handlePay = async () => {
     // Open UPI payment intent
     const upiUrl = `upi://pay?pa=${accountDetails.upiId}&pn=${encodeURIComponent(accountDetails.accountName)}&cu=INR`;
-    
-    Linking.canOpenURL(upiUrl)
-      .then((supported) => {
-        if (supported) {
-          Linking.openURL(upiUrl);
-        } else {
-          Alert.alert('Error', 'No UPI app found on your device');
-        }
-      })
-      .catch((err) => {
-        Alert.alert('Error', 'Failed to open payment app');
-        console.error('UPI Error:', err);
-      });
+
+    try {
+      const supported = await Linking.canOpenURL(upiUrl);
+
+      if (supported) {
+        await Linking.openURL(upiUrl);
+
+        // Ask user if payment was successful (since we can't know for sure with deep linking)
+        Alert.alert(
+          'Payment Confirmation',
+          'Did you complete the payment successfully?',
+          [
+            { text: 'No', style: 'cancel' },
+            {
+              text: 'Yes',
+              onPress: async () => {
+                // Prompt for amount (since we didn't specify it in intent, or just default to 0/unknown)
+                // ideally we should have an input field for amount before clicking Pay
+                // For now, let's just record it as "User reported donation"
+
+                await recordDonation({
+                  amount: 0, // 0 indicates unknown/unverified
+                  paymentMethod: 'UPI',
+                  message: 'User reported successful UPI payment via app link'
+                });
+                Alert.alert('Thank You', 'Your donation has been recorded. We will verify and update your history shortly.');
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'No UPI app found on your device');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to open payment app');
+      console.error('UPI Error:', err);
+    }
   };
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
@@ -66,10 +92,10 @@ export default function DonationsScreen() {
             style={[styles.toggleButton, !showQR && styles.toggleButtonActive]}
             onPress={() => setShowQR(false)}
           >
-            <Ionicons 
-              name="card-outline" 
-              size={20} 
-              color={!showQR ? '#FFFFFF' : '#6B7280'} 
+            <Ionicons
+              name="card-outline"
+              size={20}
+              color={!showQR ? '#FFFFFF' : '#6B7280'}
             />
             <Text style={[styles.toggleText, !showQR && styles.toggleTextActive]}>
               Account Details
@@ -80,10 +106,10 @@ export default function DonationsScreen() {
             style={[styles.toggleButton, showQR && styles.toggleButtonActive]}
             onPress={() => setShowQR(true)}
           >
-            <Ionicons 
-              name="qr-code-outline" 
-              size={20} 
-              color={showQR ? '#FFFFFF' : '#6B7280'} 
+            <Ionicons
+              name="qr-code-outline"
+              size={20}
+              color={showQR ? '#FFFFFF' : '#6B7280'}
             />
             <Text style={[styles.toggleText, showQR && styles.toggleTextActive]}>
               Pay with QR
@@ -96,7 +122,7 @@ export default function DonationsScreen() {
           // Account Details
           <View style={styles.contentCard}>
             <Text style={styles.contentTitle}>Bank Account Details</Text>
-            
+
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Account Name</Text>
               <Text style={styles.detailValue}>{accountDetails.accountName}</Text>
@@ -113,14 +139,14 @@ export default function DonationsScreen() {
             </View>
 
             <View style={styles.detailRow}>
-               <Text style={styles.detailLabel}>Bank Name</Text>
+              <Text style={styles.detailLabel}>Bank Name</Text>
               <Text style={styles.detailValue}>{accountDetails.bankName}</Text>
             </View>
 
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Branch</Text>
               <Text style={styles.detailValue}>{accountDetails.branch}</Text>
-            </View>               
+            </View>
 
             <View style={[styles.detailRow, styles.upiRow]}>
               <Text style={styles.detailLabel}>UPI ID</Text>
@@ -131,7 +157,7 @@ export default function DonationsScreen() {
           // QR Code
           <View style={styles.contentCard}>
             <Text style={styles.contentTitle}>Scan QR to Pay</Text>
-            
+
             <View style={styles.qrContainer}>
               <View style={styles.qrPlaceholder}>
                 <Ionicons name="qr-code" size={120} color="#9CA3AF" />

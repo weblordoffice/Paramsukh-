@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, StyleSheet, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Header from '../../components/Header';
@@ -150,8 +150,16 @@ export default function EventsScreen() {
                   <View style={styles.cardContent}>
                     {/* Header Row */}
                     <View style={styles.headerRow}>
-                      <View style={[styles.emojiContainer, { backgroundColor: event.color + '15' }]}>
-                        <Text style={styles.emoji}>{event.emoji}</Text>
+                      <View style={[styles.emojiContainer, { backgroundColor: event.color + '15', overflow: 'hidden' }]}>
+                        {event.thumbnailUrl ? (
+                          <Image
+                            source={{ uri: event.thumbnailUrl }}
+                            style={styles.thumbnail}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <Text style={styles.emoji}>{event.emoji}</Text>
+                        )}
                       </View>
                       <View style={styles.headerText}>
                         <Text style={styles.title}>{event.title}</Text>
@@ -194,7 +202,7 @@ export default function EventsScreen() {
                             </TouchableOpacity>
                           )}
                           <TouchableOpacity
-                            style={[styles.registerButton, { 
+                            style={[styles.registerButton, {
                               backgroundColor: event.isRegistered ? '#10B981' : event.color,
                               opacity: event.isRegistered ? 0.9 : 1
                             }]}
@@ -206,16 +214,14 @@ export default function EventsScreen() {
                               }
                             }}
                           >
-                            <Ionicons 
-                              name={event.isRegistered ? 'lock-closed' : 'arrow-forward'} 
-                              size={14} 
-                              color="#FFFFFF" 
-                            />
+                            {event.isRegistered && (
+                              <Ionicons name="lock-closed" size={14} color="#FFFFFF" />
+                            )}
                             <Text style={styles.registerButtonText}>
                               {event.isRegistered
                                 ? 'Registered'
                                 : event.isPaid
-                                  ? 'Rs. ' + event.price + ' - Register'
+                                  ? `Register ₹${event.price}`
                                   : 'Register'}
                             </Text>
                             {!event.isRegistered && (
@@ -298,7 +304,7 @@ export default function EventsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             {/* Ticket Header */}
-            <View                  style={[styles.ticketHeader, { backgroundColor: ticketModal.event?.color || '#EAB308' }]}>
+            <View style={[styles.ticketHeader, { backgroundColor: ticketModal.event?.color || '#EAB308' }]}>
               <View style={styles.ticketHeaderTop}>
                 <View style={styles.ticketHeaderRow}>
                   <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
@@ -491,6 +497,10 @@ const styles = StyleSheet.create({
   },
   emoji: {
     fontSize: 28,
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
   },
   headerText: {
     flex: 1,

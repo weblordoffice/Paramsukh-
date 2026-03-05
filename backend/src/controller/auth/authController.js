@@ -27,7 +27,7 @@ export const refreshToken = async (req, res) => {
     }
 
     // Find user
-    const user = await User.findById(decoded.id)    .select('-__v');
+    const user = await User.findById(decoded.id).select('-__v');
 
     if (!user) {
       return res.status(401).json({

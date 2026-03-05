@@ -25,6 +25,7 @@ export interface Post {
     createdAt: string;
     updatedAt: string;
     timeAgo?: string; // Calculated on frontend
+    tags?: string[];
 }
 
 export interface Group {
@@ -63,7 +64,7 @@ interface CommunityState {
 
     fetchMyGroups: () => Promise<void>;
     fetchGroupPosts: (groupId: string, page?: number) => Promise<void>;
-    createPost: (groupId: string, content: string, images?: string[]) => Promise<boolean>;
+    createPost: (groupId: string, content: string, images?: string[], tags?: string[]) => Promise<boolean>;
     togglePostLike: (postId: string) => Promise<void>;
     deletePost: (postId: string) => Promise<void>;
     uploadMedia: (uri: string, type: 'image' | 'video') => Promise<string | null>;
@@ -135,12 +136,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             if (__DEV__) {
                 console.error('Fetch Posts Error:', error);
             }
-            
+
             let userMessage = 'Unable to load posts. Pull down to refresh.';
             if (!error.response) {
                 userMessage = 'No internet connection. Posts will load when you\'re back online.';
             }
-            
+
             set({ isLoading: false, error: userMessage });
         }
     },
@@ -185,7 +186,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         }
     },
 
-    createPost: async (groupId: string, content: string, images?: string[]) => {
+    createPost: async (groupId: string, content: string, images?: string[], tags?: string[]) => {
         set({ isLoading: true, error: null });
         try {
             const token = useAuthStore.getState().token;
@@ -196,7 +197,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
             const response = await axios.post(`${API_URL}/community/groups/${groupId}/posts`, {
                 content,
-                images
+                images,
+                tags
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
@@ -215,14 +217,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             if (__DEV__) {
                 console.error('Create Post Error:', error);
             }
-            
+
             let userMessage = 'Unable to create post. Please try again.';
             if (!error.response) {
                 userMessage = 'No internet connection. Please check your network.';
             } else if (error.response?.status === 401) {
                 userMessage = 'Session expired. Please sign in again.';
             }
-            
+
             set({ isLoading: false, error: userMessage });
             return false;
         }

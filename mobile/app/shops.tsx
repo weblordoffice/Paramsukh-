@@ -1,55 +1,57 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Image, ActivityIndicator, Alert, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useProductStore } from '../store/productStore';
+import { useCartStore } from '../store/cartStore';
 
-// Removed SAMPLE_SHOPS and CATEGORIES constants as they will be fetched or are static
 const CATEGORIES = [
   { id: 'all', name: 'All', icon: 'apps' },
-  { id: 'pooja', name: 'Pooja Items', icon: 'flame' },
-  { id: 'jainism', name: 'Jain Idols', icon: 'star' },
-  { id: 'books', name: 'Books & Frames', icon: 'book' }
+  { id: 'pooja', name: 'Pooja', icon: 'flame' },
+  { id: 'books', name: 'Books', icon: 'book' },
+  { id: 'clothing', name: 'Clothing', icon: 'shirt' },
+  { id: 'wellness', name: 'Wellness', icon: 'leaf' }
 ];
-
-import { useShopStore } from '../store/shopStore';
-import { useEffect } from 'react';
 
 export default function ShopsScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
-  const { shops, fetchShops, isLoading } = useShopStore();
+  // Use product store instead of shop store
+  const { products, fetchAllProducts, isLoading } = useProductStore();
+  const { addToCart, fetchCart, itemCount, cart } = useCartStore();
 
   useEffect(() => {
-    fetchShops();
+    // Debounce search could be added here, currently fetching on every change
+    const timeoutId = setTimeout(() => {
+      fetchAllProducts({
+        search: searchQuery,
+        category: selectedCategory !== 'all' ? selectedCategory : undefined
+      });
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery, selectedCategory]);
+
+  useEffect(() => {
+    fetchCart();
   }, []);
 
-  const filteredShops = shops.filter((shop: any) => {
-    const matchesSearch = shop.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (shop.description || '').toLowerCase().includes(searchQuery.toLowerCase());
-
-    // Note: This category filtering logic is temporary and depends on backend data matching these strings
-    // In a real app, you might filter by category ID
-    let matchesCategory = false;
-    if (selectedCategory === 'all') {
-      matchesCategory = true;
+  const handleAddToCart = async (productId: string) => {
+    const success = await addToCart(productId, 1);
+    if (success) {
+      // Optional: Toast or feedback
     } else {
-      // Simple string matching for now
-      // Backend might return categories as objects, handled in store transformation
-      const shopCat = (shop.category || '').toLowerCase();
-      if (selectedCategory === 'pooja') matchesCategory = shopCat.includes('pooja');
-      else if (selectedCategory === 'jainism') matchesCategory = shopCat.includes('jain') || shopCat.includes('idol');
-      else if (selectedCategory === 'books') matchesCategory = shopCat.includes('book') || shopCat.includes('frame');
+      Alert.alert("Error", "Could not add to cart. Please log in.");
     }
+  };
 
-    return matchesSearch && matchesCategory;
-  });
-
-  const handleShopPress = (shopId: string) => {
-    router.push({
-      pathname: '/shop-detail',
-      params: { shopId }
+  const isInCart = (productId: string) => {
+    if (!cart || !cart.items) return false;
+    return cart.items.some(item => {
+      const pId = typeof item.product === 'string' ? item.product : item.product?._id;
+      return pId === productId;
     });
   };
 
@@ -63,12 +65,14 @@ export default function ShopsScreen() {
         >
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Shops</Text>
-        <TouchableOpacity style={styles.cartButton}>
+        <Text style={styles.headerTitle}>Shop</Text>
+        <TouchableOpacity style={styles.cartButton} onPress={() => router.push('/cart')}>
           <Ionicons name="cart-outline" size={24} color="#111827" />
-          <View style={styles.cartBadge}>
-            <Text style={styles.cartBadgeText}>0</Text>
-          </View>
+          {itemCount() > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{itemCount()}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -78,7 +82,7 @@ export default function ShopsScreen() {
           <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search shops..."
+            placeholder="Search products..."
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholderTextColor="#9CA3AF"
@@ -121,50 +125,82 @@ export default function ShopsScreen() {
           ))}
         </ScrollView>
 
-        {/* Shops Grid */}
+        {/* Products Grid */}
         <View style={styles.shopsContainer}>
           <Text style={styles.sectionTitle}>
-            {filteredShops.length} Shop{filteredShops.length !== 1 ? 's' : ''} Found
+            {products.length} Product{products.length !== 1 ? 's' : ''} Found
           </Text>
 
-          <View style={styles.shopsGrid}>
-            {filteredShops.map(shop => (
-              <TouchableOpacity
-                key={shop.id}
-                style={styles.shopCard}
-                onPress={() => handleShopPress(shop.id)}
-              >
-                <View style={styles.shopImageContainer}>
-                  <Text style={styles.shopEmoji}>{shop.image}</Text>
-                </View>
+          {isLoading ? (
+            <ActivityIndicator size="large" color="#EAB308" style={{ marginTop: 20 }} />
+          ) : (
+            <View style={styles.grid}>
+              {products.map(product => {
+                const isAmazon = product.productType === 'amazon' && product.externalLink;
+                const handleCardPress = () => {
+                  if (isAmazon && product.externalLink) Linking.openURL(product.externalLink!);
+                  else router.push({ pathname: '/product-detail', params: { productId: product.id } });
+                };
+                return (
+                <TouchableOpacity
+                  key={product.id}
+                  style={styles.productCard}
+                  onPress={handleCardPress}
+                >
+                  <View style={styles.imageContainer}>
+                    {product.image && product.image.startsWith('http') ? (
+                      <Image source={{ uri: product.image }} style={styles.productImage} resizeMode="cover" />
+                    ) : (
+                      <Text style={styles.productEmoji}>{product.image || '📦'}</Text>
+                    )}
+                    {isAmazon && (
+                      <View style={styles.amazonBadge}>
+                        <Text style={styles.amazonBadgeText}>Amazon</Text>
+                      </View>
+                    )}
+                  </View>
 
-                <View style={styles.shopInfo}>
-                  <Text style={styles.shopName} numberOfLines={1}>
-                    {shop.name}
-                  </Text>
+                  <View style={styles.productInfo}>
+                    <Text style={styles.productName} numberOfLines={2}>
+                      {product.name}
+                    </Text>
 
-                  <Text style={styles.shopDescription} numberOfLines={2}>
-                    {shop.description}
-                  </Text>
-
-                  <View style={styles.shopMeta}>
                     <View style={styles.ratingContainer}>
-                      <Ionicons name="star" size={14} color="#FBBF24" />
-                      <Text style={styles.ratingText}>{shop.rating?.average || 'New'}</Text>
+                      <Ionicons name="star" size={12} color="#FBBF24" />
+                      <Text style={styles.ratingText}>
+                        {product.rating?.average || '0'} ({product.reviewsCount || 0})
+                      </Text>
                     </View>
 
-                    <Text style={styles.productCount}>
-                      {shop.productsCount || 0} items
-                    </Text>
-                  </View>
+                    {!isAmazon && <Text style={styles.productPrice}>₹{product.price}</Text>}
+                    {isAmazon && <Text style={styles.viewOnAmazonText}>View on Amazon</Text>}
 
-                  <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryBadgeText}>{shop.category}</Text>
+                    {isAmazon ? (
+                      <TouchableOpacity
+                        style={[styles.addButton, styles.amazonButton]}
+                        onPress={(e) => { e.stopPropagation(); if (product.externalLink) Linking.openURL(product.externalLink); }}
+                      >
+                        <Text style={styles.addButtonText}>View on Amazon</Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <TouchableOpacity
+                        style={[
+                          styles.addButton,
+                          isInCart(product.id) && styles.addButtonActive
+                        ]}
+                        onPress={(e) => { e.stopPropagation(); handleAddToCart(product.id); }}
+                      >
+                        <Text style={styles.addButtonText}>
+                          {isInCart(product.id) ? 'Added' : 'Add to Cart'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
+                </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         <View style={{ height: 40 }} />
@@ -293,12 +329,12 @@ const styles = StyleSheet.create({
     color: '#111827',
     marginBottom: 16,
   },
-  shopsGrid: {
+  grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
   },
-  shopCard: {
+  productCard: {
     width: '47%',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -308,62 +344,84 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 6,
     elevation: 2,
+    marginBottom: 16,
   },
-  shopImageContainer: {
+  imageContainer: {
     width: '100%',
-    height: 120,
+    height: 140,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shopEmoji: {
+  productImage: {
+    width: '100%',
+    height: '100%',
+  },
+  productEmoji: {
     fontSize: 48,
   },
-  shopInfo: {
+  productInfo: {
     padding: 12,
   },
-  shopName: {
-    fontSize: 16,
-    fontWeight: '700',
+  productName: {
+    fontSize: 15,
+    fontWeight: '600',
     color: '#111827',
-    marginBottom: 4,
-  },
-  shopDescription: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginBottom: 8,
-    lineHeight: 16,
-  },
-  shopMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
+    height: 40,
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    marginBottom: 8,
   },
   ratingText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  productCount: {
     fontSize: 12,
     color: '#6B7280',
+    fontWeight: '500',
   },
-  categoryBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+  productPrice: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
   },
-  categoryBadgeText: {
-    fontSize: 11,
+  addButton: {
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  addButtonActive: {
+    backgroundColor: '#10B981',
+  },
+  addButtonText: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#3B82F6',
+    color: '#374151',
+  },
+  amazonButton: {
+    backgroundColor: '#FF9900',
+  },
+  amazonBadge: {
+    position: 'absolute',
+    top: 6,
+    left: 6,
+    backgroundColor: '#FF9900',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  amazonBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  viewOnAmazonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FF9900',
+    marginBottom: 12,
   },
 });

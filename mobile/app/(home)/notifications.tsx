@@ -1,4 +1,4 @@
- import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,196 +6,198 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useNotificationStore, type NotificationItem } from '../../store/notificationStore';
 
-interface Notification {
-  id: number;
-  title: string;                                    
-  message: string;
-  time: string;
-  read: boolean;
-  type: 'event' | 'course' | 'community' | 'membership' | 'general';
-  icon: string;
-  color: string;
+// Map backend type to icon and color for UI
+const TYPE_STYLE: Record<string, { icon: string; color: string }> = {
+  course_enrolled: { icon: 'book', color: '#8B5CF6' },
+  course_completed: { icon: 'checkmark-circle', color: '#10B981' },
+  video_completed: { icon: 'play-circle', color: '#8B5CF6' },
+  event_reminder: { icon: 'calendar', color: '#F59E0B' },
+  event_registered: { icon: 'calendar', color: '#F59E0B' },
+  community_post: { icon: 'chatbubbles', color: '#10B981' },
+  community_comment: { icon: 'chatbubble', color: '#10B981' },
+  community_like: { icon: 'heart', color: '#EC4899' },
+  counseling_booked: { icon: 'people', color: '#3B82F6' },
+  counseling_reminder: { icon: 'time', color: '#3B82F6' },
+  membership_activated: { icon: 'card', color: '#3B82F6' },
+  system: { icon: 'settings', color: '#6B7280' },
+  general: { icon: 'notifications', color: '#EC4899' },
+};
+
+function formatTime(createdAt: string): string {
+  const date = new Date(createdAt);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins} min ago`;
+  if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+  if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+  return date.toLocaleDateString();
 }
 
 export default function NotificationsScreen() {
   const router = useRouter();
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: 1,
-      title: 'New Event Added',
-      message: 'Morning Meditation & Prayer starts tomorrow at 6:00 AM',
-      time: '2 hours ago',
-      read: false,
-      type: 'event',
-      icon: 'calendar',         
-      color: '#F59E0B',
-    },
-    {
-      id: 2,
-      title: 'Course Update',
-      message: 'New lesson available in Spirituality and Mantra Module',
-      time: '5 hours ago',
-      read: false,
-      type: 'course',                                           
-      icon: 'book',
-      color: '#8B5CF6',
-    },
-    {
-      id: 3,
-      title: 'Community Activity',
-      message: 'Meditation Masters group has 5 new members',
-      time: '1 day ago',
-      read: false,
-      type: 'community',
-      icon: 'people',
-      color: '#10B981',
-    },
-    {
-      id: 4,
-      title: 'Membership Reminder',
-      message: 'Your Basic plan will renew in 3 days',
-      time: '1 day ago',
-      read: true,
-      type: 'membership',
-      icon: 'card', 
-      color: '#3B82F6',
-    },
-    {
-      id: 5,
-      title: 'Welcome!',
-      message: 'Thank you for joining our spiritual community',
-      time: '3 days ago',
-      read: true,
-      type: 'general',
-      icon: 'heart',
-      color: '#EC4899',
-    },
-  ]);
+  const {
+    notifications,
+    unreadCount,
+    isLoading,
+    error,
+    fetchNotifications,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+  } = useNotificationStore();
 
-  const markAsRead = (id: number) => {
-    setNotifications((prev) =>
-      prev.map((notif) =>
-        notif.id === id ? { ...notif, read: true } : notif
-      )
-    );
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    await fetchNotifications({ limit: 50 });
+  }, [fetchNotifications]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
   };
 
-  const markAllAsRead = () => {
-    setNotifications((prev) =>
-      prev.map((notif) => ({ ...notif, read: true }))
-    );
+  const handleMarkAsRead = async (item: NotificationItem) => {
+    if (!item.isRead) await markAsRead(item._id);
   };
 
-  const deleteNotification = (id: number) => {
-    setNotifications((prev) => prev.filter((notif) => notif.id !== id));
+  const handleMarkAllAsRead = async () => {
+    await markAllAsRead();
   };
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const handleDelete = async (id: string, e: any) => {
+    e?.stopPropagation?.();
+    await deleteNotification(id);
+  };
+
+  const unreadCountDisplay = unreadCount > 0 ? unreadCount : 0;
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>                                       
-        <TouchableOpacity
-            style={styles.backButton}
-          onPress={() => router.back()}
-        >
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
         <TouchableOpacity
           style={styles.markAllButton}
-          onPress={markAllAsRead}
-          disabled={unreadCount === 0}
+          onPress={handleMarkAllAsRead}
+          disabled={unreadCountDisplay === 0}
         >
           <Text
-            style={[
-              styles.markAllText,
-              unreadCount === 0 && styles.markAllTextDisabled,
-            ]}
+            style={[styles.markAllText, unreadCountDisplay === 0 && styles.markAllTextDisabled]}
           >
             Mark all read
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Unread Count */}
-      {unreadCount > 0 && (
+      {error ? (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity onPress={load}>
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {unreadCountDisplay > 0 && (
         <View style={styles.unreadCountContainer}>
           <Text style={styles.unreadCountText}>
-            {unreadCount} unread notification{unreadCount > 1 ? 's' : ''}
+            {unreadCountDisplay} unread notification{unreadCountDisplay !== 1 ? 's' : ''}
           </Text>
         </View>
       )}
 
-      {/* Notifications List */}
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {notifications.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="notifications-off-outline" size={64} color="#9CA3AF" />
-            <Text style={styles.emptyStateTitle}>No notifications</Text>
-            <Text style={styles.emptyStateText}>
-              You're all caught up! Check back later for updates.
-            </Text>
-          </View>
-        ) : (
-          notifications.map((notification) => (
-            <TouchableOpacity
-              key={notification.id}
-              style={[
-                styles.notificationCard,
-                !notification.read && styles.notificationCardUnread,
-              ]}
-              onPress={() => markAsRead(notification.id)}
-              activeOpacity={0.7}
-            >
-              <View
-                style={[
-                  styles.iconContainer,
-                  { backgroundColor: notification.color + '20' },
-                ]}
-              >
-                <Ionicons
-                  name={notification.icon as any}
-                  size={24}
-                  color={notification.color}
-                />
-              </View>
+      {isLoading && notifications.length === 0 ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#3B82F6" />
+          <Text style={styles.loadingText}>Loading notifications...</Text>
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
+          }
+        >
+          {notifications.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="notifications-off-outline" size={64} color="#9CA3AF" />
+              <Text style={styles.emptyStateTitle}>No notifications</Text>
+              <Text style={styles.emptyStateText}>
+                You're all caught up! Check back later for updates.
+              </Text>
+            </View>
+          ) : (
+            notifications.map((notification) => {
+              const style = TYPE_STYLE[notification.type] || TYPE_STYLE.general;
+              return (
+                <TouchableOpacity
+                  key={notification._id}
+                  style={[
+                    styles.notificationCard,
+                    !notification.isRead && styles.notificationCardUnread,
+                  ]}
+                  onPress={() => handleMarkAsRead(notification)}
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[styles.iconContainer, { backgroundColor: style.color + '20' }]}
+                  >
+                    <Ionicons
+                      name={style.icon as any}
+                      size={24}
+                      color={style.color}
+                    />
+                  </View>
 
-              <View style={styles.notificationContent}>
-                <View style={styles.notificationHeader}>
-                  <Text style={styles.notificationTitle}>
-                    {notification.title}
-                  </Text>
-                  {!notification.read && <View style={styles.unreadDot} />}
-                </View>
-                <Text style={styles.notificationMessage}>
-                  {notification.message}
-                </Text>
-                <Text style={styles.notificationTime}>{notification.time}</Text>
-              </View>
+                  <View style={styles.notificationContent}>
+                    <View style={styles.notificationHeader}>
+                      <Text style={styles.notificationTitle} numberOfLines={1}>
+                        {notification.title}
+                      </Text>
+                      {!notification.isRead && <View style={styles.unreadDot} />}
+                    </View>
+                    <Text style={styles.notificationMessage} numberOfLines={2}>
+                      {notification.message}
+                    </Text>
+                    <Text style={styles.notificationTime}>
+                      {formatTime(notification.createdAt)}
+                    </Text>
+                  </View>
 
-              <TouchableOpacity
-                style={styles.deleteButton}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  deleteNotification(notification.id);
-                }}
-              >
-                <Ionicons name="close-circle" size={20} color="#9CA3AF" />
-              </TouchableOpacity>
-            </TouchableOpacity>
-          ))
-        )}
-      </ScrollView>
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={(e) => handleDelete(notification._id, e)}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -244,6 +246,26 @@ const styles = StyleSheet.create({
   markAllTextDisabled: {
     color: '#9CA3AF',
   },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: '#FEE2E2',
+    borderBottomWidth: 1,
+    borderBottomColor: '#FECACA',
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#B91C1C',
+    flex: 1,
+  },
+  retryText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#B91C1C',
+  },
   unreadCountContainer: {
     backgroundColor: '#EFF6FF',
     paddingVertical: 12,
@@ -255,6 +277,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#3B82F6',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6B7280',
   },
   scrollContent: {
     padding: 16,

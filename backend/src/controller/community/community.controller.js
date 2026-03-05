@@ -139,6 +139,7 @@ export const getGroupPosts = async (req, res) => {
           photoURL: post.userId.photoURL,
           subscriptionPlan: post.userId.subscriptionPlan
         },
+        tags: post.tags,
         createdAt: post.createdAt,
         updatedAt: post.updatedAt
       };
@@ -173,7 +174,7 @@ export const createPost = async (req, res) => {
   try {
     const userId = req.user._id;
     const { groupId } = req.params;
-    const { content, images } = req.body;
+    const { content, images, tags } = req.body;
 
     if (!content || content.trim().length === 0) {
       return res.status(400).json({
@@ -195,7 +196,8 @@ export const createPost = async (req, res) => {
       userId,
       groupId,
       content: content.trim(),
-      images: images || []
+      images: images || [],
+      tags: tags || []
     });
 
     const populatedPost = await Post.findById(post._id)
@@ -218,6 +220,7 @@ export const createPost = async (req, res) => {
           photoURL: populatedPost.userId.photoURL,
           subscriptionPlan: populatedPost.userId.subscriptionPlan
         },
+        tags: populatedPost.tags,
         createdAt: populatedPost.createdAt
       }
     });

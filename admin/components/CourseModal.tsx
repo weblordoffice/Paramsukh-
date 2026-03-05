@@ -17,7 +17,9 @@ interface Course {
     category?: string;
     tags: string[];
     status: string;
+    includedInPlans?: string[];
 }
+
 
 interface CourseModalProps {
     isOpen: boolean;
@@ -38,15 +40,19 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
         category: '', // Added category
         tags: [],
         status: 'draft',
+        includedInPlans: []
     });
     const [tagsInput, setTagsInput] = useState('');
     const [loading, setLoading] = useState(false);
+
+    const membershipPlans = ['bronze', 'copper', 'silver'];
 
     useEffect(() => {
         if (course) {
             setFormData({
                 ...course,
-                category: (course as any).category || ''
+                category: (course as any).category || '',
+                includedInPlans: (course as any).includedInPlans || []
             });
             setTagsInput(course.tags ? course.tags.join(', ') : '');
         } else {
@@ -61,6 +67,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                 category: '',
                 tags: [],
                 status: 'draft',
+                includedInPlans: []
             });
             setTagsInput('');
         }
@@ -103,6 +110,17 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
             ...prev,
             [name]: value
         }));
+    };
+
+    const handlePlanChange = (plan: string) => {
+        setFormData((prev: any) => {
+            const currentPlans = prev.includedInPlans || [];
+            if (currentPlans.includes(plan)) {
+                return { ...prev, includedInPlans: currentPlans.filter((p: string) => p !== plan) };
+            } else {
+                return { ...prev, includedInPlans: [...currentPlans, plan] };
+            }
+        });
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: 'thumbnailUrl' | 'bannerUrl', type: 'thumbnail' | 'banner') => {
@@ -167,7 +185,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                             name="title"
                             value={formData.title}
                             onChange={handleChange}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-black"
                             placeholder="e.g., Complete Web Development Bootcamp"
                             required
                         />
@@ -183,7 +201,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                             value={formData.description}
                             onChange={handleChange}
                             rows={4}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none resize-none text-black"
                             placeholder="Describe what students will learn..."
                             required
                         />
@@ -209,7 +227,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                     name="color"
                                     value={formData.color}
                                     onChange={handleChange}
-                                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg outline-none uppercase"
+                                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg outline-none uppercase text-black"
                                     placeholder="#000000"
                                     pattern="^#[0-9A-Fa-f]{6}$"
                                     required
@@ -227,7 +245,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                 name="icon"
                                 value={formData.icon}
                                 onChange={handleChange}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-black"
                                 placeholder="e.g., code, book, or URL"
                                 required
                             />
@@ -245,7 +263,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                 name="duration"
                                 value={formData.duration}
                                 onChange={handleChange}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-black"
                                 placeholder="e.g. 6 weeks"
                                 required
                             />
@@ -260,7 +278,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                 name="category"
                                 value={formData.category}
                                 onChange={handleChange}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none capitalize"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none capitalize text-black"
                                 required
                             >
                                 <option value="">Select Category</option>
@@ -284,7 +302,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                 name="status"
                                 value={formData.status}
                                 onChange={handleChange}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-black"
                                 required
                             >
                                 <option value="draft">Draft</option>
@@ -292,6 +310,29 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                 <option value="archived">Archived</option>
                             </select>
                         </div>
+                    </div>
+
+                    {/* Membership Access */}
+                    <div>
+                        <label className="block text-sm font-medium text-secondary mb-2">
+                            Included in Restricted Plans (Auto-Enroll)
+                        </label>
+                        <div className="flex flex-wrap gap-4">
+                            {membershipPlans.map((plan) => (
+                                <label key={plan} className="flex items-center space-x-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={(formData.includedInPlans || []).includes(plan)}
+                                        onChange={() => handlePlanChange(plan)}
+                                        className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                                    />
+                                    <span className="capitalize">{plan}</span>
+                                </label>
+                            ))}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                            Users on these plans will be automatically enrolled in this course upon purchase.
+                        </p>
                     </div>
 
                     {/* Tags */}
@@ -303,7 +344,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                             type="text"
                             value={tagsInput}
                             onChange={(e) => setTagsInput(e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-black"
                             placeholder="e.g., web, development, coding"
                             required
                         />
@@ -344,7 +385,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                         name="thumbnailUrl"
                                         value={formData.thumbnailUrl}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm"
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm text-black"
                                         placeholder="https://example.com/image.jpg"
                                         required
                                     />
@@ -403,7 +444,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                         name="bannerUrl"
                                         value={formData.bannerUrl}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm"
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm text-black"
                                         placeholder="https://example.com/banner.jpg"
                                         required
                                     />

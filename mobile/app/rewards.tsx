@@ -1,165 +1,66 @@
-import React, { useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useRewardStore } from '@/store/rewardStore';
 
 export default function RewardsScreen() {
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState<'rewards' | 'history'>('rewards');
 
-  // User's current bonus points
-  const totalPoints = 150;
-  const currentLevel = 'Gold Member';
-  const nextLevelPoints = 200;
+  const {
+    totalPoints,
+    currentLevel,
+    history,
+    rewards,
+    redeemedRewards,
+    isLoading,
+    fetchRewardsStatus,
+    fetchRewardsCatalog,
+    redeemReward
+  } = useRewardStore();
 
-  // Points history
-  const pointsHistory = [
-    {
-      id: 1,
-      activity: 'Completed Physical Wellness Course',
-      points: 10,
-      date: '2 days ago',
-      icon: 'trophy',
-      color: '#10B981',
-    },
-    {
-      id: 2,
-      activity: 'Attended Live Event',
-      points: 10,
-      date: '5 days ago',
-      icon: 'calendar',
-      color: '#F59E0B',
-    },
-    {
-      id: 3,
-      activity: '7-Day Learning Streak',
-      points: 15,
-      date: '1 week ago',
-      icon: 'flame',
-      color: '#EF4444',
-    },
-    {
-      id: 4,
-      activity: 'Completed Financial Wellness Module',
-      points: 10,
-      date: '2 weeks ago',
-      icon: 'trophy',
-      color: '#10B981',
-    },
-    {
-      id: 5,
-      activity: 'Referred a Friend',
-      points: 20,
-      date: '2 weeks ago',
-      icon: 'people',
-      color: '#3B82F6',
-    },
-    {
-      id: 6,
-      activity: 'First Course Completion',
-      points: 10,
-      date: '3 weeks ago',
-      icon: 'star',
-      color: '#F59E0B',
-    },
-  ];
+  useEffect(() => {
+    fetchRewardsStatus();
+    fetchRewardsCatalog();
+  }, []);
 
-  // Reward catalog
-  const rewards = [
-    {
-      id: 1,
-      title: 'Bronze Badge',
-      description: 'Achievement badge for your profile',
-      points: 50,
-      emoji: '🥉',
-      color: '#CD7F32',
-      bgColor: '#FEF3C7',
-      category: 'Badge',
-      available: true,
-    },
-    {
-      id: 2,
-      title: 'Silver Badge',
-      description: 'Exclusive silver achievement badge',
-      points: 100,
-      emoji: '🥈',
-      color: '#C0C0C0',
-      bgColor: '#F3F4F6',
-      category: 'Badge',
-      available: true,
-    },
-    {
-      id: 3,
-      title: 'Gold Badge',
-      description: 'Premium gold achievement badge',
-      points: 150,
-      emoji: '🥇',
-      color: '#FFD700',
-      bgColor: '#FEF3C7',
-      category: 'Badge',
-      available: true,
-    },
-    {
-      id: 4,
-      title: 'Spiritual Gift Box',
-      description: 'Curated spiritual items and books',
-      points: 200,
-      emoji: '🎁',
-      color: '#EC4899',
-      bgColor: '#FDF2F8',
-      category: 'Gift',
-      available: false,
-    },
-    {
-      id: 5,
-      title: 'Premium Event Pass',
-      description: 'Free entry to next premium event',
-      points: 250,
-      emoji: '🎟️',
-      color: '#8B5CF6',
-      bgColor: '#F5F3FF',
-      category: 'Benefit',
-      available: false,
-    },
-    {
-      id: 6,
-      title: 'Meditation Essentials Kit',
-      description: 'Incense, mala beads, and meditation cushion',
-      points: 300,
-      emoji: '🧘',
-      color: '#10B981',
-      bgColor: '#ECFDF5',
-      category: 'Gift',
-      available: false,
-    },
-    {
-      id: 7,
-      title: 'Diamond Badge',
-      description: 'Ultimate achievement recognition',
-      points: 500,
-      emoji: '💎',
-      color: '#3B82F6',
-      bgColor: '#EFF6FF',
-      category: 'Badge',
-      available: false,
-    },
-    {
-      id: 8,
-      title: 'Personalized Consultation',
-      description: '1-on-1 session with Gurudev (Free)',
-      points: 1000,
-      emoji: '🙏',
-      color: '#F59E0B',
-      bgColor: '#FEF3C7',
-      category: 'Benefit',
-      available: false,
-    },
-  ];
+  const handleRedeem = async (rewardId: string) => {
+    Alert.alert(
+      'Confirm Redemption',
+      'Are you sure you want to redeem this reward?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Redeem',
+          onPress: async () => {
+            const result = await redeemReward(rewardId);
+            if (result.success) {
+              Alert.alert('Success', result.message);
+            } else {
+              Alert.alert('Error', result.message);
+            }
+          }
+        }
+      ]
+    );
+  };
 
-  const progressPercentage = (totalPoints / nextLevelPoints) * 100;
-  const availableRewards = rewards.filter(r => r.available);
-  const lockedRewards = rewards.filter(r => !r.available);
+  const nextLevelPoints = 500; // Example threshold, could come from backend config
+  const progressPercentage = Math.min((totalPoints / nextLevelPoints) * 100, 100);
+
+  // Filter rewards
+  const availableRewards = rewards.filter(r => r.isAvailable && !redeemedRewards.includes(r._id));
+  const lockedRewards = rewards.filter(r => !r.isAvailable);
+
+  if (isLoading && rewards.length === 0) {
+    return (
+      <View className="flex-1 justify-center items-center bg-gray-50">
+        <ActivityIndicator size="large" color="#F1842D" />
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -186,20 +87,20 @@ export default function RewardsScreen() {
                 <Text className="text-6xl">🏆</Text>
               </View>
             </View>
-            
+
             <View className="bg-white/20 rounded-xl p-3">
               <View className="flex-row justify-between items-center mb-2">
                 <Text className="text-white/90 text-sm font-semibold">{currentLevel}</Text>
                 <Text className="text-white text-xs">{totalPoints}/{nextLevelPoints}</Text>
               </View>
               <View className="bg-white/30 rounded-full h-2 overflow-hidden">
-                <View 
+                <View
                   className="bg-white h-full rounded-full"
                   style={{ width: `${progressPercentage}%` }}
                 />
               </View>
               <Text className="text-white/70 text-xs mt-2">
-                {nextLevelPoints - totalPoints} points to next level
+                {Math.max(0, nextLevelPoints - totalPoints)} points to next level
               </Text>
             </View>
           </View>
@@ -237,26 +138,22 @@ export default function RewardsScreen() {
           {/* Tabs */}
           <View className="flex-row bg-white rounded-xl p-1 mb-5 shadow-sm">
             <TouchableOpacity
-              className={`flex-1 py-3 px-4 rounded-lg items-center ${
-                selectedTab === 'rewards' ? 'bg-purple-500' : ''
-              }`}
+              className={`flex-1 py-3 px-4 rounded-lg items-center ${selectedTab === 'rewards' ? 'bg-purple-500' : ''
+                }`}
               onPress={() => setSelectedTab('rewards')}
             >
-              <Text className={`text-sm font-semibold ${
-                selectedTab === 'rewards' ? 'text-white' : 'text-gray-500'
-              }`}>
+              <Text className={`text-sm font-semibold ${selectedTab === 'rewards' ? 'text-white' : 'text-gray-500'
+                }`}>
                 Rewards
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className={`flex-1 py-3 px-4 rounded-lg items-center ${
-                selectedTab === 'history' ? 'bg-purple-500' : ''
-              }`}
+              className={`flex-1 py-3 px-4 rounded-lg items-center ${selectedTab === 'history' ? 'bg-purple-500' : ''
+                }`}
               onPress={() => setSelectedTab('history')}
             >
-              <Text className={`text-sm font-semibold ${
-                selectedTab === 'history' ? 'text-white' : 'text-gray-500'
-              }`}>
+              <Text className={`text-sm font-semibold ${selectedTab === 'history' ? 'text-white' : 'text-gray-500'
+                }`}>
                 History
               </Text>
             </TouchableOpacity>
@@ -266,17 +163,17 @@ export default function RewardsScreen() {
           {selectedTab === 'rewards' && (
             <View>
               {/* Available Rewards */}
-              {availableRewards.length > 0 && (
+              {availableRewards.length > 0 ? (
                 <View className="mb-5">
                   <Text className="text-base font-bold text-gray-900 mb-3">Available Rewards</Text>
                   <View className="gap-3">
                     {availableRewards.map((reward) => (
                       <View
-                        key={reward.id}
+                        key={reward._id}
                         className="rounded-2xl p-4 border-2"
                         style={{
-                          backgroundColor: reward.bgColor,
-                          borderColor: reward.color,
+                          backgroundColor: reward.bgColor || '#FEF3C7',
+                          borderColor: reward.color || '#F59E0B',
                         }}
                       >
                         <View className="flex-row items-start gap-3">
@@ -293,14 +190,15 @@ export default function RewardsScreen() {
                             <Text className="text-xs text-gray-600 mb-3">{reward.description}</Text>
                             <View className="flex-row items-center justify-between">
                               <View className="flex-row items-center gap-1">
-                                <Ionicons name="star" size={16} style={{ color: reward.color }} />
-                                <Text className="text-sm font-bold" style={{ color: reward.color }}>
-                                  {reward.points} Points
+                                <Ionicons name="star" size={16} style={{ color: reward.color || '#F59E0B' }} />
+                                <Text className="text-sm font-bold" style={{ color: reward.color || '#F59E0B' }}>
+                                  {reward.pointsCost} Points
                                 </Text>
                               </View>
                               <TouchableOpacity
                                 className="px-4 py-2 rounded-lg"
-                                style={{ backgroundColor: reward.color }}
+                                style={{ backgroundColor: reward.color || '#F59E0B' }}
+                                onPress={() => handleRedeem(reward._id)}
                               >
                                 <Text className="text-xs font-bold text-white">Redeem</Text>
                               </TouchableOpacity>
@@ -311,16 +209,16 @@ export default function RewardsScreen() {
                     ))}
                   </View>
                 </View>
-              )}
+              ) : null}
 
               {/* Locked Rewards */}
-              {lockedRewards.length > 0 && (
+              {lockedRewards.length > 0 ? (
                 <View>
-                  <Text className="text-base font-bold text-gray-900 mb-3">Coming Soon</Text>
+                  <Text className="text-base font-bold text-gray-900 mb-3">Locked / Unavailable</Text>
                   <View className="gap-3">
                     {lockedRewards.map((reward) => (
                       <View
-                        key={reward.id}
+                        key={reward._id}
                         className="rounded-2xl p-4 border border-gray-200 bg-gray-50 opacity-60"
                       >
                         <View className="flex-row items-start gap-3">
@@ -337,10 +235,10 @@ export default function RewardsScreen() {
                             <View className="flex-row items-center gap-1">
                               <Ionicons name="star" size={16} color="#9CA3AF" />
                               <Text className="text-sm font-bold text-gray-500">
-                                {reward.points} Points
+                                {reward.pointsCost} Points
                               </Text>
                               <Text className="text-xs text-gray-400 ml-1">
-                                ({reward.points - totalPoints} more needed)
+                                ({Math.max(0, reward.pointsCost - totalPoints)} more needed)
                               </Text>
                             </View>
                           </View>
@@ -349,7 +247,7 @@ export default function RewardsScreen() {
                     ))}
                   </View>
                 </View>
-              )}
+              ) : null}
             </View>
           )}
 
@@ -358,27 +256,37 @@ export default function RewardsScreen() {
             <View>
               <Text className="text-base font-bold text-gray-900 mb-3">Recent Activity</Text>
               <View className="gap-3">
-                {pointsHistory.map((item) => (
-                  <View
-                    key={item.id}
-                    className="bg-white rounded-2xl p-4 border border-gray-200 flex-row items-center gap-3"
-                  >
+                {history.length === 0 ? (
+                  <Text className="text-gray-500 text-center py-4">No point activity yet</Text>
+                ) : (
+                  history.map((item) => (
                     <View
-                      className="w-12 h-12 rounded-full items-center justify-center"
-                      style={{ backgroundColor: item.color + '20' }}
+                      key={item._id}
+                      className="bg-white rounded-2xl p-4 border border-gray-200 flex-row items-center gap-3"
                     >
-                      <Ionicons name={item.icon as any} size={20} style={{ color: item.color }} />
+                      <View
+                        className="w-12 h-12 rounded-full items-center justify-center"
+                        style={{ backgroundColor: (item.type === 'earn' ? '#10B981' : '#EF4444') + '20' }}
+                      >
+                        <Ionicons
+                          name={item.type === 'earn' ? "trophy" : "gift"}
+                          size={20}
+                          style={{ color: item.type === 'earn' ? '#10B981' : '#EF4444' }}
+                        />
+                      </View>
+                      <View className="flex-1">
+                        <Text className="text-sm font-semibold text-gray-900 mb-0.5">{item.activity}</Text>
+                        <Text className="text-xs text-gray-500">{new Date(item.createdAt).toLocaleDateString()}</Text>
+                      </View>
+                      <View className="items-end">
+                        <Text className={`text-lg font-black ${item.type === 'earn' ? 'text-green-600' : 'text-red-500'}`}>
+                          {item.type === 'earn' ? '+' : ''}{item.points}
+                        </Text>
+                        <Text className="text-[10px] text-gray-500">points</Text>
+                      </View>
                     </View>
-                    <View className="flex-1">
-                      <Text className="text-sm font-semibold text-gray-900 mb-0.5">{item.activity}</Text>
-                      <Text className="text-xs text-gray-500">{item.date}</Text>
-                    </View>
-                    <View className="items-end">
-                      <Text className="text-lg font-black text-green-600">+{item.points}</Text>
-                      <Text className="text-[10px] text-gray-500">points</Text>
-                    </View>
-                  </View>
-                ))}
+                  ))
+                )}
               </View>
             </View>
           )}

@@ -1,22 +1,110 @@
-import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Header from '../../components/Header';
-
-
-
 import { useCourseStore } from '../../store/courseStore';
-import { useEffect } from 'react';
-import { ActivityIndicator } from 'react-native';
+import { useMembershipStore } from '../../store/membershipStore';
 
+/* ─── Category badge config ──────────────────────────────────────────── */
+const CATEGORY_CONFIG: Record<
+  string,
+  { color: string; bg: string; icon: string; label: string }
+> = {
+  physical: { color: '#FFFFFF', bg: '#EF4444', icon: 'barbell', label: 'Physical' },
+  mental: { color: '#FFFFFF', bg: '#8B5CF6', icon: 'brain', label: 'Mental' },
+  financial: { color: '#1A1A1A', bg: '#22C55E', icon: 'cash', label: 'Financial' },
+  relationship: { color: '#FFFFFF', bg: '#EC4899', icon: 'heart', label: 'Relationship' },
+  spiritual: { color: '#FFFFFF', bg: '#F59E0B', icon: 'sparkles', label: 'Spiritual' },
+  general: { color: '#FFFFFF', bg: '#64748B', icon: 'layers', label: 'General' },
+};
+
+/* ─── Plan badge config ──────────────────────────────────────────────── */
+const PLAN_CONFIG: Record<
+  string,
+  { color: string; bg: string; borderColor: string; icon: string; label: string }
+> = {
+  bronze: { color: '#FFFFFF', bg: '#92400E', borderColor: '#CD7F32', icon: 'shield', label: 'Bronze' },
+  copper: { color: '#FFFFFF', bg: '#7C3A1E', borderColor: '#B87333', icon: 'shield-half', label: 'Copper' },
+  silver: { color: '#1A1A1A', bg: '#D1D5DB', borderColor: '#9CA3AF', icon: 'shield-checkmark', label: 'Silver' },
+  gold1: { color: '#1A1A1A', bg: '#FEF08A', borderColor: '#EAB308', icon: 'trophy', label: 'Gold I' },
+  gold2: { color: '#1A1A1A', bg: '#FDE68A', borderColor: '#D97706', icon: 'trophy', label: 'Gold II' },
+  diamond: { color: '#FFFFFF', bg: '#1E3A5F', borderColor: '#60A5FA', icon: 'diamond', label: 'Diamond' },
+  patron: { color: '#FFFFFF', bg: '#4C1D95', borderColor: '#A78BFA', icon: 'star', label: 'Patron' },
+  elite: { color: '#FFFFFF', bg: '#1F2937', borderColor: '#F87171', icon: 'flame', label: 'Elite' },
+  quantum: { color: '#FFFFFF', bg: '#0F172A', borderColor: '#38BDF8', icon: 'planet', label: 'Quantum' },
+};
+
+function getCategoryConfig(category?: string) {
+  if (!category) return null;
+  const key = category.toLowerCase().trim();
+  return CATEGORY_CONFIG[key] || { color: '#FFFFFF', bg: '#4F46E5', icon: 'layers', label: category };
+}
+
+function getPlanBadges(plans?: string[]) {
+  if (!plans || plans.length === 0) return [];
+  return plans
+    .map((p) => ({ key: p, cfg: PLAN_CONFIG[p.toLowerCase()] }))
+    .filter((x) => x.cfg);
+}
+
+/**
+ * A course is LOCKED if:
+ *  - It has at least one plan restriction (includedInPlans is not empty)
+ *  - AND the user's current active plan is NOT in that list
+ */
+function isCourseAccessible(
+  includedInPlans: string[] | undefined,
+  userPlan: string | null | undefined,
+  isActive: boolean,
+): boolean {
+  // No plan restriction → free/open to all
+  if (!includedInPlans || includedInPlans.length === 0) return true;
+  // User has no active plan → locked
+  if (!userPlan || !isActive) return false;
+  // Check if user's plan is in the required list
+  return includedInPlans.map((p) => p.toLowerCase()).includes(userPlan.toLowerCase());
+}
+
+/* ─── Screen ─────────────────────────────────────────────────────────── */
 export default function CoursesScreen() {
   const router = useRouter();
   const { courses, fetchCourses, isLoading } = useCourseStore();
+  const { currentSubscription, fetchCurrentSubscription } = useMembershipStore();
 
   useEffect(() => {
     fetchCourses();
+    fetchCurrentSubscription();
   }, []);
+
+  const userPlan = currentSubscription?.plan;
+  const isActive = currentSubscription?.status === 'active' || currentSubscription?.status === 'trial';
+
+  const handleCardPress = (module: typeof courses[0], locked: boolean) => {
+    if (locked) {
+      // Redirect to membership purchase screen
+      router.push('/(home)/my-membership');
+      return;
+    }
+    router.push({
+      pathname: '/course-detail',
+      params: {
+        id: module._id,
+        title: module.title,
+        color: module.color,
+        duration: module.duration,
+        videos: module.totalVideos || 0,
+      },
+    });
+  };
 
   return (
     <View style={styles.container}>
@@ -25,9 +113,7 @@ export default function CoursesScreen() {
         <View style={styles.scrollContent}>
           {/* Section Header */}
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              Courses
-            </Text>
+            <Text style={styles.sectionTitle}>Courses</Text>
             <Text style={styles.sectionSubtitle}>
               Foundational courses to get you started
             </Text>
@@ -36,49 +122,163 @@ export default function CoursesScreen() {
           {isLoading ? (
             <ActivityIndicator size="large" color="#EAB308" style={{ marginTop: 20 }} />
           ) : (
-            courses.map((module) => (
-              <View
-                key={module._id}
-                style={[styles.card, { borderLeftColor: module.color }]}
-              >
-                <View style={styles.cardContent}>
-                  <View style={styles.headerRow}>
-                    <Ionicons name={module.icon as any} size={24} color={module.color} />
-                    <Text style={styles.title}>{module.title}</Text>
+            courses.map((module) => {
+              const catCfg = getCategoryConfig(module.category);
+              const planBadges = getPlanBadges(module.includedInPlans);
+              const locked = !isCourseAccessible(module.includedInPlans, userPlan, isActive);
+
+              return (
+                <View
+                  key={module._id}
+                  style={[
+                    styles.card,
+                    { borderLeftColor: locked ? '#475569' : module.color },
+                    locked && styles.cardLocked,
+                  ]}
+                >
+                  {/* Thumbnail */}
+                  <View style={styles.imageWrapper}>
+                    {module.thumbnailUrl ? (
+                      <Image
+                        source={{ uri: module.thumbnailUrl }}
+                        style={[styles.thumbnail, locked && styles.thumbnailDimmed]}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.thumbnailPlaceholder,
+                          { backgroundColor: locked ? '#1E293B' : module.color + '33' },
+                        ]}
+                      >
+                        <Ionicons
+                          name={locked ? 'lock-closed' : (module.icon as any)}
+                          size={40}
+                          color={locked ? '#475569' : module.color}
+                        />
+                      </View>
+                    )}
+
+                    {/* Lock overlay on image */}
+                    {locked && (
+                      <View style={styles.lockOverlay}>
+                        <View style={styles.lockBadge}>
+                          <Ionicons name="lock-closed" size={18} color="#F8FAFC" />
+                        </View>
+                      </View>
+                    )}
+
+                    {/* Category Badge */}
+                    {catCfg && (
+                      <View
+                        style={[
+                          styles.categoryBadge,
+                          { backgroundColor: locked ? '#334155' : catCfg.bg },
+                        ]}
+                      >
+                        <Ionicons
+                          name={catCfg.icon as any}
+                          size={11}
+                          color={locked ? '#94A3B8' : catCfg.color}
+                        />
+                        <Text
+                          style={[
+                            styles.categoryBadgeText,
+                            { color: locked ? '#94A3B8' : catCfg.color },
+                          ]}
+                        >
+                          {catCfg.label}
+                        </Text>
+                      </View>
+                    )}
                   </View>
 
-                  <Text style={styles.description} numberOfLines={2}>
-                    {module.description}
-                  </Text>
-
-                  <View style={styles.footerRow}>
-                    <View style={styles.metaRow}>
-                      <Text style={styles.metaText}>{module.duration}</Text>
-                      <Text style={styles.metaDot}>•</Text>
-                      <Text style={styles.metaText}>{module.totalVideos || 0} videos</Text>
+                  {/* Card Body */}
+                  <View style={styles.cardContent}>
+                    <View style={styles.headerRow}>
+                      <Ionicons
+                        name={locked ? 'lock-closed-outline' : (module.icon as any)}
+                        size={22}
+                        color={locked ? '#475569' : module.color}
+                      />
+                      <Text style={[styles.title, locked && styles.titleLocked]}>
+                        {module.title}
+                      </Text>
                     </View>
 
-                    <TouchableOpacity
-                      style={[styles.viewButton, { backgroundColor: module.color }]}
-                      onPress={() => router.push({
-                        pathname: '/course-detail',
-                        params: {
-                          id: module._id,
-                          title: module.title,
-                          color: module.color,
-                          duration: module.duration,
-                          videos: module.totalVideos || 0,
-                        }
-                      })}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.viewButtonText}>View</Text>
-                      <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
-                    </TouchableOpacity>
+                    <Text style={[styles.description, locked && styles.descriptionLocked]} numberOfLines={2}>
+                      {module.description}
+                    </Text>
+
+                    {/* Plan tier badges */}
+                    {planBadges.length > 0 && (
+                      <View style={styles.planBadgeRow}>
+                        {planBadges.map(({ key, cfg }) => (
+                          <View
+                            key={key}
+                            style={[
+                              styles.planBadge,
+                              locked
+                                ? { backgroundColor: '#1E293B', borderColor: '#334155' }
+                                : { backgroundColor: cfg.bg, borderColor: cfg.borderColor },
+                            ]}
+                          >
+                            <Ionicons
+                              name={cfg.icon as any}
+                              size={10}
+                              color={locked ? '#475569' : cfg.color}
+                            />
+                            <Text
+                              style={[
+                                styles.planBadgeText,
+                                { color: locked ? '#475569' : cfg.color },
+                              ]}
+                            >
+                              {cfg.label}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+
+                    <View style={styles.footerRow}>
+                      <View style={styles.metaRow}>
+                        <Ionicons name="time-outline" size={13} color={locked ? '#475569' : '#94A3B8'} />
+                        <Text style={[styles.metaText, locked && styles.metaTextLocked]}>{module.duration}</Text>
+                        <Text style={[styles.metaDot, locked && styles.metaTextLocked]}>•</Text>
+                        <Ionicons name="play-circle-outline" size={13} color={locked ? '#475569' : '#94A3B8'} />
+                        <Text style={[styles.metaText, locked && styles.metaTextLocked]}>
+                          {module.totalVideos || 0} videos
+                        </Text>
+                      </View>
+
+                      <TouchableOpacity
+                        style={[
+                          styles.viewButton,
+                          locked
+                            ? styles.viewButtonLocked
+                            : { backgroundColor: module.color },
+                        ]}
+                        onPress={() => handleCardPress(module, locked)}
+                        activeOpacity={0.8}
+                      >
+                        {locked ? (
+                          <>
+                            <Ionicons name="lock-closed" size={14} color="#94A3B8" />
+                            <Text style={styles.viewButtonTextLocked}>Unlock</Text>
+                          </>
+                        ) : (
+                          <>
+                            <Text style={styles.viewButtonText}>View</Text>
+                            <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
       </ScrollView>
@@ -86,32 +286,16 @@ export default function CoursesScreen() {
   );
 }
 
+/* ─── Styles ─────────────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-  },
-  scrollContent: {
-    padding: 20,
-    paddingTop: 16,
-    paddingBottom: 120,
-  },
-  sectionHeader: {
-    marginBottom: 24,
-    paddingHorizontal: 4,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#F8FAFC',
-    marginBottom: 6,
-    letterSpacing: 0.3,
-  },
-  sectionSubtitle: {
-    fontSize: 15,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
+  container: { flex: 1, backgroundColor: '#0F172A' },
+  scrollContent: { padding: 20, paddingTop: 16, paddingBottom: 120 },
+
+  sectionHeader: { marginBottom: 24, paddingHorizontal: 4 },
+  sectionTitle: { fontSize: 24, fontWeight: '700', color: '#F8FAFC', marginBottom: 6, letterSpacing: 0.3 },
+  sectionSubtitle: { fontSize: 15, color: '#94A3B8', fontWeight: '500' },
+
+  /* ── Card ── */
   card: {
     backgroundColor: '#1E293B',
     borderRadius: 20,
@@ -124,63 +308,99 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 6,
+    overflow: 'hidden',
   },
-  cardContent: {
-    padding: 20,
+  cardLocked: {
+    backgroundColor: '#151E2D',
+    borderColor: 'rgba(71, 85, 105, 0.3)',
   },
-  headerRow: {
+
+  /* ── Thumbnail ── */
+  imageWrapper: { position: 'relative', width: '100%', height: 170 },
+  thumbnail: { width: '100%', height: '100%' },
+  thumbnailDimmed: { opacity: 0.45 },
+  thumbnailPlaceholder: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
+
+  /* Lock overlay */
+  lockOverlay: {
+    position: 'absolute',
+    inset: 0,
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  lockBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(15, 23, 42, 0.85)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(148,163,184,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  /* ── Category Badge ── */
+  categoryBadge: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-    gap: 14,
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F8FAFC',
-    flex: 1,
-  },
-  description: {
-    fontSize: 15,
-    color: '#E2E8F0',
-    lineHeight: 22,
-    marginBottom: 16,
-  },
-  footerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  metaText: {
-    fontSize: 13,
-    color: '#94A3B8',
-    fontWeight: '500',
-  },
-  metaDot: {
-    fontSize: 13,
-    color: '#94A3B8',
-  },
+  categoryBadgeText: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
+
+  /* ── Card Body ── */
+  cardContent: { padding: 18 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 12 },
+  title: { fontSize: 17, fontWeight: '700', color: '#F8FAFC', flex: 1 },
+  titleLocked: { color: '#475569' },
+  description: { fontSize: 14, color: '#CBD5E1', lineHeight: 21, marginBottom: 14 },
+  descriptionLocked: { color: '#334155' },
+
+  /* Footer row */
+  footerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  metaText: { fontSize: 12, color: '#94A3B8', fontWeight: '500' },
+  metaTextLocked: { color: '#334155' },
+  metaDot: { fontSize: 12, color: '#94A3B8', marginHorizontal: 2 },
+
+  /* View button */
   viewButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 18,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
     borderRadius: 12,
-    gap: 8,
+    gap: 6,
     shadowColor: '#EAB308',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
-    shadowRadius: 12,
+    shadowRadius: 10,
     elevation: 6,
   },
-  viewButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  viewButtonLocked: {
+    backgroundColor: 'rgba(71,85,105,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(71,85,105,0.4)',
+    shadowOpacity: 0,
+    elevation: 0,
   },
+  viewButtonText: { fontSize: 14, fontWeight: '700', color: '#FFFFFF' },
+  viewButtonTextLocked: { fontSize: 14, fontWeight: '700', color: '#94A3B8' },
+
+  /* ── Plan tier badges ── */
+  planBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
+  planBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
+  planBadgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
 });

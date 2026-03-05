@@ -9,7 +9,7 @@ const userSchema = new mongoose.Schema({
     trim: true,
     index: true
   },
-  
+
   // Profile
   displayName: {
     type: String,
@@ -26,7 +26,7 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  
+
   // Authentication type
   authProvider: {
     type: String,
@@ -34,9 +34,9 @@ const userSchema = new mongoose.Schema({
     required: true,
     default: 'phone'
   },
-  
-                      
-  
+
+
+
   // Subscription
   subscriptionPlan: {
     type: String,
@@ -60,7 +60,7 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // 14 days
   },
-  
+
   // Payment history
   payments: [{
     orderId: {
@@ -89,7 +89,7 @@ const userSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
-  
+
   // User preferences
   preferences: {
     theme: {
@@ -102,7 +102,7 @@ const userSchema = new mongoose.Schema({
       default: true
     }
   },
-  
+
   // Assessment tracking
   assessmentCompleted: {
     type: Boolean,
@@ -112,13 +112,13 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
-  
+
   // Account status
   isActive: {
     type: Boolean,
     default: true
   },
-            
+
   // Analytics
   lastLoginAt: {
     type: Date,
@@ -127,6 +127,22 @@ const userSchema = new mongoose.Schema({
   loginCount: {
     type: Number,
     default: 0
+  },
+
+  // Gamification
+  gamification: {
+    totalPoints: {
+      type: Number,
+      default: 0
+    },
+    currentLevel: {
+      type: String,
+      default: 'Beginner'
+    },
+    badges: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Reward'
+    }]
   }
 }, {
   timestamps: true
@@ -135,16 +151,16 @@ const userSchema = new mongoose.Schema({
 // Indexes
 userSchema.index({ phone: 1 });
 userSchema.index({ email: 1 });
-  
+
 // Methods
-userSchema.methods.updateLastLogin = function() {
-  this.lastLoginAt = new Date();    
+userSchema.methods.updateLastLogin = function () {
+  this.lastLoginAt = new Date();
   this.loginCount += 1;
   return this.save();
 };
-  
-userSchema.methods.hasProAccess = function() {
-  return ['bronze', 'copper', 'silver', 'gold2', 'gold1', 'diamond', 'patron', 'elite', 'quantum'].includes(this.subscriptionPlan) 
+
+userSchema.methods.hasProAccess = function () {
+  return ['bronze', 'copper', 'silver', 'gold2', 'gold1', 'diamond', 'patron', 'elite', 'quantum'].includes(this.subscriptionPlan)
     && this.subscriptionStatus === 'active';
 };
 

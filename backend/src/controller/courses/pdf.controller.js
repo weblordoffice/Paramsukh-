@@ -11,29 +11,30 @@ export const addPdfToCourse = async(req ,res) =>{
                 message:"course Id is required"
             });
         }
-        const {title  ,description, pdfUrl ,thumbnailUrl ,order, isFree} = req.body;
-        if(!title || !pdfUrl || !description || !thumbnailUrl ||   !order === undefined){
+        const { title, description, pdfUrl, thumbnailUrl, order, isFree } = req.body;
+        if (!title || !pdfUrl) {
             return res.status(400).json({
                 success: false,
-                message:"title ,description ,pdfUrl ,thumbnailUrl and order are required"
+                message: "title and pdfUrl are required"
             });
         }
 
-        const course  =await Course.findById(courseId);
-        if(!course){
+        const course = await Course.findById(courseId);
+        if (!course) {
             return res.status(404).json({
                 success: false,
-                message:"Course not found"
-            })
+                message: "Course not found"
+            });
         }
+        const nextOrder = typeof order === 'number' ? order : (course.pdfs?.length ?? 0);
         course.pdfs.push({
             title,
-            description,
+            description: description || '',
             pdfUrl,
-            thumbnailUrl,
-            order,
-            isFree: isFree || false
-        })
+            thumbnailUrl: thumbnailUrl || '',
+            order: nextOrder,
+            isFree: isFree ?? false
+        });
         await course.save();
         return res.status(201).json({
             success: true,
@@ -61,12 +62,12 @@ export const getCoursePdfs = async(req ,res) =>{
         }
         const course  = await Course.findById(courseId).select('pdf');
         if(!course || !course.pdfs || course.pdfs.length === 0){
-            return res.status(404).jsonn({
+            return res.status(404).json({
                 success: false,
                 message:"No pdfs found for this course"
             })
         }
-        return re.status(200).json({
+        return res.status(200).json({
             success: true,
             message:"pdfs fetched successfully",
             pdfs: course.pdfs
@@ -178,12 +179,12 @@ export const updatePdf = async(req , res) =>{
 export const deletePdf = async(req , res) =>{
     try{
         const {courseId , pdfId} = req.params;
-        if(!courseId || pdfId){
-            return re.status(400).json({
+        if(!courseId || !pdfId){
+            return res.status(400).json({
                 success: false,
                 message:"course Id and pdf Id are required"
             })
-        }   
+        }
         const course = await Course.findById(courseId);
         if(!course){
             return res.status(404).json({
@@ -195,10 +196,15 @@ export const deletePdf = async(req , res) =>{
         if(!pdf){
             return res.status(404).json({
                 success: false,
-                message:"pdf not found"            
-                           })
+                message:"pdf not found"
+            })
         }
         course.pdfs.pull(pdfId);
+        await course.save();
+        return res.status(200).json({
+            success: true,
+            message: "PDF deleted successfully"
+        });
     }catch(error){
         console.error("❌ Error in deleting pdf:", error);
         return res.status(500).json({

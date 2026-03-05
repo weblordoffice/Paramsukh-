@@ -1,6 +1,7 @@
 import { Enrollment, COURSE_LIMITS } from '../../models/enrollment.models.js';
 import { Course } from '../../models/course.models.js';
 import { User } from '../../models/user.models.js';
+import { AppConfig } from '../../models/appConfig.models.js';
 
 /**
  * Enroll user in a course
@@ -43,13 +44,24 @@ export const enrollInCourse = async (req, res) => {
       });
     }
 
+
+
     // Check subscription and enrollment restrictions
     const user = await User.findById(userId);
-    
-    // For bronze, copper, and silver plans, users cannot manually enroll
-    // They must purchase membership which auto-enrolls them
-    const restrictedPlans = ['bronze', 'copper', 'silver'];
+
+    // Fetch dynamic configuration
+    const membershipRules = await AppConfig.findOne({ key: 'membership_rules' }).lean();
+
+    // Get restricted plans (auto-enroll only) with fallback
+    const restrictedPlans = membershipRules?.value?.restrictedPlans || ['bronze', 'copper', 'silver'];
+
     if (restrictedPlans.includes(user.subscriptionPlan)) {
+      // For restricted plans, verify if this course allows manual enrollment or is auto-enroll only
+      // But typically these plans are strictly auto-enroll
+
+      // However, if the course is explicitly marked as "Free" or accessible via some other logic, we might reconsider.
+      // For now, adhere to the restriction rule but check if the user is ALREADY enrolled loop handled above.
+
       return res.status(403).json({
         success: false,
         message: `Your ${user.subscriptionPlan} membership includes pre-selected courses. Manual enrollment is not available. Please contact support if you need assistance.`,
@@ -57,16 +69,21 @@ export const enrollInCourse = async (req, res) => {
         restrictedPlan: true
       });
     }
-    
+
     // For other plans, check course limits
-    const courseLimit = COURSE_LIMITS[user.subscriptionPlan] || 0;
-    
+    // Get limits with fallback to hardcoded default
+    const limitConfig = membershipRules?.value?.courseLimits || COURSE_LIMITS;
+    const courseLimit = limitConfig[user.subscriptionPlan] !== undefined ? limitConfig[user.subscriptionPlan] : 0;
+
     // If limit is Infinity, allow enrollment
-    if (courseLimit === Infinity) {
+    // Note: JSON serialization of Infinity might be null or string, handle accordingly if stored in DB
+    const isUnlimited = courseLimit === 'Infinity' || courseLimit === null || courseLimit === Infinity; // Handle stored variations
+
+    if (isUnlimited) {
       // Allow enrollment for unlimited plans
     } else {
       const currentEnrollments = await Enrollment.countDocuments({ userId });
-      
+
       if (currentEnrollments >= courseLimit) {
         return res.status(403).json({
           success: false,
@@ -234,10 +251,10 @@ export const markVideoComplete = async (req, res) => {
 
     // Mark video complete
     enrollment.markVideoComplete(videoId);
-    
+
     // Update progress
     enrollment.updateProgress(course.totalVideos, course.totalPdfs);
-    
+
     // Update current video to next one
     const currentVideoIndex = course.videos.findIndex(v => v._id.toString() === videoId);
     if (currentVideoIndex < course.videos.length - 1) {
@@ -302,7 +319,7 @@ export const markPdfComplete = async (req, res) => {
 
     // Mark PDF complete
     enrollment.markPdfComplete(pdfId);
-    
+
     // Update progress
     enrollment.updateProgress(course.totalVideos, course.totalPdfs);
     await enrollment.save();
@@ -431,7 +448,7 @@ export const unenrollFromCourse = async (req, res) => {
     const { courseId } = req.params;
 
     const enrollment = await Enrollment.findOneAndDelete({ userId, courseId });
-    
+
     if (!enrollment) {
       return res.status(404).json({
         success: false,

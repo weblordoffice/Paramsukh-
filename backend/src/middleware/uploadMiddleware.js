@@ -1,7 +1,26 @@
 import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
 
 // Configure multer for memory storage (we'll upload to Cloudinary from memory)
 const storage = multer.memoryStorage();
+
+// For large videos, store on disk temporarily to avoid buffering 1GB in RAM
+const videoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      const uploadDir = path.join(process.cwd(), 'tmp', 'uploads');
+      fs.mkdirSync(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    } catch (e) {
+      cb(e, undefined);
+    }
+  },
+  filename: (req, file, cb) => {
+    const safe = `${Date.now()}_${(file.originalname || 'video').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    cb(null, safe);
+  }
+});
 
 // File filter for images
 const imageFilter = (req, file, cb) => {
@@ -22,6 +41,17 @@ const videoFilter = (req, file, cb) => {
     cb(null, true);
   } else {
     cb(new Error('Invalid file type. Only MP4, MPEG, MOV, AVI and WebM are allowed.'), false);
+  }
+};
+
+// File filter for PDFs
+const pdfFilter = (req, file, cb) => {
+  const allowedMimes = ['application/pdf'];
+
+  if (allowedMimes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only PDF is allowed.'), false);
   }
 };
 
@@ -60,7 +90,7 @@ export const uploadMultipleImages = multer({
 
 // Single video upload (max 1GB)
 export const uploadSingleVideo = multer({
-  storage: storage,
+  storage: videoStorage,
   fileFilter: videoFilter,
   limits: {
     fileSize: 1024 * 1024 * 1024 // 1GB
@@ -75,6 +105,15 @@ export const uploadProfilePhoto = multer({
     fileSize: 2 * 1024 * 1024 // 2MB
   }
 }).single('photo');
+
+// Single PDF upload (max 50MB)
+export const uploadSinglePdf = multer({
+  storage: storage,
+  fileFilter: pdfFilter,
+  limits: {
+    fileSize: 50 * 1024 * 1024 // 50MB
+  }
+}).single('pdf');
 
 // Mixed media upload (images and videos)
 export const uploadMixedMedia = multer({
@@ -129,6 +168,7 @@ export default {
   uploadMultipleImages,
   uploadSingleVideo,
   uploadProfilePhoto,
+  uploadSinglePdf,
   uploadMixedMedia,
   handleMulterError
 };

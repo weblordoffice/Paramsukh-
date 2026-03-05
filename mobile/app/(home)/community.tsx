@@ -13,6 +13,8 @@ import {
   Animated,
   Dimensions,
   Platform,
+  FlatList,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +23,7 @@ import Header from '@/components/Header';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@/store/authStore';
 import AssessmentModal from '@/components/AssessmentModal';
+import CommentsModal from '@/components/CommentsModal';
 import * as ImagePicker from 'expo-image-picker';
 import { useCommunityStore, Group } from '@/store/communityStore';
 
@@ -57,6 +60,9 @@ export default function CommunityScreen() {
   const [selectedPostFilter, setSelectedPostFilter] = useState<'all' | 'image' | 'video' | 'audio' | 'text'>('all');
   const [showTagFilter, setShowTagFilter] = useState(false);
   const [selectedTag, setSelectedTag] = useState<string>('all');
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [activePostId, setActivePostId] = useState<string | null>(null);
+  const [createPostTags, setCreatePostTags] = useState<string[]>([]);
   const sidebarAnimation = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
 
   // Get user's initials
@@ -212,12 +218,18 @@ export default function CommunityScreen() {
         }
       }
 
-      const success = await storeCreatePost(activeGroup._id, postContent, uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined);
+      const success = await storeCreatePost(
+        activeGroup._id,
+        postContent,
+        uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined,
+        createPostTags
+      );
 
       if (success) {
         setPostContent('');
         setSelectedMedia(null);
         setMediaType(null);
+        setCreatePostTags([]);
         setPostType('feed');
         setShowCreatePost(false);
         setShowPostTypeSelector(false);
@@ -273,23 +285,25 @@ export default function CommunityScreen() {
   };
 
   const getFilteredPosts = () => {
-    // If store 'posts' has 'postType', filter by it. 
-    // If backend doesn't return 'postType', we might need to infer it from 'images'/'video' fields.
+    let filtered = posts;
 
-    if (selectedPostFilter === 'all') {
-      return posts;
+    // Filter by Post Type
+    if (selectedPostFilter !== 'all') {
+      filtered = filtered.filter(post => {
+        if (post.postType) return post.postType === selectedPostFilter;
+        if (selectedPostFilter === 'image' && post.images && post.images.length > 0) return true;
+        if (selectedPostFilter === 'video' && post.video) return true;
+        if (selectedPostFilter === 'text' && !post.images && !post.video) return true;
+        return false;
+      });
     }
 
-    return posts.filter(post => {
-      // Inference logic if postType missing
-      if (post.postType) return post.postType === selectedPostFilter;
+    // Filter by Tag
+    if (selectedTag !== 'all') {
+      filtered = filtered.filter(post => post.tags && post.tags.includes(selectedTag));
+    }
 
-      if (selectedPostFilter === 'image' && post.images && post.images.length > 0) return true;
-      if (selectedPostFilter === 'video' && post.video) return true;
-      if (selectedPostFilter === 'text' && !post.images && !post.video) return true;
-
-      return false;
-    });
+    return filtered;
   };
 
   return (
@@ -366,11 +380,12 @@ export default function CommunityScreen() {
               currentView === 'feed' && styles.sidebarItemActive,
             ]}
             onPress={() => handleViewChange('feed')}
-          >              <Ionicons
-                name="home"
-                size={24}
-                color={currentView === 'feed' ? '#F1842D' : '#5C4A42'}
-              />
+          >
+            <Ionicons
+              name="home"
+              size={24}
+              color={currentView === 'feed' ? '#F1842D' : '#5C4A42'}
+            />
             <Text
               style={[
                 styles.sidebarItemText,
@@ -453,210 +468,232 @@ export default function CommunityScreen() {
         </View>
       </Animated.View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Assessment Banner - Show if not completed */}
-        {!assessmentCompleted && (
-          <TouchableOpacity
-            style={styles.assessmentBanner}
-            onPress={() => setShowAssessment(true)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.bannerContent}>                <View style={styles.bannerIconContainer}>
-                <Ionicons name="clipboard-outline" size={24} color="#F1842D" />
-              </View>
-              <View style={styles.bannerTextContainer}>
-                <Text style={styles.bannerTitle}>Complete Your Assessment</Text>
-                <Text style={styles.bannerSubtitle}>Help us personalize your experience</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-            </View>
-          </TouchableOpacity>
-        )}
+      <View style={{ flex: 1 }}>
+        {currentView === 'feed' ? (
+          <FlatList
+            data={getFilteredPosts()}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={{ paddingBottom: 100 }}
+            showsVerticalScrollIndicator={false}
+            refreshing={isStoreLoading}
+            onRefresh={() => activeGroup && fetchGroupPosts(activeGroup._id)}
+            ListHeaderComponent={
+              <>
+                {/* Assessment Banner - Show if not completed */}
+                {!assessmentCompleted && (
+                  <TouchableOpacity
+                    style={styles.assessmentBanner}
+                    onPress={() => setShowAssessment(true)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.bannerContent}>
+                      <View style={styles.bannerIconContainer}>
+                        <Ionicons name="clipboard-outline" size={24} color="#F1842D" />
+                      </View>
+                      <View style={styles.bannerTextContainer}>
+                        <Text style={styles.bannerTitle}>Complete Your Assessment</Text>
+                        <Text style={styles.bannerSubtitle}>Help us personalize your experience</Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                    </View>
+                  </TouchableOpacity>
+                )}
 
-        {/* Filter Buttons - Only show on Feed view */}
-        {currentView === 'feed' && (
-          <View style={styles.filterButtonsContainer}>
-            <TouchableOpacity
-              style={styles.filterButton}
-              onPress={() => setShowPostTypeFilter(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.filterButtonText}>post-type</Text>
-              <Ionicons name="chevron-down" size={16} color="#111827" style={{ marginLeft: 4 }} />
-            </TouchableOpacity>
+                {/* Filter Buttons */}
+                <View style={styles.filterButtonsContainer}>
+                  <TouchableOpacity
+                    style={styles.filterButton}
+                    onPress={() => setShowPostTypeFilter(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.filterButtonText}>post-type</Text>
+                    <Ionicons name="chevron-down" size={16} color="#111827" style={{ marginLeft: 4 }} />
+                  </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.filterButton}
-              onPress={() => {
-                // Navigate to membership or handle membership filter
-                router.push('/(home)/membership-new');
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.filterButtonText}>membership</Text>
-            </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.filterButton}
+                    onPress={() => {
+                      router.push('/(home)/membership-new');
+                    }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.filterButtonText}>membership</Text>
+                  </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.filterButton}
-              onPress={() => setShowTagFilter(true)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.filterButtonText}>tag</Text>
-              <Ionicons name="chevron-down" size={16} color="#111827" style={{ marginLeft: 4 }} />
-            </TouchableOpacity>
-          </View>
-        )}
+                  <TouchableOpacity
+                    style={styles.filterButton}
+                    onPress={() => setShowTagFilter(true)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.filterButtonText}>tag</Text>
+                    <Ionicons name="chevron-down" size={16} color="#111827" style={{ marginLeft: 4 }} />
+                  </TouchableOpacity>
+                </View>
 
-        {/* Create Post Button - Only show on Feed view */}
-        {currentView === 'feed' && (
-          <TouchableOpacity
-            style={styles.createPostButton}
-            onPress={() => setShowCreatePost(true)}
-            activeOpacity={0.8}
-          >
-            <View style={styles.createPostContent}>                <Ionicons name="add-circle" size={24} color="#F1842D" />
-              <Text style={styles.createPostText}>
-                {activeGroup && activeGroup.name ? `Share in ${activeGroup.name}...` : 'Select a group to post...'}
-              </Text>
-            </View>
-            <View style={styles.mediaIcons}>
-              <Ionicons name="image-outline" size={20} color="#6B7280" style={{ marginRight: 12 }} />
-              <Ionicons name="videocam-outline" size={20} color="#6B7280" />
-            </View>
-          </TouchableOpacity>
-        )}
+                {/* Create Post Button */}
+                <TouchableOpacity
+                  style={styles.createPostButton}
+                  onPress={() => setShowCreatePost(true)}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.createPostContent}>
+                    <Ionicons name="add-circle" size={24} color="#F1842D" />
+                    <Text style={styles.createPostText}>
+                      {activeGroup && activeGroup.name ? `Share in ${activeGroup.name}...` : 'Select a group to post...'}
+                    </Text>
+                  </View>
+                  <View style={styles.mediaIcons}>
+                    <Ionicons name="image-outline" size={20} color="#6B7280" style={{ marginRight: 12 }} />
+                    <Ionicons name="videocam-outline" size={20} color="#6B7280" />
+                  </View>
+                </TouchableOpacity>
 
-        {/* View Content Based on Current View */}
-        {currentView === 'feed' && (
-          <>
-            {/* Posts Feed */}
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>
-                {activeGroup && activeGroup.name ? `${activeGroup.name} Posts` : 'Community Posts'}
-              </Text>
-
-              {!activeGroup && groups.length === 0 && !isStoreLoading && (
+                <View style={styles.section}>
+                  <Text style={styles.sectionTitle}>
+                    {activeGroup && activeGroup.name ? `${activeGroup.name} Posts` : 'Community Posts'}
+                  </Text>
+                </View>
+              </>
+            }
+            ListEmptyComponent={
+              !activeGroup && groups.length === 0 && !isStoreLoading ? (
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyStateText}>Join a course to access community groups.</Text>
                 </View>
-              )}
-
-              {isStoreLoading ? (
-                <ActivityIndicator size="large" color="#F1842D" style={{ marginTop: 20 }} />
               ) : (
-                getFilteredPosts().map((post) => (
-                  <View key={post._id} style={styles.postCard}>
-                    {/* Post Header */}
-                    <View style={styles.postHeader}>
-                      <View style={styles.userInfo}>
-                        <View style={styles.userAvatar}>
-                          {/* Use actual avatar or fallback */}
-                          <Image
-                            source={{ uri: post.author.photoURL || 'https://via.placeholder.com/40' }}
-                            style={{ width: 40, height: 40, borderRadius: 20 }}
-                          />
-                        </View>
-                        <View>
-                          <Text style={styles.userName}>{post.author.displayName || 'User'}</Text>
-                          <Text style={styles.postTime}>{/* format date */ new Date(post.createdAt).toLocaleDateString()}</Text>
-                        </View>
-                      </View>
-                      <TouchableOpacity>
-                        <Ionicons name="ellipsis-horizontal" size={20} color="#6B7280" />
-                      </TouchableOpacity>
+                <View style={[styles.emptyState, { paddingTop: 40 }]}>
+                  <Text style={styles.emptyStateText}>No posts found</Text>
+                </View>
+              )
+            }
+            renderItem={({ item: post }) => (
+              <View style={[styles.postCard, { marginHorizontal: 20 }]}>
+                {/* Post Header */}
+                <View style={styles.postHeader}>
+                  <View style={styles.userInfo}>
+                    <View style={styles.userAvatar}>
+                      <Image
+                        source={{ uri: post.author.photoURL || 'https://via.placeholder.com/40' }}
+                        style={{ width: 40, height: 40, borderRadius: 20 }}
+                      />
                     </View>
-
-                    {/* Post Content */}
-                    <Text style={styles.postContent}>{post.content}</Text>
-
-                    {/* Post Image/Video */}
-                    {post.images && post.images.length > 0 && (
-                      <View style={styles.postMedia}>
-                        {/* Simplified image render - iterate if multiple */}
-                        <Image source={{ uri: post.images[0] }} style={{ width: '100%', height: 200, borderRadius: 8 }} resizeMode="cover" />
-                      </View>
-                    )}
-
-                    {/* Post Actions */}
-                    <View style={styles.postActions}>
-                      <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => toggleLike(post._id)}
-                      >
-                        <Ionicons
-                          name={post.userLiked ? "heart" : "heart-outline"}
-                          size={22}
-                          color={post.userLiked ? "#EF4444" : "#6B7280"}
-                        />
-                        <Text style={[styles.actionText, post.userLiked && styles.likedText]}>
-                          {post.likeCount}
-                        </Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity style={styles.actionButton}>
-                        <Ionicons name="chatbubble-outline" size={20} color="#6B7280" />
-                        <Text style={styles.actionText}>{post.commentCount}</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity style={styles.actionButton}>
-                        <Ionicons name="share-social-outline" size={20} color="#6B7280" />
-                        <Text style={styles.actionText}>0</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))
-              )}
-            </View>
-          </>
-        )}
-
-        {currentView === 'groups' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Groups</Text>
-            {groups.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="people-outline" size={64} color="#9CA3AF" />
-                <Text style={styles.emptyStateText}>No groups yet</Text>
-                <Text style={styles.emptyStateSubtext}>
-                  Join courses to be added to their community groups.
-                </Text>
-              </View>
-            ) : (
-              groups.map(g => (
-                <TouchableOpacity
-                  key={g._id}
-                  style={styles.groupCard} // Need to define or reuse postCard style
-                  onPress={() => {
-                    setActiveGroup(g);
-                    setCurrentView('feed');
-                  }}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20 }}>
-                    <View style={{ width: 50, height: 50, borderRadius: 12, backgroundColor: 'rgba(92, 74, 66, 0.08)', marginRight: 16 }} />
                     <View>
-                      <Text style={{ fontSize: 17, fontWeight: '700', color: '#2C2420' }}>{g.name}</Text>
-                      <Text style={{ fontSize: 14, color: '#5C4A42', fontWeight: '500' }}>{g.memberCount} members</Text>
+                      <Text style={styles.userName}>{post.author.displayName || 'User'}</Text>
+                      <Text style={styles.postTime}>{/* format date */ new Date(post.createdAt).toLocaleDateString()}</Text>
                     </View>
                   </View>
-                </TouchableOpacity>
-              ))
-            )}
-          </View>
-        )}
+                  <TouchableOpacity>
+                    <Ionicons name="ellipsis-horizontal" size={20} color="#6B7280" />
+                  </TouchableOpacity>
+                </View>
 
-        {currentView === 'message' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Messages</Text>
-            <View style={styles.emptyState}>
-              <Ionicons name="chatbubbles-outline" size={64} color="#9CA3AF" />
-              <Text style={styles.emptyStateText}>No messages yet</Text>
-              <Text style={styles.emptyStateSubtext}>
-                Start a conversation with community members
-              </Text>
-            </View>
-          </View>
+                {/* Post Content */}
+                <Text style={styles.postContent}>{post.content}</Text>
+
+                {/* Tags */}
+                {post.tags && post.tags.length > 0 && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                    {post.tags.map(tag => (
+                      <View key={tag} style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+                        <Text style={{ fontSize: 12, color: '#6B7280' }}>#{tag}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Post Image/Video */}
+                {post.images && post.images.length > 0 && (
+                  <View style={styles.postMedia}>
+                    <Image source={{ uri: post.images[0] }} style={{ width: '100%', height: 200, borderRadius: 8 }} resizeMode="cover" />
+                  </View>
+                )}
+
+                {/* Post Actions */}
+                <View style={styles.postActions}>
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => toggleLike(post._id)}
+                  >
+                    <Ionicons
+                      name={post.userLiked ? "heart" : "heart-outline"}
+                      size={22}
+                      color={post.userLiked ? "#EF4444" : "#6B7280"}
+                    />
+                    <Text style={[styles.actionText, post.userLiked && styles.likedText]}>
+                      {post.likeCount}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => {
+                      setActivePostId(post._id);
+                      setShowCommentsModal(true);
+                    }}
+                  >
+                    <Ionicons name="chatbubble-outline" size={20} color="#6B7280" />
+                    <Text style={styles.actionText}>{post.commentCount}</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.actionButton}>
+                    <Ionicons name="share-social-outline" size={20} color="#6B7280" />
+                    <Text style={styles.actionText}>0</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          />
+        ) : (
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {currentView === 'groups' && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Groups</Text>
+                {groups.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="people-outline" size={64} color="#9CA3AF" />
+                    <Text style={styles.emptyStateText}>No groups yet</Text>
+                    <Text style={styles.emptyStateSubtext}>
+                      Join courses to be added to their community groups.
+                    </Text>
+                  </View>
+                ) : (
+                  groups.map(g => (
+                    <TouchableOpacity
+                      key={g._id}
+                      style={styles.groupCard}
+                      onPress={() => {
+                        setActiveGroup(g);
+                        setCurrentView('feed');
+                      }}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20 }}>
+                        <View style={{ width: 50, height: 50, borderRadius: 12, backgroundColor: 'rgba(92, 74, 66, 0.08)', marginRight: 16 }} />
+                        <View>
+                          <Text style={{ fontSize: 17, fontWeight: '700', color: '#2C2420' }}>{g.name}</Text>
+                          <Text style={{ fontSize: 14, color: '#5C4A42', fontWeight: '500' }}>{g.memberCount} members</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            )}
+
+            {currentView === 'message' && (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Messages</Text>
+                <View style={styles.emptyState}>
+                  <Ionicons name="chatbubbles-outline" size={64} color="#9CA3AF" />
+                  <Text style={styles.emptyStateText}>No messages yet</Text>
+                  <Text style={styles.emptyStateSubtext}>
+                    Start a conversation with community members
+                  </Text>
+                </View>
+              </View>
+            )}
+          </ScrollView>
         )}
-      </ScrollView>
+      </View>
 
       {/* Create Post Modal */}
       <Modal
@@ -705,6 +742,41 @@ export default function CommunityScreen() {
                 </View>
               </View>
             )}
+
+            <View style={{ marginBottom: 16 }}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: '#5C4A42', marginBottom: 8 }}>Tags</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {['meditation', 'spiritual', 'wellness', 'learning', 'community'].map(tag => (
+                  <TouchableOpacity
+                    key={tag}
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 16,
+                      backgroundColor: createPostTags.includes(tag) ? '#F1842D' : '#F3F4F6',
+                      marginRight: 8,
+                      borderWidth: 1,
+                      borderColor: createPostTags.includes(tag) ? '#F1842D' : '#E5E7EB'
+                    }}
+                    onPress={() => {
+                      if (createPostTags.includes(tag)) {
+                        setCreatePostTags(prev => prev.filter(t => t !== tag));
+                      } else {
+                        setCreatePostTags(prev => [...prev, tag]);
+                      }
+                    }}
+                  >
+                    <Text style={{
+                      fontSize: 12,
+                      color: createPostTags.includes(tag) ? '#FFF' : '#4B5563',
+                      fontWeight: '500'
+                    }}>
+                      {tag.charAt(0).toUpperCase() + tag.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
 
             <View style={styles.mediaButtons}>
               <TouchableOpacity
@@ -766,7 +838,9 @@ export default function CommunityScreen() {
                   selectedPostFilter === 'all' && styles.filterOptionActive
                 ]}
                 onPress={() => handlePostFilterSelect('all')}
-              >                <Ionicons name="grid-outline"
+              >
+                <Ionicons
+                  name="grid-outline"
                   size={24}
                   color={selectedPostFilter === 'all' ? '#F1842D' : '#5C4A42'}
                 />
@@ -1139,6 +1213,12 @@ export default function CommunityScreen() {
         visible={showAssessment}
         onClose={() => setShowAssessment(false)}
         onComplete={handleAssessmentComplete}
+      />
+
+      <CommentsModal
+        visible={showCommentsModal}
+        postId={activePostId}
+        onClose={() => setShowCommentsModal(false)}
       />
     </SafeAreaView>
   );

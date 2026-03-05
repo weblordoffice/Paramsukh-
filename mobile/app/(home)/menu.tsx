@@ -26,7 +26,7 @@ interface QuickAccessItemProps {
 
 function FeatureCard({ icon, title, description, color, bgColor, onPress }: FeatureCardProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  
+
   const handlePressIn = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Animated.spring(scaleAnim, {
@@ -34,14 +34,14 @@ function FeatureCard({ icon, title, description, color, bgColor, onPress }: Feat
       useNativeDriver: true,
     }).start();
   };
-  
+
   const handlePressOut = () => {
     Animated.spring(scaleAnim, {
       toValue: 1,
       useNativeDriver: true,
     }).start();
   };
-  
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -61,21 +61,21 @@ function FeatureCard({ icon, title, description, color, bgColor, onPress }: Feat
 
 function QuickAccessItem({ icon, emoji, title, description, iconBg, iconColor, onPress }: QuickAccessItemProps) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  
+
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
       toValue: 0.98,
       useNativeDriver: true,
     }).start();
   };
-  
+
   const handlePressOut = () => {
     Animated.spring(scaleAnim, {
       toValue: 1,
       useNativeDriver: true,
     }).start();
   };
-  
+
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -113,12 +113,12 @@ export default function HomeTab() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     Linking.openURL('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
   };
-  
+
   return (
     <View style={styles.container}>
       <Header />
-    
-      <ScrollView 
+
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -144,8 +144,8 @@ export default function HomeTab() {
               <Text style={styles.heroDescription}>
                 Your spiritual companion for meditation, learning, and community connection.
               </Text>
-              <TouchableOpacity 
-                style={styles.heroButton} 
+              <TouchableOpacity
+                style={styles.heroButton}
                 onPress={handleWatchIntro}
                 activeOpacity={0.8}
               >

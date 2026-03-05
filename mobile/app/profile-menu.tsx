@@ -75,7 +75,7 @@ export default function ProfileMenuScreen() {
             try {
               // Clear local storage and state (this now calls backend internally)
               await logout();
-              
+
               // Navigate to signin
               router.replace('/signin');
             } catch (error: any) {
@@ -108,8 +108,8 @@ export default function ProfileMenuScreen() {
             </View>
             <Text className="text-xl font-bold text-gray-900 mb-1">{user?.displayName || 'User'}</Text>
             <Text className="text-sm text-gray-500">Spiritual Seeker</Text>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               className="mt-4 px-6 py-2 rounded-xl bg-blue-50 border border-blue-200"
               onPress={() => router.push('/(home)/edit-profile')}
             >

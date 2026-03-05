@@ -54,7 +54,7 @@ export default function SignUpScreen() {
       }
 
       setOtpSent(true);
-      if (__DEV__ && result.otp) {
+      if (result.otp) {
         setGeneratedOTP(result.otp);
       }
       startResendTimer();
@@ -238,7 +238,7 @@ export default function SignUpScreen() {
                   <Text className="text-purple-600 font-medium">← Change Details</Text>
                 </TouchableOpacity>
 
-                {__DEV__ && generatedOTP && (
+                {generatedOTP && (
                   <TouchableOpacity onPress={() => {
                     Alert.alert('Your OTP', generatedOTP);
                   }}>

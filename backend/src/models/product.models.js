@@ -91,6 +91,18 @@ const productSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
+  // Product type: regular (sell here) or amazon (external link)
+  productType: {
+    type: String,
+    enum: ['regular', 'amazon'],
+    default: 'regular'
+  },
+  // When productType is 'amazon', link to product page (e.g. Amazon URL). Click opens this link.
+  externalLink: {
+    type: String,
+    default: null,
+    trim: true
+  },
   // Status
   isActive: {
     type: Boolean,

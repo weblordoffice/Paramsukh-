@@ -46,7 +46,7 @@ export default function SignInScreen() {
       }
 
       setOtpSent(true);
-      if (__DEV__ && result.otp) {
+      if (result.otp) {
         setGeneratedOTP(result.otp);
       }
       startResendTimer();
@@ -153,7 +153,7 @@ export default function SignInScreen() {
                 </Text>
               </View>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 className="mt-6"
                 onPress={() => router.replace('/signup')}
               >
@@ -206,12 +206,13 @@ export default function SignInScreen() {
                   <Text className="text-purple-600 font-medium">← Change Number</Text>
                 </TouchableOpacity>
 
-                {__DEV__ && generatedOTP && (
-                  <TouchableOpacity onPress={() => {
-                    Alert.alert('Your OTP', generatedOTP);
-                  }}>
-                    <Text className="text-green-600 font-medium">View OTP</Text>
-                  </TouchableOpacity>
+                {/* For testing: Always show OTP if available */}
+                {generatedOTP && (
+                  <View style={{ marginVertical: 10, padding: 10, backgroundColor: '#DCFCE7', borderRadius: 8 }}>
+                    <Text style={{ color: '#166534', textAlign: 'center' }}>
+                      Your OTP: <Text style={{ fontWeight: 'bold' }}>{generatedOTP}</Text>
+                    </Text>
+                  </View>
                 )}
 
                 {resendTimer > 0 ? (

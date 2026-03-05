@@ -92,7 +92,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   sendOTP: async (phone: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.post(`${API_URL}/auth/send-otp`, { phone });
+      const response = await axios.post(
+        `${API_URL}/auth/send-otp`,
+        { phone },
+        { timeout: 15000 }
+      );
 
       set({ isLoading: false });
       return {
@@ -106,23 +110,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         console.error('Send OTP Error:', error);
         console.error('Attempted API URL:', `${API_URL}/auth/send-otp`);
       }
-      
+
       let msg = 'Failed to send OTP. Please try again.';
-      
+
       if (error.response) {
-        // Server responded with error
         if (error.response.status === 429) {
           msg = error.response.data?.message || 'Too many OTP requests. Please wait 10 minutes and try again.';
+        } else if (error.response.status === 400) {
+          msg = error.response.data?.message || 'Invalid phone number. Use 10 digits (e.g. 9876543210).';
         } else {
           msg = error.response.data?.message || `Server error (${error.response.status}). Please try again.`;
         }
+      } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        msg = 'Request timed out. Is the backend running? Use same Wi‑Fi and check API URL.';
       } else if (error.request) {
-        // Request made but no response
-        msg = 'Cannot reach server. Check your internet connection.';
+        msg = 'Cannot reach server. Start the backend and ensure device is on the same network.';
       }
-      
+
       set({ isLoading: false, error: msg });
       return { success: false, message: msg };
+    } finally {
+      set({ isLoading: false });
     }
   },
 
@@ -279,8 +287,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       return { success: false };
     } catch (error: any) {
-      // If 401, token is invalid - clear local data silently (don't call backend)
-      if (error.response?.status === 401) {
+      // 401/400/403 = invalid or bad auth - clear local data and treat as logged out
+      const status = error.response?.status;
+      if (status === 401 || status === 400 || status === 403) {
         await clearSecureTokens();
         await AsyncStorage.multiRemove(['user', 'assessment_completed']);
         set({ user: null, token: null, refreshToken: null });

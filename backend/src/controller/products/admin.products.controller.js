@@ -1,5 +1,7 @@
+import mongoose from 'mongoose';
 import Product from '../../models/product.models.js';
 import Shop from '../../models/shop.models.js';
+import Category from '../../models/category.models.js';
 
 // @desc    Create product (Admin only - Simplified)
 // @route   POST /api/products/admin/create
@@ -13,51 +15,141 @@ export const createProductAdmin = async (req, res) => {
             images,
             category,
             stock,
-            isFeatured = false
+            isFeatured = false,
+            productType = 'regular',
+            externalLink
         } = req.body;
 
         // Validation
-        if (!name || !price) {
+        if (!name) {
             return res.status(400).json({
                 success: false,
-                message: 'Name and price are required'
+                message: 'Name is required'
+            });
+        }
+        if (productType === 'amazon') {
+            if (!externalLink || !externalLink.trim()) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'External link (e.g. Amazon URL) is required for Amazon products'
+                });
+            }
+        } else if (!price && price !== 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Price is required for regular products'
             });
         }
 
-        // Generate slug
-        const slug = name.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+        // Generate unique slug with timestamp
+        const baseSlug = name.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+        const timestamp = Date.now();
+        const slug = `${baseSlug}-${timestamp}`;
 
-        // Find a default shop for admin products (or the first available shop)
-        let shop = await Shop.findOne({ name: 'Admin Shop' });
+        // Handle Category: ID or Name
+        let categoryId;
+
+        if (category && mongoose.Types.ObjectId.isValid(category)) {
+            categoryId = category;
+        } else if (category && typeof category === 'string') {
+            // Try finding by name (case-insensitive)
+            let existingCategory = await Category.findOne({
+                name: { $regex: new RegExp(`^${category}$`, 'i') }
+            });
+
+            if (existingCategory) {
+                categoryId = existingCategory._id;
+            } else {
+                // Create new category
+                const newCategoryName = category.charAt(0).toUpperCase() + category.slice(1);
+                try {
+                    const newCategory = await Category.create({
+                        name: newCategoryName,
+                        slug: newCategoryName.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-'),
+                        description: `Category for ${newCategoryName}`,
+                        isActive: true
+                    });
+                    categoryId = newCategory._id;
+                } catch (catError) {
+                    console.error('Error creating category:', catError);
+                    // Fallback to "General" if creation fails (e.g. duplicate slug race condition)
+                    let generalCategory = await Category.findOne({ name: 'General' });
+                    if (!generalCategory) {
+                        generalCategory = await Category.create({
+                            name: 'General',
+                            slug: 'general',
+                            description: 'General category',
+                            isActive: true
+                        });
+                    }
+                    categoryId = generalCategory._id;
+                }
+            }
+        } else {
+            // Fallback to General if no category provided
+            let generalCategory = await Category.findOne({ name: 'General' });
+            if (!generalCategory) {
+                generalCategory = await Category.create({
+                    name: 'General',
+                    slug: 'general',
+                    description: 'General category',
+                    isActive: true
+                });
+            }
+            categoryId = generalCategory._id;
+        }
+
+        // Find or create 'Admin Shop'
+        let shop = await Shop.findOne({ slug: 'admin-shop' });
         if (!shop) {
-            // Try to find any shop, or create a dummy one if absolutely necessary
-            shop = await Shop.findOne();
+            shop = await Shop.findOne(); // Fallback to any shop
             if (!shop) {
-                // Return error if no shop exists at all (schema might require it)
-                // For now, we'll try to create without it and see if schema allows, 
-                // or you might need to create a shop first.
-                // Ideally, we should have a system shop.
-                console.log('No shop found. Product might validation fail if shop is required.');
+                // Create Admin Shop if absolutely no shop exists
+                shop = await Shop.create({
+                    name: 'Admin Shop',
+                    slug: 'admin-shop',
+                    description: 'Default shop for admin products',
+                    email: 'admin@example.com',
+                    phone: '1234567890',
+                    address: { street: '123 Admin St', city: 'Admin City', state: 'AD', pincode: '123456', country: 'India' },
+                    owner: req.user?._id || new mongoose.Types.ObjectId(), // Use current admin user or random ID
+                    isActive: true,
+                    status: 'approved'
+                });
             }
         }
+
+        // Format images array to match schema
+        const formattedImages = Array.isArray(images) 
+            ? images.map((img, index) => ({
+                url: typeof img === 'string' ? img : img.url,
+                alt: name,
+                isPrimary: index === 0
+            }))
+            : [];
+
+        const sellingPrice = productType === 'amazon' ? 0 : (parseFloat(price) || 0);
+        const stockVal = productType === 'amazon' ? 0 : (parseInt(stock, 10) || 0);
 
         const product = new Product({
             name,
             slug,
-            description,
-            shortDescription: description ? description.substring(0, 150) : '',
-            images: images || [],
-            category, // Expecting category ID or name? Schema usually expects ID.
+            description: description || name,
+            shortDescription: description ? description.substring(0, 150) : name.substring(0, 150),
+            images: formattedImages,
+            category: categoryId,
             pricing: {
-                originalPrice: price,
-                sellingPrice: price,
+                mrp: sellingPrice,
+                sellingPrice,
                 discount: 0
             },
             inventory: {
-                quantity: stock || 0,
-                inStock: (stock || 0) > 0
+                stock: stockVal,
+                isUnlimited: productType === 'amazon'
             },
-            shop: shop?._id, // Assign to found shop or undefined
+            shop: shop._id,
+            productType: productType === 'amazon' ? 'amazon' : 'regular',
+            externalLink: productType === 'amazon' && externalLink ? externalLink.trim() : null,
             isFeatured,
             isActive: true,
             specifications: [],
@@ -74,6 +166,8 @@ export const createProductAdmin = async (req, res) => {
 
     } catch (error) {
         console.error('Create Product Admin Error:', error);
+        console.error('Error Stack:', error.stack);
+        console.error('Error Details:', JSON.stringify(error, null, 2));
         res.status(500).json({
             success: false,
             message: 'Failed to create product',
@@ -102,21 +196,40 @@ export const updateProductAdmin = async (req, res) => {
         // Handle specific fields mapping to nested structure
         if (updates.price) {
             product.pricing.sellingPrice = updates.price;
-            product.pricing.originalPrice = updates.price; // Update both for simplicity
+            product.pricing.mrp = updates.price; // Update mrp as well
         }
 
         if (updates.stock !== undefined) {
-            product.inventory.quantity = updates.stock;
-            product.inventory.inStock = updates.stock > 0;
+            product.inventory.stock = updates.stock; // Changed from quantity to stock
+        }
+
+        // Format images array if provided
+        if (updates.images !== undefined) {
+            const imgs = Array.isArray(updates.images)
+                ? updates.images.map((img, index) => ({
+                    url: typeof img === 'string' ? img : img.url,
+                    alt: product.name,
+                    isPrimary: index === 0
+                }))
+                : [];
+            product.images = imgs;
         }
 
         // Update top-level fields
-        const allowedFields = ['name', 'description', 'images', 'category', 'isFeatured', 'isActive'];
+        const allowedFields = ['name', 'description', 'category', 'isFeatured', 'isActive', 'productType', 'externalLink'];
         allowedFields.forEach(field => {
             if (updates[field] !== undefined) {
-                product[field] = updates[field];
+                product[field] = field === 'externalLink' && updates[field] ? String(updates[field]).trim() : updates[field];
             }
         });
+
+        if (updates.price !== undefined && product.productType !== 'amazon') {
+            product.pricing.sellingPrice = updates.price;
+            product.pricing.mrp = updates.price;
+        }
+        if (updates.stock !== undefined && product.productType !== 'amazon') {
+            product.inventory.stock = updates.stock;
+        }
 
         await product.save();
 

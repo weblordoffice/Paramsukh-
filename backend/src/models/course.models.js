@@ -135,7 +135,7 @@ const courseSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
-  
+
   // Visual/UI Properties
   icon: {
     type: String, // Icon name for display (e.g., 'fitness', 'bulb')
@@ -153,7 +153,7 @@ const courseSchema = new mongoose.Schema({
     type: String,
     default: null
   },
-  
+
   // Course Structure
   duration: {
     type: String, // e.g., "6 weeks", "8 weeks"
@@ -170,7 +170,7 @@ const courseSchema = new mongoose.Schema({
     default: 0
   },
   liveSessions: [liveSessionSchema],
-  
+
   // Course Metadata
   category: {
     type: String,
@@ -181,14 +181,21 @@ const courseSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
-  
+
+  // Access Control
+  includedInPlans: [{
+    type: String,
+    enum: ['bronze', 'copper', 'silver', 'gold2', 'gold1', 'diamond', 'patron', 'elite', 'quantum'],
+    default: []
+  }],
+
   // Pricing & Access
   // Note: Course access is controlled by subscription plan limits, not individual course requirements
   // Users can select any courses up to their plan's limit (copper: 1, silver: 3, gold+: unlimited)
 
-  
-  
-  
+
+
+
   // Status & Publishing
   status: {
     type: String,
@@ -196,10 +203,10 @@ const courseSchema = new mongoose.Schema({
     default: 'draft'
   },
   publishedAt: {
-    type: Date,  
+    type: Date,
     default: null
   },
-  
+
   // Course Statistics
   enrollmentCount: {
     type: Number,
@@ -219,7 +226,7 @@ const courseSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  
+
   // SEO & Metadata
   slug: {
     type: String,
@@ -246,19 +253,19 @@ courseSchema.index({ status: 1 });
 courseSchema.index({ createdAt: -1 });
 
 // Pre-save middleware to update totalVideos and totalPdfs
-courseSchema.pre('save', function(next) {
+courseSchema.pre('save', function (next) {
   this.totalVideos = this.videos.length;
   this.totalPdfs = this.pdfs.length;
   next();
 });
 
 // Methods
-courseSchema.methods.calculateAverageRating = function() {
+courseSchema.methods.calculateAverageRating = function () {
   // This would typically query reviews and calculate
   return this.averageRating;
 };
 
-courseSchema.methods.updateEnrollmentCount = async function() {
+courseSchema.methods.updateEnrollmentCount = async function () {
   // This would typically count enrollments from a separate collection
   return this.enrollmentCount;
 };

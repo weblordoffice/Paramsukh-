@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, Linking, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import RazorpayCheckout from 'react-native-razorpay';
 import Header from '../components/Header';
 import { useEventStore } from '../store/eventStore';
 import { useAuthStore } from '../store/authStore';
+import { RAZORPAY_KEY_ID } from '../config/api';
 
 export default function EventDetailScreen() {
   const router = useRouter();
@@ -18,6 +20,8 @@ export default function EventDetailScreen() {
     fetchEventDetails,
     checkRegistrationStatus,
     registerForEvent,
+    createEventOrder,
+    confirmEventPayment,
     cancelEventRegistration,
     isLoading
   } = useEventStore();
@@ -122,19 +126,60 @@ export default function EventDetailScreen() {
     }
   };
 
-  const handleSimulatedPayment = () => {
-    if (!validateForm()) return;
-    Alert.alert(
-      'Razorpay',
-      `Simulating payment of Rs. ${priceValue}.`,
-      [
-        { text: 'Cancel' },
-        {
-          text: 'Pay Now',
-          onPress: () => submitRegistration(true)
-        }
-      ]
-    );
+  const handlePaidEventPayment = async () => {
+    if (!eventId || !validateForm()) return;
+    setProcessing(true);
+    try {
+      const orderResult = await createEventOrder(eventId, {
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim()
+      });
+      if (!orderResult.success || !orderResult.data?.razorpay) {
+        Alert.alert('Error', orderResult.message || 'Could not create order.');
+        setProcessing(false);
+        return;
+      }
+      const { orderId, amount, currency, keyId } = orderResult.data.razorpay;
+      const options = {
+        description: `Event: ${event?.title || 'Event'}`,
+        currency: currency || 'INR',
+        key: keyId || RAZORPAY_KEY_ID,
+        amount,
+        name: 'ParamSukh',
+        order_id: orderId,
+        prefill: {
+          email: form.email.trim() || user?.email || '',
+          contact: (form.phone.trim() || user?.phone || '').replace('+91', '').trim() || '9999999999',
+          name: form.name.trim() || user?.displayName || 'ParamSukh User'
+        },
+        theme: { color: eventColor || '#F1842D' }
+      };
+      const data = await RazorpayCheckout.open(options);
+      const confirmResult = await confirmEventPayment(eventId, {
+        razorpay_payment_id: data.razorpay_payment_id,
+        razorpay_order_id: data.razorpay_order_id,
+        razorpay_signature: data.razorpay_signature
+      });
+      setProcessing(false);
+      setShowRegisterForm(false);
+      if (confirmResult.success) {
+        await checkRegistrationStatus(eventId);
+        Alert.alert(
+          'Registered',
+          'You are registered for this event. This purchase is non-refundable.',
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Payment failed', confirmResult.message || 'Could not confirm payment.');
+      }
+    } catch (err: any) {
+      setProcessing(false);
+      if (err?.code === 2 || err?.description === 'User cancelled the payment flow') {
+        return;
+      }
+      Alert.alert('Payment failed', err?.message || 'Could not complete payment. Please try again.');
+    }
   };
 
   const handleCancel = async () => {
@@ -432,16 +477,21 @@ export default function EventDetailScreen() {
 
             <View className="mt-4">
               {event.isPaid ? (
-                <TouchableOpacity
-                  className="w-full py-3 rounded-lg items-center"
-                  style={{ backgroundColor: eventColor }}
-                  disabled={processing}
-                  onPress={handleSimulatedPayment}
-                >
-                  <Text className="text-white font-semibold">
-                    {processing ? 'Processing...' : `Pay Rs. ${priceValue} with Razorpay`}
+                <>
+                  <Text className="text-xs text-amber-600 text-center mb-2">
+                    This purchase is non-refundable.
                   </Text>
-                </TouchableOpacity>
+                  <TouchableOpacity
+                    className="w-full py-3 rounded-lg items-center"
+                    style={{ backgroundColor: eventColor }}
+                    disabled={processing}
+                    onPress={handlePaidEventPayment}
+                  >
+                    <Text className="text-white font-semibold">
+                      {processing ? 'Processing...' : `Pay Rs. ${priceValue} with Razorpay`}
+                    </Text>
+                  </TouchableOpacity>
+                </>
               ) : (
                 <TouchableOpacity
                   className="w-full py-3 rounded-lg items-center"

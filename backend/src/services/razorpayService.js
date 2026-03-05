@@ -57,7 +57,126 @@ export const createRazorpayOrder = async ({ amount, currency = 'INR', receipt, n
 
   } catch (error) {
     console.error('❌ Error creating Razorpay order:', error);
-    throw new Error('Failed to create payment order: ' + error.message);
+    const msg = error?.error?.description || error?.message || error?.statusCode || 'Unknown error';
+    const hint = error?.statusCode === 401
+      ? ' Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in .env (Razorpay Dashboard → API Keys). Or set RAZORPAY_KEY_ID=test for mock mode.'
+      : '';
+    throw new Error('Failed to create payment order: ' + msg + hint);
+  }
+};
+
+/**
+ * Create a Razorpay payment link (hosted checkout page)
+ */
+export const createRazorpayPaymentLink = async ({
+  amount,
+  currency = 'INR',
+  description,
+  customer,
+  notes = {},
+  callback_url,
+  callback_method = 'get',
+}) => {
+  try {
+    if (!amount || amount <= 0) {
+      throw new Error('Invalid amount');
+    }
+
+    // Test mode - return mock link
+    if (TEST_MODE) {
+      console.log('🧪 TEST MODE: Creating mock Razorpay payment link');
+      return {
+        id: `plink_test_${Date.now()}`,
+        short_url: `https://rzp.io/i/test_${Date.now()}`,
+        currency,
+        amount: amount * 100,
+        description,
+        notes,
+        status: 'created',
+        customer: customer || null,
+        callback_url: callback_url || null,
+        callback_method,
+      };
+    }
+
+    if (!razorpayInstance?.paymentLink?.create) {
+      throw new Error('Razorpay paymentLink API not available');
+    }
+
+    const payload = {
+      amount: amount * 100, // paise
+      currency,
+      description,
+      customer,
+      notes,
+      ...(callback_url ? { callback_url, callback_method } : {}),
+    };
+
+    const link = await razorpayInstance.paymentLink.create(payload);
+    console.log('✅ Razorpay payment link created:', link.id);
+    return link;
+  } catch (error) {
+    console.error('❌ Error creating Razorpay payment link:', error);
+    const msg = error?.error?.description || error?.message || error?.statusCode || 'Unknown error';
+    const hint = error?.statusCode === 401
+      ? ' Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in .env (Razorpay Dashboard → API Keys).'
+      : '';
+    throw new Error('Failed to create payment link: ' + msg + hint);
+  }
+};
+
+/**
+ * Fetch a Razorpay payment link by id
+ */
+export const fetchPaymentLink = async (paymentLinkId) => {
+  try {
+    if (!paymentLinkId) {
+      throw new Error('Payment Link ID is required');
+    }
+
+    if (TEST_MODE) {
+      console.log('🧪 TEST MODE: Fetching mock payment link');
+      // In test mode we can't actually know; assume paid to unblock local dev flows.
+      return {
+        id: paymentLinkId,
+        status: 'paid',
+        amount: 0,
+        amount_paid: 0,
+        currency: 'INR',
+        short_url: `https://rzp.io/i/${paymentLinkId}`,
+        notes: {},
+        payments: { payment_id: `pay_test_${Date.now()}`, status: 'captured' }
+      };
+    }
+
+    if (!razorpayInstance?.paymentLink?.fetch) {
+      throw new Error('Razorpay paymentLink fetch API not available');
+    }
+
+    return await razorpayInstance.paymentLink.fetch(paymentLinkId);
+  } catch (error) {
+    console.error('❌ Error fetching payment link:', error);
+    const msg = error?.error?.description || error?.message || 'Unknown error';
+    throw new Error('Failed to fetch payment link: ' + msg);
+  }
+};
+
+/**
+ * List recent payment links (for sync – find paid link for user)
+ */
+export const listPaymentLinks = async (options = { count: 20 }) => {
+  try {
+    if (TEST_MODE) {
+      return { items: [] };
+    }
+    if (!razorpayInstance?.paymentLink?.all) {
+      return { items: [] };
+    }
+    const result = await razorpayInstance.paymentLink.all(options);
+    return result || { items: [] };
+  } catch (error) {
+    console.error('❌ Error listing payment links:', error);
+    return { items: [] };
   }
 };
 
@@ -192,6 +311,9 @@ export const isTestMode = () => TEST_MODE;
 
 export default {
   createRazorpayOrder,
+  createRazorpayPaymentLink,
+  fetchPaymentLink,
+  listPaymentLinks,
   verifyRazorpaySignature,
   fetchPaymentDetails,
   createRefund,

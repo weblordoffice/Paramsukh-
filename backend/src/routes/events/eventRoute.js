@@ -19,7 +19,9 @@ import {
   getRegistrationStatus,
   getEventRegistrations,
   checkInUser,
-  updatePaymentStatus
+  updatePaymentStatus,
+  createEventRegistrationOrder,
+  confirmEventPayment
 } from '../../controller/events/eventRegistration.controller.js';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
@@ -87,7 +89,13 @@ router.post('/:id/videos', adminAuth, addEventVideo);
 // GET /api/events/my-registrations
 router.get('/my-registrations', protectedRoutes, getMyRegistrations);
 
-// Register for an event
+// Create Razorpay order for paid event (books spot, then user pays)
+// POST /api/events/:eventId/register/order
+router.post('/:eventId/register/order', protectedRoutes, createEventRegistrationOrder);
+// Confirm event payment after Razorpay success (adds to My Purchases)
+// POST /api/events/:eventId/register/confirm
+router.post('/:eventId/register/confirm', protectedRoutes, confirmEventPayment);
+// Register for an event (free events only; paid events use order + confirm)
 // POST /api/events/:eventId/register
 router.post('/:eventId/register', protectedRoutes, registerForEvent);
 

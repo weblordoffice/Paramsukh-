@@ -20,6 +20,8 @@ import orderRoutes from './routes/orders/ordersRoute.js';
 import addressRoutes from './routes/address/addressRoute.js';
 import paymentRoutes from './routes/payments/paymentsRoute.js';
 import uploadRoutes from './routes/upload/uploadRoute.js';
+import podcastRoutes from './routes/podcast/podcastRoute.js';
+import adminRoutes from './routes/admin/adminRoute.js';
 dotenv.config();
 
 const app = express();
@@ -36,6 +38,7 @@ app.use(cookieParser());
 
 // Routes
 app.use('/api/auth', apiRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/courses', coursesRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
@@ -52,6 +55,12 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/podcasts', podcastRoutes);
+
+// Health check (for testing if API is reachable)
+app.get('/health', (req, res) => {
+  res.json({ ok: true, message: 'API is running', timestamp: new Date().toISOString() });
+});
 
 // Test route
 app.get('/', (req, res) => {
@@ -206,7 +215,12 @@ app.get('/', (req, res) => {
   });
 });
 
-app.listen(PORT, async () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
-  await connectDatabase();
+// Connect to database first so login and other routes don't hang waiting for MongoDB
+await connectDatabase();
+
+// Listen on all interfaces (0.0.0.0) so phone/other devices on LAN can reach the API
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server is running on http://0.0.0.0:${PORT}`);
+  console.log(`   → Use in browser: http://127.0.0.1:${PORT}/health`);
+  console.log(`   → On this network: http://192.168.0.104:${PORT}`);
 });

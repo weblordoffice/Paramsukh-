@@ -9,32 +9,48 @@ import {
   cancelBooking,
   rescheduleBooking,
   updatePaymentStatus,
-  submitFeedback
+  submitFeedback,
+  getAllServices,
+  createService,
+  updateService,
+  deleteService
 } from '../../controller/counseling/counseling.controller.js';
 import {
   getAllBookings,
   getBookingDetailsAdmin,
   updateBookingStatusAdmin,
+  updateBookingMeetingAdmin,
   deleteBookingAdmin
 } from '../../controller/counseling/admin.counseling.controller.js';
 
 const router = express.Router();
 
-// Admin routes
+// ========================================
+// Public Routes
+// ========================================
+router.get('/services', getAllServices);
+router.get('/availability', getAvailability);
+
+// ========================================
+// Admin Routes (Admin Auth)
+// ========================================
+
+// Booking Management
 router.get('/all', adminAuth, getAllBookings);
 router.get('/admin/:id', adminAuth, getBookingDetailsAdmin);
 router.patch('/admin/:id/status', adminAuth, updateBookingStatusAdmin);
+router.patch('/admin/:id/meeting', adminAuth, updateBookingMeetingAdmin);
 router.delete('/admin/:id', adminAuth, deleteBookingAdmin);
 
-// All other routes are protected (require authentication)
+// Service Management
+router.post('/admin/services', adminAuth, createService);
+router.put('/admin/services/:id', adminAuth, updateService);
+router.delete('/admin/services/:id', adminAuth, deleteService);
+
+// ========================================
+// Protected Routes (User Auth)
+// ========================================
 router.use(protectedRoutes);
-
-// ========================================
-// Counseling/Booking Routes
-// ========================================
-
-// Get available time slots
-router.get('/availability', getAvailability);
 
 // Book a counseling session
 router.post('/book', bookCounseling);

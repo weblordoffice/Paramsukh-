@@ -59,7 +59,6 @@ export default function HomeLayout() {
             marginRight: 20,
             marginBottom: Platform.OS === 'android' ? 15 : 0,
             elevation: 0,
-            shadowOpacity: 0,
             borderRadius: 36,
             shadowColor: '#F1842D',
             shadowOffset: { width: 0, height: 8 },
@@ -130,23 +129,23 @@ export default function HomeLayout() {
         <Tabs.Screen
           name="membership-new"
           options={{
+            href: null, // Hidden — replaced by my-membership tab
+          }}
+        />
+        <Tabs.Screen
+          name="my-membership"
+          options={{
             title: 'Membership',
             tabBarIcon: ({ color, focused }) => (
               <View
                 style={[
                   styles.tabIconContainer,
-                  focused && styles.tabIconContainerActive
+                  focused && styles.tabIconContainerActive,
                 ]}
               >
                 <Ionicons name={focused ? 'card' : 'card-outline'} size={22} color={focused ? '#FFFFFF' : color} />
               </View>
             ),
-          }}
-        />
-        <Tabs.Screen
-          name="profile-screen"
-          options={{
-            href: null, // Hide from tabs navigation
           }}
         />
         <Tabs.Screen
@@ -206,10 +205,6 @@ export default function HomeLayout() {
           options={{
             href: null, // Hide from tabs navigation
           }}
-        />
-        <Tabs.Screen
-          name="menu-button"
-          options={{ href: null }}
         />
       </Tabs>
 

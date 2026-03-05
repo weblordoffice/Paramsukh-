@@ -26,24 +26,32 @@ export const logout = (req, res) => {
 export const getCurrentUser = async (req, res) => {
   try {
     const user = req.user;
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authenticated'
+      });
+    }
 
-    return res.json({
+    return res.status(200).json({
       success: true,
       user: {
         _id: user._id,
-        displayName: user.displayName,
-        email: user.email || null,
-        phone: user.phone || null,
-        photoURL: user.photoURL,
-        authProvider: user.authProvider,
-        subscriptionPlan: user.subscriptionPlan,
-        subscriptionStatus: user.subscriptionStatus,
-        trialEndsAt: user.trialEndsAt,
-        lastLoginAt: user.lastLoginAt,
-        loginCount: user.loginCount
+        displayName: user.displayName ?? '',
+        email: user.email ?? null,
+        phone: user.phone ?? null,
+        photoURL: user.photoURL ?? null,
+        authProvider: user.authProvider ?? 'phone',
+        subscriptionPlan: user.subscriptionPlan ?? 'free',
+        subscriptionStatus: user.subscriptionStatus ?? 'trial',
+        trialEndsAt: user.trialEndsAt ?? null,
+        lastLoginAt: user.lastLoginAt ?? null,
+        loginCount: user.loginCount ?? 0,
+        assessmentCompleted: user.assessmentCompleted ?? false
       }
     });
   } catch (error) {
+    console.error('getCurrentUser error:', error);
     return res.status(500).json({
       success: false,
       message: error.message
