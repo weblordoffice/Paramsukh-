@@ -100,12 +100,16 @@ export const verifyGoogleAndIssueToken = async (req, res) => {
 
     try {
         const email = await getGoogleEmail(idToken, accessToken);
+        console.log('[Admin Auth] Google email resolved:', email);
         if (!email) {
             return res.status(400).json({ success: false, message: 'Could not get email from Google' });
         }
 
         const admin = await Admin.findOne({ email }).select('-password');
         if (!admin) {
+            const allAdmins = await Admin.find({}).select('email role');
+            console.log('[Admin Auth] No admin found for email:', email);
+            console.log('[Admin Auth] Existing admins in DB:', allAdmins.map(a => `${a.email} (${a.role})`));
             return res.status(403).json({ success: false, message: 'This Google account is not an admin. Ask a super admin to add your email in Settings.' });
         }
         if (!admin.isActive) {
