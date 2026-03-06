@@ -34,8 +34,10 @@ export default function DashboardLayout({
             .then((result) => {
                 exchangedRef.current = true;
                 if (!result.ok) {
-                    signOut({ callbackUrl: '/?error=not_admin' });
-                    router.replace('/?error=not_admin');
+                    const msg = result.message || 'not_admin';
+                    console.error('[Admin Auth] Token exchange failed:', msg);
+                    signOut({ callbackUrl: `/?error=${encodeURIComponent(msg)}` });
+                    router.replace(`/?error=${encodeURIComponent(msg)}`);
                 }
             })
             .finally(() => setExchanging(false));

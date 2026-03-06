@@ -32,6 +32,8 @@ export const useAuthStore = create<AuthState>()(
 
             exchangeGoogleToken: async (tokens: { idToken?: string; accessToken?: string }): Promise<LoginResult> => {
                 try {
+                    console.log('[Admin Auth] Calling backend:', `${API_BASE_URL}/api/admin/auth/google`);
+                    console.log('[Admin Auth] Has idToken:', !!tokens.idToken, '| Has accessToken:', !!tokens.accessToken);
                     const response = await axios.post(
                         `${API_BASE_URL}/api/admin/auth/google`,
                         { idToken: tokens.idToken, accessToken: tokens.accessToken },

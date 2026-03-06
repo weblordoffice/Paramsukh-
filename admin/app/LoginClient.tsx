@@ -12,10 +12,9 @@ export default function LoginClient() {
 
   useEffect(() => {
     const error = searchParams.get('error');
-    if (error === 'not_admin') {
-      toast.error(
-        'This Google account is not an admin. Ask a super admin to add your email in Settings.'
-      );
+    if (error) {
+      console.error('[Admin Auth] Login error:', error);
+      toast.error(error, { duration: 8000 });
     }
   }, [searchParams]);
 
