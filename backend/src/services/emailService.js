@@ -1,7 +1,12 @@
 import { Resend } from 'resend';
 
-// Initialize Resend with API Key from env
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialize Resend lazily — only when API key is available
+let resend = null;
+if (process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+} else {
+    console.warn('RESEND_API_KEY not set — email sending is disabled.');
+}
 
 /**
  * Send an email using Resend
