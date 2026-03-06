@@ -27,9 +27,9 @@ const router = express.Router();
 // Helper middleware to allow either Admin API Key or User Token
 const adminOrUserAuth = async (req, res, next) => {
   const apiKey = req.headers['x-admin-api-key'];
-  const adminApiKey = process.env.ADMIN_API_KEY || 'dev-admin-key-123';
+  const adminApiKey = process.env.ADMIN_API_KEY;
 
-  if (apiKey && apiKey === adminApiKey) {
+  if (apiKey && adminApiKey && apiKey === adminApiKey) {
     return next();
   }
 

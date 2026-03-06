@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import connectDatabase from './config/database.js';
@@ -23,6 +24,21 @@ import uploadRoutes from './routes/upload/uploadRoute.js';
 import podcastRoutes from './routes/podcast/podcastRoute.js';
 import adminRoutes from './routes/admin/adminRoute.js';
 dotenv.config();
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Fail fast if critical secrets are missing or placeholder in production
+const WEAK_SECRETS = ['your_jwt_secret_key', 'your_jwt_secret_key_here', 'your_super_secret_jwt_key_change_this_in_production'];
+if (isProduction) {
+  if (!process.env.JWT_SECRET || WEAK_SECRETS.includes(process.env.JWT_SECRET)) {
+    console.error('FATAL: JWT_SECRET is missing or using a placeholder. Generate one: openssl rand -base64 32');
+    process.exit(1);
+  }
+  if (!process.env.ADMIN_API_KEY || process.env.ADMIN_API_KEY === 'dev-admin-key-123') {
+    console.error('FATAL: ADMIN_API_KEY is missing or using the dev default. Set a strong key in .env');
+    process.exit(1);
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -49,14 +65,15 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-API-Key'],
 };
 
+app.use(helmet());
 app.use(cors(corsOptions));
 // path-to-regexp v8+ requires a named wildcard (e.g. /*splat), not '*' or '(.*)'
 app.options('/*splat', cors(corsOptions));
-app.use(express.json({ limit: '1gb' }));
-app.use(express.urlencoded({ extended: true, limit: '1gb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Routes

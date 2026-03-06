@@ -29,106 +29,41 @@ const router = express.Router();
 
 // ========================================
 // Admin Routes (Requires X-Admin-API-Key header)
+// Must define specific paths (/all, /create) BEFORE parameterized /:id
 // ========================================
 
-// Get all users (Admin only)
-// GET /api/user/all
 router.get('/all', adminAuth, getAllUsers);
-
-// Get user by ID (Admin only)
-// GET /api/user/:id
-router.get('/:id', adminAuth, getUserById);
-
-// Create user (Admin only)
-// POST /api/user/create
 router.post('/create', adminAuth, createUserAdmin);
-
-// Update user details (Admin only)
-// PATCH /api/user/:id
-router.patch('/:id', adminAuth, updateUserAdmin);
-
-// Delete user (Admin only)
-// DELETE /api/user/:id
-router.delete('/:id', adminAuth, deleteUserAdmin);
-
-// Update user membership (Admin only)
-// PATCH /api/user/:id/membership
-router.patch('/:id/membership', adminAuth, updateUserMembership);
-
-// Get user enrollments (Admin only)
-// GET /api/user/:userId/enrollments
-router.get('/:userId/enrollments', adminAuth, getUserEnrollments);
-
-// Get user payments (Admin only)
-// GET /api/user/:userId/payments
-router.get('/:userId/payments', adminAuth, getUserPayments);
-
-// Get user activity (Admin only)
-// GET /api/user/:userId/activity
-router.get('/:userId/activity', adminAuth, getUserActivity);
 
 // ========================================
 // User Routes (Requires authentication)
+// Specific paths (/profile, /subscription, etc.) BEFORE admin /:id
 // ========================================
 
-// All remaining user routes require authentication
 router.use(protectedRoutes);
 
-// ========================================
-// Profile Routes
-// ========================================
-
-// Get user profile
-// GET /api/user/profile
 router.get('/profile', getProfile);
-
-// Update user profile
-// PUT /api/user/profile
 router.put('/profile', updateProfile);
-
-// Update profile photo
-// PUT /api/user/profile/photo
 router.put('/profile/photo', updateProfilePhoto);
-
-// Remove profile photo
-// DELETE /api/user/profile/photo
 router.delete('/profile/photo', removeProfilePhoto);
-
-// ========================================
-// Preferences Routes
-// ========================================
-
-// Update preferences (theme, notifications)
-// PUT /api/user/preferences
 router.put('/preferences', updatePreferences);
-
-// ========================================
-// Subscription & Stats Routes
-// ========================================
-
-// Get subscription details
-// GET /api/user/subscription
 router.get('/subscription', getSubscription);
-
-// Purchase membership (auto-enrolls in courses)
-// POST /api/user/membership/purchase
 router.post('/membership/purchase', purchaseMembership);
-
-// Get user statistics
-// GET /api/user/stats
 router.get('/stats', getUserStats);
-
-// ========================================
-// Account Management Routes
-// ========================================
-
-// Deactivate account
-// POST /api/user/deactivate
 router.post('/deactivate', deactivateAccount);
-
-// Delete account permanently
-// DELETE /api/user/account
 router.delete('/account', deleteAccount);
+
+// ========================================
+// Admin parameterized routes (after all specific paths)
+// ========================================
+
+router.get('/:id', adminAuth, getUserById);
+router.patch('/:id', adminAuth, updateUserAdmin);
+router.delete('/:id', adminAuth, deleteUserAdmin);
+router.patch('/:id/membership', adminAuth, updateUserMembership);
+router.get('/:userId/enrollments', adminAuth, getUserEnrollments);
+router.get('/:userId/payments', adminAuth, getUserPayments);
+router.get('/:userId/activity', adminAuth, getUserActivity);
 
 export default router;
 

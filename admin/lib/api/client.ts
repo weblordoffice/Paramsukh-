@@ -45,6 +45,8 @@ apiClient.interceptors.response.use(
         } else if (error.request) {
             // Request made but no response (network error/backend not running)
             console.error('Network Error: Backend server may not be running at', API_BASE_URL);
+            console.error('  → Local: Start the backend (e.g. in backend folder: npm run dev).');
+            console.error('  → Production: Set NEXT_PUBLIC_API_URL to your API URL and rebuild.');
         } else {
             console.error('Error:', error.message);
         }

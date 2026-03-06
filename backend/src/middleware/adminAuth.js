@@ -1,12 +1,18 @@
+import crypto from 'crypto';
+
 /**
- * Admin middleware - Simple API key authentication for admin panel
- * In production, use proper admin authentication with roles
+ * Admin middleware - API key authentication for admin panel.
+ * Uses constant-time comparison to prevent timing attacks.
  */
 export const adminAuth = async (req, res, next) => {
   try {
-    // Check for admin API key in header
     const apiKey = req.headers['x-admin-api-key'];
-    const adminApiKey = process.env.ADMIN_API_KEY || 'dev-admin-key-123';
+    const adminApiKey = process.env.ADMIN_API_KEY;
+
+    if (!adminApiKey) {
+      console.error('ADMIN_API_KEY is not set in environment variables');
+      return res.status(500).json({ success: false, message: 'Server misconfiguration' });
+    }
 
     if (!apiKey) {
       return res.status(401).json({
@@ -15,21 +21,18 @@ export const adminAuth = async (req, res, next) => {
       });
     }
 
-    if (apiKey !== adminApiKey) {
-      return res.status(403).json({
-        success: false,
-        message: 'Invalid admin API key'
-      });
+    const keyBuffer = Buffer.from(apiKey);
+    const expectedBuffer = Buffer.from(adminApiKey);
+    if (keyBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(keyBuffer, expectedBuffer)) {
+      return res.status(403).json({ success: false, message: 'Invalid admin API key' });
     }
 
-    // Admin authenticated
     next();
   } catch (error) {
-    console.error('❌ Admin auth error:', error);
+    console.error('Admin auth error:', error);
     return res.status(500).json({
       success: false,
-      message: 'Admin authentication failed',
-      error: error.message
+      message: 'Admin authentication failed'
     });
   }
 };

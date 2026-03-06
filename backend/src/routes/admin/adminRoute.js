@@ -10,12 +10,13 @@ import {
     getAdminMe
 } from '../../controller/auth/authAdmin.controller.js';
 import { protectAdmin, restrictTo } from '../../middleware/authAdmin.js';
+import { authLimiter } from '../../middleware/rateLimiter.js';
 
 const router = express.Router();
 
-// Public routes
-router.post('/login', loginAdmin);
-router.post('/auth/google', verifyGoogleAndIssueToken);
+// Public routes (rate-limited to prevent brute force)
+router.post('/login', authLimiter, loginAdmin);
+router.post('/auth/google', authLimiter, verifyGoogleAndIssueToken);
 router.post('/logout', logoutAdmin);
 
 // Protected routes (Admin access)
