@@ -206,14 +206,13 @@ export default function SignInScreen() {
                   <Text className="text-purple-600 font-medium">← Change Number</Text>
                 </TouchableOpacity>
 
-                {/* For testing: Always show OTP if available */}
-                {generatedOTP && (
+                {generatedOTP ? (
                   <View style={{ marginVertical: 10, padding: 10, backgroundColor: '#DCFCE7', borderRadius: 8 }}>
                     <Text style={{ color: '#166534', textAlign: 'center' }}>
                       Your OTP: <Text style={{ fontWeight: 'bold' }}>{generatedOTP}</Text>
                     </Text>
                   </View>
-                )}
+                ) : null}
 
                 {resendTimer > 0 ? (
                   <Text className="text-gray-500">Resend in {resendTimer}s</Text>

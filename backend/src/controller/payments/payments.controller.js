@@ -500,11 +500,10 @@ export const verifyMembershipPayment = async (req, res) => {
       });
     }
 
-    // Verify signature (in test mode, accepts test_ prefixed IDs)
     const isValid = verifyRazorpaySignature(
       razorpay_order_id,
       razorpay_payment_id,
-      razorpay_signature || 'test_signature'
+      razorpay_signature || (isTestMode() ? 'test_signature' : '')
     );
 
     if (!isValid) {
@@ -653,35 +652,106 @@ export const handleWebhook = async (req, res) => {
 
     // Handle different events
     switch (payload.event) {
-      case 'payment.captured':
-        console.log('✅ Payment captured:', payload.payload.payment.entity.id);
+      case 'payment.captured': {
+        const payment = payload.payload.payment.entity;
+        console.log('✅ Payment captured:', payment.id, 'notes:', payment.notes);
+        const pNotes = payment.notes || {};
+
+        if (pNotes.type === 'membership' && pNotes.userId && pNotes.plan) {
+          const mUser = await User.findById(pNotes.userId);
+          if (mUser && mUser.subscriptionStatus !== 'active') {
+            mUser.subscriptionPlan = String(pNotes.plan).toLowerCase();
+            mUser.subscriptionStatus = 'active';
+            mUser.subscriptionStartDate = new Date();
+            mUser.subscriptionEndDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+            mUser.payments = mUser.payments || [];
+            const alreadyRecorded = mUser.payments.some(p => p.paymentId === payment.id);
+            if (!alreadyRecorded) {
+              mUser.payments.push({
+                orderId: payment.order_id || payment.id,
+                paymentId: payment.id,
+                amount: payment.amount / 100,
+                plan: String(pNotes.plan).toLowerCase(),
+                status: 'completed',
+                date: new Date()
+              });
+            }
+            await mUser.save();
+            console.log(`✅ Membership activated via payment.captured for user ${pNotes.userId}: ${pNotes.plan}`);
+          }
+        }
+
+        if (pNotes.type === 'booking' && pNotes.bookingId) {
+          const booking = await Booking.findById(pNotes.bookingId);
+          if (booking && booking.paymentStatus !== 'paid') {
+            booking.paymentId = payment.id;
+            booking.paymentMethod = 'razorpay';
+            booking.paymentStatus = 'paid';
+            booking.paidAt = new Date();
+            booking.status = 'confirmed';
+            await booking.save();
+            console.log(`✅ Booking ${pNotes.bookingId} confirmed via payment.captured`);
+          }
+        }
+
+        if (pNotes.type === 'order' && pNotes.orderId) {
+          const order = await Order.findById(pNotes.orderId);
+          if (order && order.status !== 'confirmed') {
+            order.payment.status = 'completed';
+            order.payment.razorpayPaymentId = payment.id;
+            order.payment.paidAt = new Date();
+            order.status = 'confirmed';
+            await order.save();
+            console.log(`✅ Order ${pNotes.orderId} confirmed via payment.captured`);
+          }
+        }
         break;
+      }
 
       case 'payment_link.paid': {
         const pl = payload?.payload?.payment_link?.entity;
         const notes = pl?.notes || {};
-        const userId = notes.userId;
-        const plan = notes.plan;
-        console.log('✅ Payment link paid:', pl?.id, 'user:', userId, 'plan:', plan);
+        const plUserId = notes.userId;
+        const plPlan = notes.plan;
+        const plPaymentId = payload?.payload?.payment?.entity?.id || `pay_${Date.now()}`;
+        console.log('✅ Payment link paid:', pl?.id, 'user:', plUserId, 'plan:', plPlan);
 
-        if (userId && plan) {
-          const user = await User.findById(userId);
-          if (user) {
-            user.subscriptionPlan = String(plan).toLowerCase();
-            user.subscriptionStatus = 'active';
-            user.subscriptionStartDate = new Date();
-            user.subscriptionEndDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-            user.payments = user.payments || [];
-            user.payments.push({
-              orderId: pl?.id || `plink_${Date.now()}`,
-              paymentId: payload?.payload?.payment?.entity?.id || `pay_${Date.now()}`,
-              amount: (pl?.amount ? pl.amount / 100 : 0),
-              plan: String(plan).toLowerCase(),
-              status: 'completed',
-              date: new Date()
-            });
-            await user.save();
-            console.log(`✅ Membership activated via payment link for user ${userId}: ${plan}`);
+        if (plUserId && plPlan) {
+          const plUser = await User.findById(plUserId);
+          if (plUser) {
+            plUser.payments = plUser.payments || [];
+            const alreadyRecorded = plUser.payments.some(p => p.orderId === pl?.id || p.paymentId === plPaymentId);
+            if (!alreadyRecorded) {
+              plUser.subscriptionPlan = String(plPlan).toLowerCase();
+              plUser.subscriptionStatus = 'active';
+              plUser.subscriptionStartDate = new Date();
+              plUser.subscriptionEndDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+              plUser.payments.push({
+                orderId: pl?.id || `plink_${Date.now()}`,
+                paymentId: plPaymentId,
+                amount: (pl?.amount ? pl.amount / 100 : 0),
+                plan: String(plPlan).toLowerCase(),
+                status: 'completed',
+                date: new Date()
+              });
+              await plUser.save();
+              console.log(`✅ Membership activated via payment_link.paid for user ${plUserId}: ${plPlan}`);
+            } else {
+              console.log(`ℹ️ Payment already recorded for user ${plUserId}, skipping`);
+            }
+          }
+        }
+
+        if (notes.type === 'counseling' && notes.bookingId) {
+          const whBooking = await Booking.findById(notes.bookingId);
+          if (whBooking && whBooking.paymentStatus !== 'paid') {
+            whBooking.paymentId = plPaymentId;
+            whBooking.paymentMethod = 'razorpay';
+            whBooking.paymentStatus = 'paid';
+            whBooking.paidAt = new Date();
+            whBooking.status = 'confirmed';
+            await whBooking.save();
+            console.log(`✅ Booking ${notes.bookingId} confirmed via payment_link.paid`);
           }
         }
         break;

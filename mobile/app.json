@@ -54,7 +54,7 @@
       "eas": {
         "projectId": "b6377463-45af-4c15-b761-627f43d190c8"
       },
-      "apiUrl": "http://72.60.204.27:3000/api"
+      "apiUrl": "https://api.getbill.in"
     }
   }
 }

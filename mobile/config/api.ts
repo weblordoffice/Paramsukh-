@@ -18,9 +18,9 @@ const getHost = () => {
 
 // Your machine's IP — find it: run "ipconfig" and use the IPv4 under Wi-Fi or Ethernet (not 172.x)
 const FALLBACK_IPS = [
-  '192.168.0.104', // This PC (from ipconfig)
+  '192.168.1.47',  // This PC (from ipconfig — update if your IP changes)
+  '192.168.0.104',
   '192.168.0.103',
-  '192.168.1.11',
 ];
 
 // Select the IP: Dynamic Host > First Fallback > Localhost
@@ -36,11 +36,11 @@ const getBaseUrl = () => {
 
   // Only use config API URL in production
   if (Constants.expoConfig?.extra?.apiUrl) {
-    return Constants.expoConfig.extra.apiUrl.replace('/api', '').replace('/auth', '');
+    return Constants.expoConfig.extra.apiUrl.replace(/\/api\/?$/, '').replace(/\/auth\/?$/, '');
   }
 
   // Fallback production URL
-  return 'http://72.60.204.27:3000';
+  return 'https://api.getbill.in';
 };
 
 export const BASE_URL = getBaseUrl();
@@ -54,5 +54,5 @@ console.log('🌐 API Configuration:', {
   API_URL
 });
 
-export const RAZORPAY_KEY_ID = 'rzp_test_SHVs60hci108TL';
+export const RAZORPAY_KEY_ID = Constants.expoConfig?.extra?.razorpayKeyId || 'rzp_test_SHVs60hci108TL';
 

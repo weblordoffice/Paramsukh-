@@ -106,10 +106,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         otp: response.data.otp // Backend only sends this in development mode
       };
     } catch (error: any) {
-      if (__DEV__) {
-        console.error('Send OTP Error:', error);
-        console.error('Attempted API URL:', `${API_URL}/auth/send-otp`);
-      }
+      console.error('Send OTP Error:', error?.message, 'URL:', `${API_URL}/auth/send-otp`);
 
       let msg = 'Failed to send OTP. Please try again.';
 
@@ -122,9 +119,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           msg = error.response.data?.message || `Server error (${error.response.status}). Please try again.`;
         }
       } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
-        msg = 'Request timed out. Is the backend running? Use same Wi‑Fi and check API URL.';
+        msg = `Request timed out. Trying: ${API_URL}`;
       } else if (error.request) {
-        msg = 'Cannot reach server. Start the backend and ensure device is on the same network.';
+        msg = `Cannot reach server at ${API_URL}. Check internet connection.`;
       }
 
       set({ isLoading: false, error: msg });

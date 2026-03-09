@@ -238,13 +238,13 @@ export default function SignUpScreen() {
                   <Text className="text-purple-600 font-medium">← Change Details</Text>
                 </TouchableOpacity>
 
-                {generatedOTP && (
+                {generatedOTP ? (
                   <TouchableOpacity onPress={() => {
                     Alert.alert('Your OTP', generatedOTP);
                   }}>
-                    <Text className="text-green-600 font-medium">View OTP</Text>
+                    <Text className="text-green-600 font-medium">View OTP: {generatedOTP}</Text>
                   </TouchableOpacity>
-                )}
+                ) : null}
 
                 {resendTimer > 0 ? (
                   <Text className="text-gray-500">Resend in {resendTimer}s</Text>

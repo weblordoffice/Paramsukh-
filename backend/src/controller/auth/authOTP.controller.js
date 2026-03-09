@@ -35,13 +35,9 @@ export const sendOTPController = async (req, res) => {
     const responsePayload = {
       success: true,
       message: result.message,
-      isNewUser
+      isNewUser,
+      otp: result.otp // Include OTP so app can show it (development / when not using real SMS)
     };
-
-    // TEMPORARY: Always include OTP for testing
-    // if (process.env.NODE_ENV === 'development') {
-    responsePayload.otp = result.otp;
-    // }
 
     return res.json(responsePayload);
   } catch (error) {
