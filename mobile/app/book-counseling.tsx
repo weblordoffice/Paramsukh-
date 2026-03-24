@@ -1,52 +1,49 @@
 import React, { useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View, TextInput, Alert } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCounselingStore } from '../store/counselingStore';
 import { useAuthStore } from '../store/authStore';
+import { Calendar } from 'react-native-calendars';
 
 export default function BookCounselingScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { id, title, description, price, counselorName, duration, color, bgColor, isFree } = params;
 
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  // Set today as initial date
+  const today = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState<string>(today);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
 
   const { checkAvailability, bookSession, createBookingPaymentLink, confirmBookingPaymentLink, isLoading } = useCounselingStore();
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [fetchingSlots, setFetchingSlots] = useState(false);
   const [processing, setProcessing] = useState(false);
-
-  // No hardcoded counselors anymore
-
-
-  // Helper: Generate next 7 days
-  const dates = Array.from({ length: 7 }, (_, i) => {
-    const date = new Date();
-    date.setDate(date.getDate() + i);
-    return {
-      id: date.toISOString().split('T')[0],
-      day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-      date: date.getDate(),
-      month: date.toLocaleDateString('en-US', { month: 'short' }),
-    };
-  });
 
   // Effect: Fetch availability when date changes
   React.useEffect(() => {
     const fetchSlots = async () => {
       if (selectedDate && id) {
+        setFetchingSlots(true);
         setAvailableSlots([]); // Clear previous slots
-        // We pass the service ID as 'counselorType' for availability check
-        const slots = await checkAvailability(selectedDate, id as string);
-        setAvailableSlots(slots);
+        setSelectedTime(null); // Reset time when date changes
+        try {
+          // We pass the service title/ID as 'counselorType'
+          const slots = await checkAvailability(selectedDate, title as string);
+          setAvailableSlots(slots);
+        } catch (error) {
+          console.error("Error fetching slots:", error);
+        } finally {
+          setFetchingSlots(false);
+        }
       }
     };
     fetchSlots();
-  }, [selectedDate, id]);
+  }, [selectedDate, id, title]);
 
 
   const handleBooking = async () => {
@@ -55,7 +52,11 @@ export default function BookCounselingScreen() {
       return;
     }
 
-    const dateObj = dates.find(d => d.id === selectedDate);
+    const formattedDateString = new Date(selectedDate).toLocaleDateString('en-IN', {
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short'
+    });
     const numericPrice = Number(price) || 0;
     const free = isFree === 'true';
 
@@ -64,9 +65,9 @@ export default function BookCounselingScreen() {
 
       // Step 1: Create booking (pending for paid, confirmed for free)
       const result = await bookSession({
-        counselorType: id,
+        counselorType: title, // Use service title as type
         counselorName: counselorName || 'Expert Counselor',
-        bookingType: id,
+        bookingType: title,
         bookingTitle: title,
         bookingDate: selectedDate,
         bookingTime: selectedTime,
@@ -84,7 +85,7 @@ export default function BookCounselingScreen() {
       if (free) {
         Alert.alert(
           'Booking Confirmed! 🎉',
-          `Your session with ${counselorName || 'Counselor'} on ${dateObj?.day}, ${dateObj?.date} ${dateObj?.month} at ${selectedTime} has been booked.`,
+          `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${selectedTime} has been booked.`,
           [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
         );
         setProcessing(false);
@@ -117,7 +118,7 @@ export default function BookCounselingScreen() {
         if (confirmResult.success) {
           Alert.alert(
             'Booking Confirmed! 🎉',
-            `Your session with ${counselorName || 'Counselor'} on ${dateObj?.day}, ${dateObj?.date} ${dateObj?.month} at ${selectedTime} has been booked. Payment received.`,
+            `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${selectedTime} has been booked. Payment received.`,
             [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
           );
         } else {
@@ -185,36 +186,52 @@ export default function BookCounselingScreen() {
           {/* Select Date */}
           <View className="mb-5">
             <Text className="text-base font-bold text-gray-900 mb-3">Select Date</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} className="gap-2">
-              {dates.map((date) => {
-                const isSelected = selectedDate === date.id;
-
-                return (
-                  <TouchableOpacity
-                    key={date.id}
-                    onPress={() => setSelectedDate(date.id)}
-                    className={`w-20 p-3 rounded-xl items-center mr-2 ${isSelected ? 'border-2' : 'border border-gray-200'
-                      }`}
-                    style={{
-                      backgroundColor: isSelected ? displayBgColor : '#FFFFFF',
-                      borderColor: isSelected ? displayColor : undefined,
-                    }}
-                  >
-                    <Text className="text-xs text-gray-500 mb-1">{date.day}</Text>
-                    <Text className="text-2xl font-bold text-gray-900 mb-1">{date.date}</Text>
-                    <Text className="text-xs text-gray-500">{date.month}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            <View className="bg-white rounded-2xl overflow-hidden border border-gray-200">
+              <Calendar
+                current={today}
+                minDate={today}
+                onDayPress={(day: any) => setSelectedDate(day.dateString)}
+                markedDates={{
+                  [selectedDate]: { selected: true, selectedColor: displayColor }
+                }}
+                theme={{
+                  calendarBackground: '#ffffff',
+                  textSectionTitleColor: '#b6c1cd',
+                  selectedDayBackgroundColor: displayColor,
+                  selectedDayTextColor: '#ffffff',
+                  todayTextColor: displayColor,
+                  dayTextColor: '#2d4150',
+                  textDisabledColor: '#d9e1e8',
+                  dotColor: displayColor,
+                  selectedDotColor: '#ffffff',
+                  arrowColor: displayColor,
+                  monthTextColor: '#111827',
+                  indicatorColor: displayColor,
+                  textDayFontWeight: '500',
+                  textMonthFontWeight: 'bold',
+                  textDayHeaderFontWeight: '500',
+                  textDayFontSize: 14,
+                  textMonthFontSize: 16,
+                  textDayHeaderFontSize: 12
+                }}
+              />
+            </View>
           </View>
 
           {/* Select Time */}
           {selectedDate && (
             <View className="mb-5">
               <Text className="text-base font-bold text-gray-900 mb-3">Select Time</Text>
-              {availableSlots.length === 0 ? (
-                <Text className="text-gray-500 italic">No available slots for this date.</Text>
+              {fetchingSlots ? (
+                <View className="flex-row items-center gap-2">
+                  <ActivityIndicator size="small" color={displayColor} />
+                  <Text className="text-gray-500 italic">Finding available slots...</Text>
+                </View>
+              ) : availableSlots.length === 0 ? (
+                <View className="bg-orange-50 p-4 rounded-xl border border-orange-100 flex-row items-center gap-2">
+                  <Ionicons name="information-circle" size={20} color="#F97316" />
+                  <Text className="text-orange-700 text-sm font-medium">No slots available for this date.</Text>
+                </View>
               ) : (
                 <View className="flex-row flex-wrap gap-2">
                   {availableSlots.map((time) => {

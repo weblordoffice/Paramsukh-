@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useCourseStore, Video } from '../store/courseStore';
+import { useCourseStore, Video, Assignment } from '../store/courseStore';
 import { useAuthStore } from '../store/authStore';
 
 export default function CourseDetailScreen() {
@@ -52,6 +52,17 @@ export default function CourseDetailScreen() {
         videoTitle: video.title,
         videoDuration: video.duration,
         videoUrl: video.videoUrl,
+      },
+    });
+  };
+
+  const handleAssignmentPress = (assignment: Assignment) => {
+    router.push({
+      pathname: '/assignment-viewer',
+      params: {
+        courseId,
+        courseColor,
+        assignmentId: assignment._id,
       },
     });
   };
@@ -200,6 +211,43 @@ export default function CourseDetailScreen() {
               })
             )}
           </View>
+
+          {/* ── Assignment List ── */}
+          {currentCourse?.assignments && currentCourse.assignments.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Assignments & Quizzes
+                <Text style={styles.sectionCount}>  {currentCourse.assignments.length}</Text>
+              </Text>
+
+              {currentCourse.assignments.map((assignment, idx) => (
+                <TouchableOpacity
+                  key={assignment._id}
+                  style={styles.videoRow}
+                  onPress={() => handleAssignmentPress(assignment)}
+                  activeOpacity={0.75}
+                >
+                  <View style={styles.videoThumbWrap}>
+                    <View style={[styles.videoThumbPlaceholder, { backgroundColor: '#8B5CF622' }]}>
+                      <Ionicons name="help-circle-outline" size={28} color="#8B5CF6" />
+                    </View>
+                  </View>
+
+                  <View style={styles.videoInfo}>
+                    <Text style={styles.videoIndex}>Assignment {idx + 1}</Text>
+                    <Text style={styles.videoTitle} numberOfLines={2}>
+                      {assignment.title}
+                    </Text>
+                    <Text style={styles.videoDesc} numberOfLines={1}>
+                      {assignment.questions?.length || 0} Questions
+                    </Text>
+                  </View>
+
+                  <Ionicons name="chevron-forward" size={18} color="#475569" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           <View style={{ height: 60 }} />
         </ScrollView>

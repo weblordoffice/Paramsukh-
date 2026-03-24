@@ -26,6 +26,15 @@ interface User {
   loginCount: number;
 }
 
+interface PlanInfo {
+  slug: string;
+  title: string;
+  badgeColor?: string;
+}
+
+const normalize = (value: string) => String(value || '').trim().toLowerCase();
+const isHexColor = (value: string) => /^#[0-9a-fA-F]{6}$/.test(value || '');
+
 export default function MembershipDetailsPage() {
   const params = useParams();
   const router = useRouter();
@@ -34,6 +43,9 @@ export default function MembershipDetailsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"subscription" | "enrollments" | "payments" | "activity">("subscription");
+  const [planLookup, setPlanLookup] = useState<Record<string, PlanInfo>>({
+    free: { slug: 'free', title: 'Free' },
+  });
 
   useEffect(() => {
     if (userId) {
@@ -56,20 +68,53 @@ export default function MembershipDetailsPage() {
     }
   };
 
-  const getPlanColor = (plan: string) => {
-    const colors: Record<string, string> = {
-      free: 'bg-gray-100 text-gray-700',
-      bronze: 'bg-orange-100 text-orange-700',
-      copper: 'bg-amber-100 text-amber-700',
-      silver: 'bg-slate-200 text-slate-700',
-      gold2: 'bg-yellow-100 text-yellow-700',
-      gold1: 'bg-yellow-200 text-yellow-800',
-      diamond: 'bg-cyan-100 text-cyan-700',
-      patron: 'bg-purple-100 text-purple-700',
-      elite: 'bg-indigo-100 text-indigo-700',
-      quantum: 'bg-pink-100 text-pink-700'
+  const fetchPlans = async () => {
+    try {
+      const response = await apiClient.get('/api/membership-plans');
+      const plans = Array.isArray(response.data?.data) ? response.data.data : [];
+      const lookup: Record<string, PlanInfo> = {
+        free: { slug: 'free', title: 'Free' },
+      };
+
+      plans
+        .filter((plan: any) => String(plan?.status || 'draft') !== 'archived')
+        .forEach((plan: any) => {
+          const slug = normalize(plan.slug);
+          if (!slug) return;
+          lookup[slug] = {
+            slug,
+            title: String(plan.title || plan.slug || '').trim(),
+            badgeColor: plan?.metadata?.badgeColor,
+          };
+        });
+
+      setPlanLookup(lookup);
+    } catch {
+      setPlanLookup({ free: { slug: 'free', title: 'Free' } });
+    }
+  };
+
+  useEffect(() => {
+    fetchPlans();
+  }, []);
+
+  const getPlanLabel = (planSlug: string) => {
+    const slug = normalize(planSlug || 'free');
+    return planLookup[slug]?.title || slug.toUpperCase();
+  };
+
+  const getPlanBadgeStyle = (planSlug: string) => {
+    const slug = normalize(planSlug || 'free');
+    const badgeColor = planLookup[slug]?.badgeColor;
+    if (!badgeColor || !isHexColor(badgeColor)) {
+      return undefined;
+    }
+
+    return {
+      color: badgeColor,
+      borderColor: `${badgeColor}66`,
+      backgroundColor: `${badgeColor}1A`,
     };
-    return colors[plan] || 'bg-gray-100 text-gray-700';
   };
 
   const getStatusColor = (status: string) => {
@@ -153,9 +198,12 @@ export default function MembershipDetailsPage() {
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">
-            <span className={`px-4 py-2 inline-flex text-sm font-semibold rounded-full ${getPlanColor(user.subscriptionPlan)}`}>
+            <span
+              className="px-4 py-2 inline-flex text-sm font-semibold rounded-full bg-gray-100 text-gray-700 border border-gray-200"
+              style={getPlanBadgeStyle(user.subscriptionPlan)}
+            >
               <Crown className="w-4 h-4 mr-2" />
-              {user.subscriptionPlan.toUpperCase()}
+              {getPlanLabel(user.subscriptionPlan)}
             </span>
             <span className={`px-4 py-2 inline-flex text-sm font-semibold rounded-full ${getStatusColor(user.subscriptionStatus)}`}>
               {user.subscriptionStatus.toUpperCase()}

@@ -50,7 +50,10 @@ export default function SignInScreen() {
         setGeneratedOTP(result.otp);
       }
       startResendTimer();
-      Alert.alert('Success', result.message || 'OTP sent to your phone number');
+      const alertMsg = result.otp
+        ? `${result.message || 'OTP sent.'}\n\nYour OTP: ${result.otp}`
+        : (result.message || 'OTP sent to your phone number');
+      Alert.alert('Success', alertMsg);
     } else {
       Alert.alert('Error', result.message || 'Failed to send OTP');
     }
@@ -206,11 +209,17 @@ export default function SignInScreen() {
                   <Text className="text-purple-600 font-medium">← Change Number</Text>
                 </TouchableOpacity>
 
-                {generatedOTP ? (
-                  <View style={{ marginVertical: 10, padding: 10, backgroundColor: '#DCFCE7', borderRadius: 8 }}>
-                    <Text style={{ color: '#166534', textAlign: 'center' }}>
-                      Your OTP: <Text style={{ fontWeight: 'bold' }}>{generatedOTP}</Text>
-                    </Text>
+                {otpSent ? (
+                  <View style={{ marginVertical: 10, padding: 12, backgroundColor: generatedOTP ? '#DCFCE7' : '#FEF3C7', borderRadius: 8 }}>
+                    {generatedOTP ? (
+                      <Text style={{ color: '#166534', textAlign: 'center', fontSize: 16 }}>
+                        Your OTP: <Text style={{ fontWeight: 'bold', fontSize: 20 }}>{generatedOTP}</Text>
+                      </Text>
+                    ) : (
+                      <Text style={{ color: '#92400E', textAlign: 'center', fontSize: 14 }}>
+                        OTP not in response. Check backend sends otp in /auth/send-otp.
+                      </Text>
+                    )}
                   </View>
                 ) : null}
 

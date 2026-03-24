@@ -12,7 +12,7 @@ interface Post {
     groupId: { name: string };
     likeCount: number;
     commentCount: number;
-    isPinned: boolean;
+    isPinned: boolean;            
     createdAt: string;
 }
 
@@ -37,7 +37,7 @@ export default function CommunityPage() {
                     toast.error('Server error. Please try again later.');
                 }
             }
-            setPosts([]);
+            setPosts([]);    
         } finally {
             setLoading(false);
         }
@@ -72,7 +72,7 @@ export default function CommunityPage() {
     const filteredPosts = posts.filter(post =>
         post.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         post.userId?.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    );   
 
     if (loading) {
         return (
@@ -164,3 +164,5 @@ export default function CommunityPage() {
         </div>
     );
 }
+
+

@@ -40,7 +40,8 @@ const userSchema = new mongoose.Schema({
   // Subscription
   subscriptionPlan: {
     type: String,
-    enum: ['free', 'bronze', 'copper', 'silver', 'gold2', 'gold1', 'diamond', 'patron', 'elite', 'quantum'],
+    trim: true,
+    lowercase: true,
     default: 'free'
   },
   subscriptionStatus: {
@@ -160,7 +161,7 @@ userSchema.methods.updateLastLogin = function () {
 };
 
 userSchema.methods.hasProAccess = function () {
-  return ['bronze', 'copper', 'silver', 'gold2', 'gold1', 'diamond', 'patron', 'elite', 'quantum'].includes(this.subscriptionPlan)
+  return this.subscriptionPlan !== 'free'
     && this.subscriptionStatus === 'active';
 };
 

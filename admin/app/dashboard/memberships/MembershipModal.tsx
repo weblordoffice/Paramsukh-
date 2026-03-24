@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X, Crown, AlertCircle } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import toast from "react-hot-toast";
@@ -20,6 +20,24 @@ interface MembershipModalProps {
   onClose: () => void;
 }
 
+interface PlanOption {
+  value: string;
+  label: string;
+  description: string;
+  validityDays?: number;
+  amount?: number;
+  status?: string;
+}
+
+const FREE_PLAN: PlanOption = {
+  value: 'free',
+  label: 'Free',
+  description: 'No paid courses',
+  validityDays: 0,
+  amount: 0,
+  status: 'published',
+};
+
 export default function MembershipModal({ user, onClose }: MembershipModalProps) {
   const [formData, setFormData] = useState({
     subscriptionPlan: user.subscriptionPlan,
@@ -32,20 +50,56 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
       : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   });
   const [loading, setLoading] = useState(false);
+  const [plansLoading, setPlansLoading] = useState(true);
   const [autoEnroll, setAutoEnroll] = useState(false);
+  const [plans, setPlans] = useState<PlanOption[]>([FREE_PLAN]);
 
-  const plans = [
-    { value: 'free', label: 'Free', description: 'No paid courses' },
-    { value: 'bronze', label: 'Bronze', description: '1 course - Physical Wellness' },
-    { value: 'copper', label: 'Copper', description: '3 courses - Physical, Spirituality, Mental' },
-    { value: 'silver', label: 'Silver', description: '5 courses - All basic courses' },
-    { value: 'gold2', label: 'Gold 2', description: 'All courses' },
-    { value: 'gold1', label: 'Gold 1', description: 'All courses' },
-    { value: 'diamond', label: 'Diamond', description: 'All courses' },
-    { value: 'patron', label: 'Patron', description: 'All courses' },
-    { value: 'elite', label: 'Elite', description: 'All courses' },
-    { value: 'quantum', label: 'Quantum', description: 'All courses' },
-  ];
+  const planLookup = useMemo(() => {
+    return plans.reduce<Record<string, PlanOption>>((acc, plan) => {
+      acc[plan.value] = plan;
+      return acc;
+    }, {});
+  }, [plans]);
+
+  const currentPlanLabel = planLookup[user.subscriptionPlan]?.label || user.subscriptionPlan.toUpperCase();
+
+  useEffect(() => {
+    const loadPlans = async () => {
+      try {
+        const response = await apiClient.get('/api/membership-plans');
+        const apiPlans = response.data?.data;
+
+        if (!Array.isArray(apiPlans) || apiPlans.length === 0) {
+          setPlans([FREE_PLAN]);
+          return;
+        }
+
+        const dynamicPlans: PlanOption[] = apiPlans
+          .filter((plan: any) => String(plan?.status || 'draft') !== 'archived')
+          .sort((a: any, b: any) => (Number(a?.displayOrder || 0) - Number(b?.displayOrder || 0)))
+          .map((plan: any) => ({
+            value: String(plan.slug || '').toLowerCase(),
+            label: String(plan.title || plan.slug || '').trim(),
+            description: plan.shortDescription || `${plan.validityDays || 365} days validity`,
+            validityDays: Number(plan.validityDays || 365),
+            amount: Number(plan?.pricing?.oneTime?.amount || 0),
+            status: String(plan?.status || 'draft'),
+          }))
+          .filter((plan: PlanOption) => Boolean(plan.value));
+
+        const freeFromApi = dynamicPlans.find((plan: PlanOption) => plan.value === 'free') || FREE_PLAN;
+        const paidPlans = dynamicPlans.filter((plan: PlanOption) => plan.value !== 'free');
+
+        setPlans([freeFromApi, ...paidPlans]);
+      } catch (error) {
+        setPlans([FREE_PLAN]);
+      } finally {
+        setPlansLoading(false);
+      }
+    };
+
+    loadPlans();
+  }, []);
 
   const statuses = [
     { value: 'active', label: 'Active', color: 'text-green-600' },
@@ -59,6 +113,17 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
     setLoading(true);
 
     try {
+      if (
+        formData.subscriptionStatus === 'active'
+        && formData.subscriptionStartDate
+        && formData.subscriptionEndDate
+        && new Date(formData.subscriptionEndDate) < new Date(formData.subscriptionStartDate)
+      ) {
+        toast.error('End date cannot be before start date');
+        setLoading(false);
+        return;
+      }
+
       // Update membership via admin endpoint
       const response = await apiClient.patch(`/api/user/${user._id}/membership`, {
         subscriptionPlan: formData.subscriptionPlan,
@@ -81,7 +146,16 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
   };
 
   const handlePlanChange = (plan: string) => {
-    setFormData({ ...formData, subscriptionPlan: plan });
+    const selectedPlan = planLookup[plan];
+
+    setFormData((prev) => ({
+      ...prev,
+      subscriptionPlan: plan,
+      subscriptionEndDate:
+        plan === 'free'
+          ? prev.subscriptionEndDate
+          : new Date(Date.now() + Number(selectedPlan?.validityDays || 365) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    }));
 
     // If upgrading from free to paid, suggest activation
     if (user.subscriptionPlan === 'free' && plan !== 'free') {
@@ -120,7 +194,7 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
             <div className="text-sm">
               <p className="font-medium text-blue-900">Current Membership</p>
               <p className="text-blue-700 mt-1">
-                Plan: <span className="font-semibold">{user.subscriptionPlan.toUpperCase()}</span>
+                Plan: <span className="font-semibold">{currentPlanLabel}</span>
                 {' • '}
                 Status: <span className="font-semibold">{user.subscriptionStatus.toUpperCase()}</span>
               </p>
@@ -133,6 +207,9 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
               Subscription Plan
             </label>
             <div className="space-y-2">
+              {plansLoading && (
+                <p className="text-sm text-gray-500">Loading plans...</p>
+              )}
               {plans.map((plan) => (
                 <label
                   key={plan.value}
@@ -153,6 +230,10 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
                     <div>
                       <p className="font-medium text-gray-900">{plan.label}</p>
                       <p className="text-xs text-gray-500">{plan.description}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {plan.value === 'free' ? 'Free tier' : `INR ${Number(plan.amount || 0).toLocaleString('en-IN')} • ${plan.validityDays || 365} days`}
+                        {plan.status ? ` • ${plan.status}` : ''}
+                      </p>
                     </div>
                   </div>
                   {formData.subscriptionPlan === plan.value && (

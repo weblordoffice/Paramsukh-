@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  Users, Search, Filter, UserPlus, Download, 
-  Crown, TrendingUp, DollarSign, UserCheck 
+  Users, Search, Download,
+  Crown, TrendingUp, UserCheck, Gift, Ban, CalendarPlus2
 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import toast from "react-hot-toast";
@@ -33,9 +33,55 @@ interface Stats {
   planBreakdown: Record<string, number>;
 }
 
+interface PlanInfo {
+  _id?: string;
+  slug: string;
+  title: string;
+  status: string;
+  displayOrder: number;
+  badgeColor?: string;
+}
+
+interface MembershipGrant {
+  _id: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  createdAt: string;
+  metadata?: {
+    grantReason?: string;
+    grantedBy?: string;
+    revokeReason?: string;
+  };
+  userId?: {
+    _id: string;
+    displayName?: string;
+    email?: string;
+    phone?: string;
+  };
+  planId?: {
+    _id: string;
+    title?: string;
+    slug?: string;
+    status?: string;
+  };
+}
+
+const FREE_PLAN: PlanInfo = {
+  slug: 'free',
+  title: 'Free',
+  status: 'published',
+  displayOrder: -1,
+};
+
+const normalize = (value: string) => String(value || '').trim().toLowerCase();
+
+const isHexColor = (value: string) => /^#[0-9a-fA-F]{6}$/.test(value || '');
+
 export default function MembershipsPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
+  const [availablePlans, setAvailablePlans] = useState<PlanInfo[]>([FREE_PLAN]);
   const [stats, setStats] = useState<Stats>({
     totalUsers: 0,
     activeSubscriptions: 0,
@@ -49,13 +95,61 @@ export default function MembershipsPage() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showModal, setShowModal] = useState(false);
-
-  const plans = ['free', 'bronze', 'copper', 'silver', 'gold2', 'gold1', 'diamond', 'patron', 'elite', 'quantum'];
+  const [adminGrants, setAdminGrants] = useState<MembershipGrant[]>([]);
+  const [grantsLoading, setGrantsLoading] = useState(false);
+  const [grantSubmitting, setGrantSubmitting] = useState(false);
+  const [grantForm, setGrantForm] = useState({
+    userId: '',
+    planId: '',
+    durationDays: 90,
+    reason: '',
+    replaceActive: true,
+  });
   const statuses = ['active', 'inactive', 'trial', 'cancelled'];
+
+  const planLookup = useMemo(() => {
+    return availablePlans.reduce<Record<string, PlanInfo>>((acc, plan) => {
+      acc[normalize(plan.slug)] = plan;
+      return acc;
+    }, {});
+  }, [availablePlans]);
 
   useEffect(() => {
     fetchUsers();
+    fetchAvailablePlans();
+    fetchAdminGrants();
   }, []);
+
+  useEffect(() => {
+    if (users.length > 0) {
+      calculateStats(users);
+    }
+  }, [availablePlans]);
+
+  const fetchAvailablePlans = async () => {
+    try {
+      const response = await apiClient.get('/api/membership-plans');
+      const plans = (response.data?.data || [])
+        .filter((plan: any) => String(plan?.status || 'draft') !== 'archived')
+        .map((plan: any) => ({
+          _id: String(plan._id || ''),
+          slug: normalize(plan.slug),
+          title: String(plan.title || plan.slug || '').trim(),
+          status: String(plan.status || 'draft'),
+          displayOrder: Number(plan.displayOrder || 0),
+          badgeColor: plan?.metadata?.badgeColor,
+        }))
+        .filter((plan: PlanInfo) => Boolean(plan.slug));
+
+      const dedup = new Map<string, PlanInfo>();
+      dedup.set(FREE_PLAN.slug, FREE_PLAN);
+      plans.forEach((plan: PlanInfo) => dedup.set(plan.slug, plan));
+
+      setAvailablePlans(Array.from(dedup.values()).sort((a, b) => a.displayOrder - b.displayOrder));
+    } catch {
+      setAvailablePlans([FREE_PLAN]);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -74,6 +168,109 @@ export default function MembershipsPage() {
     }
   };
 
+  const fetchAdminGrants = async () => {
+    try {
+      setGrantsLoading(true);
+      const response = await apiClient.get('/api/membership-plans/admin/grants');
+      if (response.data?.success) {
+        setAdminGrants(response.data?.data || []);
+      }
+    } catch (error: any) {
+      console.error('Error fetching admin grants:', error);
+      toast.error(error.response?.data?.message || 'Failed to fetch complimentary grants');
+    } finally {
+      setGrantsLoading(false);
+    }
+  };
+
+  const handleGrantMembership = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!grantForm.userId) {
+      toast.error('Please select a user');
+      return;
+    }
+
+    if (!grantForm.planId) {
+      toast.error('Please select a membership plan');
+      return;
+    }
+
+    if (!grantForm.durationDays || Number(grantForm.durationDays) <= 0) {
+      toast.error('Duration must be greater than 0 days');
+      return;
+    }
+
+    try {
+      setGrantSubmitting(true);
+      const response = await apiClient.post('/api/membership-plans/admin/grants', {
+        userId: grantForm.userId,
+        planId: grantForm.planId,
+        durationDays: Number(grantForm.durationDays),
+        reason: grantForm.reason || 'Complimentary admin grant',
+        replaceActive: grantForm.replaceActive,
+      });
+
+      if (response.data?.success) {
+        toast.success('Complimentary membership granted');
+        setGrantForm((prev) => ({
+          ...prev,
+          durationDays: 90,
+          reason: '',
+        }));
+        await Promise.all([fetchAdminGrants(), fetchUsers()]);
+      }
+    } catch (error: any) {
+      console.error('Grant membership error:', error);
+      toast.error(error.response?.data?.message || 'Failed to grant membership');
+    } finally {
+      setGrantSubmitting(false);
+    }
+  };
+
+  const handleRevokeGrant = async (grantId: string) => {
+    const reason = window.prompt('Reason for revoking this grant?', 'Revoked by admin');
+    if (reason === null) {
+      return;
+    }
+
+    try {
+      await apiClient.patch(`/api/membership-plans/admin/grants/${grantId}/revoke`, {
+        reason,
+      });
+      toast.success('Grant revoked successfully');
+      await Promise.all([fetchAdminGrants(), fetchUsers()]);
+    } catch (error: any) {
+      console.error('Revoke grant error:', error);
+      toast.error(error.response?.data?.message || 'Failed to revoke grant');
+    }
+  };
+
+  const handleExtendGrant = async (grantId: string) => {
+    const input = window.prompt('Enter number of days to extend', '30');
+    if (!input) {
+      return;
+    }
+
+    const extendDays = Number(input);
+    if (!Number.isFinite(extendDays) || extendDays <= 0) {
+      toast.error('Please enter a valid number of days');
+      return;
+    }
+
+    try {
+      await apiClient.patch(`/api/membership-plans/admin/grants/${grantId}/extend`, {
+        extendDays,
+        reason: 'Extended by admin',
+      });
+      toast.success('Grant extended successfully');
+      await Promise.all([fetchAdminGrants(), fetchUsers()]);
+    } catch (error: any) {
+      console.error('Extend grant error:', error);
+      toast.error(error.response?.data?.message || 'Failed to extend grant');
+    }
+  };
+
   const calculateStats = (usersData: User[]) => {
     const stats: Stats = {
       totalUsers: usersData.length,
@@ -83,9 +280,13 @@ export default function MembershipsPage() {
       planBreakdown: {}
     };
 
-    // Calculate plan breakdown
-    plans.forEach(plan => {
-      stats.planBreakdown[plan] = usersData.filter(u => u.subscriptionPlan === plan).length;
+    const dynamicPlanSet = new Set(['free', ...availablePlans.map((plan) => normalize(plan.slug))]);
+    usersData.forEach((user) => dynamicPlanSet.add(normalize(user.subscriptionPlan || 'free')));
+
+    Array.from(dynamicPlanSet).forEach((plan) => {
+      stats.planBreakdown[plan] = usersData.filter(
+        (u) => normalize(u.subscriptionPlan || 'free') === plan
+      ).length;
     });
 
     setStats(stats);
@@ -97,7 +298,7 @@ export default function MembershipsPage() {
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.phone?.includes(searchTerm);
     
-    const matchesPlan = filterPlan === "all" || user.subscriptionPlan === filterPlan;
+    const matchesPlan = filterPlan === "all" || normalize(user.subscriptionPlan) === filterPlan;
     const matchesStatus = filterStatus === "all" || user.subscriptionStatus === filterStatus;
 
     return matchesSearch && matchesPlan && matchesStatus;
@@ -138,20 +339,23 @@ export default function MembershipsPage() {
     toast.success('Exported to CSV');
   };
 
-  const getPlanColor = (plan: string) => {
-    const colors: Record<string, string> = {
-      free: 'bg-gray-100 text-gray-700',
-      bronze: 'bg-orange-100 text-orange-700',
-      copper: 'bg-amber-100 text-amber-700',
-      silver: 'bg-slate-200 text-slate-700',
-      gold2: 'bg-yellow-100 text-yellow-700',
-      gold1: 'bg-yellow-200 text-yellow-800',
-      diamond: 'bg-cyan-100 text-cyan-700',
-      patron: 'bg-purple-100 text-purple-700',
-      elite: 'bg-indigo-100 text-indigo-700',
-      quantum: 'bg-pink-100 text-pink-700'
+  const getPlanLabel = (planSlug: string) => {
+    const slug = normalize(planSlug || 'free');
+    return planLookup[slug]?.title || (slug.charAt(0).toUpperCase() + slug.slice(1));
+  };
+
+  const getPlanBadgeStyle = (planSlug: string) => {
+    const slug = normalize(planSlug || 'free');
+    const badgeColor = planLookup[slug]?.badgeColor;
+    if (!badgeColor || !isHexColor(badgeColor)) {
+      return undefined;
+    }
+
+    return {
+      color: badgeColor,
+      borderColor: `${badgeColor}66`,
+      backgroundColor: `${badgeColor}1A`,
     };
-    return colors[plan] || 'bg-gray-100 text-gray-700';
   };
 
   const getStatusColor = (status: string) => {
@@ -233,11 +437,181 @@ export default function MembershipsPage() {
             <div>
               <p className="text-sm text-gray-600">Premium Plans</p>
               <p className="text-2xl font-bold text-purple-600">
-                {stats.planBreakdown.bronze || 0 + stats.planBreakdown.copper || 0 + stats.planBreakdown.silver || 0}
+                {Object.entries(stats.planBreakdown)
+                  .filter(([plan]) => plan !== 'free')
+                  .reduce((total, [, count]) => total + Number(count || 0), 0)}
               </p>
             </div>
             <Crown className="w-8 h-8 text-purple-500" />
           </div>
+        </div>
+      </div>
+
+      {/* Complimentary Membership Grant */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Gift className="w-5 h-5 text-purple-600" />
+          <h2 className="text-lg font-semibold text-gray-900">Grant Complimentary Membership</h2>
+        </div>
+
+        <form onSubmit={handleGrantMembership} className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div className="md:col-span-2">
+            <label className="block text-xs font-medium text-gray-600 mb-1">User</label>
+            <select
+              value={grantForm.userId}
+              onChange={(e) => setGrantForm((prev) => ({ ...prev, userId: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-black"
+              required
+            >
+              <option value="">Select user</option>
+              {users.map((user) => (
+                <option key={user._id} value={user._id}>
+                  {user.displayName} ({user.phone || user.email || 'No contact'})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Plan</label>
+            <select
+              value={grantForm.planId}
+              onChange={(e) => setGrantForm((prev) => ({ ...prev, planId: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-black"
+              required
+            >
+              <option value="">Select plan</option>
+              {availablePlans
+                .filter((plan) => plan.slug !== 'free' && plan._id)
+                .map((plan) => (
+                  <option key={plan._id} value={plan._id}>
+                    {plan.title}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Duration (days)</label>
+            <input
+              type="number"
+              min={1}
+              value={grantForm.durationDays}
+              onChange={(e) => setGrantForm((prev) => ({ ...prev, durationDays: Number(e.target.value || 0) }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-black"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Action</label>
+            <button
+              type="submit"
+              disabled={grantSubmitting}
+              className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium disabled:opacity-60"
+            >
+              {grantSubmitting ? 'Granting...' : 'Grant'}
+            </button>
+          </div>
+
+          <div className="md:col-span-4">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Reason (optional)</label>
+            <input
+              type="text"
+              value={grantForm.reason}
+              onChange={(e) => setGrantForm((prev) => ({ ...prev, reason: e.target.value }))}
+              placeholder="Reason for complimentary access"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-black"
+            />
+          </div>
+
+          <label className="md:col-span-1 flex items-center gap-2 mt-6 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={grantForm.replaceActive}
+              onChange={(e) => setGrantForm((prev) => ({ ...prev, replaceActive: e.target.checked }))}
+              className="w-4 h-4"
+            />
+            Replace active
+          </label>
+        </form>
+      </div>
+
+      {/* Complimentary Grants Table */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-gray-900">Complimentary Grants</h3>
+          <button
+            onClick={fetchAdminGrants}
+            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1"
+          >
+            <Search className="w-4 h-4" />
+            Refresh
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Plan</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Validity</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {grantsLoading ? (
+                <tr>
+                  <td className="px-4 py-6 text-sm text-gray-500" colSpan={6}>Loading grants...</td>
+                </tr>
+              ) : adminGrants.length === 0 ? (
+                <tr>
+                  <td className="px-4 py-6 text-sm text-gray-500" colSpan={6}>No complimentary grants yet.</td>
+                </tr>
+              ) : (
+                adminGrants.map((grant) => (
+                  <tr key={grant._id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm text-gray-800">
+                      <div className="font-medium">{grant.userId?.displayName || 'Unknown user'}</div>
+                      <div className="text-xs text-gray-500">{grant.userId?.phone || grant.userId?.email || 'No contact'}</div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-800">{grant.planId?.title || grant.planId?.slug || 'N/A'}</td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${grant.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
+                        {grant.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {new Date(grant.startDate).toLocaleDateString()} to {new Date(grant.endDate).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700 max-w-[260px] truncate" title={grant.metadata?.grantReason || ''}>
+                      {grant.metadata?.grantReason || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleExtendGrant(grant._id)}
+                          className="px-2 py-1 border border-blue-200 text-blue-700 hover:bg-blue-50 rounded text-xs flex items-center gap-1"
+                        >
+                          <CalendarPlus2 className="w-3 h-3" /> Extend
+                        </button>
+                        {grant.status === 'active' && (
+                          <button
+                            onClick={() => handleRevokeGrant(grant._id)}
+                            className="px-2 py-1 border border-red-200 text-red-700 hover:bg-red-50 rounded text-xs flex items-center gap-1"
+                          >
+                            <Ban className="w-3 h-3" /> Revoke
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -263,9 +637,9 @@ export default function MembershipsPage() {
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
           >
             <option value="all">All Plans</option>
-            {plans.map(plan => (
-              <option key={plan} value={plan}>
-                {plan.charAt(0).toUpperCase() + plan.slice(1)} ({stats.planBreakdown[plan] || 0})
+            {availablePlans.map((plan) => (
+              <option key={plan.slug} value={plan.slug}>
+                {plan.title} ({stats.planBreakdown[plan.slug] || 0})
               </option>
             ))}
           </select>
@@ -350,8 +724,11 @@ export default function MembershipsPage() {
                     <div className="text-sm text-gray-500">{user.phone || 'N/A'}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPlanColor(user.subscriptionPlan)}`}>
-                      {user.subscriptionPlan.charAt(0).toUpperCase() + user.subscriptionPlan.slice(1)}
+                    <span
+                      className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border bg-gray-100 text-gray-700 border-gray-200"
+                      style={getPlanBadgeStyle(user.subscriptionPlan)}
+                    >
+                      {getPlanLabel(user.subscriptionPlan)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

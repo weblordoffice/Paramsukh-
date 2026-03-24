@@ -101,33 +101,3 @@ enrollmentSchema.methods.markPdfComplete = function(pdfId) {
 
 export const Enrollment = mongoose.model("Enrollment", enrollmentSchema);
 
-// Course limit constants per subscription plan
-// Note: Bronze, Copper, and Silver have fixed course access (auto-enrolled on purchase)
-// Higher tiers have unlimited access
-export const COURSE_LIMITS = {
-  free: 0,
-  bronze: 1,      // Physical Wellness only (auto-enrolled)
-  copper: 3,      // Physical Wellness, Spirituality & Mantra Yoga, Mental Wellness (auto-enrolled)
-  silver: 5,      // All 5 basic courses (auto-enrolled)
-  gold2: Infinity,  // All courses
-  gold1: Infinity,
-  diamond: Infinity,
-  patron: Infinity,
-  elite: Infinity,
-  quantum: Infinity
-};
-
-// Course access mapping per membership plan
-// Maps membership plan to course titles that should be auto-enrolled
-// Note: Course titles are matched case-insensitively (trimmed) with Course model titles
-export const MEMBERSHIP_COURSE_ACCESS = {
-  bronze: ['Physical Wellness'],
-  copper: ['Physical Wellness', 'Spirituality & Mantra Yoga', 'Mental Wellness'],
-  silver: ['Physical Wellness', 'Mental Wellness', 'Financial Wellness', 'Relationship & Family Wellness', 'Spirituality & Mantra Yoga']
-};
-
-// Helper function to normalize course title for matching
-export const normalizeCourseTitle = (title) => {
-  return title ? title.toLowerCase().trim() : '';
-};
-

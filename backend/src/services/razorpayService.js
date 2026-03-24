@@ -214,6 +214,34 @@ export const verifyRazorpaySignature = (orderId, paymentId, signature) => {
 };
 
 /**
+ * Verify Razorpay webhook signature
+ */
+export const verifyRazorpayWebhookSignature = (payload, signature) => {
+  try {
+    if (TEST_MODE) {
+      console.log('🧪 TEST MODE: Webhook signature verification bypassed');
+      return true;
+    }
+
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
+    if (!webhookSecret || !signature) {
+      return false;
+    }
+
+    const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    const expectedSignature = crypto
+      .createHmac('sha256', webhookSecret)
+      .update(body)
+      .digest('hex');
+
+    return expectedSignature === signature;
+  } catch (error) {
+    console.error('❌ Error verifying webhook signature:', error);
+    return false;
+  }
+};
+
+/**
  * Fetch payment details
  */
 export const fetchPaymentDetails = async (paymentId) => {

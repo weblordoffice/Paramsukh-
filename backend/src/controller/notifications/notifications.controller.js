@@ -1,4 +1,5 @@
 import Notification, { DeviceToken } from '../../models/notification.models.js';
+import { sendPushToUser, sendPushToUsers } from '../../services/pushService.js';
 
 // @desc    Register device token for push notifications
 // @route   POST /api/notifications/device-token
@@ -280,12 +281,26 @@ export const createTestNotification = async (req, res) => {
 };
 
 // Helper function to send notification (to be used by other controllers)
+// Saves to DB AND fires a real Expo device push.
 export const sendNotification = async (userId, notificationData) => {
   try {
     const notification = await Notification.createNotification({
       user: userId,
       ...notificationData
     });
+
+    // Fire real push — non-blocking, failure is logged but does not throw
+    sendPushToUser(userId, {
+      title: notificationData.title,
+      body: notificationData.message,
+      data: {
+        type: notificationData.type,
+        relatedId: notificationData.relatedId?.toString?.() || null,
+        relatedType: notificationData.relatedType || null,
+        actionUrl: notificationData.actionUrl || null,
+      },
+    }).catch(() => {});
+
     return notification;
   } catch (error) {
     console.error('Send Notification Helper Error:', error);
@@ -294,9 +309,23 @@ export const sendNotification = async (userId, notificationData) => {
 };
 
 // Helper function to send bulk notifications
+// Saves to DB AND fires real Expo device pushes to all recipients.
 export const sendBulkNotifications = async (userIds, notificationData) => {
   try {
     const notifications = await Notification.sendToMultipleUsers(userIds, notificationData);
+
+    // Fire real pushes to all users — non-blocking
+    sendPushToUsers(userIds, {
+      title: notificationData.title,
+      body: notificationData.message,
+      data: {
+        type: notificationData.type,
+        relatedId: notificationData.relatedId?.toString?.() || null,
+        relatedType: notificationData.relatedType || null,
+        actionUrl: notificationData.actionUrl || null,
+      },
+    }).catch(() => {});
+
     return notifications;
   } catch (error) {
     console.error('Send Bulk Notifications Helper Error:', error);

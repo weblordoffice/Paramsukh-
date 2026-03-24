@@ -173,8 +173,10 @@ export const validateBookCounseling = [
  */
 export const validateCreateOrder = [
   body('plan')
-    .isIn(['bronze', 'copper', 'silver', 'gold2', 'gold1', 'diamond', 'patron', 'elite', 'quantum'])
-    .withMessage('Invalid membership plan'),
+    .isString()
+    .trim()
+    .notEmpty()
+    .withMessage('Plan is required'),
   body('amount')
     .isFloat({ min: 1 })
     .withMessage('Amount must be greater than 0'),

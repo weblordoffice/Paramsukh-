@@ -1,7 +1,91 @@
-import { Enrollment, COURSE_LIMITS } from '../../models/enrollment.models.js';
+import { Enrollment } from '../../models/enrollment.models.js';
 import { Course } from '../../models/course.models.js';
-import { User } from '../../models/user.models.js';
-import { AppConfig } from '../../models/appConfig.models.js';
+import { evaluateCourseEnrollmentAccess } from '../../services/entitlement.service.js';
+
+/**
+ * Get published course catalog with access reason flags
+ * GET /api/enrollments/catalog
+ */
+export const getEnrollmentCatalog = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const [courses, userEnrollments] = await Promise.all([
+      Course.find({ status: 'published' })
+        .select('title description thumbnailUrl bannerUrl color icon duration category tags status totalVideos totalPdfs enrollmentCount completionCount averageRating reviewCount includedInPlans createdAt')
+        .sort({ createdAt: -1 }),
+      Enrollment.find({ userId })
+        .populate({ path: 'courseId', select: 'category' })
+        .select('courseId')
+        .lean(),
+    ]);
+
+    const enrolledCourseIdSet = new Set(
+      userEnrollments
+        .map((item) => item?.courseId?._id || item?.courseId)
+        .filter(Boolean)
+        .map((id) => String(id))
+    );
+
+    const enrolledCategories = userEnrollments
+      .map((item) => item?.courseId?.category)
+      .filter(Boolean)
+      .map((category) => String(category).toLowerCase());
+
+    const distinctCategoryCount = new Set(enrolledCategories).size;
+    const totalEnrollments = userEnrollments.length;
+
+    const catalog = await Promise.all(courses.map(async (course) => {
+      const courseId = String(course._id);
+      const courseCategory = String(course.category || '').toLowerCase();
+      const alreadyEnrolled = enrolledCourseIdSet.has(courseId);
+
+      if (alreadyEnrolled) {
+        return {
+          ...course.toObject(),
+          access: {
+            canEnroll: false,
+            canAccess: true,
+            reason: 'already_enrolled',
+          },
+        };
+      }
+
+      const enrollmentsInSameCategory = enrolledCategories.filter((category) => category === courseCategory).length;
+      const decision = await evaluateCourseEnrollmentAccess({
+        userId,
+        course,
+        currentEnrollments: totalEnrollments,
+        distinctEnrolledCategoryCount: distinctCategoryCount,
+        isAlreadyUsingCourseCategory: enrolledCategories.includes(courseCategory),
+        enrollmentsInSameCategory,
+      });
+
+      return {
+        ...course.toObject(),
+        access: {
+          canEnroll: !!decision.allowed,
+          canAccess: !!decision.allowed,
+          reason: decision.reason,
+          message: decision.message || null,
+        },
+      };
+    }));
+
+    return res.status(200).json({
+      success: true,
+      message: 'Course catalog fetched successfully',
+      courses: catalog,
+    });
+  } catch (error) {
+    console.error('❌ Error fetching enrollment catalog:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+};
 
 /**
  * Enroll user in a course
@@ -44,55 +128,39 @@ export const enrollInCourse = async (req, res) => {
       });
     }
 
+    const userEnrollments = await Enrollment.find({ userId })
+      .populate({ path: 'courseId', select: 'category' })
+      .lean();
 
+    const enrolledCategories = userEnrollments
+      .map((item) => item?.courseId?.category)
+      .filter(Boolean)
+      .map((category) => String(category).toLowerCase());
 
-    // Check subscription and enrollment restrictions
-    const user = await User.findById(userId);
+    const targetCategory = String(course.category || '').toLowerCase();
+    const categorySet = new Set(enrolledCategories);
+    const enrollmentsInSameCategory = enrolledCategories.filter((category) => category === targetCategory).length;
+    const currentEnrollments = userEnrollments.length;
 
-    // Fetch dynamic configuration
-    const membershipRules = await AppConfig.findOne({ key: 'membership_rules' }).lean();
+    const enrollmentDecision = await evaluateCourseEnrollmentAccess({
+      userId,
+      course,
+      currentEnrollments,
+      distinctEnrolledCategoryCount: categorySet.size,
+      isAlreadyUsingCourseCategory: categorySet.has(targetCategory),
+      enrollmentsInSameCategory,
+    });
 
-    // Get restricted plans (auto-enroll only) with fallback
-    const restrictedPlans = membershipRules?.value?.restrictedPlans || ['bronze', 'copper', 'silver'];
-
-    if (restrictedPlans.includes(user.subscriptionPlan)) {
-      // For restricted plans, verify if this course allows manual enrollment or is auto-enroll only
-      // But typically these plans are strictly auto-enroll
-
-      // However, if the course is explicitly marked as "Free" or accessible via some other logic, we might reconsider.
-      // For now, adhere to the restriction rule but check if the user is ALREADY enrolled loop handled above.
-
-      return res.status(403).json({
+    if (!enrollmentDecision.allowed) {
+      return res.status(enrollmentDecision.statusCode || 403).json({
         success: false,
-        message: `Your ${user.subscriptionPlan} membership includes pre-selected courses. Manual enrollment is not available. Please contact support if you need assistance.`,
-        upgradeRequired: false,
-        restrictedPlan: true
+        message: enrollmentDecision.message,
+        upgradeRequired: !!enrollmentDecision.upgradeRequired,
+        restrictedPlan: !!enrollmentDecision.restrictedPlan,
+        reason: enrollmentDecision.reason,
+        currentEnrollments,
+        limit: enrollmentDecision.limit,
       });
-    }
-
-    // For other plans, check course limits
-    // Get limits with fallback to hardcoded default
-    const limitConfig = membershipRules?.value?.courseLimits || COURSE_LIMITS;
-    const courseLimit = limitConfig[user.subscriptionPlan] !== undefined ? limitConfig[user.subscriptionPlan] : 0;
-
-    // If limit is Infinity, allow enrollment
-    // Note: JSON serialization of Infinity might be null or string, handle accordingly if stored in DB
-    const isUnlimited = courseLimit === 'Infinity' || courseLimit === null || courseLimit === Infinity; // Handle stored variations
-
-    if (isUnlimited) {
-      // Allow enrollment for unlimited plans
-    } else {
-      const currentEnrollments = await Enrollment.countDocuments({ userId });
-
-      if (currentEnrollments >= courseLimit) {
-        return res.status(403).json({
-          success: false,
-          message: `Your ${user.subscriptionPlan} plan allows ${courseLimit} course(s). Please upgrade to enroll in more courses.`,
-          currentEnrollments,
-          limit: courseLimit,
-          upgradeRequired: true
-        });
-      }
     }
 
     // Create enrollment

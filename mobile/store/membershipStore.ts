@@ -24,6 +24,7 @@ export interface Subscription {
     isTrialActive: boolean;
     trialDaysLeft: number;
     hasProAccess: boolean;
+    effectivePlans?: string[];
 }
 
 interface MembershipState {

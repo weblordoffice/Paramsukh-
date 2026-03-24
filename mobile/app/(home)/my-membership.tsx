@@ -16,67 +16,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMembershipStore } from '../../store/membershipStore';
 import { useAuthStore } from '../../store/authStore';
 import apiClient from '../../utils/apiClient';
+import { fetchPublicMembershipPlans, UIMembershipPlan } from '../../utils/membershipPlans';
 
 const PENDING_LINK_KEY = 'pending_membership_payment_link';
-
-/* ─── All Plans ──────────────────────────────────────────────────────── */
-const PLANS = [
-    {
-        id: 'bronze',
-        name: 'Bronze',
-        emoji: '🥉',
-        price: 2999,
-        color: '#CD7F32',
-        badgeBg: '#2D1A07',
-        tagline: 'Begin Your Journey',
-        features: [
-            { text: '1 course: Physical Wellness', included: true },
-            { text: 'Group follow-up for enrolled course', included: true },
-            { text: 'Community access', included: true },
-            { text: 'Event attendance', included: true },
-            { text: 'Free membership counseling', included: true },
-            { text: '3 courses access', included: false },
-            { text: 'All 5 courses', included: false },
-        ],
-    },
-    {
-        id: 'copper',
-        name: 'Copper',
-        emoji: '🔶',
-        price: 5999,
-        color: '#B87333',
-        badgeBg: '#2A1208',
-        tagline: 'Expand Your Path',
-        features: [
-            { text: '3 courses: Physical, Spirituality & Mantra, Mental', included: true },
-            { text: 'Group follow-up for all courses', included: true },
-            { text: 'Community premium access', included: true },
-            { text: 'Priority event booking', included: true },
-            { text: 'Free membership counseling', included: true },
-            { text: 'Bonus points on achievements', included: true },
-            { text: 'All 5 courses', included: false },
-        ],
-    },
-    {
-        id: 'silver',
-        name: 'Silver',
-        emoji: '🥈',
-        price: 16999,
-        color: '#A8A9AD',
-        badgeBg: '#1A1F2A',
-        tagline: 'Most Popular · All Courses',
-        popular: true,
-        features: [
-            { text: 'All 5 basic courses included', included: true },
-            { text: 'Group follow-up for all courses', included: true },
-            { text: 'Community premium access', included: true },
-            { text: 'Priority event booking', included: true },
-            { text: 'Free membership counseling', included: true },
-            { text: 'Bonus points on achievements', included: true },
-            { text: 'Advanced course access', included: true },
-        ],
-    },
-];
 
 /* ─── Component ──────────────────────────────────────────────────────── */
 export default function MyMembershipScreen() {
@@ -85,7 +27,7 @@ export default function MyMembershipScreen() {
     const [plansY, setPlansY] = useState<number>(0);
     const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
 
-    const { currentSubscription, fetchCurrentSubscription, isLoading, purchaseMembership } = useMembershipStore();
+    const { currentSubscription, fetchCurrentSubscription, isLoading } = useMembershipStore();
     const { token, user } = useAuthStore();
 
     const [purchases, setPurchases] = useState<
@@ -93,6 +35,7 @@ export default function MyMembershipScreen() {
     >([]);
     const [loadingPurchases, setLoadingPurchases] = useState(true);
     const [syncingPayment, setSyncingPayment] = useState(false);
+    const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
 
     useEffect(() => {
         if (token) {
@@ -101,7 +44,14 @@ export default function MyMembershipScreen() {
         } else {
             setLoadingPurchases(false);
         }
+
+        loadPublicPlans();
     }, [token]);
+
+    const loadPublicPlans = async () => {
+        const dynamicPlans = await fetchPublicMembershipPlans();
+        setPlans(dynamicPlans);
+    };
 
     // If user paid and came back later, confirm any pending payment link
     useEffect(() => {
@@ -161,7 +111,7 @@ export default function MyMembershipScreen() {
         }
     };
 
-    const handlePurchase = async (plan: typeof PLANS[number]) => {
+    const handlePurchase = async (plan: UIMembershipPlan) => {
         if (!token) {
             return;
         }
@@ -234,7 +184,7 @@ export default function MyMembershipScreen() {
     const hasNoPlan = !activePlan || (!isActive && !isTrial);
 
     /* current plan config */
-    const currentPlanCfg = PLANS.find(p => p.id === activePlan);
+    const currentPlanCfg = plans.find(p => p.id === activePlan);
 
     return (
         <SafeAreaView style={styles.root}>
@@ -351,7 +301,14 @@ export default function MyMembershipScreen() {
                     All Plans
                 </Text>
 
-                {PLANS.map(plan => {
+                {plans.length === 0 && (
+                    <View style={styles.noPlansCard}>
+                        <Ionicons name="information-circle-outline" size={18} color="#94A3B8" />
+                        <Text style={styles.noPlansText}>No membership plans are available right now. Please check again later.</Text>
+                    </View>
+                )}
+
+                {plans.map(plan => {
                     const isCurrent = activePlan === plan.id && (isActive || isTrial);
                     return (
                         <View
@@ -456,7 +413,7 @@ export default function MyMembershipScreen() {
                 ) : (
                     <View style={styles.purchaseList}>
                         {purchases.map((p, idx) => {
-                            const pc = PLANS.find(pl => pl.id === p.plan?.toLowerCase());
+                            const pc = plans.find(pl => pl.id === p.plan?.toLowerCase());
                             const done = p.status === 'completed';
                             return (
                                 <View key={p.paymentId || idx} style={styles.purchaseRow}>
@@ -569,6 +526,18 @@ const styles = StyleSheet.create({
 
     /* ── Section title ── */
     sectionTitle: { fontSize: 17, fontWeight: '700', color: '#F1F5F9', marginBottom: 12 },
+    noPlansCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: '#1E293B',
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'rgba(148,163,184,0.18)',
+        padding: 12,
+        marginBottom: 12,
+    },
+    noPlansText: { fontSize: 13, color: '#94A3B8', flex: 1 },
 
     /* ── Plan cards ── */
     planCard: {

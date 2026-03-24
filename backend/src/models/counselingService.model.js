@@ -43,6 +43,19 @@ const counselingServiceSchema = new mongoose.Schema({
     counselorName: {
         type: String,
         default: 'Expert Counselor'
+    },
+    businessHours: {
+        monday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true } },
+        tuesday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true } },
+        wednesday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true } },
+        thursday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true } },
+        friday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true } },
+        saturday: { start: { type: String, default: "10:00" }, end: { type: String, default: "16:00" }, isActive: { type: Boolean, default: false } },
+        sunday: { start: { type: String, default: "10:00" }, end: { type: String, default: "16:00" }, isActive: { type: Boolean, default: false } }
+    },
+    intervalMinutes: {
+        type: Number,
+        default: 60 // Slot length in minutes
     }
 }, {
     timestamps: true

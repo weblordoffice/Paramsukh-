@@ -99,11 +99,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       );
 
       set({ isLoading: false });
+      const data = response.data || {};
+      const otp = data.otp != null ? String(data.otp) : undefined;
       return {
-        success: response.data.success,
-        message: response.data.message,
-        isNewUser: response.data.isNewUser,
-        otp: response.data.otp // Backend only sends this in development mode
+        success: !!data.success,
+        message: data.message,
+        isNewUser: data.isNewUser,
+        otp
       };
     } catch (error: any) {
       console.error('Send OTP Error:', error?.message, 'URL:', `${API_URL}/auth/send-otp`);

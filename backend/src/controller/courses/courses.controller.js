@@ -1,4 +1,55 @@
 import { Course } from '../../models/course.models.js';
+import { MembershipPlan } from '../../models/membershipPlan.models.js';
+import { CoursePlan } from '../../models/coursePlan.models.js';
+
+const enforcePlanLimits = async (planIds, newCategory, courseIdToExclude = null) => {
+    for (const planId of planIds) {
+        const plan = await MembershipPlan.findById(planId);
+        if (!plan) throw new Error(`Plan not found: ${planId}`);
+        const limits = plan.access?.limits || {};
+
+        // Find all junction mappings for this plan
+        const mappings = await CoursePlan.find({ planId }).populate('courseId');
+        
+        // Filter out null courseIds (if a course was deleted without cleaning up) and the current course being edited
+        let existingCourses = mappings
+            .map(m => m.courseId)
+            .filter(c => c && c._id.toString() !== String(courseIdToExclude));
+
+        // Check maxCoursesTotal
+        if (limits.maxCoursesTotal && existingCourses.length >= limits.maxCoursesTotal) {
+            throw new Error(`Plan "${plan.title}" has reached its maximum course limit of ${limits.maxCoursesTotal}`);
+        }
+
+        // Check maxCategories
+        if (limits.maxCategories) {
+            const currentCategories = new Set(existingCourses.map(c => c.category).filter(Boolean));
+            currentCategories.add(newCategory);
+            if (currentCategories.size > limits.maxCategories) {
+                throw new Error(`Plan "${plan.title}" allows only ${limits.maxCategories} unique categories. Adding category "${newCategory}" exceeds this limit.`);
+            }
+        }
+
+        // Check perCategoryCourseLimit
+        if (limits.perCategoryCourseLimit) {
+            const categoryCount = existingCourses.filter(c => c.category === newCategory).length;
+            if (categoryCount >= limits.perCategoryCourseLimit) {
+                 throw new Error(`Plan "${plan.title}" allows maximum ${limits.perCategoryCourseLimit} courses per category. Category "${newCategory}" limit reached.`);
+            }
+        }
+    }
+};
+
+const syncCoursePlans = async (courseId, newPlanIds) => {
+    // Delete existing mappings for this course
+    await CoursePlan.deleteMany({ courseId });
+    
+    // Create new mappings
+    if (newPlanIds && newPlanIds.length > 0) {
+        const mappings = newPlanIds.map(planId => ({ courseId, planId }));
+        await CoursePlan.insertMany(mappings);
+    }
+};
 
 export const createCourse = async (req, res) => {
     try {
@@ -12,6 +63,18 @@ export const createCourse = async (req, res) => {
             });
         }
 
+        // Enforce limits before creation
+        if (includedInPlans && includedInPlans.length > 0) {
+            try {
+                await enforcePlanLimits(includedInPlans, category);
+            } catch (err) {
+                return res.status(400).json({
+                    success: false,
+                    message: err.message
+                });
+            }
+        }
+
         // creating a courses 
         const course = await Course.create({
             title,
@@ -23,10 +86,12 @@ export const createCourse = async (req, res) => {
             duration,
             category,
             tags,
-            tags,
             status,
             includedInPlans: includedInPlans || []
-        })
+        });
+
+        // Sync junction table
+        await syncCoursePlans(course._id, includedInPlans || []);
 
         return res.status(201).json({
             success: true,
@@ -53,6 +118,9 @@ export const deleteCourse = async (req, res) => {
                 message: "Course ID is required"
             })
         }
+
+        // Clean up junction table
+        await CoursePlan.deleteMany({ courseId: id });
 
         const course = await Course.findByIdAndDelete(id);
         // if course not found
@@ -96,13 +164,31 @@ export const updateCourse = async (req, res) => {
             })
         }
 
-        const course = await Course.findByIdAndUpdate(id, { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status, includedInPlans }, { new: true });
+        // Enforce limits before updating
+        if (includedInPlans) {
+            try {
+                await enforcePlanLimits(includedInPlans, category, id);
+            } catch (err) {
+                return res.status(400).json({
+                    success: false,
+                    message: err.message
+                });
+            }
+        }
+
+        const course = await Course.findByIdAndUpdate(id, { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status, includedInPlans }, { new: true }).populate('assignments');
         if (!course) {
             return res.status(404).json({
                 success: false,
                 message: "courses not found"
             })
         }
+
+        // Sync junction table
+        if (includedInPlans) {
+            await syncCoursePlans(course._id, includedInPlans);
+        }
+
         return res.status(200).json({
             success: true,
             message: "Course updated successfully",
@@ -131,6 +217,7 @@ export const getAllCourses = async (req, res) => {
             })
         }
 
+        // Make sure to return includedInPlans for the UI to precheck the checkboxes.
         return res.status(200).json({
             success: true,
             message: "courses fetched successfully",
@@ -145,6 +232,7 @@ export const getAllCourses = async (req, res) => {
         });
     }
 }
+
 export const getCourseById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -154,7 +242,7 @@ export const getCourseById = async (req, res) => {
                 message: "Course ID is required"
             })
         }
-        const course = await Course.findById(id);
+        const course = await Course.findById(id).populate('assignments');
         if (!course) {
             return res.status(404).json({
                 success: false,

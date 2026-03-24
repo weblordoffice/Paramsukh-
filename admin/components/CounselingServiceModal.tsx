@@ -5,6 +5,22 @@ import { X, Loader2, Check } from 'lucide-react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 
+interface BusinessHour {
+    start: string;
+    end: string;
+    isActive: boolean;
+}
+
+interface BusinessHours {
+    monday: BusinessHour;
+    tuesday: BusinessHour;
+    wednesday: BusinessHour;
+    thursday: BusinessHour;
+    friday: BusinessHour;
+    saturday: BusinessHour;
+    sunday: BusinessHour;
+}
+
 interface CounselingService {
     _id?: string;
     title: string;
@@ -16,6 +32,8 @@ interface CounselingService {
     bgColor: string;
     icon: string;
     counselorName: string;
+    intervalMinutes: number;
+    businessHours: BusinessHours;
 }
 
 interface ServiceModalProps {
@@ -24,6 +42,19 @@ interface ServiceModalProps {
     service: CounselingService | null;
     onSuccess: () => void;
 }
+
+const DAYS: (keyof BusinessHours)[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+const DEFAULT_HOURS: BusinessHour = { start: '09:00', end: '18:00', isActive: true };
+const INITIAL_BUSINESS_HOURS: BusinessHours = {
+    monday: { ...DEFAULT_HOURS },
+    tuesday: { ...DEFAULT_HOURS },
+    wednesday: { ...DEFAULT_HOURS },
+    thursday: { ...DEFAULT_HOURS },
+    friday: { ...DEFAULT_HOURS },
+    saturday: { ...DEFAULT_HOURS },
+    sunday: { ...DEFAULT_HOURS, isActive: false },
+};
 
 const COLORS = [
     { name: 'Blue', color: '#3B82F6', bg: '#EFF6FF' },
@@ -50,12 +81,18 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
         color: '#3B82F6',
         bgColor: '#EFF6FF',
         icon: 'help-buoy',
-        counselorName: 'Expert Counselor'
+        counselorName: 'Expert Counselor',
+        intervalMinutes: 60,
+        businessHours: INITIAL_BUSINESS_HOURS
     });
 
     useEffect(() => {
         if (service) {
-            setFormData(service);
+            setFormData({
+                ...service,
+                intervalMinutes: service.intervalMinutes || 60,
+                businessHours: service.businessHours || INITIAL_BUSINESS_HOURS
+            });
         } else {
             setFormData({
                 title: '',
@@ -66,13 +103,35 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
                 color: '#3B82F6',
                 bgColor: '#EFF6FF',
                 icon: 'help-buoy',
-                counselorName: 'Expert Counselor'
+                counselorName: 'Expert Counselor',
+                intervalMinutes: 60,
+                businessHours: INITIAL_BUSINESS_HOURS
             });
         }
     }, [service, isOpen]);
 
     const handleColorSelect = (colorObj: typeof COLORS[0]) => {
         setFormData({ ...formData, color: colorObj.color, bgColor: colorObj.bg });
+    };
+
+    const toggleDay = (day: keyof BusinessHours) => {
+        setFormData({
+            ...formData,
+            businessHours: {
+                ...formData.businessHours,
+                [day]: { ...formData.businessHours[day], isActive: !formData.businessHours[day].isActive }
+            }
+        });
+    };
+
+    const updateTime = (day: keyof BusinessHours, field: 'start' | 'end', value: string) => {
+        setFormData({
+            ...formData,
+            businessHours: {
+                ...formData.businessHours,
+                [day]: { ...formData.businessHours[day], [field]: value }
+            }
+        });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -166,6 +225,20 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
                             </div>
                         </div>
 
+                        {/* Interval Minutes */}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Slot Interval (mins)</label>
+                            <input
+                                type="number"
+                                min="15"
+                                step="15"
+                                required
+                                value={formData.intervalMinutes}
+                                onChange={(e) => setFormData({ ...formData, intervalMinutes: Number(e.target.value) })}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-gray-900 placeholder:text-gray-500"
+                            />
+                        </div>
+
                         <div className="flex items-center pt-8">
                             <input
                                 type="checkbox"
@@ -177,6 +250,51 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
                             <label htmlFor="isFree" className="ml-2 block text-sm text-gray-900 font-medium">
                                 Mark as Free Service
                             </label>
+                        </div>
+
+                        {/* Business Hours */}
+                        <div className="col-span-2">
+                            <label className="block text-sm font-bold text-gray-800 mb-4 border-t pt-4">Counselor Working Hours</label>
+                            <div className="space-y-4">
+                                {DAYS.map((day) => (
+                                    <div key={day} className="flex flex-col md:flex-row md:items-center gap-4 bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                        <div className="w-32 flex items-center gap-3">
+                                            <input
+                                                type="checkbox"
+                                                id={`check-${day}`}
+                                                checked={formData.businessHours[day].isActive}
+                                                onChange={() => toggleDay(day)}
+                                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                            />
+                                            <label htmlFor={`check-${day}`} className="text-sm font-semibold capitalize text-gray-700">
+                                                {day}
+                                            </label>
+                                        </div>
+                                        
+                                        {formData.businessHours[day].isActive ? (
+                                            <div className="flex items-center gap-3 flex-1">
+                                                <input
+                                                    type="time"
+                                                    value={formData.businessHours[day].start}
+                                                    onChange={(e) => updateTime(day, 'start', e.target.value)}
+                                                    className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white text-gray-900"
+                                                />
+                                                <span className="text-gray-400 text-sm">to</span>
+                                                <input
+                                                    type="time"
+                                                    value={formData.businessHours[day].end}
+                                                    onChange={(e) => updateTime(day, 'end', e.target.value)}
+                                                    className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white text-gray-900"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="flex-1 flex items-center">
+                                                <span className="text-xs font-medium px-2 py-1 bg-gray-200 text-gray-500 rounded-md">CLOSED</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
 
                         {/* Colors */}

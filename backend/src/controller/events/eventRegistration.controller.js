@@ -2,6 +2,7 @@ import { EventRegistration } from '../../models/eventRegistration.models.js';
 import { Event } from '../../models/event.models.js';
 import { User } from '../../models/user.models.js';
 import { createRazorpayOrder, createRazorpayPaymentLink, verifyRazorpaySignature, fetchPaymentDetails, fetchPaymentLink } from '../../services/razorpayService.js';
+import { sendNotification } from '../notifications/notifications.controller.js';
 
 /**
  * Register user for an event
@@ -92,6 +93,20 @@ export const registerForEvent = async (req, res) => {
     const responseMessage = paymentRequired
       ? "Registration created. Please complete payment."
       : "Successfully registered for event";
+
+    // Send in-app + push notification for confirmed free registrations
+    if (!paymentRequired) {
+      sendNotification(userId, {
+        type: 'event_registered',
+        title: '🎉 Event Registration Confirmed',
+        message: `You're registered for "${event.title}" on ${new Date(event.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}.`,
+        icon: event.emoji || '📅',
+        relatedId: event._id,
+        relatedType: 'event',
+        actionUrl: `/event-detail?eventId=${event._id}`,
+        priority: 'high',
+      }).catch(() => {});
+    }
 
     return res.status(201).json({
       success: true,
@@ -733,6 +748,21 @@ export const confirmEventPaymentByLink = async (req, res) => {
     if (event && typeof event.updateAttendeeCount === 'function') {
       await event.updateAttendeeCount();
       await event.save();
+    }
+
+    // Notify user on confirmed paid registration via link
+    const paidEvent = await Event.findById(eventId).select('title emoji eventDate');
+    if (paidEvent) {
+      sendNotification(userId, {
+        type: 'event_registered',
+        title: '🎟️ Event Registration Confirmed',
+        message: `Payment received! You're confirmed for "${paidEvent.title}" on ${new Date(paidEvent.eventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}.`,
+        icon: paidEvent.emoji || '📅',
+        relatedId: paidEvent._id,
+        relatedType: 'event',
+        actionUrl: `/event-detail?eventId=${paidEvent._id}`,
+        priority: 'high',
+      }).catch(() => {});
     }
 
     return res.status(200).json({

@@ -3,6 +3,7 @@ import { User } from '../../models/user.models.js';
 import CounselingService from '../../models/counselingService.model.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { verifyRazorpaySignature } from '../../services/razorpayService.js';
+import mongoose from 'mongoose';
 export const getAllServices = async (req, res) => {
   try {
     const services = await CounselingService.find({ isActive: true });
@@ -62,11 +63,22 @@ export const updateService = async (req, res) => {
 
 export const deleteService = async (req, res) => {
   try {
-    const service = await CounselingService.findById(req.params.id);
-    if (!service) {
-      return res.status(404).json({ success: false, message: 'Service not found' });
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid service id' });
     }
-    await service.deleteOne();
+
+    const deleted = await CounselingService.findByIdAndDelete(id);
+
+    // Idempotent delete: if already removed, still return success to avoid duplicate-click 404s.
+    if (!deleted) {
+      return res.status(200).json({
+        success: true,
+        message: 'Service already deleted',
+      });
+    }
+
     res.status(200).json({
       success: true,
       message: 'Service deleted'

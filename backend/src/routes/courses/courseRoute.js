@@ -11,6 +11,13 @@ import {
   addSessionRecording
 } from '../../controller/courses/session.controller.js';
 import {
+  addAssignment,
+  getCourseAssignments,
+  getVideoAssignments,
+  updateAssignment,
+  deleteAssignment
+} from '../../controller/courses/assignment.controller.js';
+import {
   markVideoComplete,
   markPdfComplete,
   getEnrollmentProgress
@@ -48,6 +55,13 @@ router.get('/:courseId/livesessions/:liveSessionId', getLiveSessionById);
 router.put('/:courseId/livesessions/:liveSessionId', adminAuth, updateLiveSession);
 router.delete('/:courseId/livesessions/:liveSessionId', adminAuth, deleteLiveSession);
 router.patch('/:courseId/livesessions/:liveSessionId/recording', adminAuth, addSessionRecording);
+
+// assignment routes
+router.post('/:courseId/assignments', adminAuth, addAssignment);
+router.get('/:courseId/assignments', getCourseAssignments);
+router.get('/:courseId/videos/:videoId/assignments', getVideoAssignments);
+router.put('/:courseId/assignments/:assignmentId', adminAuth, updateAssignment);
+router.delete('/:courseId/assignments/:assignmentId', adminAuth, deleteAssignment);
 
 // Progress tracking routes (require authentication)
 router.get('/:courseId/progress', protectedRoutes, getEnrollmentProgress);

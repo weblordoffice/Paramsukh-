@@ -3,6 +3,7 @@ import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { assessmentRequired } from '../../middleware/assessmentRequired.js';
 import {
   enrollInCourse,
+  getEnrollmentCatalog,
   getMyEnrollments,
   getEnrollmentByCourse,
   unenrollFromCourse,
@@ -45,6 +46,9 @@ router.post('/enroll', assessmentRequired, enrollInCourse);
 
 // Get user's enrollments
 router.get('/my-courses', getMyEnrollments);
+
+// Get published catalog with backend access reasons
+router.get('/catalog', getEnrollmentCatalog);
 
 // Get continue learning data
 router.get('/continue-learning', getContinueLearning);

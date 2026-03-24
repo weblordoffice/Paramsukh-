@@ -6,6 +6,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed-admin": "node scripts/seedAdmin.js",
+    "seed-memberships": "node scripts/seedMembershipPlans.js",
+    "migrate-user-memberships": "node scripts/migrateUserMemberships.js",
     "test": "node --experimental-vm-modules ./node_modules/.bin/jest --config jest.config.mjs",
     "test:watch": "node --experimental-vm-modules ./node_modules/.bin/jest --config jest.config.mjs --watch",
     "test:coverage": "node --experimental-vm-modules ./node_modules/.bin/jest --config jest.config.mjs --coverage"

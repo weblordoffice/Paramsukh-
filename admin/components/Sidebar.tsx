@@ -39,6 +39,7 @@ const menuItems: MenuItem[] = [
     { icon: Home, label: 'Dashboard', href: '/dashboard' },
     { icon: Users, label: 'Users', href: '/dashboard/users', permission: 'manage_users' },
     { icon: Crown, label: 'Memberships', href: '/dashboard/memberships', permission: 'manage_users' },
+    { icon: Crown, label: 'Plans', href: '/dashboard/plans', permission: 'manage_users' },
     { icon: BookOpen, label: 'Courses', href: '/dashboard/courses', permission: 'manage_courses' },
     { icon: Mic, label: 'Podcasts', href: '/dashboard/podcasts', permission: 'manage_content' },
     { icon: Calendar, label: 'Events', href: '/dashboard/events', permission: 'manage_events' },

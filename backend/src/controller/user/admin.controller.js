@@ -3,7 +3,8 @@ import { Enrollment } from '../../models/enrollment.models.js';
 import { Course } from '../../models/course.models.js';
 import { Group } from '../../models/community.models.js';
 import { GroupMember } from '../../models/community.models.js';
-import { MEMBERSHIP_COURSE_ACCESS } from '../../models/enrollment.models.js';
+import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
+import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
 
 /**
  * Create a new user (Admin only)
@@ -221,28 +222,22 @@ export const updateUserMembership = async (req, res) => {
 
     await user.save();
 
+    if (user.subscriptionPlan && user.subscriptionPlan !== 'free' && user.subscriptionStatus === 'active') {
+      await upsertActiveUserMembership({
+        userId: id,
+        planSlug: user.subscriptionPlan,
+        startDate: user.subscriptionStartDate || new Date(),
+        endDate: user.subscriptionEndDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        source: 'admin_grant',
+        metadata: { sourceController: 'admin.updateUserMembership' },
+      });
+    }
+
     // Auto-enroll in courses if requested
     if (autoEnroll && subscriptionPlan && subscriptionPlan !== 'free') {
-      const courseTitles = MEMBERSHIP_COURSE_ACCESS[subscriptionPlan];
+      const courses = await getAutoEnrollCoursesForPlan(subscriptionPlan);
 
-      if (courseTitles && courseTitles.length > 0) {
-        // Find courses by title (case-insensitive, trim whitespace)
-        const courseTitlePatterns = courseTitles.map(title => ({
-          $expr: { $eq: [{ $trim: [{ $toLower: '$title' }] }, title.toLowerCase().trim()] }
-        }));
-        
-        const courses = await Course.find({
-          $or: courseTitlePatterns,
-          status: 'published'
-        });
-
-        if (courses.length === 0) {
-          console.warn(`⚠️ No courses found for ${subscriptionPlan} plan. Looking for:`, courseTitles);
-        } else if (courses.length !== courseTitles.length) {
-          const foundTitles = courses.map(c => c.title);
-          const missingTitles = courseTitles.filter(t => !foundTitles.some(ft => ft.toLowerCase().trim() === t.toLowerCase().trim()));
-          console.warn(`⚠️ Some courses not found for ${subscriptionPlan} plan. Missing:`, missingTitles);
-        }
+      if (courses.length > 0) {
 
         // Enroll in courses
         for (const course of courses) {
@@ -298,6 +293,8 @@ export const updateUserMembership = async (req, res) => {
         }
 
         console.log(`✅ Admin updated membership for user ${id}: ${subscriptionPlan} (auto-enrolled in ${courses.length} courses)`);
+      } else {
+        console.warn(`⚠️ No published courses configured for ${subscriptionPlan} plan`);
       }
     } else {
       console.log(`✅ Admin updated membership for user ${id}: ${subscriptionPlan}`);

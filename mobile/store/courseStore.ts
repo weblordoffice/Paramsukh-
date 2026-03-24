@@ -3,6 +3,24 @@ import axios from 'axios';
 import { API_URL } from '../config/api';
 import { useAuthStore } from './authStore';
 
+export interface Question {
+    _id: string;
+    questionText: string;
+    type: 'mcq' | 'input';
+    options: string[];
+    correctAnswer: string;
+    explanation?: string;
+}
+
+export interface Assignment {
+    _id: string;
+    title: string;
+    description?: string;
+    questions: Question[];
+    order: number;
+    isStandalone: boolean;
+}
+
 export interface Video {
     _id: string;
     title: string;
@@ -12,6 +30,7 @@ export interface Video {
     thumbnailUrl?: string;
     order: number;
     isFree: boolean;
+    assignments?: Assignment[];
 }
 
 export interface Pdf {
@@ -58,6 +77,7 @@ export interface Course {
     videos?: Video[];
     pdfs?: Pdf[];
     liveSessions?: LiveSession[];
+    assignments?: Assignment[];
 
     createdAt: string;
 }

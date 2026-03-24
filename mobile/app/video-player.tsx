@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
-import { useCourseStore } from '../store/courseStore';
+import { useCourseStore, Video, Assignment } from '../store/courseStore';
 import { useAuthStore } from '../store/authStore';
 
 const { width } = Dimensions.get('window');
@@ -33,7 +33,7 @@ function isDirectVideoUrl(url: string): boolean {
 export default function VideoPlayerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { markVideoComplete } = useCourseStore();
+  const { markVideoComplete, currentCourse } = useCourseStore();
   const { token } = useAuthStore();
 
   const courseTitle = (params.courseTitle as string) || 'Course';
@@ -43,6 +43,10 @@ export default function VideoPlayerScreen() {
   const videoUrl = params.videoUrl as string;
   const courseId = params.courseId as string;
   const videoId = params.videoId as string;
+
+  // Find linked assignments
+  const video = currentCourse?.videos?.find(v => v._id === videoId);
+  const assignments = video?.assignments || [];
 
   const useNativePlayer = videoUrl && isDirectVideoUrl(videoUrl);
 
@@ -69,6 +73,17 @@ export default function VideoPlayerScreen() {
     if (!videoUrl) return;
     markComplete();
     await WebBrowser.openBrowserAsync(videoUrl);
+  };
+
+  const handleAssignmentPress = (assignment: Assignment) => {
+    router.push({
+      pathname: '/assignment-viewer',
+      params: {
+        courseId,
+        courseColor,
+        assignmentId: assignment._id,
+      },
+    });
   };
 
   return (
@@ -151,6 +166,30 @@ export default function VideoPlayerScreen() {
           </View>
         </View>
       </View>
+
+      {/* ── Linked Assignments ── */}
+      {assignments && assignments.length > 0 && (
+        <View style={styles.assignmentSection}>
+          <Text style={styles.assignmentHeading}>Linked Assignments</Text>
+          {assignments.map((assignment) => (
+            <TouchableOpacity
+              key={assignment?._id}
+              style={styles.assignmentBtn}
+              onPress={() => assignment && handleAssignmentPress(assignment)}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.assignmentIcon, { backgroundColor: courseColor + '20' }]}>
+                <Ionicons name="help-circle" size={20} color={courseColor} />
+              </View>
+              <View style={styles.assignmentInfo}>
+                <Text style={styles.assignmentTitle}>{assignment?.title || 'Practice Quiz'}</Text>
+                <Text style={styles.assignmentMeta}>{assignment?.questions?.length || 0} Questions</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#475569" />
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* ── Mark complete ── */}
       {token && (
@@ -314,6 +353,50 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: '#374151',
     marginHorizontal: 10,
+  },
+
+  /* Assignments */
+  assignmentSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(148,163,184,0.1)',
+  },
+  assignmentHeading: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#94A3B8',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  assignmentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    padding: 12,
+    borderRadius: 12,
+    gap: 12,
+  },
+  assignmentIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  assignmentInfo: {
+    flex: 1,
+  },
+  assignmentTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F1F5F9',
+  },
+  assignmentMeta: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 1,
   },
 
   /* Action */

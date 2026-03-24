@@ -36,8 +36,11 @@ export const sendOTPController = async (req, res) => {
       success: true,
       message: result.message,
       isNewUser,
-      otp: result.otp // Include OTP so app can show it (development / when not using real SMS)
+      otp: result.otp != null ? String(result.otp) : undefined
     };
+    if (responsePayload.otp) {
+      console.log(`📱 OTP in response for ${formattedPhone} (app can display)`);
+    }
 
     return res.json(responsePayload);
   } catch (error) {

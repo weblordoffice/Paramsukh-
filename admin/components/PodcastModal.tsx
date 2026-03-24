@@ -6,15 +6,28 @@ import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import Image from 'next/image';
 
+interface MembershipPlan {
+    _id: string;
+    title: string;
+    slug: string;
+    badgeColor?: string;
+}
+
 interface Podcast {
     _id?: string;
     title: string;
     description: string;
     host: string;
-    videoUrl: string;
+    source: 'youtube' | 'local';
+    youtubeUrl?: string;
+    videoUrl?: string;
     thumbnailUrl: string;
     duration: string;
     category: string;
+    accessType: 'free' | 'membership' | 'paid';
+    requiredMemberships?: string[];
+    price?: number;
+    currencyCode?: string;
 }
 
 interface PodcastModalProps {
@@ -30,8 +43,9 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
     const [loading, setLoading] = useState(false);
     const [uploadingVideo, setUploadingVideo] = useState(false);
     const [uploadingImage, setUploadingImage] = useState(false);
+    const [loadingMemberships, setLoadingMemberships] = useState(false);
+    const [memberships, setMemberships] = useState<MembershipPlan[]>([]);
 
-    // Upload types: 'url' or 'file'
     const [videoUploadType, setVideoUploadType] = useState<'url' | 'file'>('url');
     const [imageUploadType, setImageUploadType] = useState<'url' | 'file'>('url');
 
@@ -39,15 +53,34 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
         title: '',
         description: '',
         host: '',
+        source: 'local',
+        youtubeUrl: '',
         videoUrl: '',
         thumbnailUrl: '',
         duration: '00:00',
-        category: 'Meditation'
+        category: 'Meditation',
+        accessType: 'free',
+        requiredMemberships: [],
+        price: 0,
+        currencyCode: 'INR',
     });
+
+    
+    // Fetch membership plans on mount
+    useEffect(() => {
+        if (isOpen) {
+            fetchMemberships();
+        }
+    }, [isOpen]);
 
     useEffect(() => {
         if (podcast) {
-            setFormData(podcast);
+            setFormData({
+                ...podcast,
+                source: podcast.source || 'local',
+                accessType: podcast.accessType || 'free',
+                currencyCode: podcast.currencyCode || 'INR',
+            });
             setVideoUploadType('url');
             setImageUploadType('url');
         } else {
@@ -55,15 +88,36 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
                 title: '',
                 description: '',
                 host: '',
+                source: 'local',
+                youtubeUrl: '',
                 videoUrl: '',
                 thumbnailUrl: '',
                 duration: '00:00',
-                category: 'Meditation'
+                category: 'Meditation',
+                accessType: 'free',
+                requiredMemberships: [],
+                price: 0,
+                currencyCode: 'INR',
             });
-            setVideoUploadType('file'); // Default to file upload for new podcasts
+            setVideoUploadType('file');
             setImageUploadType('file');
         }
     }, [podcast, isOpen]);
+
+    const fetchMemberships = async () => {
+        setLoadingMemberships(true);
+        try {
+            const response = await apiClient.get('/api/membership-plans');
+            if (response.data?.success) {
+                setMemberships(response.data.data.plans || []);
+            }
+        } catch (error) {
+            console.error('Error fetching memberships:', error);
+            toast.error('Failed to load membership plans');
+        } finally {
+            setLoadingMemberships(false);
+        }
+    };
 
     const formatDuration = (seconds: number): string => {
         const minutes = Math.floor(seconds / 60);
@@ -135,6 +189,31 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
         setLoading(true);
 
         try {
+            // Validation
+            if (formData.source === 'youtube' && !formData.youtubeUrl) {
+                toast.error('YouTube URL is required');
+                setLoading(false);
+                return;
+            }
+
+            if (formData.source === 'local' && !formData.videoUrl) {
+                toast.error('Video URL is required');
+                setLoading(false);
+                return;
+            }
+
+            if (formData.accessType === 'membership' && (!formData.requiredMemberships || formData.requiredMemberships.length === 0)) {
+                toast.error('Select at least one membership plan');
+                setLoading(false);
+                return;
+            }
+
+            if (formData.accessType === 'paid' && !formData.price) {
+                toast.error('Price is required for paid podcasts');
+                setLoading(false);
+                return;
+            }
+
             if (podcast?._id) {
                 await apiClient.put(`/api/podcasts/admin/${podcast._id}`, formData);
                 toast.success('Podcast updated successfully');
@@ -150,6 +229,16 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
         } finally {
             setLoading(false);
         }
+    };
+
+    const toggleMembershipSelection = (planId: string) => {
+        setFormData(prev => {
+            const currentSelections = prev.requiredMemberships || [];
+            const newSelections = currentSelections.includes(planId)
+                ? currentSelections.filter(id => id !== planId)
+                : [...currentSelections, planId];
+            return { ...prev, requiredMemberships: newSelections };
+        });
     };
 
     if (!isOpen) return null;
@@ -219,52 +308,81 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
                             </select>
                         </div>
 
-                        {/* Duration */}
-                        <div>
-                            <label className="block text-sm font-medium text-black mb-2">
-                                Duration (MM:SS)
+                        {/* Source Selection */}
+                        <div className="col-span-2">
+                            <label className="block text-sm font-medium text-black mb-3">
+                                Source *
                             </label>
-                            <input
-                                type="text"
-                                value={formData.duration}
-                                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-black"
-                                placeholder="e.g. 15:30"
-                            />
-                            <p className="text-xs text-gray-500 mt-1">Auto-calculated if video is uploaded</p>
+                            <div className="flex gap-4">
+                                <label className="flex items-center gap-3 cursor-pointer p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                    style={{ borderColor: formData.source === 'youtube' ? '#3B82F6' : undefined, backgroundColor: formData.source === 'youtube' ? '#EFF6FF' : undefined }}>
+                                    <input
+                                        type="radio"
+                                        name="source"
+                                        value="youtube"
+                                        checked={formData.source === 'youtube'}
+                                        onChange={() => setFormData({ ...formData, source: 'youtube' })}
+                                        className="w-4 h-4"
+                                    />
+                                    <span className="text-sm font-medium text-black">YouTube</span>
+                                </label>
+                                <label className="flex items-center gap-3 cursor-pointer p-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                    style={{ borderColor: formData.source === 'local' ? '#3B82F6' : undefined, backgroundColor: formData.source === 'local' ? '#EFF6FF' : undefined }}>
+                                    <input
+                                        type="radio"
+                                        name="source"
+                                        value="local"
+                                        checked={formData.source === 'local'}
+                                        onChange={() => setFormData({ ...formData, source: 'local' })}
+                                        className="w-4 h-4"
+                                    />
+                                    <span className="text-sm font-medium text-black">Upload Locally</span>
+                                </label>
+                            </div>
                         </div>
 
-                        {/* Video URL / Upload */}
+                        {/* YouTube URL or Local Upload */}
                         <div className="col-span-2">
                             <div className="flex items-center justify-between mb-2">
                                 <label className="block text-sm font-medium text-black">
-                                    Video/Audio Source *
+                                    {formData.source === 'youtube' ? 'YouTube URL' : 'Video/Audio File'} *
                                 </label>
-                                <div className="flex bg-gray-100 rounded-lg p-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => setVideoUploadType('url')}
-                                        className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${videoUploadType === 'url' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-1"><LinkIcon size={12} /> URL Link</div>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setVideoUploadType('file')}
-                                        className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${videoUploadType === 'file' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'
-                                            }`}
-                                    >
-                                        <div className="flex items-center gap-1"><Upload size={12} /> Upload File</div>
-                                    </button>
-                                </div>
+                                {formData.source === 'local' && (
+                                    <div className="flex bg-gray-100 rounded-lg p-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setVideoUploadType('url')}
+                                            className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${videoUploadType === 'url' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-1"><LinkIcon size={12} /> URL</div>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setVideoUploadType('file')}
+                                            className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${videoUploadType === 'file' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-1"><Upload size={12} /> Upload</div>
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
-                            {videoUploadType === 'url' ? (
+                            {formData.source === 'youtube' ? (
                                 <input
                                     type="url"
-                                    required={!formData.videoUrl}
-                                    value={formData.videoUrl}
+                                    required
+                                    value={formData.youtubeUrl || ''}
+                                    onChange={(e) => setFormData({ ...formData, youtubeUrl: e.target.value })}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-black"
+                                    placeholder="https://www.youtube.com/watch?v=..."
+                                />
+                            ) : formData.source === 'local' && videoUploadType === 'url' ? (
+                                <input
+                                    type="url"
+                                    required
+                                    value={formData.videoUrl || ''}
                                     onChange={(e) => setFormData({ ...formData, videoUrl: e.target.value })}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-black"
                                     placeholder="https://example.com/video.mp4"
@@ -281,25 +399,112 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
                                     {uploadingVideo ? (
                                         <div className="flex flex-col items-center justify-center text-blue-600">
                                             <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                                            <span className="text-sm font-medium">Uploading video... Please wait</span>
+                                            <span className="text-sm font-medium">Uploading video...</span>
                                         </div>
                                     ) : formData.videoUrl ? (
                                         <div className="flex flex-col items-center justify-center text-green-600">
                                             <VideoIcon className="w-8 h-8 mb-2" />
-                                            <span className="text-sm font-medium">Video uploaded successfully</span>
-                                            <span className="text-xs text-gray-500 mt-1 break-all">{formData.videoUrl}</span>
-                                            <span className="text-xs text-blue-500 mt-2">Click to replace</span>
+                                            <span className="text-sm font-medium">Video uploaded</span>
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center justify-center text-gray-500">
                                             <Upload className="w-8 h-8 mb-2" />
-                                            <span className="text-sm font-medium">Click or drag video file here</span>
-                                            <span className="text-xs mt-1">MP4, WebM (Max 1GB)</span>
+                                            <span className="text-sm font-medium">Click or drag file here</span>
                                         </div>
                                     )}
                                 </div>
                             )}
                         </div>
+
+                        {/* Duration */}
+                        <div>
+                            <label className="block text-sm font-medium text-black mb-2">
+                                Duration (MM:SS)
+                            </label>
+                            <input
+                                type="text"
+                                value={formData.duration}
+                                onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-black"
+                                placeholder="e.g. 15:30"
+                            />
+                            <p className="text-xs text-gray-500 mt-1">Auto if video uploaded</p>
+                        </div>
+
+                        {/* Access Type */}
+                        <div>
+                            <label className="block text-sm font-medium text-black mb-2">
+                                Access Type *
+                            </label>
+                            <select
+                                value={formData.accessType}
+                                onChange={(e) => setFormData({ ...formData, accessType: e.target.value as any })}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-black"
+                            >
+                                <option value="free">🔓 Free (Everyone)</option>
+                                <option value="membership">🔐 Membership Only</option>
+                                <option value="paid">💰 Paid</option>
+                            </select>
+                        </div>
+
+                        {/* Price (for paid podcasts) */}
+                        {formData.accessType === 'paid' && (
+                            <div>
+                                <label className="block text-sm font-medium text-black mb-2">
+                                    Price (in {formData.currencyCode}) *
+                                </label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="0"
+                                    step="0.01"
+                                    value={formData.price || 0}
+                                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-black"
+                                    placeholder="299"
+                                />
+                            </div>
+                        )}
+
+                        {/* Membership Plans (for membership podcasts) */}
+                        {formData.accessType === 'membership' && (
+                            <div className="col-span-2">
+                                <label className="block text-sm font-medium text-black mb-3">
+                                    Select Membership Plans *
+                                </label>
+                                {loadingMemberships ? (
+                                    <div className="flex items-center justify-center py-4">
+                                        <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                                    </div>
+                                ) : memberships.length === 0 ? (
+                                    <p className="text-sm text-gray-500 py-4">No membership plans available</p>
+                                ) : (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {memberships.map((plan) => (
+                                            <label
+                                                key={plan._id}
+                                                className="flex items-center gap-3 p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors"
+                                                style={{
+                                                    borderColor: formData.requiredMemberships?.includes(plan._id) ? '#3B82F6' : undefined,
+                                                    backgroundColor: formData.requiredMemberships?.includes(plan._id) ? '#EFF6FF' : undefined,
+                                                }}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.requiredMemberships?.includes(plan._id) || false}
+                                                    onChange={() => toggleMembershipSelection(plan._id)}
+                                                    className="w-4 h-4"
+                                                />
+                                                <div className="flex-1">
+                                                    <p className="text-sm font-medium text-black">{plan.title}</p>
+                                                    <p className="text-xs text-gray-500">{plan.slug}</p>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Thumbnail URL / Upload */}
                         <div className="col-span-2">

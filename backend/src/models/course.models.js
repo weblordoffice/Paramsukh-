@@ -33,12 +33,66 @@ const videoSchema = new mongoose.Schema({
   isFree: {
     type: Boolean,
     default: false
-  }
+  },
+  assignments: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Assignment"
+  }]
 }, {
   timestamps: true
 });
 
 export const Video = mongoose.model("Video", videoSchema);
+
+const questionSchema = new mongoose.Schema({
+  questionText: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  type: {
+    type: String,
+    enum: ['mcq', 'input'],
+    default: 'mcq'
+  },
+  options: [{
+    type: String,
+    trim: true
+  }], // For MCQ
+  correctAnswer: {
+    type: String,
+    trim: true
+  }, // For practice display, can be option text or correct input
+  explanation: {
+    type: String,
+    trim: true
+  }
+});
+
+const assignmentSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    trim: true
+  },
+  questions: [questionSchema],
+  order: {
+    type: Number,
+    required: true
+  },
+  isStandalone: {
+    type: Boolean,
+    default: true
+  }
+}, {
+  timestamps: true
+});
+
+export const Assignment = mongoose.model("Assignment", assignmentSchema);
 
 const pdfSchema = new mongoose.Schema({
   title: {
@@ -170,6 +224,10 @@ const courseSchema = new mongoose.Schema({
     default: 0
   },
   liveSessions: [liveSessionSchema],
+  assignments: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Assignment"
+  }],
 
   // Course Metadata
   category: {
@@ -185,7 +243,8 @@ const courseSchema = new mongoose.Schema({
   // Access Control
   includedInPlans: [{
     type: String,
-    enum: ['bronze', 'copper', 'silver', 'gold2', 'gold1', 'diamond', 'patron', 'elite', 'quantum'],
+    trim: true,
+    lowercase: true,
     default: []
   }],
 

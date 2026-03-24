@@ -12,10 +12,16 @@ interface Podcast {
     title: string;
     description: string;
     host: string;
-    videoUrl: string;
+    source: 'youtube' | 'local';
+    youtubeUrl?: string;
+    videoUrl?: string;
     thumbnailUrl: string;
     duration: string;
     category: string;
+    accessType: 'free' | 'membership' | 'paid';
+    requiredMemberships?: string[];
+    price?: number;
+    currencyCode?: string;
     createdAt: string;
 }
 
@@ -33,7 +39,7 @@ export default function PodcastsPage() {
 
     const fetchPodcasts = async () => {
         try {
-            const response = await apiClient.get('/api/podcasts');
+            const response = await apiClient.get('/api/podcasts/admin/all');
             if (response.data && response.data.success) {
                 setPodcasts(response.data.data.podcasts || []);
             }
@@ -153,10 +159,30 @@ export default function PodcastsPage() {
 
                             {/* Content */}
                             <div className="p-5">
-                                <div className="mb-4">
-                                    <h3 className="text-lg font-bold text-gray-800 mb-1 line-clamp-1">{podcast.title}</h3>
-                                    <p className="text-sm text-gray-500 font-medium mb-2">{podcast.host}</p>
-                                    <p className="text-gray-600 text-sm line-clamp-2 min-h-[40px]">{podcast.description}</p>
+                                <div className="mb-4 flex items-start justify-between gap-2">
+                                    <div className="flex-1">
+                                        <h3 className="text-lg font-bold text-gray-800 mb-1 line-clamp-1">{podcast.title}</h3>
+                                        <p className="text-sm text-gray-500 font-medium mb-2">{podcast.host}</p>
+                                        <p className="text-gray-600 text-sm line-clamp-2 min-h-[40px]">{podcast.description}</p>
+                                    </div>
+                                    {/* Access Type Badge */}
+                                    <div className="flex-shrink-0">
+                                        {podcast.accessType === 'free' && (
+                                            <span className="inline-block px-2 py-1 rounded-md text-xs font-semibold bg-green-100 text-green-700 whitespace-nowrap">
+                                                🔓 Free
+                                            </span>
+                                        )}
+                                        {podcast.accessType === 'membership' && (
+                                            <span className="inline-block px-2 py-1 rounded-md text-xs font-semibold bg-blue-100 text-blue-700 whitespace-nowrap">
+                                                🔐 Premium
+                                            </span>
+                                        )}
+                                        {podcast.accessType === 'paid' && (
+                                            <span className="inline-block px-2 py-1 rounded-md text-xs font-semibold bg-yellow-100 text-yellow-700 whitespace-nowrap">
+                                                💰 ₹{podcast.price}
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="flex items-center justify-between pt-4 border-t border-gray-50">

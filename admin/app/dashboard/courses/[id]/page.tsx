@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Video, FileText, Calendar } from 'lucide-react';
+import { ArrowLeft, Video, FileText, Calendar, HelpCircle } from 'lucide-react';
 import VideosTab from './VideosTab';
 import PDFsTab from './PDFsTab';
 import LiveSessionsTab from './LiveSessionsTab';
+import AssignmentsTab from './AssignmentsTab';
 
 interface Course {
     _id: string;
@@ -23,9 +24,10 @@ interface Course {
     videos?: any[];
     pdfs?: any[];
     liveSessions?: any[];
+    assignments?: any[];
 }
 
-type TabType = 'videos' | 'pdfs' | 'sessions';
+type TabType = 'videos' | 'pdfs' | 'sessions' | 'assignments';
 
 export default function CourseDetailsPage() {
     const params = useParams();
@@ -86,6 +88,7 @@ export default function CourseDetailsPage() {
         { id: 'videos' as TabType, label: 'Videos', icon: Video, count: course.videos?.length || 0 },
         { id: 'pdfs' as TabType, label: 'PDFs', icon: FileText, count: course.pdfs?.length || 0 },
         { id: 'sessions' as TabType, label: 'Live Sessions', icon: Calendar, count: course.liveSessions?.length || 0 },
+        { id: 'assignments' as TabType, label: 'Assignments', icon: HelpCircle, count: course.assignments?.length || 0 },
     ];
 
     return (
@@ -169,6 +172,9 @@ export default function CourseDetailsPage() {
                     )}
                     {activeTab === 'sessions' && (
                         <LiveSessionsTab courseId={courseId} sessions={course.liveSessions || []} onUpdate={refreshCourse} />
+                    )}
+                    {activeTab === 'assignments' && (
+                        <AssignmentsTab courseId={courseId} assignments={course.assignments || []} onUpdate={refreshCourse} />
                     )}
                 </div>
             </div>

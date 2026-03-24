@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Calendar, Crown, AlertCircle, Edit2 } from "lucide-react";
 import MembershipModal from "../MembershipModal";
+import { apiClient } from "@/lib/api/client";
 
 interface User {
   _id: string;
@@ -19,61 +20,136 @@ interface SubscriptionTabProps {
   onUpdate: () => void;
 }
 
+interface PlanInfo {
+  slug: string;
+  title: string;
+  shortDescription?: string;
+  validityDays?: number;
+  pricing?: {
+    oneTime?: {
+      amount?: number;
+    };
+  };
+  access?: {
+    includedCategories?: string[];
+    communityAccess?: boolean;
+    counselingAccess?: boolean;
+    eventAccess?: boolean;
+    limits?: {
+      maxCategories?: number | null;
+      maxCoursesTotal?: number | null;
+      perCategoryCourseLimit?: number | null;
+    };
+  };
+}
+
+const normalize = (value: string) => String(value || '').trim().toLowerCase();
+
 export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps) {
   const [showModal, setShowModal] = useState(false);
+  const [planLookup, setPlanLookup] = useState<Record<string, PlanInfo>>({
+    free: { slug: 'free', title: 'Free', shortDescription: 'No paid courses' },
+  });
 
-  const getPlanDetails = (plan: string) => {
-    const details: Record<string, { courses: string; features: string[] }> = {
-      free: { 
-        courses: 'No paid courses', 
-        features: ['Free content access', '14-day trial'] 
-      },
-      bronze: { 
-        courses: '1 course - Physical Wellness', 
-        features: ['Physical Wellness course', 'Community access', '1-on-1 counseling'] 
-      },
-      copper: { 
-        courses: '3 courses', 
-        features: ['Physical Wellness', 'Spirituality & Mantra Yoga', 'Mental Wellness', 'Community groups'] 
-      },
-      silver: { 
-        courses: '5 courses - All basic', 
-        features: ['All basic courses', 'Physical, Mental, Financial, Relationship, Spirituality', 'Full community access'] 
-      },
-      gold2: { 
-        courses: 'Unlimited', 
-        features: ['All courses', 'Priority support', 'Exclusive events'] 
-      },
-      gold1: { 
-        courses: 'Unlimited', 
-        features: ['All courses', 'Priority support', 'Exclusive events'] 
-      },
-      diamond: { 
-        courses: 'Unlimited', 
-        features: ['All courses', 'VIP support', 'Private sessions'] 
-      },
-      patron: { 
-        courses: 'Unlimited', 
-        features: ['All courses', 'Patron benefits', 'Early access'] 
-      },
-      elite: { 
-        courses: 'Unlimited', 
-        features: ['All courses', 'Elite benefits', 'Premium content'] 
-      },
-      quantum: { 
-        courses: 'Unlimited', 
-        features: ['Everything included', 'Highest tier benefits', 'Exclusive perks'] 
-      },
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const response = await apiClient.get('/api/membership-plans');
+        const plans = Array.isArray(response.data?.data) ? response.data.data : [];
+        const lookup: Record<string, PlanInfo> = {
+          free: { slug: 'free', title: 'Free', shortDescription: 'No paid courses' },
+        };
+
+        plans
+          .filter((plan: any) => String(plan?.status || 'draft') !== 'archived')
+          .forEach((plan: any) => {
+            const slug = normalize(plan.slug);
+            if (!slug) return;
+            lookup[slug] = {
+              slug,
+              title: String(plan.title || plan.slug || '').trim(),
+              shortDescription: plan.shortDescription,
+              validityDays: Number(plan.validityDays || 365),
+              pricing: plan.pricing,
+              access: plan.access,
+            };
+          });
+
+        setPlanLookup(lookup);
+      } catch {
+        setPlanLookup({
+          free: { slug: 'free', title: 'Free', shortDescription: 'No paid courses' },
+        });
+      }
     };
-    return details[plan] || details.free;
-  };
+
+    fetchPlans();
+  }, []);
 
   const handleModalClose = () => {
     setShowModal(false);
     onUpdate();
   };
 
-  const planDetails = getPlanDetails(user.subscriptionPlan);
+  const selectedPlan = planLookup[normalize(user.subscriptionPlan)] || planLookup.free;
+  const planTitle = selectedPlan?.title || user.subscriptionPlan.toUpperCase();
+  const planCourseSummary = useMemo(() => {
+    if (normalize(user.subscriptionPlan) === 'free') {
+      return 'No paid courses';
+    }
+
+    const maxCoursesTotal = selectedPlan?.access?.limits?.maxCoursesTotal;
+    if (maxCoursesTotal === null || maxCoursesTotal === undefined) {
+      return 'Unlimited courses';
+    }
+    return `${maxCoursesTotal} total courses`;
+  }, [selectedPlan, user.subscriptionPlan]);
+
+  const planFeatures = useMemo(() => {
+    if (!selectedPlan) {
+      return ['Plan details not available'];
+    }
+
+    const features: string[] = [];
+    const includedCategories = selectedPlan.access?.includedCategories || [];
+
+    if (selectedPlan.shortDescription) {
+      features.push(selectedPlan.shortDescription);
+    }
+    if (includedCategories.length > 0) {
+      features.push(`Included categories: ${includedCategories.join(', ')}`);
+    }
+    if (selectedPlan.access?.communityAccess) {
+      features.push('Community access enabled');
+    }
+    if (selectedPlan.access?.counselingAccess) {
+      features.push('Counseling access enabled');
+    }
+    if (selectedPlan.access?.eventAccess) {
+      features.push('Event access enabled');
+    }
+
+    const limits = selectedPlan.access?.limits;
+    if (limits?.maxCategories !== null && limits?.maxCategories !== undefined) {
+      features.push(`Category limit: ${limits.maxCategories}`);
+    }
+    if (limits?.perCategoryCourseLimit !== null && limits?.perCategoryCourseLimit !== undefined) {
+      features.push(`Per-category course cap: ${limits.perCategoryCourseLimit}`);
+    }
+    if (selectedPlan.validityDays) {
+      features.push(`Validity: ${selectedPlan.validityDays} days`);
+    }
+    if (selectedPlan.pricing?.oneTime?.amount) {
+      features.push(`One-time price: INR ${Number(selectedPlan.pricing.oneTime.amount).toLocaleString('en-IN')}`);
+    }
+
+    if (features.length === 0) {
+      features.push('No additional features configured');
+    }
+
+    return features;
+  }, [selectedPlan]);
+
   const isActive = user.subscriptionStatus === 'active';
   const isTrial = user.subscriptionStatus === 'trial';
   const daysRemaining = user.subscriptionEndDate 
@@ -94,11 +170,11 @@ export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps
               <h3 className="text-lg font-semibold text-gray-900">Current Plan</h3>
             </div>
             <p className="text-3xl font-bold text-blue-600 mb-2">
-              {user.subscriptionPlan.toUpperCase()}
+              {planTitle}
             </p>
-            <p className="text-sm text-gray-700 mb-4">{planDetails.courses}</p>
+            <p className="text-sm text-gray-700 mb-4">{planCourseSummary}</p>
             <div className="space-y-1">
-              {planDetails.features.map((feature, index) => (
+              {planFeatures.map((feature, index) => (
                 <div key={index} className="flex items-center gap-2 text-sm text-gray-700">
                   <div className="w-1.5 h-1.5 bg-blue-600 rounded-full"></div>
                   {feature}
@@ -161,7 +237,7 @@ export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps
             <h4 className="font-medium text-gray-900">Plan Type</h4>
           </div>
           <p className="text-2xl font-bold text-gray-900 uppercase">
-            {user.subscriptionPlan}
+            {planTitle}
           </p>
         </div>
 

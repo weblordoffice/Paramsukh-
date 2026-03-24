@@ -8,20 +8,31 @@ import { useMembershipStore } from '../../store/membershipStore';
 import { useAuthStore } from '../../store/authStore';
 import { useRouter } from 'expo-router';
 import apiClient from '../../utils/apiClient';
+import { fetchPublicMembershipPlans, UIMembershipPlan } from '../../utils/membershipPlans';
 
 const PENDING_LINK_KEY = 'pending_membership_payment_link';
 
 export default function MembershipScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { currentSubscription, isLoading, isPurchasing, fetchCurrentSubscription, purchaseMembership, clearError, error } = useMembershipStore();
+  const { currentSubscription, isLoading, fetchCurrentSubscription, clearError } = useMembershipStore();
 
-  const [selectedPlan, setSelectedPlan] = useState('silver');
+  const [selectedPlan, setSelectedPlan] = useState('');
   const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
+  const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
 
   useEffect(() => {
     fetchCurrentSubscription();
+    loadPublicPlans();
   }, []);
+
+  const loadPublicPlans = async () => {
+    const dynamicPlans = await fetchPublicMembershipPlans();
+    setPlans(dynamicPlans);
+    if (dynamicPlans.length > 0) {
+      setSelectedPlan(dynamicPlans[0].id);
+    }
+  };
 
   // If user paid and came back later (or app was closed), confirm any pending payment link
   useEffect(() => {
@@ -45,73 +56,9 @@ export default function MembershipScreen() {
     return () => { cancelled = true; };
   }, [currentSubscription?.status]);
 
-  // Only show 3 plans as per backend support (single price per plan)
-  const plans = [
-    {
-      id: 'bronze',
-      name: 'Bronze',
-      price: 2999,
-      emoji: '🥉',
-      color: '#CD7F32',
-      gradient: ['#FEF3C7', '#FDE68A'],
-      tagline: 'Begin Your Journey',
-      features: [
-        { text: '1 basic course: Physical Wellness', included: true },
-        { text: 'Group follow-up for enrolled course', included: true },
-        { text: 'Community access', included: true },
-        { text: 'Event attendance', included: true },
-        { text: 'Free membership counseling', included: true },
-        { text: '3 courses access', included: false },
-        { text: 'All 5 courses', included: false },
-      ],
-      popular: false,
-      courseAccess: ['Physical Wellness']
-    },
-    {
-      id: 'copper',
-      name: 'Copper',
-      price: 5999,
-      emoji: '🔶',
-      color: '#B87333',
-      gradient: ['#FED7AA', '#FDBA74'],
-      tagline: 'Expand Your Path',
-      features: [
-        { text: '3 basic courses: Physical, Spirituality & Mantra Yoga, Mental Wellness', included: true },
-        { text: 'Group follow-up for all courses', included: true },
-        { text: 'Community premium access', included: true },
-        { text: 'Priority event booking', included: true },
-        { text: 'Free membership counseling', included: true },
-        { text: 'Bonus points on achievements', included: true },
-        { text: 'All 5 courses', included: false },
-      ],
-      popular: false,
-      courseAccess: ['Physical Wellness', 'Spirituality & Mantra Yoga', 'Mental Wellness']
-    },
-    {
-      id: 'silver',
-      name: 'Silver',
-      price: 16999,
-      emoji: '🥈',
-      color: '#C0C0C0',
-      gradient: ['#F3F4F6', '#E5E7EB'],
-      tagline: 'Most Popular - All Courses Included',
-      features: [
-        { text: 'All 5 basic courses included', included: true },
-        { text: 'Group follow-up for all courses', included: true },
-        { text: 'Community premium access', included: true },
-        { text: 'Priority event booking', included: true },
-        { text: 'Free membership counseling', included: true },
-        { text: 'Bonus points on achievements', included: true },
-        { text: 'Advanced course access', included: true },
-      ],
-      popular: true,
-      courseAccess: ['All 5 Courses']
-    }
-  ];
+  const getDisplayPrice = (plan: UIMembershipPlan) => `₹${plan.price.toLocaleString('en-IN')}`;
 
-  const getDisplayPrice = (plan: typeof plans[0]) => `₹${plan.price.toLocaleString('en-IN')}`;
-
-  const handlePurchase = async (plan: typeof plans[0]) => {
+  const handlePurchase = async (plan: UIMembershipPlan) => {
     if (currentSubscription?.plan === plan.id && currentSubscription?.status === 'active') {
       Alert.alert('Already Subscribed', `You already have the ${plan.name} plan!`);
       return;
@@ -220,6 +167,15 @@ export default function MembershipScreen() {
           </View>
 
           {/* Plan Cards */}
+          {plans.length === 0 && (
+            <View className="bg-white rounded-2xl p-4 mb-4 border border-gray-200 flex-row items-center gap-2">
+              <Ionicons name="information-circle-outline" size={18} color="#64748B" />
+              <Text className="text-sm text-gray-600 flex-1">
+                No membership plans are available right now. Please check again later.
+              </Text>
+            </View>
+          )}
+
           {plans.map((plan) => {
             const isSelected = selectedPlan === plan.id;
             const displayPrice = getDisplayPrice(plan);

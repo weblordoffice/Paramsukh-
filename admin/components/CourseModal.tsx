@@ -5,6 +5,19 @@ import { X } from 'lucide-react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 
+interface MembershipPlan {
+    _id: string;
+    title: string;
+    slug: string;
+    status: string;
+    access?: {
+        includedCategories: string[];
+        inheritedPlanIds?: string[];
+    };
+}
+
+const DEFAULT_CATEGORIES = ['physical', 'mental', 'financial', 'relationship', 'spiritual', 'general'];
+
 interface Course {
     _id?: string;
     title: string;
@@ -44,8 +57,26 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
     });
     const [tagsInput, setTagsInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
+    const [loadingPlans, setLoadingPlans] = useState(true);
 
-    const membershipPlans = ['bronze', 'copper', 'silver'];
+    useEffect(() => {
+        const fetchPlans = async () => {
+            try {
+                const response = await apiClient.get('/api/membership-plans');
+                if (response.data.success) {
+                    setMembershipPlans(response.data.data.filter((p: any) => p.status !== 'archived'));
+                }
+            } catch (error) {
+                console.error('Error fetching plans:', error);
+            } finally {
+                setLoadingPlans(false);
+            }
+        };
+        if (isOpen) {
+            fetchPlans();
+        }
+    }, [isOpen]);
 
     useEffect(() => {
         if (course) {
@@ -154,6 +185,50 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
             toast.error(error.response?.data?.message || 'Upload failed', { id: toastId });
         }
     };
+
+    // Calculate categories to display based on selected plans and their inheritances
+    const selectedPlansData = membershipPlans.filter(p => (formData.includedInPlans || []).includes(p._id));
+    
+    // Resolve inherited plans recursively
+    const getAllInheritedPlans = (planIds: string[], allPlans: MembershipPlan[]): MembershipPlan[] => {
+        const result = new Set<string>();
+        const queue = [...planIds];
+        
+        while (queue.length > 0) {
+            const currentId = queue.shift()!;
+            if (!result.has(currentId)) {
+                result.add(currentId);
+                const plan = allPlans.find(p => p._id === currentId);
+                if (plan && plan.access?.inheritedPlanIds) {
+                    queue.push(...plan.access.inheritedPlanIds);
+                }
+            }
+        }
+        
+        return Array.from(result).map(id => allPlans.find(p => p._id === id)).filter(Boolean) as MembershipPlan[];
+    };
+
+    const fullyResolvedPlans = getAllInheritedPlans(formData.includedInPlans || [], membershipPlans);
+
+    let derivedCategories = new Set<string>();
+    fullyResolvedPlans.forEach(p => {
+        const cats = p.access?.includedCategories || [];
+        cats.forEach(c => derivedCategories.add(c.toLowerCase()));
+    });
+    
+    // If plans selected and they specifically restrict categories, only show those. Otherwise, show all.
+    const categoriesToDisplay = fullyResolvedPlans.length > 0 && derivedCategories.size > 0 
+        ? Array.from(derivedCategories) 
+        : DEFAULT_CATEGORIES;
+
+    // Optional: Reset category if selected plans restricted the allowed categories, causing the current choice to be invalid.
+    useEffect(() => {
+        if (formData.category && selectedPlansData.length > 0 && derivedCategories.size > 0) {
+            if (!derivedCategories.has(formData.category.toLowerCase())) {
+                setFormData((prev: any) => ({ ...prev, category: '' }));
+            }
+        }
+    }, [formData.includedInPlans, membershipPlans]);
 
     if (!isOpen) return null;
 
@@ -282,13 +357,15 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                 required
                             >
                                 <option value="">Select Category</option>
-                                <option value="physical">Physical</option>
-                                <option value="mental">Mental</option>
-                                <option value="financial">Financial</option>
-                                <option value="relationship">Relationship</option>
-                                <option value="spiritual">Spiritual</option>
-                                <option value="general">General</option>
+                                {categoriesToDisplay.map(cat => (
+                                    <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+                                ))}
                             </select>
+                            {selectedPlansData.length > 0 && derivedCategories.size > 0 && (
+                                <p className="text-xs text-primary mt-1">
+                                    Options restricted by selected membership plans.
+                                </p>
+                            )}
                         </div>
                     </div>
 
@@ -317,19 +394,27 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                         <label className="block text-sm font-medium text-secondary mb-2">
                             Included in Restricted Plans (Auto-Enroll)
                         </label>
-                        <div className="flex flex-wrap gap-4">
-                            {membershipPlans.map((plan) => (
-                                <label key={plan} className="flex items-center space-x-2 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={(formData.includedInPlans || []).includes(plan)}
-                                        onChange={() => handlePlanChange(plan)}
-                                        className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
-                                    />
-                                    <span className="capitalize">{plan}</span>
-                                </label>
-                            ))}
-                        </div>
+                        {loadingPlans ? (
+                            <p className="text-sm text-gray-500">Loading plans...</p>
+                        ) : membershipPlans.length === 0 ? (
+                            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-lg text-sm">
+                                No plans exist. Please ask the admin to create a membership plan first.
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap gap-4">
+                                {membershipPlans.map((plan) => (
+                                    <label key={plan._id} className="flex items-center space-x-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={(formData.includedInPlans || []).includes(plan._id)}
+                                            onChange={() => handlePlanChange(plan._id)}
+                                            className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                                        />
+                                        <span className="capitalize text-black">{plan.title}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
                         <p className="text-xs text-gray-500 mt-1">
                             Users on these plans will be automatically enrolled in this course upon purchase.
                         </p>

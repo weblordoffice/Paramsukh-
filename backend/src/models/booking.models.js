@@ -201,6 +201,22 @@ bookingSchema.methods.canBeRescheduled = function () {
 
 // Static method to get available slots
 bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
+  const CounselingService = mongoose.model('CounselingService');
+  const service = await CounselingService.findOne({ title: counselorType });
+
+  if (!service || !service.isActive) {
+    return [];
+  }
+
+  // Determine day of week
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayOfWeek = days[new Date(date).getDay()];
+  const hours = service.businessHours[dayOfWeek];
+
+  if (!hours || !hours.isActive) {
+    return [];
+  }
+
   const bookings = await this.find({
     bookingDate: {
       $gte: new Date(date).setHours(0, 0, 0, 0),
@@ -210,14 +226,45 @@ bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
     status: { $in: ['pending', 'confirmed'] }
   }).select('bookingTime');
 
-  // All possible slots (9 AM to 6 PM)
-  const allSlots = [
-    '09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM',
-    '01:00 PM', '02:00 PM', '03:00 PM', '04:00 PM', '05:00 PM'
-  ];
-
   const bookedSlots = bookings.map(b => b.bookingTime);
-  const availableSlots = allSlots.filter(slot => !bookedSlots.includes(slot));
+
+  // Helper to parse "HH:mm" to minutes from midnight
+  const parseTimeToMinutes = (timeStr) => {
+    const [hrs, mins] = timeStr.split(':').map(Number);
+    return hrs * 60 + mins;
+  };
+
+  // Helper to format minutes to "hh:mm AM/PM"
+  const formatMinutesToTime = (totalMinutes) => {
+    let hrs = Math.floor(totalMinutes / 60);
+    const mins = totalMinutes % 60;
+    const ampm = hrs >= 12 ? 'PM' : 'AM';
+    const displayHrs = hrs % 12 || 12;
+    return `${displayHrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')} ${ampm}`;
+  };
+
+  const startMinutes = parseTimeToMinutes(hours.start);
+  const endMinutes = parseTimeToMinutes(hours.end);
+  const interval = service.intervalMinutes || 60;
+
+  const availableSlots = [];
+  
+  // Current time check for today
+  const now = new Date();
+  const isToday = new Date(date).toDateString() === now.toDateString();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+  for (let current = startMinutes; current + interval <= endMinutes; current += interval) {
+    // If it's today, only show future slots (add 30 min buffer)
+    if (isToday && current < currentMinutes + 30) {
+      continue;
+    }
+
+    const timeString = formatMinutesToTime(current);
+    if (!bookedSlots.includes(timeString)) {
+      availableSlots.push(timeString);
+    }
+  }
 
   return availableSlots;
 };

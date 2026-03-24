@@ -20,6 +20,7 @@ import wishlistRoutes from './routes/wishlist/wishlistRoute.js';
 import orderRoutes from './routes/orders/ordersRoute.js';
 import addressRoutes from './routes/address/addressRoute.js';
 import paymentRoutes from './routes/payments/paymentsRoute.js';
+import membershipPlanRoutes from './routes/membership/membershipPlanRoute.js';
 import uploadRoutes from './routes/upload/uploadRoute.js';
 import podcastRoutes from './routes/podcast/podcastRoute.js';
 import adminRoutes from './routes/admin/adminRoute.js';
@@ -94,6 +95,7 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/membership-plans', membershipPlanRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/podcasts', podcastRoutes);
 

@@ -14,6 +14,7 @@ import {
 import {
   getAllNotifications,
   sendBroadcastNotification,
+  sendSectionNotification,
   deleteNotificationAdmin,
   markNotificationReadAdmin
 } from '../../controller/notifications/admin.notifications.controller.js';
@@ -25,6 +26,10 @@ const router = express.Router();
 // ========================================
 router.get('/all', adminAuth, getAllNotifications);
 router.post('/broadcast', adminAuth, sendBroadcastNotification);
+// Targeted / section-specific send
+// POST /api/notifications/send
+// Body: { title, message, section, userIds?, filters?, type, icon, priority, actionUrl }
+router.post('/send', adminAuth, sendSectionNotification);
 router.delete('/:id/admin', adminAuth, deleteNotificationAdmin);
 router.patch('/:id/read/admin', adminAuth, markNotificationReadAdmin);
 

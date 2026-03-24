@@ -22,12 +22,14 @@ interface NotificationState {
   unreadCount: number;
   isLoading: boolean;
   error: string | null;
+  deviceTokenRegistered: boolean;
 
   fetchNotifications: (params?: { page?: number; limit?: number; unreadOnly?: boolean }) => Promise<void>;
   fetchUnreadCount: () => Promise<number>;
   markAsRead: (id: string) => Promise<boolean>;
   markAllAsRead: () => Promise<boolean>;
   deleteNotification: (id: string) => Promise<boolean>;
+  registerDeviceToken: (expoPushToken: string) => Promise<boolean>;
 }
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
@@ -35,6 +37,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   unreadCount: 0,
   isLoading: false,
   error: null,
+  deviceTokenRegistered: false,
 
   fetchNotifications: async (params = {}) => {
     const token = useAuthStore.getState().token;
@@ -155,6 +158,29 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       }
     } catch (e) {
       console.error('Delete notification error:', e);
+    }
+    return false;
+  },
+
+  registerDeviceToken: async (expoPushToken: string) => {
+    // Skip if already registered this session
+    if (get().deviceTokenRegistered) return true;
+
+    const token = useAuthStore.getState().token;
+    if (!token || !expoPushToken) return false;
+
+    try {
+      const response = await axios.post(
+        `${API_URL}/notifications/device-token`,
+        { token: expoPushToken, platform: 'android' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (response.data?.success) {
+        set({ deviceTokenRegistered: true });
+        return true;
+      }
+    } catch (e) {
+      console.error('Register device token error:', e);
     }
     return false;
   },

@@ -2,7 +2,9 @@ import { User } from '../../models/user.models.js';
 import { Enrollment } from '../../models/enrollment.models.js';
 import { Course } from '../../models/course.models.js';
 import { Group, GroupMember } from '../../models/community.models.js';
-import { MEMBERSHIP_COURSE_ACCESS } from '../../models/enrollment.models.js';
+import { resolveMembershipPlanChargeAmount, resolveMembershipPlanInheritanceBySlug, normalizePlanSlug } from '../../services/membershipPlan.service.js';
+import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
+import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
 
 /**
  * Get user profile
@@ -265,6 +267,16 @@ export const getSubscription = async (req, res) => {
       ? Math.ceil((user.trialEndsAt - now) / (1000 * 60 * 60 * 24))
       : 0;
 
+    const normalizedPlan = normalizePlanSlug(user.subscriptionPlan || 'free');
+    let effectivePlans = normalizedPlan ? [normalizedPlan] : [];
+
+    if (normalizedPlan && normalizedPlan !== 'free') {
+      const inheritance = await resolveMembershipPlanInheritanceBySlug(normalizedPlan);
+      if (inheritance.planSlugs.length > 0) {
+        effectivePlans = inheritance.planSlugs;
+      }
+    }
+
     return res.status(200).json({
       success: true,
       subscription: {
@@ -273,7 +285,8 @@ export const getSubscription = async (req, res) => {
         trialEndsAt: user.trialEndsAt,
         isTrialActive,
         trialDaysLeft,
-        hasProAccess: user.hasProAccess()
+        hasProAccess: user.hasProAccess(),
+        effectivePlans
       }
     });
 
@@ -430,14 +443,15 @@ export const purchaseMembership = async (req, res) => {
     const userId = req.user._id;
     const { plan } = req.body;
 
-    // Validate plan
-    const validPlans = ['bronze', 'copper', 'silver'];
-    if (!plan || !validPlans.includes(plan)) {
+    const planConfig = await resolveMembershipPlanChargeAmount(plan);
+    if (!planConfig.isValid) {
       return res.status(400).json({
         success: false,
-        message: `Invalid plan. Must be one of: ${validPlans.join(', ')}`
+        message: 'Invalid membership plan'
       });
     }
+
+    const finalPlan = planConfig.slug;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -447,24 +461,36 @@ export const purchaseMembership = async (req, res) => {
       });
     }
 
-    // Get courses that are configured for this plan via includedInPlans field
-    const courses = await Course.find({
-      includedInPlans: plan,
-      status: 'published'
-    });
+    const courses = await getAutoEnrollCoursesForPlan(finalPlan);
 
     if (courses.length === 0) {
-      console.warn(`⚠️ No courses found for ${plan} plan in database configuration.`);
+      console.warn(`⚠️ No courses found for ${finalPlan} plan in database configuration.`);
       // We process the membership update anyway, assuming admin might add courses later
       // or this might be a plan without courses (unlikely but possible)
     } else {
-      console.log(`Found ${courses.length} courses for plan ${plan}:`, courses.map(c => c.title));
+      console.log(`Found ${courses.length} courses for plan ${finalPlan}:`, courses.map(c => c.title));
     }
 
     // Update user subscription
-    user.subscriptionPlan = plan;
+    user.subscriptionPlan = finalPlan;
     user.subscriptionStatus = 'active';
+    if (!user.subscriptionStartDate) {
+      user.subscriptionStartDate = new Date();
+    }
+    if (!user.subscriptionEndDate) {
+      const validityDays = Number(planConfig.plan?.validityDays || 365);
+      user.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
+    }
     await user.save();
+
+    await upsertActiveUserMembership({
+      userId,
+      planSlug: finalPlan,
+      startDate: user.subscriptionStartDate,
+      endDate: user.subscriptionEndDate,
+      source: 'purchase',
+      metadata: { sourceController: 'profile.purchaseMembership' },
+    });
 
     // Auto-enroll in courses (skip if already enrolled)
     const enrollmentPromises = courses.map(async (course) => {
@@ -536,13 +562,13 @@ export const purchaseMembership = async (req, res) => {
 
     const groups = await Promise.all(groupPromises);
 
-    console.log(`✅ User ${user.displayName} purchased ${plan} membership`);
+    console.log(`✅ User ${user.displayName} purchased ${finalPlan} membership`);
     console.log(`   - Created ${enrollments.length} enrollment(s) for courses: ${courses.map(c => c.title).join(', ')}`);
     console.log(`   - Added to ${groups.length} community group(s): ${groups.map(g => g.name).join(', ')}`);
 
     return res.status(200).json({
       success: true,
-      message: `Successfully purchased ${plan} membership`,
+      message: `Successfully purchased ${finalPlan} membership`,
       subscription: {
         plan: user.subscriptionPlan,
         status: user.subscriptionStatus

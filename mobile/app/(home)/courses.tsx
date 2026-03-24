@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Header from '../../components/Header';
-import { useCourseStore } from '../../store/courseStore';
+import { Course, useCourseStore } from '../../store/courseStore';
 import { useMembershipStore } from '../../store/membershipStore';
+import { fetchPublicMembershipPlans, UIMembershipPlan } from '../../utils/membershipPlans';
 
 /* ─── Category badge config ──────────────────────────────────────────── */
 const CATEGORY_CONFIG: Record<
@@ -27,33 +28,64 @@ const CATEGORY_CONFIG: Record<
   general: { color: '#FFFFFF', bg: '#64748B', icon: 'layers', label: 'General' },
 };
 
-/* ─── Plan badge config ──────────────────────────────────────────────── */
-const PLAN_CONFIG: Record<
-  string,
-  { color: string; bg: string; borderColor: string; icon: string; label: string }
-> = {
-  bronze: { color: '#FFFFFF', bg: '#92400E', borderColor: '#CD7F32', icon: 'shield', label: 'Bronze' },
-  copper: { color: '#FFFFFF', bg: '#7C3A1E', borderColor: '#B87333', icon: 'shield-half', label: 'Copper' },
-  silver: { color: '#1A1A1A', bg: '#D1D5DB', borderColor: '#9CA3AF', icon: 'shield-checkmark', label: 'Silver' },
-  gold1: { color: '#1A1A1A', bg: '#FEF08A', borderColor: '#EAB308', icon: 'trophy', label: 'Gold I' },
-  gold2: { color: '#1A1A1A', bg: '#FDE68A', borderColor: '#D97706', icon: 'trophy', label: 'Gold II' },
-  diamond: { color: '#FFFFFF', bg: '#1E3A5F', borderColor: '#60A5FA', icon: 'diamond', label: 'Diamond' },
-  patron: { color: '#FFFFFF', bg: '#4C1D95', borderColor: '#A78BFA', icon: 'star', label: 'Patron' },
-  elite: { color: '#FFFFFF', bg: '#1F2937', borderColor: '#F87171', icon: 'flame', label: 'Elite' },
-  quantum: { color: '#FFFFFF', bg: '#0F172A', borderColor: '#38BDF8', icon: 'planet', label: 'Quantum' },
+type PlanVisual = {
+  slug: string;
+  label: string;
+  color: string;
 };
+
+const DEFAULT_PLAN_COLOR = '#64748B';
+
+const normalize = (value?: string | null) => String(value || '').trim().toLowerCase();
+
+const toTitle = (value: string) => {
+  const text = String(value || '').trim();
+  if (!text) return 'Plan';
+  return text
+    .split(/[-_\s]+/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
+const isHexColor = (value: string) => /^#[0-9a-fA-F]{6}$/.test(value || '');
+
+const getReadableTextColor = (hexColor: string) => {
+  const color = hexColor.replace('#', '');
+  const r = parseInt(color.substring(0, 2), 16);
+  const g = parseInt(color.substring(2, 4), 16);
+  const b = parseInt(color.substring(4, 6), 16);
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness > 160 ? '#1A1A1A' : '#FFFFFF';
+};
+
+const getPlanBadgeColor = (slug: string, lookup: Record<string, PlanVisual>) => {
+  const configured = lookup[normalize(slug)]?.color;
+  if (configured && isHexColor(configured)) {
+    return configured;
+  }
+  return DEFAULT_PLAN_COLOR;
+};
+
+function getPlanBadges(plans: string[] | undefined, lookup: Record<string, PlanVisual>) {
+  if (!plans || plans.length === 0) return [];
+  return plans
+    .map((slug) => {
+      const key = normalize(slug);
+      const fromLookup = lookup[key];
+      return {
+        key,
+        label: fromLookup?.label || toTitle(key),
+        color: getPlanBadgeColor(key, lookup),
+      };
+    })
+    .filter((plan) => !!plan.key);
+}
 
 function getCategoryConfig(category?: string) {
   if (!category) return null;
   const key = category.toLowerCase().trim();
   return CATEGORY_CONFIG[key] || { color: '#FFFFFF', bg: '#4F46E5', icon: 'layers', label: category };
-}
-
-function getPlanBadges(plans?: string[]) {
-  if (!plans || plans.length === 0) return [];
-  return plans
-    .map((p) => ({ key: p, cfg: PLAN_CONFIG[p.toLowerCase()] }))
-    .filter((x) => x.cfg);
 }
 
 /**
@@ -63,32 +95,54 @@ function getPlanBadges(plans?: string[]) {
  */
 function isCourseAccessible(
   includedInPlans: string[] | undefined,
-  userPlan: string | null | undefined,
+  userPlans: string[] | undefined,
   isActive: boolean,
 ): boolean {
   // No plan restriction → free/open to all
   if (!includedInPlans || includedInPlans.length === 0) return true;
   // User has no active plan → locked
-  if (!userPlan || !isActive) return false;
+  if (!userPlans || userPlans.length === 0 || !isActive) return false;
   // Check if user's plan is in the required list
-  return includedInPlans.map((p) => p.toLowerCase()).includes(userPlan.toLowerCase());
+  const normalizedUserPlans = userPlans.map((plan) => normalize(plan));
+  return includedInPlans
+    .map((plan) => normalize(plan))
+    .some((plan) => normalizedUserPlans.includes(plan));
 }
-
 /* ─── Screen ─────────────────────────────────────────────────────────── */
 export default function CoursesScreen() {
   const router = useRouter();
   const { courses, fetchCourses, isLoading } = useCourseStore();
   const { currentSubscription, fetchCurrentSubscription } = useMembershipStore();
+  const [planLookup, setPlanLookup] = useState<Record<string, PlanVisual>>({});
+
+  const loadPlanMetadata = async () => {
+    const plans = await fetchPublicMembershipPlans();
+    const lookup = plans.reduce<Record<string, PlanVisual>>((acc, plan: UIMembershipPlan) => {
+      const slug = normalize(plan.id);
+      if (!slug) return acc;
+
+      acc[slug] = {
+        slug,
+        label: plan.name || toTitle(slug),
+        color: plan.color || DEFAULT_PLAN_COLOR,
+      };
+      return acc;
+    }, {});
+
+    setPlanLookup(lookup);
+  };
 
   useEffect(() => {
     fetchCourses();
     fetchCurrentSubscription();
+    loadPlanMetadata();
   }, []);
 
   const userPlan = currentSubscription?.plan;
   const isActive = currentSubscription?.status === 'active' || currentSubscription?.status === 'trial';
+  const effectivePlans = currentSubscription?.effectivePlans || (userPlan ? [userPlan] : []);
 
-  const handleCardPress = (module: typeof courses[0], locked: boolean) => {
+  const handleCardPress = (module: Course, locked: boolean) => {
     if (locked) {
       // Redirect to membership purchase screen
       router.push('/(home)/my-membership');
@@ -106,6 +160,14 @@ export default function CoursesScreen() {
     });
   };
 
+  const enrichedCourses = useMemo(
+    () => courses.map((course) => ({
+      ...course,
+      dynamicPlanBadges: getPlanBadges(course.includedInPlans, planLookup),
+    })),
+    [courses, planLookup]
+  );
+
   return (
     <View style={styles.container}>
       <Header />
@@ -122,10 +184,10 @@ export default function CoursesScreen() {
           {isLoading ? (
             <ActivityIndicator size="large" color="#EAB308" style={{ marginTop: 20 }} />
           ) : (
-            courses.map((module) => {
+            enrichedCourses.map((module) => {
               const catCfg = getCategoryConfig(module.category);
-              const planBadges = getPlanBadges(module.includedInPlans);
-              const locked = !isCourseAccessible(module.includedInPlans, userPlan, isActive);
+              const planBadges = module.dynamicPlanBadges;
+              const locked = !isCourseAccessible(module.includedInPlans, effectivePlans, isActive);
 
               return (
                 <View
@@ -213,31 +275,34 @@ export default function CoursesScreen() {
                     {/* Plan tier badges */}
                     {planBadges.length > 0 && (
                       <View style={styles.planBadgeRow}>
-                        {planBadges.map(({ key, cfg }) => (
+                        {planBadges.map(({ key, label, color }) => {
+                          const textColor = getReadableTextColor(color);
+                          return (
                           <View
                             key={key}
                             style={[
                               styles.planBadge,
                               locked
                                 ? { backgroundColor: '#1E293B', borderColor: '#334155' }
-                                : { backgroundColor: cfg.bg, borderColor: cfg.borderColor },
+                                : { backgroundColor: `${color}22`, borderColor: color },
                             ]}
                           >
                             <Ionicons
-                              name={cfg.icon as any}
+                              name={'pricetag' as any}
                               size={10}
-                              color={locked ? '#475569' : cfg.color}
+                              color={locked ? '#475569' : textColor}
                             />
                             <Text
                               style={[
                                 styles.planBadgeText,
-                                { color: locked ? '#475569' : cfg.color },
+                                { color: locked ? '#475569' : textColor },
                               ]}
                             >
-                              {cfg.label}
+                              {label}
                             </Text>
                           </View>
-                        ))}
+                        );
+                        })}
                       </View>
                     )}
 
@@ -404,3 +469,4 @@ const styles = StyleSheet.create({
   planBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
   planBadgeText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase' },
 });
+

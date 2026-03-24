@@ -68,8 +68,34 @@ body {
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
 }
 
-/* Dashboard: select/option text in black; placeholders stay gray */
-select,
-select option {
-  color: #111827;
+/* Dashboard: inputs, textareas, selects text in black; placeholders stay gray */
+@layer base {
+  input,
+  textarea,
+  select {
+    color: #111827;
+  }
+
+  select option {
+    color: #111827;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af;
+  }
+  
+  /* Maintain dark mode form control colors */
+  @media (prefers-color-scheme: dark) {
+    input,
+    textarea,
+    select {
+      color: #111827; /* Assuming forms are light themed in admin */
+    }
+    
+    input::placeholder,
+    textarea::placeholder {
+      color: #9ca3af;
+    }
+  }
 }

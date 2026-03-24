@@ -1,6 +1,7 @@
 import { User } from '../../models/user.models.js';
 import { Group, GroupMember, Post, Comment } from '../../models/community.models.js';
 import { Course } from '../../models/course.models.js';
+import { evaluateCommunityAccess } from '../../services/entitlement.service.js';
 
 /**
  * Check if user has community access (any paid membership)
@@ -10,21 +11,20 @@ export const checkCommunityAccess = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const user = await User.findById(userId);
-    if (!user) {
+    const access = await evaluateCommunityAccess(userId);
+    if (access.reason === 'user_not_found') {
       return res.status(404).json({
         success: false,
         message: "User not found"
       });
     }
 
-    const hasCommunityAccess = user.subscriptionPlan !== 'free' && user.subscriptionStatus === 'active';
-
     return res.status(200).json({
       success: true,
-      hasAccess: hasCommunityAccess,
-      subscriptionPlan: user.subscriptionPlan,
-      subscriptionStatus: user.subscriptionStatus
+      hasAccess: access.hasAccess,
+      subscriptionPlan: access.plan,
+      subscriptionStatus: access.status,
+      reason: access.reason,
     });
 
   } catch (error) {
@@ -45,9 +45,8 @@ export const getMyGroups = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Check community access
-    const user = await User.findById(userId);
-    if (!user || user.subscriptionPlan === 'free' || user.subscriptionStatus !== 'active') {
+    const access = await evaluateCommunityAccess(userId);
+    if (!access.hasAccess) {
       return res.status(403).json({
         success: false,
         message: "Community access requires an active membership"

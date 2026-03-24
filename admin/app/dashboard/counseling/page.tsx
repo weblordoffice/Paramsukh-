@@ -23,6 +23,7 @@ interface CounselingService {
 export default function CounselingPage() {
     const [services, setServices] = useState<CounselingService[]>([]);
     const [loading, setLoading] = useState(true);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedService, setSelectedService] = useState<CounselingService | null>(null);
@@ -46,15 +47,19 @@ export default function CounselingPage() {
     }, []);
 
     const handleDelete = async (id: string) => {
+        if (!id || deletingId === id) return;
         if (!confirm('Are you sure you want to delete this service?')) return;
 
         try {
-            await apiClient.delete(`/api/counseling/admin/services/${id}`);
+            setDeletingId(id);
+            const response = await apiClient.delete(`/api/counseling/admin/services/${id}`);
             toast.success('Service deleted successfully');
             fetchServices();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error deleting service:', error);
-            toast.error('Failed to delete service');
+            toast.error(error.response?.data?.message || 'Failed to delete service');
+        } finally {
+            setDeletingId(null);
         }
     };
 
@@ -149,6 +154,7 @@ export default function CounselingPage() {
                                         </button>
                                         <button
                                             onClick={() => handleDelete(service._id)}
+                                            disabled={deletingId === service._id}
                                             className="p-2 hover:bg-red-50 rounded-lg text-red-600"
                                         >
                                             <Trash2 className="w-4 h-4" />
