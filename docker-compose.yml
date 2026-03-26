@@ -9,7 +9,7 @@ services:
       - ./backend/.env
     environment:
       NODE_ENV: production
-      PORT: 3000
+      PORT: 3000 
     ports:
       - "3000:3000"
     restart: unless-stopped
@@ -23,11 +23,15 @@ services:
   admin:
     build:
       context: ./admin
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.example.com}
     image: ${ADMIN_IMAGE:-saas-native/admin:local}
+    env_file:
+      - ./admin/.env.production
     environment:
       NODE_ENV: production
       PORT: 3001
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://127.0.0.1:3000}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.example.com}
     ports:
       - "3001:3001"
     restart: unless-stopped
@@ -40,3 +44,5 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+      
