@@ -21,9 +21,9 @@ const getPlanSnapshot = (plan, fallbackSlug) => {
     pricing: {
       amount,
       currency,
-      type: 'one_time',
+      type: 'one_time',       
     },
-  };
+  };     
 };
 
 const migrate = async () => {
