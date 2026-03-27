@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession, signOut } from 'next-auth/react';
 import { useAuthStore } from '@/lib/store/authStore';
@@ -18,21 +18,23 @@ export default function DashboardLayout({
     const token = useAuthStore((state) => state.token);
     const exchangeGoogleToken = useAuthStore((state) => state.exchangeGoogleToken);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [exchanging, setExchanging] = useState(false);
-    const exchangedRef = useRef(false);
+    const [hasExchanged, setHasExchanged] = useState(false);
+    const idToken = (session as { id_token?: string } | null)?.id_token;
+    const accessToken = (session as { access_token?: string } | null)?.access_token;
+    const hasOAuthToken = Boolean(idToken || accessToken);
+
+    const exchanging =
+        status === 'authenticated' &&
+        !!session &&
+        !token &&
+        hasOAuthToken &&
+        !hasExchanged;
 
     useEffect(() => {
-        if (status !== 'authenticated' || !session || exchanging || exchangedRef.current) return;
-        const idToken = (session as { id_token?: string })?.id_token;
-        const accessToken = (session as { access_token?: string })?.access_token;
-        if ((!idToken && !accessToken) || token) {
-            if (token) exchangedRef.current = true;
-            return;
-        }
-        setExchanging(true);
+        if (!exchanging) return;
         exchangeGoogleToken({ idToken, accessToken })
             .then((result) => {
-                exchangedRef.current = true;
+                setHasExchanged(true);
                 if (!result.ok) {
                     const msg = result.message || 'not_admin';
                     console.error('[Admin Auth] Token exchange failed:', msg);
@@ -40,8 +42,10 @@ export default function DashboardLayout({
                     router.replace(`/?error=${encodeURIComponent(msg)}`);
                 }
             })
-            .finally(() => setExchanging(false));
-    }, [status, session, token, exchangeGoogleToken, exchanging]);
+            .catch(() => {
+                setHasExchanged(true);
+            });
+    }, [accessToken, exchanging, exchangeGoogleToken, idToken, router]);
 
     useEffect(() => {
         if (!exchanging && !isAuthenticated && status !== 'loading') {

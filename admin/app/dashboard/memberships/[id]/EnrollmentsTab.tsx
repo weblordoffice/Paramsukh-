@@ -131,7 +131,7 @@ export default function EnrollmentsTab({ userId }: EnrollmentsTabProps) {
           <BookOpen className="mx-auto h-12 w-12 text-gray-400" />
           <h3 className="mt-2 text-sm font-medium text-gray-900">No enrollments yet</h3>
           <p className="mt-1 text-sm text-gray-500">
-            This user hasn't enrolled in any courses.
+            This user hasn&apos;t enrolled in any courses.
           </p>
         </div>
       ) : (

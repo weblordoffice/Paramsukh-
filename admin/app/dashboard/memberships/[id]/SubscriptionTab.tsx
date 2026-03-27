@@ -44,6 +44,7 @@ interface PlanInfo {
 }
 
 const normalize = (value: string) => String(value || '').trim().toLowerCase();
+const REFERENCE_NOW = Date.now();
 
 export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps) {
   const [showModal, setShowModal] = useState(false);
@@ -153,10 +154,10 @@ export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps
   const isActive = user.subscriptionStatus === 'active';
   const isTrial = user.subscriptionStatus === 'trial';
   const daysRemaining = user.subscriptionEndDate 
-    ? Math.floor((new Date(user.subscriptionEndDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    ? Math.floor((new Date(user.subscriptionEndDate).getTime() - REFERENCE_NOW) / (1000 * 60 * 60 * 24))
     : null;
   const trialDaysRemaining = user.trialEndsAt
-    ? Math.floor((new Date(user.trialEndsAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    ? Math.floor((new Date(user.trialEndsAt).getTime() - REFERENCE_NOW) / (1000 * 60 * 60 * 24))
     : null;
 
   return (

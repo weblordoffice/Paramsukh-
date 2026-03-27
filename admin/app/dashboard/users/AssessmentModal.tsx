@@ -135,7 +135,7 @@ export default function AssessmentModal({ isOpen, onClose, assessment, userName 
                                             </div>
                                             {details ? (
                                                 <p className="text-sm text-gray-700 bg-white/50 p-3 rounded-lg border border-gray-200/50">
-                                                    "{details}"
+                                                    &ldquo;{details}&rdquo;
                                                 </p>
                                             ) : (
                                                 <p className="text-sm text-gray-500 italic">No additional details provided.</p>
