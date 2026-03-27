@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState , useEffect } from 'react';
+import { ScrollView, Text, TouchableOpacity, View , ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { useCounselingStore } from '../store/counselingStore';
-import { useEffect } from 'react';
-import { ActivityIndicator } from 'react-native';
+
+
 
 export default function CounselingScreen() {
   const router = useRouter();

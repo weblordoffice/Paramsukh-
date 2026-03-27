@@ -31,7 +31,7 @@ export default function MyMembershipScreen() {
     const { token, user } = useAuthStore();
 
     const [purchases, setPurchases] = useState<
-        Array<{ orderId: string; paymentId: string; amount: number; plan: string; status: string; date: string }>
+        { orderId: string; paymentId: string; amount: number; plan: string; status: string; date: string }[]
     >([]);
     const [loadingPurchases, setLoadingPurchases] = useState(true);
     const [syncingPayment, setSyncingPayment] = useState(false);
@@ -212,7 +212,7 @@ export default function MyMembershipScreen() {
                         <Text style={styles.noPlanEmoji}>🔓</Text>
                         <Text style={styles.noPlanTitle}>No Active Plan</Text>
                         <Text style={styles.noPlanSub}>
-                            You're currently on the free tier. Upgrade below to unlock courses and premium features.
+                            You&apos;re currently on the free tier. Upgrade below to unlock courses and premium features.
                         </Text>
                         <TouchableOpacity
                             style={styles.upgradeCta}
@@ -272,7 +272,7 @@ export default function MyMembershipScreen() {
                         {/* Included features */}
                         {currentPlanCfg && (
                             <View style={styles.activePlanFeatures}>
-                                <Text style={styles.featuresLabel}>What's included</Text>
+                                <Text style={styles.featuresLabel}>What&apos;s included</Text>
                                 {currentPlanCfg.features.filter(f => f.included).map((f, i) => (
                                     <View key={i} style={styles.featureRow}>
                                         <Ionicons name="checkmark-circle" size={15} color={currentPlanCfg.color} />

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState , useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Dimensions, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
+
 import { useEventStore, EventVideo } from '../store/eventStore';
 
 const { width } = Dimensions.get('window');

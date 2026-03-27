@@ -161,7 +161,7 @@ export default function SignInScreen() {
                 onPress={() => router.replace('/signup')}
               >
                 <Text className="text-center text-gray-600">
-                  Don't have an account?{' '}
+                  Don&apos;t have an account?{' '}
                   <Text className="text-purple-600 font-semibold">Sign Up</Text>
                 </Text>
               </TouchableOpacity>

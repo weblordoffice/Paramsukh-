@@ -86,7 +86,7 @@ export default function TermsPrivacyScreen() {
 
             <Text className="text-lg font-bold text-gray-900 mt-6 mb-3">5. Disclaimer</Text>
             <Text className="text-[15px] text-gray-700 leading-6 mb-4">
-              The materials on ParamSukh are provided on an 'as is' basis. ParamSukh makes no
+              The materials on ParamSukh are provided on an &apos;as is&apos; basis. ParamSukh makes no
               warranties, expressed or implied, and hereby disclaims and negates all other warranties.
             </Text>
           </View>

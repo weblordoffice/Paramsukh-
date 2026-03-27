@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState , useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -6,7 +6,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 // Removed dummy product data
 
 import { useProductStore } from '../store/productStore';
-import { useEffect } from 'react';
+
 
 export default function ShopDetailScreen() {
   const router = useRouter();

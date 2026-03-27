@@ -4,9 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useProductStore } from '../store/productStore';
 import { useCartStore } from '../store/cartStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ProductDetailScreen() {
     const { productId } = useLocalSearchParams();

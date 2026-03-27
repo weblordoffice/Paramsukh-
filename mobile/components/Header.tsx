@@ -25,7 +25,7 @@ export default function Header({ useSafeArea = false }: HeaderProps) {
         return 'Courses';
       case 'events':
         return 'Events';
-      case 'membership':
+      case 'my-membership':
         return 'Membership';
       case 'menu':
         return 'Home';
