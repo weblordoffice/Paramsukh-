@@ -32,6 +32,21 @@ interface CounselingService {
     bgColor: string;
     icon: string;
     counselorName: string;
+    intervalMinutes?: number;
+    businessHours?: BusinessHours;
+}
+
+interface CounselingServiceForm {
+    _id?: string;
+    title: string;
+    description: string;
+    duration: string;
+    price: number;
+    isFree: boolean;
+    color: string;
+    bgColor: string;
+    icon: string;
+    counselorName: string;
     intervalMinutes: number;
     businessHours: BusinessHours;
 }
@@ -72,7 +87,7 @@ const ICONS = ['help-buoy', 'heart', 'briefcase', 'people', 'school', 'medical',
 export default function CounselingServiceModal({ isOpen, onClose, service, onSuccess }: ServiceModalProps) {
     const [loading, setLoading] = useState(false);
 
-    const [formData, setFormData] = useState<CounselingService>({
+    const [formData, setFormData] = useState<CounselingServiceForm>({
         title: '',
         description: '',
         duration: '60 mins',
@@ -90,8 +105,8 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
         if (service) {
             setFormData({
                 ...service,
-                intervalMinutes: service.intervalMinutes || 60,
-                businessHours: service.businessHours || INITIAL_BUSINESS_HOURS
+                intervalMinutes: service.intervalMinutes ?? 60,
+                businessHours: service.businessHours ?? INITIAL_BUSINESS_HOURS
             });
         } else {
             setFormData({
