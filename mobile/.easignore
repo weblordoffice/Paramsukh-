@@ -6,8 +6,8 @@ node_modules/
 .expo-shared/
 
 # Build artifacts
-android/
-ios/
+# Gradle cache (causes file locking issues on EAS)
+.gradle/
 
 # Logs
 *.log
