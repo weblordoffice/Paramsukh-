@@ -25,7 +25,7 @@ services:
       context: ./admin
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.example.com}
-        NEXT_PUBLIC_ADMIN_API_KEY: ${ADMIN_API_KEY:-dev-admin-key-123}
+        NEXT_PUBLIC_ADMIN_API_KEY: ${NEXT_PUBLIC_ADMIN_API_KEY:-dev-admin-key-123}
     image: ${ADMIN_IMAGE:-saas-native/admin:local}               
     env_file:       
       - ./admin/.env.production

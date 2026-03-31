@@ -2,7 +2,16 @@ import axios from 'axios';
 import { useAuthStore } from '@/lib/store/authStore';
 import { API_BASE_URL } from './config';
 
-const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || 'dev-admin-key-123';
+const isProduction = process.env.NODE_ENV === 'production';
+const ADMIN_API_KEY =
+    process.env.NEXT_PUBLIC_ADMIN_API_KEY ||
+    (isProduction ? '' : 'dev-admin-key-123');
+
+if (isProduction && !ADMIN_API_KEY) {
+    console.error(
+        'NEXT_PUBLIC_ADMIN_API_KEY is missing in production build. Set it before building the admin app.'
+    );
+}
 
 export const apiClient = axios.create({
     baseURL: API_BASE_URL,

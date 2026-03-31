@@ -90,6 +90,10 @@ jobs:
                 exit 1
               fi
             done
+            if ! grep -Eq '^NEXT_PUBLIC_ADMIN_API_KEY=.+' .env; then
+              echo "FATAL: Missing required NEXT_PUBLIC_ADMIN_API_KEY in .env"
+              exit 1
+            fi
             if grep -Eq '^JWT_SECRET=(your_jwt_secret_key|your_jwt_secret_key_here|your_super_secret_jwt_key_change_this_in_production)?$' backend/.env; then
               echo "FATAL: backend/.env has a placeholder or empty JWT_SECRET"
               exit 1
@@ -98,9 +102,14 @@ jobs:
               echo "FATAL: backend/.env has a placeholder or empty ADMIN_API_KEY"
               exit 1
             fi
+            if grep -Eq '^NEXT_PUBLIC_ADMIN_API_KEY=(dev-admin-key-123)?$' .env; then
+              echo "FATAL: .env has a placeholder or empty NEXT_PUBLIC_ADMIN_API_KEY"
+              exit 1
+            fi
 
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
-            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" docker compose pull backend admin
+            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" docker compose pull backend
+            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" docker compose build --no-cache admin
 
             if ! BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" docker compose up -d backend admin; then
               echo "docker compose up failed; dumping backend/admin logs"
