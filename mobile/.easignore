@@ -8,6 +8,8 @@ node_modules/
 # Build artifacts
 # Gradle cache (causes file locking issues on EAS)
 .gradle/
+android/.gradle/
+**/.gradle/
 
 # Logs
 *.log

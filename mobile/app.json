@@ -13,9 +13,6 @@
     "android": {
       "package": "com.paramsukh.app",
       "versionCode": 1,
-      "minSdkVersion": 21,
-      "compileSdkVersion": 35,
-      "targetSdkVersion": 35,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
