@@ -6,9 +6,9 @@ services:
       context: ./backend
     image: ${BACKEND_IMAGE:-saas-native/backend:local}
     env_file:
-      - ./backend/.env
+      - ./backend/.env    
     environment:
-      NODE_ENV: production
+      NODE_ENV: production 
       PORT: 3000 
     ports:
       - "3000:3000"
@@ -25,8 +25,9 @@ services:
       context: ./admin
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.example.com}
-    image: ${ADMIN_IMAGE:-saas-native/admin:local}
-    env_file:
+        NEXT_PUBLIC_ADMIN_API_KEY: ${ADMIN_API_KEY:-dev-admin-key-123}
+    image: ${ADMIN_IMAGE:-saas-native/admin:local}               
+    env_file:       
       - ./admin/.env.production
     environment:
       NODE_ENV: production
@@ -44,5 +45,5 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
-
+     
       
