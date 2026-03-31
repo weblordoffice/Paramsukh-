@@ -29,10 +29,14 @@ services:
     image: ${ADMIN_IMAGE:-saas-native/admin:local}               
     env_file:       
       - ./admin/.env.production
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     environment:
       NODE_ENV: production
       PORT: 3001
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.example.com}
+      NODE_OPTIONS: --dns-result-order=ipv4first
     ports:
       - "3001:3001"
     restart: unless-stopped
