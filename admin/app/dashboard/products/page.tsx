@@ -271,7 +271,7 @@ export default function ProductsPage() {
                                     />
                                 </div>
 
-                                {formData.productType === 'amazon' ? (
+                                {formData.productType === 'external' ? (
                                     <div className="col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-1">External link (e.g. Amazon URL) *</label>
                                         <input
