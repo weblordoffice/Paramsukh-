@@ -36,7 +36,7 @@ export default function ProductDetailScreen() {
         router.push('/cart');
     };
 
-    const isAmazon = currentProduct.productType === 'amazon' && currentProduct.externalLink;
+    const isExternal = (currentProduct.productType === 'amazon' || currentProduct.productType === 'external') && currentProduct.externalLink;
     const handleOpenExternalLink = () => {
         if (currentProduct.externalLink) Linking.openURL(currentProduct.externalLink);
     };
@@ -109,9 +109,9 @@ export default function ProductDetailScreen() {
                         </Text>
                     </View>
 
-                    {!isAmazon && <Text style={styles.price}>₹{currentProduct.price}</Text>}
-                    {isAmazon && (
-                        <Text style={styles.amazonHint}>Available on Amazon — tap the button below to view</Text>
+                    {!isExternal && <Text style={styles.price}>₹{currentProduct.price}</Text>}
+                    {isExternal && (
+                        <Text style={styles.amazonHint}>Available on External Website — tap the button below to view</Text>
                     )}
 
                     <Text style={styles.sectionTitle}>Description</Text>
@@ -133,9 +133,9 @@ export default function ProductDetailScreen() {
 
             {/* Bottom Action Bar */}
             <View style={[styles.bottomBar, { paddingBottom: 16 + insets.bottom }]}>
-                {isAmazon ? (
-                    <TouchableOpacity style={[styles.addToCartButton, { backgroundColor: '#FF9900' }]} onPress={handleOpenExternalLink}>
-                        <Text style={styles.addToCartText}>View on Amazon</Text>
+                {isExternal ? (
+                    <TouchableOpacity style={[styles.addToCartButton, { backgroundColor: '#3B82F6' }]} onPress={handleOpenExternalLink}>
+                        <Text style={styles.addToCartText}>View on Website</Text>
                         <Ionicons name="open-outline" size={20} color="#FFFFFF" />
                     </TouchableOpacity>
                 ) : (

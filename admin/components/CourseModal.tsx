@@ -187,25 +187,31 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
     };
 
     // Calculate categories to display based on selected plans and their inheritances
-    const selectedPlansData = membershipPlans.filter(p => (formData.includedInPlans || []).includes(p._id));
-    
-    // Resolve inherited plans recursively
-    const getAllInheritedPlans = (planIds: string[], allPlans: MembershipPlan[]): MembershipPlan[] => {
+    const selectedPlansData = membershipPlans.filter((p: MembershipPlan) => (formData.includedInPlans || []).includes(p.slug));
+
+    // Resolve inherited plans recursively (now using slugs instead of _ids)
+    const getAllInheritedPlans = (planSlugs: string[], allPlans: MembershipPlan[]): MembershipPlan[] => {
         const result = new Set<string>();
-        const queue = [...planIds];
-        
+        const queue = [...planSlugs];
+
         while (queue.length > 0) {
-            const currentId = queue.shift()!;
-            if (!result.has(currentId)) {
-                result.add(currentId);
-                const plan = allPlans.find(p => p._id === currentId);
+            const currentSlug = queue.shift()!;
+            if (!result.has(currentSlug)) {
+                result.add(currentSlug);
+                const plan = allPlans.find((p: MembershipPlan) => p.slug === currentSlug);
                 if (plan && plan.access?.inheritedPlanIds) {
-                    queue.push(...plan.access.inheritedPlanIds);
+                    // inheritedPlanIds are ObjectIds — resolve to slugs
+                    plan.access.inheritedPlanIds.forEach((inheritedId: string) => {
+                        const inherited = allPlans.find((p: MembershipPlan) => p._id === inheritedId);
+                        if (inherited) queue.push(inherited.slug);
+                    });
                 }
             }
         }
-        
-        return Array.from(result).map(id => allPlans.find(p => p._id === id)).filter(Boolean) as MembershipPlan[];
+
+        return Array.from(result)
+            .map((slug: string) => allPlans.find((p: MembershipPlan) => p.slug === slug))
+            .filter(Boolean) as MembershipPlan[];
     };
 
     const fullyResolvedPlans = getAllInheritedPlans(formData.includedInPlans || [], membershipPlans);
@@ -406,8 +412,8 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                     <label key={plan._id} className="flex items-center space-x-2 cursor-pointer">
                                         <input
                                             type="checkbox"
-                                            checked={(formData.includedInPlans || []).includes(plan._id)}
-                                            onChange={() => handlePlanChange(plan._id)}
+                                            checked={(formData.includedInPlans || []).includes(plan.slug)}
+                                            onChange={() => handlePlanChange(plan.slug)}
                                             className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
                                         />
                                         <span className="capitalize text-black">{plan.title}</span>

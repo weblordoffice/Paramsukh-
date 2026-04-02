@@ -7,6 +7,7 @@ interface CounselorType {
     id: string; // Map from _id
     _id?: string;
     title: string;
+    counselorName?: string;
     icon: string;
     color: string;
     bgColor: string;
@@ -43,6 +44,7 @@ export const useCounselingStore = create<CounselingState>((set) => ({
                     id: s._id,
                     _id: s._id,
                     title: s.title,
+                    counselorName: s.counselorName || 'Expert Counselor',
                     description: s.description,
                     icon: s.icon || 'help-buoy',
                     color: s.color || '#3B82F6',
@@ -64,26 +66,11 @@ export const useCounselingStore = create<CounselingState>((set) => ({
     checkAvailability: async (date: string, counselorType: string) => {
         set({ isLoading: true, error: null });
         try {
-            // Check if backend supports this, otherwise return mock slots for now to not block UI
-            // In real scenario: const response = await axios.get(...)
-            // For now, let's simulate a network call that returns standardized slots
-            // This simulation helps verifying the UI connection flow
-            await new Promise(resolve => setTimeout(resolve, 500));
-
-            // Return dummy slots for testing "live" connection flow until backend endpoint is confirmed ready
-            set({ isLoading: false });
-            return [
-                '09:00 AM', '10:00 AM', '11:00 AM',
-                '02:00 PM', '03:00 PM', '04:00 PM'
-            ];
-            /* 
-            // REAL IMPLEMENTATION ONCE ENDPOINT READY:
             const response = await axios.get(`${API_URL}/counseling/availability`, {
-                 params: { date, counselorType }
+                params: { date, counselorType }
             });
             set({ isLoading: false });
-            return response.data.data.slots;
-            */
+            return response.data?.data?.availableSlots || [];
         } catch (error: any) {
             console.error('Check Availability Error:', error);
             set({ isLoading: false, error: 'Failed to check availability' });

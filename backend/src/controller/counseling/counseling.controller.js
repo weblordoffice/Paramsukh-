@@ -21,6 +21,23 @@ export const getAllServices = async (req, res) => {
   }
 };
 
+export const getAllServicesAdmin = async (req, res) => {
+  try {
+    const services = await CounselingService.find({}).sort({ createdAt: -1 });
+    res.status(200).json({
+      success: true,
+      data: { services }
+    });
+  } catch (error) {
+    console.error('Get Counseling Services (Admin) Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch services',
+      error: error.message
+    });
+  }
+};
+
 export const createService = async (req, res) => {
   try {
     const service = await CounselingService.create(req.body);
@@ -135,17 +152,41 @@ export const bookCounseling = async (req, res) => {
       bookingTitle,
       bookingDate,
       bookingTime,
-      userNotes,
-      amount
+      userNotes
     } = req.body;
 
     // Validate required fields
-    if (!counselorType || !counselorName || !bookingType || !bookingTitle || !bookingDate || !bookingTime) {
+    if (!counselorType || !bookingDate || !bookingTime) {
       return res.status(400).json({
         success: false,
-        message: 'All booking details are required'
+        message: 'Counselor type, booking date and booking time are required'
       });
     }
+
+    // Resolve service from counselor type (title or ObjectId) and enforce server-side pricing
+    const serviceQuery = mongoose.Types.ObjectId.isValid(String(counselorType))
+      ? { _id: counselorType }
+      : { title: counselorType };
+
+    const service = await CounselingService.findOne(serviceQuery);
+    if (!service) {
+      return res.status(404).json({
+        success: false,
+        message: 'Selected counseling service not found'
+      });
+    }
+
+    if (!service.isActive) {
+      return res.status(400).json({
+        success: false,
+        message: 'Selected counseling service is currently inactive'
+      });
+    }
+
+    const finalCounselorType = service.title;
+    const finalCounselorName = service.counselorName || counselorName || 'Expert Counselor';
+    const finalBookingType = bookingType || service.title;
+    const finalBookingTitle = bookingTitle || service.title;
 
     // Get user details
     const user = await User.findById(userId);
@@ -160,7 +201,7 @@ export const bookCounseling = async (req, res) => {
     const existingBooking = await Booking.findOne({
       bookingDate: new Date(bookingDate),
       bookingTime,
-      counselorType,
+      counselorType: finalCounselorType,
       status: { $in: ['pending', 'confirmed'] }
     });
 
@@ -172,16 +213,26 @@ export const bookCounseling = async (req, res) => {
     }
 
     // Determine if booking is free or paid
-    const isFree = counselorType === 'team' || amount === 0;
-    const bookingAmount = isFree ? 0 : (amount || 999);
+    const servicePrice = Number(service.price) || 0;
+    const isFree = Boolean(service.isFree || servicePrice === 0);
+    const bookingAmount = isFree ? 0 : servicePrice;
+
+    // Security check: Validate that the client isn't forcing a 0 amount for a paid service
+    const clientAmount = Number(req.body.amount);
+    if (!isFree && (isNaN(clientAmount) || clientAmount < servicePrice)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid amount. This service requires ₹${servicePrice}.`
+      });
+    }
 
     // Create booking
     const booking = new Booking({
       user: userId,
-      counselorType,
-      counselorName,
-      bookingType,
-      bookingTitle,
+      counselorType: finalCounselorType,
+      counselorName: finalCounselorName,
+      bookingType: finalBookingType,
+      bookingTitle: finalBookingTitle,
       bookingDate: new Date(bookingDate),
       bookingTime,
       userNotes: userNotes || '',

@@ -30,7 +30,7 @@ export default function CounselingPage() {
 
     const fetchServices = async () => {
         try {
-            const response = await apiClient.get('/api/counseling/services');
+            const response = await apiClient.get('/api/counseling/admin/services');
             if (response.data.success) {
                 setServices(response.data.data.services);
             }

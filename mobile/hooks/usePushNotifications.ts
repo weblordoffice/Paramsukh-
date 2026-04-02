@@ -141,7 +141,9 @@ function handleNotificationTap(data: Record<string, any>, router: any) {
         router.push({ pathname: '/course-detail', params: { courseId: relatedId } });
         break;
       case 'booking':
-        router.push({ pathname: '/counseling-booking', params: { bookingId: relatedId } });
+        // No /counseling-booking page, so redirect to counseling summary/list if available, 
+        // or just stay put if specific booking detail isn't implemented.
+        router.push('/counseling');
         break;
       case 'membership':
         router.push('/(home)/my-membership');

@@ -27,11 +27,11 @@ export const createProductAdmin = async (req, res) => {
                 message: 'Name is required'
             });
         }
-        if (productType === 'amazon') {
+        if (productType === 'external' || productType === 'amazon') {
             if (!externalLink || !externalLink.trim()) {
                 return res.status(400).json({
                     success: false,
-                    message: 'External link (e.g. Amazon URL) is required for Amazon products'
+                    message: 'External link (e.g. Website URL) is required for external products'
                 });
             }
         } else if (!price && price !== 0) {
@@ -138,6 +138,8 @@ export const createProductAdmin = async (req, res) => {
             shortDescription: description ? description.substring(0, 150) : name.substring(0, 150),
             images: formattedImages,
             category: categoryId,
+            productType: productType === 'amazon' ? 'external' : productType, // Migrate 'amazon' to 'external'
+            externalLink: externalLink || '',
             pricing: {
                 mrp: sellingPrice,
                 sellingPrice,
@@ -145,7 +147,7 @@ export const createProductAdmin = async (req, res) => {
             },
             inventory: {
                 stock: stockVal,
-                isUnlimited: productType === 'amazon'
+                isUnlimited: productType === 'external' || productType === 'amazon'
             },
             shop: shop._id,
             productType: productType === 'amazon' ? 'amazon' : 'regular',

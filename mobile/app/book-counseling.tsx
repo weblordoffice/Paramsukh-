@@ -32,8 +32,8 @@ export default function BookCounselingScreen() {
         setAvailableSlots([]); // Clear previous slots
         setSelectedTime(null); // Reset time when date changes
         try {
-          // We pass the service title/ID as 'counselorType'
-          const slots = await checkAvailability(selectedDate, title as string);
+          // We pass the service _id as 'counselorType' for real availability API
+          const slots = await checkAvailability(selectedDate, id as string);
           setAvailableSlots(slots);
         } catch (error) {
           console.error("Error fetching slots:", error);

@@ -136,9 +136,9 @@ export default function ShopsScreen() {
           ) : (
             <View style={styles.grid}>
               {products.map(product => {
-                const isAmazon = product.productType === 'amazon' && product.externalLink;
+                const isExternal = (product.productType === 'amazon' || product.productType === 'external') && product.externalLink;
                 const handleCardPress = () => {
-                  if (isAmazon && product.externalLink) Linking.openURL(product.externalLink!);
+                  if (isExternal && product.externalLink) Linking.openURL(product.externalLink!);
                   else router.push({ pathname: '/product-detail', params: { productId: product.id } });
                 };
                 return (
@@ -153,9 +153,9 @@ export default function ShopsScreen() {
                     ) : (
                       <Text style={styles.productEmoji}>{product.image || '📦'}</Text>
                     )}
-                    {isAmazon && (
+                    {isExternal && (
                       <View style={styles.amazonBadge}>
-                        <Text style={styles.amazonBadgeText}>Amazon</Text>
+                        <Text style={styles.amazonBadgeText}>External</Text>
                       </View>
                     )}
                   </View>
@@ -172,15 +172,15 @@ export default function ShopsScreen() {
                       </Text>
                     </View>
 
-                    {!isAmazon && <Text style={styles.productPrice}>₹{product.price}</Text>}
-                    {isAmazon && <Text style={styles.viewOnAmazonText}>View on Amazon</Text>}
+                    {!isExternal && <Text style={styles.productPrice}>₹{product.price}</Text>}
+                    {isExternal && <Text style={styles.viewOnAmazonText}>View on Website</Text>}
 
-                    {isAmazon ? (
+                    {isExternal ? (
                       <TouchableOpacity
-                        style={[styles.addButton, styles.amazonButton]}
+                        style={[styles.addButton, styles.amazonButton, { backgroundColor: '#3B82F6' }]}
                         onPress={(e) => { e.stopPropagation(); if (product.externalLink) Linking.openURL(product.externalLink); }}
                       >
-                        <Text style={styles.addButtonText}>View on Amazon</Text>
+                        <Text style={styles.addButtonText}>View Site</Text>
                       </TouchableOpacity>
                     ) : (
                       <TouchableOpacity

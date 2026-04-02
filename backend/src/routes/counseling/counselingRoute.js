@@ -11,6 +11,7 @@ import {
   updatePaymentStatus,
   submitFeedback,
   getAllServices,
+  getAllServicesAdmin,
   createService,
   updateService,
   deleteService
@@ -43,6 +44,7 @@ router.patch('/admin/:id/meeting', adminAuth, updateBookingMeetingAdmin);
 router.delete('/admin/:id', adminAuth, deleteBookingAdmin);
 
 // Service Management
+router.get('/admin/services', adminAuth, getAllServicesAdmin);
 router.post('/admin/services', adminAuth, createService);
 router.put('/admin/services/:id', adminAuth, updateService);
 router.delete('/admin/services/:id', adminAuth, deleteService);

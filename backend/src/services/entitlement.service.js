@@ -47,6 +47,7 @@ export const getUserEntitlementContext = async (userId) => {
     return {
       source: 'dynamic',
       user,
+      planId: String(plan._id),
       planSlug: normalize(plan.slug),
       planSlugs,
       accessMode: plan.access?.accessMode || 'entitlement_only',
@@ -108,9 +109,19 @@ export const evaluateCourseEnrollmentAccess = async ({
   const normalizedCategory = normalize(course.category);
   const allowedCategories = entitlement.includedCategories || [];
   const allowedCourseIds = entitlement.includedCourseIds || [];
-  const normalizedPlanTags = (course.includedInPlans || []).map((plan) => normalize(plan));
-  const allowedPlanSlugs = (entitlement.planSlugs || [entitlement.planSlug]).map((plan) => normalize(plan));
-  const matchesPlanTag = normalizedPlanTags.some((plan) => allowedPlanSlugs.includes(plan));
+
+  // course.includedInPlans may contain slugs (new) or ObjectIds (legacy from old admin UI)
+  // We handle both: slugs are compared to planSlugs, ObjectIds are compared to the active plan's _id
+  const isObjectId = (v) => /^[a-f\d]{24}$/i.test(String(v));
+  const matchesPlanTag = (course.includedInPlans || []).some((tag) => {
+    const t = normalize(tag);
+    if (isObjectId(t)) {
+      // legacy ObjectId stored in includedInPlans — compare against active plan _id
+      return entitlement.planId && t === entitlement.planId.toLowerCase();
+    }
+    // new format — compare slug
+    return (entitlement.planSlugs || [entitlement.planSlug]).map(normalize).includes(t);
+  });
   const categoryAllowed = allowedCategories.length === 0 || allowedCategories.includes(normalizedCategory);
   const explicitCourseAllowed = allowedCourseIds.includes(String(course._id));
 

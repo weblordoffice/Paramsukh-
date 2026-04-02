@@ -28,7 +28,7 @@ export default function CounselingScreen() {
           title: selected?.title,
           description: selected?.description,
           price: selected?.price ? selected.price.toString() : '0',
-          counselorName: (selected as any)?.counselorName, // Assuming counselorName is added to interface
+          counselorName: selected?.counselorName,
           duration: selected?.duration,
           color: selected?.color,
           bgColor: selected?.bgColor,

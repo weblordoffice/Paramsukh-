@@ -23,7 +23,7 @@ interface Product {
     shop?: { name: string };
     pricing?: { sellingPrice: number; mrp: number };
     inventory?: { stock: number; quantity?: number };
-    productType?: 'regular' | 'amazon';
+    productType?: 'regular' | 'external' | 'amazon';
     externalLink?: string | null;
 }
 
@@ -41,7 +41,7 @@ export default function ProductsPage() {
         price: '',
         category: '',
         stock: '',
-        productType: 'regular' as 'regular' | 'amazon',
+        productType: 'regular' as 'regular' | 'external',
         externalLink: '',
         images: [] as string[]
     });
@@ -66,8 +66,8 @@ export default function ProductsPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (formData.productType === 'amazon' && !formData.externalLink?.trim()) {
-            toast.error('External link (e.g. Amazon URL) is required for Amazon products');
+        if (formData.productType === 'external' && !formData.externalLink?.trim()) {
+            toast.error('External link (e.g. Website URL) is required for external products');
             return;
         }
         if (formData.productType === 'regular' && !formData.price) {
@@ -172,7 +172,7 @@ export default function ProductsPage() {
             price: (product.pricing?.sellingPrice ?? product.price ?? 0).toString(),
             category: typeof product.category === 'object' ? (product.category as any)._id : product.category || '',
             stock: (product.inventory?.stock ?? product.inventory?.quantity ?? product.stock ?? 0).toString(),
-            productType: (product.productType === 'amazon' ? 'amazon' : 'regular') as 'regular' | 'amazon',
+            productType: (product.productType === 'amazon' || product.productType === 'external' ? 'external' : 'regular') as 'regular' | 'external',
             externalLink: product.externalLink || '',
             images: getImageUrls(product)
         });
@@ -226,22 +226,22 @@ export default function ProductsPage() {
 
                         <form onSubmit={handleSubmit} className="p-6 space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Product type toggle: Regular vs Selling on Amazon */}
+                                {/* Product type toggle: Regular vs External E-commerce */}
                                 <div className="col-span-2 flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                                     <span className="text-sm font-medium text-gray-700">Product type</span>
                                     <label className="relative inline-flex items-center cursor-pointer">
                                         <input
                                             type="checkbox"
-                                            checked={formData.productType === 'amazon'}
-                                            onChange={e => setFormData({ ...formData, productType: e.target.checked ? 'amazon' : 'regular' })}
+                                            checked={formData.productType === 'external'}
+                                            onChange={e => setFormData({ ...formData, productType: e.target.checked ? 'external' : 'regular' })}
                                             className="sr-only peer"
                                         />
                                         <div className="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-primary/30 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary" />
                                         <span className="ml-2 text-sm font-medium text-gray-900">
-                                            {formData.productType === 'amazon' ? 'Selling on Amazon' : 'Regular (sell here)'}
+                                            {formData.productType === 'external' ? 'Selling on External Site' : 'Regular (sell here)'}
                                         </span>
                                     </label>
-                                    {formData.productType === 'amazon' && (
+                                    {formData.productType === 'external' && (
                                         <span className="text-xs text-amber-600 flex items-center gap-1">
                                             <ExternalLink className="w-4 h-4" /> Link will open in new tab
                                         </span>

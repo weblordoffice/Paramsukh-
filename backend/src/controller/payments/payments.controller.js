@@ -82,6 +82,9 @@ export const confirmBookingPaymentLink = async (req, res) => {
     if (notes?.userId && String(notes.userId) !== String(userId)) {
       return res.status(403).json({ success: false, message: 'Payment link does not belong to you' });
     }
+    if (notes?.bookingId && String(notes.bookingId) !== String(bookingId)) {
+      return res.status(400).json({ success: false, message: 'Payment link does not match this booking' });
+    }
     if (status !== 'paid' && status !== 'captured') {
       return res.status(200).json({ success: true, data: { status: link?.status }, message: 'Payment not completed yet' });
     }
@@ -652,12 +655,12 @@ export const verifyMembershipPayment = async (req, res) => {
 export const createBookingOrder = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { bookingId, amount } = req.body;
+    const { bookingId, amount: requestedAmount } = req.body;
 
-    if (!bookingId || !amount) {
+    if (!bookingId) {
       return res.status(400).json({
         success: false,
-        message: 'Booking ID and amount are required'
+        message: 'Booking ID is required'
       });
     }
 
@@ -667,6 +670,28 @@ export const createBookingOrder = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'Booking not found'
+      });
+    }
+
+    if (booking.isFree) {
+      return res.status(400).json({
+        success: false,
+        message: 'This booking does not require payment'
+      });
+    }
+
+    const amount = Number(booking.amount) || 0;
+    if (amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid booking amount'
+      });
+    }
+
+    if (requestedAmount !== undefined && Number(requestedAmount) > 0 && Number(requestedAmount) !== amount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking amount mismatch'
       });
     }
 
