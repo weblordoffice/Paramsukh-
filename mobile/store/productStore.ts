@@ -17,7 +17,7 @@ interface Product {
     };
     inStock: boolean;
     reviewsCount: number;
-    productType?: 'regular' | 'amazon';
+    productType?: 'regular' | 'amazon' | 'external';
     externalLink?: string | null;
 }
 
