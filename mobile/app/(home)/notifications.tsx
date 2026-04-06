@@ -16,17 +16,40 @@ import { useNotificationStore, type NotificationItem } from '../../store/notific
 
 // Map backend type to icon and color for UI
 const TYPE_STYLE: Record<string, { icon: string; color: string }> = {
+  // Course notifications
   course_enrolled: { icon: 'book', color: '#8B5CF6' },
   course_completed: { icon: 'checkmark-circle', color: '#10B981' },
   video_completed: { icon: 'play-circle', color: '#8B5CF6' },
+  // Event notifications
   event_reminder: { icon: 'calendar', color: '#F59E0B' },
   event_registered: { icon: 'calendar', color: '#F59E0B' },
+  // Community notifications
   community_post: { icon: 'chatbubbles', color: '#10B981' },
   community_comment: { icon: 'chatbubble', color: '#10B981' },
   community_like: { icon: 'heart', color: '#EC4899' },
+  community_share: { icon: 'share', color: '#10B981' },
+  community_mention: { icon: 'at', color: '#EC4899' },
+  // Counseling notifications
   counseling_booked: { icon: 'people', color: '#3B82F6' },
   counseling_reminder: { icon: 'time', color: '#3B82F6' },
+  counseling_cancelled: { icon: 'close-circle', color: '#EF4444' },
+  // Membership notifications
   membership_activated: { icon: 'card', color: '#3B82F6' },
+  membership_expired: { icon: 'alert-circle', color: '#EF4444' },
+  membership_renewed: { icon: 'refresh', color: '#10B981' },
+  // Order & Payment notifications
+  order: { icon: 'cart', color: '#3B82F6' },
+  order_status: { icon: 'package', color: '#3B82F6' },
+  payment: { icon: 'cash', color: '#10B981' },
+  payment_success: { icon: 'checkmark-circle', color: '#10B981' },
+  payment_failed: { icon: 'warning', color: '#EF4444' },
+  // Shop & Product notifications
+  shop_product: { icon: 'pricetag', color: '#F59E0B' },
+  shop_order: { icon: 'cart', color: '#3B82F6' },
+  // Podcast notifications
+  podcast: { icon: 'radio', color: '#8B5CF6' },
+  podcast_episode: { icon: 'musical-notes', color: '#8B5CF6' },
+  // System notifications
   system: { icon: 'settings', color: '#6B7280' },
   general: { icon: 'notifications', color: '#EC4899' },
 };

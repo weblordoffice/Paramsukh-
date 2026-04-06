@@ -10,17 +10,40 @@ const notificationSchema = new mongoose.Schema({
   type: {
     type: String,
     enum: [
+      // Course notifications
       'course_enrolled',
       'course_completed',
       'video_completed',
+      // Event notifications
       'event_reminder',
       'event_registered',
+      // Community notifications
       'community_post',
       'community_comment',
       'community_like',
+      'community_share',
+      'community_mention',
+      // Counseling notifications
       'counseling_booked',
       'counseling_reminder',
+      'counseling_cancelled',
+      // Membership notifications
       'membership_activated',
+      'membership_expired',
+      'membership_renewed',
+      // Order & Payment notifications
+      'order',
+      'order_status',
+      'payment',
+      'payment_success',
+      'payment_failed',
+      // Shop & Product notifications
+      'shop_product',
+      'shop_order',
+      // Podcast notifications
+      'podcast',
+      'podcast_episode',
+      // System notifications
       'system',
       'general'
     ],

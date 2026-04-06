@@ -163,11 +163,13 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   registerDeviceToken: async (expoPushToken: string) => {
-    // Skip if already registered this session
-    if (get().deviceTokenRegistered) return true;
-
+    // Always register on login (don't skip even if already registered this session)
+    // This ensures token is updated when user logs in on a new device or after token refresh
     const token = useAuthStore.getState().token;
-    if (!token || !expoPushToken) return false;
+    if (!token || !expoPushToken) {
+      console.warn('⚠️ Cannot register device token: missing auth token or expo push token');
+      return false;
+    }
 
     try {
       const response = await axios.post(
@@ -177,10 +179,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       );
       if (response.data?.success) {
         set({ deviceTokenRegistered: true });
+        console.log('✅ Device token registered successfully');
         return true;
       }
-    } catch (e) {
-      console.error('Register device token error:', e);
+    } catch (e: any) {
+      console.error('❌ Register device token error:', e.response?.data || e.message);
     }
     return false;
   },

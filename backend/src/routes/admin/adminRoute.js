@@ -7,7 +7,8 @@ import {
     updateAdmin,
     deleteAdmin,
     logoutAdmin,
-    getAdminMe
+    getAdminMe,
+    refreshTokenAdmin
 } from '../../controller/auth/authAdmin.controller.js';
 import { protectAdmin, restrictTo } from '../../middleware/authAdmin.js';
 import { authLimiter } from '../../middleware/rateLimiter.js';
@@ -18,6 +19,7 @@ const router = express.Router();
 router.post('/login', authLimiter, loginAdmin);
 router.post('/auth/google', authLimiter, verifyGoogleAndIssueToken);
 router.post('/logout', logoutAdmin);
+router.post('/refresh-token', authLimiter, refreshTokenAdmin);
 
 // Protected routes (Admin access)
 router.use(protectAdmin);

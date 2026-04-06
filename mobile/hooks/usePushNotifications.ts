@@ -63,7 +63,10 @@ export function usePushNotifications() {
     const setup = async () => {
       try {
         // Don't try to get a push token on emulators/simulators
-        if (!Device.isDevice) return;
+        if (!Device.isDevice) {
+          console.log('ℹ️ Push notifications disabled on emulator');
+          return;
+        }
 
         // Request permission
         const { status: existingStatus } = await Notifications.getPermissionsAsync();
@@ -85,7 +88,9 @@ export function usePushNotifications() {
 
         if (!expoPushToken || cancelled) return;
 
-        // Register with backend
+        console.log('📱 Got push token, registering with backend...');
+        
+        // Register with backend (always register on login to ensure fresh token)
         await registerDeviceToken(expoPushToken);
 
         // ── Listen for notifications received while app is foregrounded ──
@@ -105,7 +110,7 @@ export function usePushNotifications() {
           }
         );
       } catch (err) {
-        console.error('Push setup error:', err);
+        console.error('❌ Push setup error:', err);
       }
     };
 
@@ -116,7 +121,7 @@ export function usePushNotifications() {
       notificationListener.current?.remove();
       responseListener.current?.remove();
     };
-  }, [authToken]);
+  }, [authToken]); // Re-run when authToken changes (on login/logout)
 }
 
 /**

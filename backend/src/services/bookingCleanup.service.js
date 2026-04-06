@@ -40,7 +40,7 @@ export const cleanupExpiredBookings = async () => {
       // Notify user
       try {
         await sendNotification(booking.user, {
-          type: 'booking_status',
+          type: 'counseling_cancelled',
           title: 'Booking Cancelled - Payment Timeout',
           message: `Your booking for ${booking.bookingTitle} on ${new Date(booking.bookingDate).toLocaleDateString()} was cancelled due to payment timeout. Please book again if needed.`,
           icon: '⏰',
@@ -49,7 +49,7 @@ export const cleanupExpiredBookings = async () => {
           relatedType: 'booking'
         });
       } catch (error) {
-        console.error(`Failed to send notification for booking ${booking._id}:`, error.message);
+        console.error(`⚠️ Failed to send notification for booking ${booking._id}:`, error.message);
       }
 
       cleanedCount++;

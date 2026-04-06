@@ -2,8 +2,17 @@ import Admin from '../../models/admin.models.js';
 import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 
+// Export generateAdminToken for use in refresh endpoint
+export { generateAdminToken };
+
 const generateAdminToken = (adminId, res) => {
+    // Access token: expires in 24 hours
     const token = jwt.sign({ id: adminId, role: 'admin' }, process.env.JWT_SECRET, {
+        expiresIn: '24h',
+    });
+
+    // Refresh token: expires in 30 days
+    const refreshToken = jwt.sign({ id: adminId, role: 'admin' }, process.env.JWT_SECRET, {
         expiresIn: '30d',
     });
 
@@ -12,11 +21,11 @@ const generateAdminToken = (adminId, res) => {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
-            maxAge: 30 * 24 * 60 * 60 * 1000,
+            maxAge: 24 * 60 * 60 * 1000, // 24 hours
         });
     }
 
-    return token;
+    return { token, refreshToken };
 };
 
 // @desc    Admin Login
@@ -33,7 +42,7 @@ export const loginAdmin = async (req, res) => {
                 return res.status(401).json({ success: false, message: 'Admin account is disabled' });
             }
 
-            const token = generateAdminToken(admin._id, res);
+            const { token, refreshToken } = generateAdminToken(admin._id, res);
 
             // Update last login
             admin.lastLogin = Date.now();
@@ -42,6 +51,8 @@ export const loginAdmin = async (req, res) => {
             res.json({
                 success: true,
                 token,
+                refreshToken,
+                expiresIn: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
                 admin: {
                     _id: admin._id,
                     name: admin.name,
@@ -116,13 +127,15 @@ export const verifyGoogleAndIssueToken = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Admin account is deactivated' });
         }
 
-        const token = generateAdminToken(admin._id, res);
+        const { token, refreshToken } = generateAdminToken(admin._id, res);
         admin.lastLogin = new Date();
         await Admin.findByIdAndUpdate(admin._id, { lastLogin: admin.lastLogin });
 
         res.json({
             success: true,
             token,
+            refreshToken,
+            expiresIn: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
             admin: {
                 _id: admin._id,
                 name: admin.name,
@@ -269,4 +282,73 @@ export const logoutAdmin = (req, res) => {
         expires: new Date(0),
     });
     res.json({ success: true, message: 'Logged out successfully' });
+};
+
+// @desc    Refresh admin token using refresh token
+// @route   POST /api/admin/refresh-token
+// @access  Public (but requires valid refresh token)
+export const refreshTokenAdmin = async (req, res) => {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+        return res.status(400).json({ 
+            success: false, 
+            message: 'Refresh token is required' 
+        });
+    }
+
+    try {
+        // Verify refresh token
+        const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+
+        // Check if admin still exists and is active
+        const admin = await Admin.findById(decoded.id).select('-password');
+        if (!admin) {
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Admin not found' 
+            });
+        }
+
+        if (!admin.isActive) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Admin account is deactivated' 
+            });
+        }
+
+        // Generate new tokens
+        const { token, refreshToken: newRefreshToken } = generateAdminToken(admin._id, res);
+
+        res.json({
+            success: true,
+            token,
+            refreshToken: newRefreshToken,
+            expiresIn: 24 * 60 * 60 * 1000,
+            admin: {
+                _id: admin._id,
+                name: admin.name,
+                email: admin.email,
+                role: admin.role,
+                permissions: admin.permissions,
+            },
+        });
+    } catch (error) {
+        if (error.name === 'TokenExpiredError') {
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Refresh token expired. Please login again.' 
+            });
+        }
+        if (error.name === 'JsonWebTokenError') {
+            return res.status(401).json({ 
+                success: false, 
+                message: 'Invalid refresh token' 
+            });
+        }
+        res.status(500).json({ 
+            success: false, 
+            message: error.message 
+        });
+    }
 };
