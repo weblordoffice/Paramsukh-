@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import {
   BookOpen,
   TrendingUp,
@@ -250,11 +251,15 @@ export default function EnrollmentsPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         {course.thumbnailUrl && (
-                          <img
-                            src={course.thumbnailUrl}
-                            alt={course.title}
-                            className="w-10 h-10 rounded-lg object-cover"
-                          />
+                          <div className="relative w-10 h-10 rounded-lg overflow-hidden">
+                            <Image
+                              src={course.thumbnailUrl}
+                              alt={course.title}
+                              fill
+                              unoptimized
+                              className="object-cover"
+                            />
+                          </div>
                         )}
                         <div>
                           <p className="text-sm font-medium text-gray-900">

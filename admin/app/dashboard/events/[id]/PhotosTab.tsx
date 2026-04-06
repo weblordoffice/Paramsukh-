@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, X, Image as ImageIcon } from 'lucide-react';
@@ -181,11 +182,15 @@ export default function PhotosTab({ eventId, photos, onUpdate }: PhotosTabProps)
                             key={index}
                             className="relative group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
                         >
-                            <img
-                                src={photo.url}
-                                alt={photo.caption || `Photo ${index + 1}`}
-                                className="w-full h-48 object-cover"
-                            />
+                            <div className="relative w-full h-48">
+                                <Image
+                                    src={photo.url}
+                                    alt={photo.caption || `Photo ${index + 1}`}
+                                    fill
+                                    unoptimized
+                                    className="object-cover"
+                                />
+                            </div>
                             {photo.caption && (
                                 <div className="p-2 bg-white">
                                     <p className="text-xs text-gray-600 line-clamp-2">{photo.caption}</p>

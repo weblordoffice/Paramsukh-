@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, X, Play, ExternalLink } from 'lucide-react';
@@ -132,11 +133,15 @@ export default function VideosTab({ eventId, videos, onUpdate }: VideosTabProps)
                             >
                                 <div className="relative">
                                     {thumbnail ? (
-                                        <img
-                                            src={thumbnail}
-                                            alt={video.title || 'Video'}
-                                            className="w-full h-48 object-cover"
-                                        />
+                                        <div className="relative w-full h-48">
+                                            <Image
+                                                src={thumbnail}
+                                                alt={video.title || 'Video'}
+                                                fill
+                                                unoptimized
+                                                className="object-cover"
+                                            />
+                                        </div>
                                     ) : (
                                         <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
                                             <Play className="w-16 h-16 text-gray-400" />

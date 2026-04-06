@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { Plus, Edit, Trash2, FileText, X, ExternalLink, Upload } from 'lucide-react';
@@ -203,11 +204,15 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
                             className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
                         >
                             {pdf.thumbnailUrl ? (
-                                <img
-                                    src={pdf.thumbnailUrl}
-                                    alt={pdf.title}
-                                    className="w-full h-48 object-cover"
-                                />
+                                <div className="relative w-full h-48">
+                                    <Image
+                                        src={pdf.thumbnailUrl}
+                                        alt={pdf.title}
+                                        fill
+                                        unoptimized
+                                        className="object-cover"
+                                    />
+                                </div>
                             ) : (
                                 <div className="w-full h-48 bg-gray-100 flex items-center justify-center">
                                     <FileText className="w-16 h-16 text-gray-400" />

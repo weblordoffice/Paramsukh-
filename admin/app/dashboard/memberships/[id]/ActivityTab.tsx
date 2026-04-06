@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Activity, Calendar, LogIn, UserCheck } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import toast from "react-hot-toast";
@@ -21,11 +21,7 @@ export default function ActivityTab({ userId }: ActivityTabProps) {
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchActivity();
-  }, [userId]);
-
-  const fetchActivity = async () => {
+  const fetchActivity = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiClient.get(`/api/user/${userId}/activity`);
@@ -43,7 +39,11 @@ export default function ActivityTab({ userId }: ActivityTabProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    fetchActivity();
+  }, [userId, fetchActivity]);
 
   const getActivityIcon = (type: string) => {
     switch (type) {

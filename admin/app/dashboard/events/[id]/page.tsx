@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Image as ImageIcon, Video, Users } from 'lucide-react';
@@ -37,13 +38,7 @@ export default function EventDetailsPage() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabType>('photos');
 
-    useEffect(() => {
-        if (eventId) {
-            fetchEventDetails();
-        }
-    }, [eventId]);
-
-    const fetchEventDetails = async () => {
+    const fetchEventDetails = useCallback(async () => {
         try {
             const response = await apiClient.get(`/api/events/${eventId}`);
             setEvent(response.data.event);
@@ -53,7 +48,13 @@ export default function EventDetailsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [eventId]);
+
+    useEffect(() => {
+        if (eventId) {
+            fetchEventDetails();
+        }
+    }, [eventId, fetchEventDetails]);
 
     const refreshEvent = () => {
         fetchEventDetails();
@@ -112,11 +113,15 @@ export default function EventDetailsPage() {
                 <div className="bg-white rounded-lg shadow-sm p-6">
                     <div className="flex items-start gap-4">
                         {event.thumbnailUrl ? (
-                            <img
-                                src={event.thumbnailUrl}
-                                alt={event.title}
-                                className="w-32 h-32 rounded-lg object-cover"
-                            />
+                            <div className="relative w-32 h-32 rounded-lg overflow-hidden">
+                                <Image
+                                    src={event.thumbnailUrl}
+                                    alt={event.title}
+                                    fill
+                                    unoptimized
+                                    className="object-cover"
+                                />
+                            </div>
                         ) : (
                             <div className="w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
                                 <span className="text-5xl">📅</span>

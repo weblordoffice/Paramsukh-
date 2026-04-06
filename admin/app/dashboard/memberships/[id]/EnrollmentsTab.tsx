@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { BookOpen, TrendingUp, Award, ExternalLink } from "lucide-react";
+import Image from "next/image";
 import { apiClient } from "@/lib/api/client";
 import toast from "react-hot-toast";
 
@@ -36,27 +37,6 @@ export default function EnrollmentsTab({ userId }: EnrollmentsTabProps) {
     averageProgress: 0
   });
 
-  useEffect(() => {
-    fetchEnrollments();
-  }, [userId]);
-
-  const fetchEnrollments = async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get(`/api/user/${userId}/enrollments`);
-      if (response.data.success) {
-        const enrollmentsData = response.data.enrollments || [];
-        setEnrollments(enrollmentsData);
-        calculateStats(enrollmentsData);
-      }
-    } catch (error: any) {
-      console.error("Error fetching enrollments:", error);
-      toast.error(error.response?.data?.message || "Failed to fetch enrollments");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const calculateStats = (enrollmentsData: Enrollment[]) => {
     const completed = enrollmentsData.filter(e => e.isCompleted).length;
     const inProgress = enrollmentsData.filter(e => !e.isCompleted && e.progress > 0).length;
@@ -71,6 +51,27 @@ export default function EnrollmentsTab({ userId }: EnrollmentsTabProps) {
       averageProgress
     });
   };
+
+  const fetchEnrollments = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get(`/api/user/${userId}/enrollments`);
+      if (response.data.success) {
+        const enrollmentsData = response.data.enrollments || [];
+        setEnrollments(enrollmentsData);
+        calculateStats(enrollmentsData);
+      }
+    } catch (error: any) {
+      console.error("Error fetching enrollments:", error);
+      toast.error(error.response?.data?.message || "Failed to fetch enrollments");
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    fetchEnrollments();
+  }, [userId, fetchEnrollments]);
 
   if (loading) {
     return (
@@ -144,11 +145,15 @@ export default function EnrollmentsTab({ userId }: EnrollmentsTabProps) {
               <div className="flex items-start justify-between">
                 <div className="flex gap-4 flex-1">
                   {enrollment.courseId.thumbnail && (
-                    <img
-                      src={enrollment.courseId.thumbnail}
-                      alt={enrollment.courseId.title}
-                      className="w-24 h-24 rounded-lg object-cover"
-                    />
+                    <div className="relative w-24 h-24 rounded-lg overflow-hidden">
+                      <Image
+                        src={enrollment.courseId.thumbnail}
+                        alt={enrollment.courseId.title}
+                        fill
+                        unoptimized
+                        className="object-cover"
+                      />
+                    </div>
                   )}
                   <div className="flex-1">
                     <div className="flex items-start justify-between">

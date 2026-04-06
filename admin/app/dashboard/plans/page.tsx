@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { AlertTriangle, Crown, Edit3, Plus, RefreshCw, Save, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api/client";
@@ -156,7 +156,7 @@ export default function MembershipPlansPage() {
     );
   }, [plans, searchTerm]);
 
-  const loadPlans = async () => {
+  const loadPlans = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiClient.get("/api/membership-plans");
@@ -172,9 +172,9 @@ export default function MembershipPlansPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedPlanId]);
 
-  const loadPlanUsage = async () => {
+  const loadPlanUsage = useCallback(async () => {
     try {
       const response = await apiClient.get("/api/user/all");
       const users = response.data?.users || [];
@@ -189,12 +189,12 @@ export default function MembershipPlansPage() {
     } catch {
       setPlanUsage({});
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadPlans();
     loadPlanUsage();
-  }, []);
+  }, [loadPlans, loadPlanUsage]);
 
   useEffect(() => {
     if (!selectedPlan) {

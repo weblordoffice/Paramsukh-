@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { X } from 'lucide-react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
@@ -228,12 +229,15 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
         : DEFAULT_CATEGORIES;
 
     // Optional: Reset category if selected plans restricted the allowed categories, causing the current choice to be invalid.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (formData.category && selectedPlansData.length > 0 && derivedCategories.size > 0) {
             if (!derivedCategories.has(formData.category.toLowerCase())) {
                 setFormData((prev: any) => ({ ...prev, category: '' }));
             }
         }
+    // Only re-run when plan selection changes, not on every category/derivedCategories change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [formData.includedInPlans, membershipPlans]);
 
     if (!isOpen) return null;
@@ -450,10 +454,12 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                             {/* Preview */}
                             {formData.thumbnailUrl && (
                                 <div className="relative w-full h-40 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                                    <img
+                                    <Image
                                         src={formData.thumbnailUrl}
                                         alt="Thumbnail Preview"
-                                        className="w-full h-full object-cover"
+                                        fill
+                                        unoptimized
+                                        className="object-cover"
                                         onError={(e) => {
                                             (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x200?text=Invalid+Image';
                                         }}
@@ -509,10 +515,12 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                             {/* Preview */}
                             {formData.bannerUrl && (
                                 <div className="relative w-full h-32 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                                    <img
+                                    <Image
                                         src={formData.bannerUrl}
                                         alt="Banner Preview"
-                                        className="w-full h-full object-cover"
+                                        fill
+                                        unoptimized
+                                        className="object-cover"
                                         onError={(e) => {
                                             (e.target as HTMLImageElement).src = 'https://via.placeholder.com/600x200?text=Invalid+Image';
                                         }}

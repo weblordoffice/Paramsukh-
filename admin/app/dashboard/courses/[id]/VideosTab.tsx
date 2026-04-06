@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { Plus, Edit, Trash2, GripVertical, Play, X } from 'lucide-react';
@@ -249,11 +250,15 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
                             </button>
 
                             {video.thumbnailUrl ? (
-                                <img
-                                    src={video.thumbnailUrl}
-                                    alt={video.title}
-                                    className="w-32 h-20 rounded object-cover"
-                                />
+                                <div className="relative w-32 h-20 rounded overflow-hidden">
+                                    <Image
+                                        src={video.thumbnailUrl}
+                                        alt={video.title}
+                                        fill
+                                        unoptimized
+                                        className="object-cover"
+                                    />
+                                </div>
                             ) : (
                                 <div className="w-32 h-20 bg-gray-200 rounded flex items-center justify-center">
                                     <Play className="w-8 h-8 text-gray-400" />
@@ -402,10 +407,12 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
 
                                     {formData.thumbnailUrl && (
                                         <div className="mb-2 relative w-full h-32 bg-gray-100 rounded overflow-hidden">
-                                            <img
+                                            <Image
                                                 src={formData.thumbnailUrl}
                                                 alt="Thumbnail preview"
-                                                className="w-full h-full object-cover"
+                                                fill
+                                                unoptimized
+                                                className="object-cover"
                                             />
                                             <button
                                                 type="button"

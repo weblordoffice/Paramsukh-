@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { 
   Users, Search, Download,
   Crown, TrendingUp, UserCheck, Gift, Ban, CalendarPlus2
@@ -118,15 +119,35 @@ export default function MembershipsPage() {
     fetchUsers();
     fetchAvailablePlans();
     fetchAdminGrants();
-  }, []);
-
+  }, [fetchUsers, fetchAvailablePlans]);
+  
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (users.length > 0) {
       calculateStats(users);
     }
+  // Re-run only when availablePlans changes; users intentionally omitted
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availablePlans]);
 
-  const fetchAvailablePlans = async () => {
+  const fetchUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await apiClient.get("/api/user/all");
+      if (response.data.success) {
+        const usersData = response.data.users || [];
+        setUsers(usersData);
+        calculateStats(usersData);
+      }
+    } catch (error: any) {
+      console.error("Error fetching users:", error);
+      toast.error(error.response?.data?.message || "Failed to fetch users");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchAvailablePlans = useCallback(async () => {
     try {
       const response = await apiClient.get('/api/membership-plans');
       const plans = (response.data?.data || [])
@@ -149,24 +170,7 @@ export default function MembershipsPage() {
     } catch {
       setAvailablePlans([FREE_PLAN]);
     }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      const response = await apiClient.get("/api/user/all");
-      if (response.data.success) {
-        const usersData = response.data.users || [];
-        setUsers(usersData);
-        calculateStats(usersData);
-      }
-    } catch (error: any) {
-      console.error("Error fetching users:", error);
-      toast.error(error.response?.data?.message || "Failed to fetch users");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, []);
 
   const fetchAdminGrants = async () => {
     try {
@@ -700,11 +704,15 @@ export default function MembershipsPage() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       {user.photoURL ? (
-                        <img
-                          src={user.photoURL}
-                          alt={user.displayName}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
+                        <div className="relative w-10 h-10 rounded-full overflow-hidden">
+                          <Image
+                            src={user.photoURL}
+                            alt={user.displayName}
+                            fill
+                            unoptimized
+                            className="object-cover"
+                          />
+                        </div>
                       ) : (
                         <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
                           <span className="text-gray-600 font-medium">

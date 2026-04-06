@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import { ArrowLeft, Crown, User, BookOpen, CreditCard, Activity } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import toast from "react-hot-toast";
@@ -47,13 +48,7 @@ export default function MembershipDetailsPage() {
     free: { slug: 'free', title: 'Free' },
   });
 
-  useEffect(() => {
-    if (userId) {
-      fetchUserDetails();
-    }
-  }, [userId]);
-
-  const fetchUserDetails = async () => {
+  const fetchUserDetails = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiClient.get(`/api/user/${userId}`);
@@ -66,7 +61,13 @@ export default function MembershipDetailsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    if (userId) {
+      fetchUserDetails();
+    }
+  }, [userId, fetchUserDetails]);
 
   const fetchPlans = async () => {
     try {
@@ -170,11 +171,15 @@ export default function MembershipDetailsPage() {
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-4">
             {user.photoURL ? (
-              <img
-                src={user.photoURL}
-                alt={user.displayName}
-                className="w-20 h-20 rounded-full object-cover"
-              />
+              <div className="relative w-20 h-20 rounded-full overflow-hidden">
+                <Image
+                  src={user.photoURL}
+                  alt={user.displayName}
+                  fill
+                  unoptimized
+                  className="object-cover"
+                />
+              </div>
             ) : (
               <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center">
                 <span className="text-3xl text-gray-600 font-medium">

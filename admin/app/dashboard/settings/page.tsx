@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
@@ -19,15 +19,7 @@ export default function SettingsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedAdmin, setSelectedAdmin] = useState<AdminUser | null>(null);
 
-    useEffect(() => {
-        if (!isSuperAdmin) {
-            router.replace('/dashboard');
-            return;
-        }
-        fetchAdmins();
-    }, [isSuperAdmin, router]);
-
-    const fetchAdmins = async () => {
+    const fetchAdmins = useCallback(async () => {
         try {
             const response = await apiClient.get('/api/admin/users');
             if (response.data.success && Array.isArray(response.data.admins)) {
@@ -47,7 +39,15 @@ export default function SettingsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [router]);
+
+    useEffect(() => {
+        if (!isSuperAdmin) {
+            router.replace('/dashboard');
+            return;
+        }
+        fetchAdmins();
+    }, [isSuperAdmin, router, fetchAdmins]);
 
     const handleCreate = () => {
         setSelectedAdmin(null);

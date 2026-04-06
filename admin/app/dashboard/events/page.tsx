@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { Search, Plus, Edit, Trash2, Calendar as CalendarIcon, MapPin, Users, DollarSign, FolderOpen } from 'lucide-react';
@@ -45,11 +46,7 @@ export default function EventsPage() {
     const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
 
-    useEffect(() => {
-        fetchEvents();
-    }, [filterStatus, filterCategory]);
-
-    const fetchEvents = async () => {
+    const fetchEvents = useCallback(async () => {
         try {
             const params: any = {};
             if (filterStatus !== 'all') params.status = filterStatus;
@@ -69,7 +66,11 @@ export default function EventsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [filterStatus, filterCategory]);
+
+    useEffect(() => {
+        fetchEvents();
+    }, [filterStatus, filterCategory, fetchEvents]);
 
     const handleCreate = () => {
         setSelectedEvent(null);
@@ -221,10 +222,12 @@ export default function EventsPage() {
                             {/* Event Banner/Thumbnail */}
                             <div className="relative h-48 bg-gradient-to-br from-primary to-primary-dark">
                                 {event.thumbnailUrl ? (
-                                    <img
+                                    <Image
                                         src={event.thumbnailUrl}
                                         alt={event.title}
-                                        className="w-full h-full object-cover"
+                                        fill
+                                        unoptimized
+                                        className="object-cover"
                                     />
                                 ) : (
                                     <div className="flex items-center justify-center h-full">

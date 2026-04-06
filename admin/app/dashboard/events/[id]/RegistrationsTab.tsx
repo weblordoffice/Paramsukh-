@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { Search, Users, CheckCircle, XCircle, Clock, Download, Mail, Phone } from 'lucide-react';
@@ -34,11 +34,7 @@ export default function RegistrationsTab({ eventId }: RegistrationsTabProps) {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<string>('all');
 
-    useEffect(() => {
-        fetchRegistrations();
-    }, [eventId]);
-
-    const fetchRegistrations = async () => {
+    const fetchRegistrations = useCallback(async () => {
         try {
             const response = await apiClient.get(`/api/events/${eventId}/registrations`);
             setRegistrations(response.data.registrations || []);
@@ -48,7 +44,11 @@ export default function RegistrationsTab({ eventId }: RegistrationsTabProps) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [eventId]);
+
+    useEffect(() => {
+        fetchRegistrations();
+    }, [eventId, fetchRegistrations]);
 
     const handleCheckIn = async (registrationId: string) => {
         try {

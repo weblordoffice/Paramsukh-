@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { CreditCard, CheckCircle, XCircle, Clock, Download } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import toast from "react-hot-toast";
@@ -28,11 +28,19 @@ export default function PaymentsTab({ userId }: PaymentsTabProps) {
     failedPayments: 0
   });
 
-  useEffect(() => {
-    fetchPayments();
-  }, [userId]);
+  const calculateStats = (paymentsData: Payment[]) => {
+    const successful = paymentsData.filter(p => p.status === 'completed');
+    const totalRevenue = successful.reduce((sum, p) => sum + p.amount, 0);
 
-  const fetchPayments = async () => {
+    setStats({
+      totalPayments: paymentsData.length,
+      totalRevenue,
+      successfulPayments: successful.length,
+      failedPayments: paymentsData.filter(p => p.status === 'failed').length
+    });
+  };
+
+  const fetchPayments = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiClient.get(`/api/user/${userId}/payments`);
@@ -47,19 +55,11 @@ export default function PaymentsTab({ userId }: PaymentsTabProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
 
-  const calculateStats = (paymentsData: Payment[]) => {
-    const successful = paymentsData.filter(p => p.status === 'completed');
-    const totalRevenue = successful.reduce((sum, p) => sum + p.amount, 0);
-
-    setStats({
-      totalPayments: paymentsData.length,
-      totalRevenue,
-      successfulPayments: successful.length,
-      failedPayments: paymentsData.filter(p => p.status === 'failed').length
-    });
-  };
+  useEffect(() => {
+    fetchPayments();
+  }, [userId, fetchPayments]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {

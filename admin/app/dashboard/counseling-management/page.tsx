@@ -199,7 +199,7 @@ export default function CounselingManagementPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-500 mb-4">
-              Mark yesterday's confirmed bookings as completed
+              Mark yesterday&apos;s confirmed bookings as completed
             </p>
             <Button 
               onClick={handleAutoComplete} 

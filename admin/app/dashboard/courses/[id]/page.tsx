@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Image from 'next/image';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Video, FileText, Calendar, HelpCircle } from 'lucide-react';
@@ -38,13 +39,7 @@ export default function CourseDetailsPage() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabType>('videos');
 
-    useEffect(() => {
-        if (courseId) {
-            fetchCourseDetails();
-        }
-    }, [courseId]);
-
-    const fetchCourseDetails = async () => {
+    const fetchCourseDetails = useCallback(async () => {
         try {
             const response = await apiClient.get(`/api/courses/${courseId}`);
             setCourse(response.data.course);
@@ -54,7 +49,13 @@ export default function CourseDetailsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [courseId]);
+
+    useEffect(() => {
+        if (courseId) {
+            fetchCourseDetails();
+        }
+    }, [courseId, fetchCourseDetails]);
 
     const refreshCourse = () => {
         fetchCourseDetails();
@@ -106,11 +107,15 @@ export default function CourseDetailsPage() {
                 <div className="bg-white rounded-lg shadow-sm p-6">
                     <div className="flex items-start gap-4">
                         {course.thumbnailUrl && (
-                            <img
-                                src={course.thumbnailUrl}
-                                alt={course.title}
-                                className="w-24 h-24 rounded-lg object-cover"
-                            />
+                            <div className="relative w-24 h-24 rounded-lg overflow-hidden">
+                                <Image
+                                    src={course.thumbnailUrl}
+                                    alt={course.title}
+                                    fill
+                                    unoptimized
+                                    className="object-cover"
+                                />
+                            </div>
                         )}
                         <div className="flex-1">
                             <h1 className="text-2xl font-bold text-gray-900 mb-2">{course.title}</h1>
