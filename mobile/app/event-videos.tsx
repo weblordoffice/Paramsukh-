@@ -1,11 +1,11 @@
-import React, { useState , useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Dimensions, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
 import { useEventStore, EventVideo } from '../store/eventStore';
 
-const { width } = Dimensions.get('window');
+
 
 
 
@@ -20,13 +20,13 @@ export default function EventVideosScreen() {
   const eventId = params.eventId as string || '';
 
   // Mock video data - in real app, fetch from API based on eventId
-  const { videos, fetchEventVideos, isLoading } = useEventStore();
+  const { videos, fetchEventVideos } = useEventStore();
 
   useEffect(() => {
     if (eventId) {
       fetchEventVideos(eventId);
     }
-  }, [eventId]);
+  }, [eventId, fetchEventVideos]);
 
   const handleVideoPress = (video: EventVideo) => {
     router.push({

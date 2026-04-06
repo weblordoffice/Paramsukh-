@@ -4,8 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
-import axios from 'axios';
-import { API_URL } from '../config/api';
+
 import { getInitials } from '../utils/userUtils';
 
 export default function ProfileMenuScreen() {

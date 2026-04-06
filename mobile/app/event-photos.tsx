@@ -1,5 +1,5 @@
 import React, { useState , useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Dimensions, Image, Modal, StyleSheet, FlatList } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Dimensions, Image, Modal, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
@@ -16,19 +16,19 @@ export default function EventPhotosScreen() {
   const eventColor = params.eventColor as string || '#8B5CF6';
   const eventEmoji = params.eventEmoji as string || '📸';
   const eventId = params.eventId as string || '';
-  const imageCount = parseInt(params.imageCount as string || '0', 10);
+
 
   const [selectedPhoto, setSelectedPhoto] = useState<EventPhoto | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
   // useEventStore for fetching real photos
-  const { photos, fetchEventPhotos, isLoading } = useEventStore();
+  const { photos, fetchEventPhotos } = useEventStore();
 
   useEffect(() => {
     if (eventId) {
       fetchEventPhotos(eventId);
     }
-  }, [eventId]);
+  }, [eventId, fetchEventPhotos]);
 
   const handlePhotoPress = (photo: EventPhoto) => {
     setSelectedPhoto(photo);

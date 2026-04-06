@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useCourseStore, Assignment, Question } from '../store/courseStore';
+import { useCourseStore } from '../store/courseStore';
 
 export default function AssignmentViewerScreen() {
   const router = useRouter();
@@ -69,8 +69,7 @@ export default function AssignmentViewerScreen() {
         ) : null}
 
         {assignment.questions?.map((q, index) => {
-          const isSelected = answers[q?._id];
-          const isCorrect = isSelected === q?.correctAnswer;
+
           const showExp = showExplanation[q?._id];
 
           if (!q) return null;

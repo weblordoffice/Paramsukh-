@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useOrderStore } from '../store/orderStore';
@@ -13,7 +13,7 @@ export default function OrderDetailScreen() {
         if (orderId) {
             fetchOrderDetails(orderId as string);
         }
-    }, [orderId]);
+    }, [orderId, fetchOrderDetails]);
 
     if (isLoading || !currentOrder) {
         return (

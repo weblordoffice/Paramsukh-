@@ -14,13 +14,12 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuthStore } from '../store/authStore';
-import { API_URL } from '../config/api';
+
 import apiClient from '../utils/apiClient';
 
 export default function AssessmentScreen() {
   const router = useRouter();
-  const { user } = useAuthStore();
+
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [textInputs, setTextInputs] = useState({
     age: '',

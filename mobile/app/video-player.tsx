@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
-import { useCourseStore, Video, Assignment } from '../store/courseStore';
+import { useCourseStore, Assignment } from '../store/courseStore';
 import { useAuthStore } from '../store/authStore';
 
 const { width } = Dimensions.get('window');
@@ -67,7 +67,7 @@ export default function VideoPlayerScreen() {
     if (!token || !courseId || !videoId || marked) return;
     const ok = await markVideoComplete(courseId, videoId);
     if (ok) setMarked(true);
-  }, [courseId, videoId, token, marked]);
+  }, [courseId, videoId, token, marked, markVideoComplete]);
 
   const handleExternalPlay = async () => {
     if (!videoUrl) return;

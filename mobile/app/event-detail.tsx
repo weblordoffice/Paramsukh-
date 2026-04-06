@@ -39,7 +39,7 @@ export default function EventDetailScreen() {
       fetchEventDetails(eventId);
       checkRegistrationStatus(eventId);
     }
-  }, [eventId]);
+  }, [eventId, checkRegistrationStatus, fetchEventDetails]);
 
   useEffect(() => {
     if (openRegister === '1') {
@@ -75,7 +75,7 @@ export default function EventDetailScreen() {
         day: 'numeric',
         year: 'numeric'
       });
-    } catch (e) {
+    } catch {
       return event.eventDate;
     }
   }, [event?.eventDate]);

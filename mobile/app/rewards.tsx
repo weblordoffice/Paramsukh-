@@ -24,7 +24,7 @@ export default function RewardsScreen() {
   useEffect(() => {
     fetchRewardsStatus();
     fetchRewardsCatalog();
-  }, []);
+  }, [fetchRewardsStatus, fetchRewardsCatalog]);
 
   const handleRedeem = async (rewardId: string) => {
     Alert.alert(

@@ -39,17 +39,17 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
     const [loadingComments, setLoadingComments] = useState(false);
 
     useEffect(() => {
+        const loadComments = async () => {
+            if (!postId) return;
+            setLoadingComments(true);
+            await fetchPostComments(postId);
+            setLoadingComments(false);
+        };
+
         if (visible && postId) {
             loadComments();
         }
-    }, [visible, postId]);
-
-    const loadComments = async () => {
-        if (!postId) return;
-        setLoadingComments(true);
-        await fetchPostComments(postId);
-        setLoadingComments(false);
-    };
+    }, [visible, postId, fetchPostComments]);
 
     const handleSend = async () => {
         if (!postId || !content.trim()) return;

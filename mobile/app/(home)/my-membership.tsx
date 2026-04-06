@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -28,7 +28,7 @@ export default function MyMembershipScreen() {
     const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
 
     const { currentSubscription, fetchCurrentSubscription, isLoading } = useMembershipStore();
-    const { token, user } = useAuthStore();
+    const { token } = useAuthStore();
 
     const [purchases, setPurchases] = useState<
         { orderId: string; paymentId: string; amount: number; plan: string; status: string; date: string }[]
@@ -36,6 +36,24 @@ export default function MyMembershipScreen() {
     const [loadingPurchases, setLoadingPurchases] = useState(true);
     const [syncingPayment, setSyncingPayment] = useState(false);
     const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
+
+    const loadPublicPlans = useCallback(async () => {
+        const dynamicPlans = await fetchPublicMembershipPlans();
+        setPlans(dynamicPlans);
+    }, []);
+
+    const loadPurchases = useCallback(async () => {
+        try {
+            const res = await apiClient.get('/payments/history');
+            if (res.data?.success && Array.isArray(res.data?.data?.payments)) {
+                setPurchases(res.data.data.payments);
+            }
+        } catch {
+            // silently fail
+        } finally {
+            setLoadingPurchases(false);
+        }
+    }, []);
 
     useEffect(() => {
         if (token) {
@@ -46,12 +64,7 @@ export default function MyMembershipScreen() {
         }
 
         loadPublicPlans();
-    }, [token]);
-
-    const loadPublicPlans = async () => {
-        const dynamicPlans = await fetchPublicMembershipPlans();
-        setPlans(dynamicPlans);
-    };
+    }, [token, fetchCurrentSubscription, loadPurchases, loadPublicPlans]);
 
     // If user paid and came back later, confirm any pending payment link
     useEffect(() => {
@@ -74,7 +87,7 @@ export default function MyMembershipScreen() {
             }
         })();
         return () => { cancelled = true; };
-    }, [currentSubscription?.status]);
+    }, [currentSubscription, fetchCurrentSubscription, loadPurchases]);
 
     const scrollToPlans = () => {
         if (plansY > 0) {
@@ -158,25 +171,14 @@ export default function MyMembershipScreen() {
 
             await fetchCurrentSubscription();
             await loadPurchases();
-        } catch (err: any) {
+        } catch {
             // ignore
         } finally {
             setPurchasingPlanId(null);
         }
     };
 
-    const loadPurchases = async () => {
-        try {
-            const res = await apiClient.get('/payments/history');
-            if (res.data?.success && Array.isArray(res.data?.data?.payments)) {
-                setPurchases(res.data.data.payments);
-            }
-        } catch {
-            // silently fail
-        } finally {
-            setLoadingPurchases(false);
-        }
-    };
+
 
     const activePlan = currentSubscription?.plan?.toLowerCase();
     const isActive = currentSubscription?.status === 'active';
@@ -275,7 +277,7 @@ export default function MyMembershipScreen() {
                         {/* Included features */}
                         {currentPlanCfg && (
                             <View style={styles.activePlanFeatures}>
-                                <Text style={styles.featuresLabel}>What's included</Text>
+                                <Text style={styles.featuresLabel}>What&apos;s included</Text>
                                 {currentPlanCfg.features.filter(f => f.included).map((f, i) => (
                                     <View key={i} style={styles.featureRow}>
                                         <Ionicons name="checkmark-circle" size={18} color={currentPlanCfg.color} />

@@ -1,38 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Header from '../../components/Header';
 import { useMembershipStore } from '../../store/membershipStore';
-import { useAuthStore } from '../../store/authStore';
-import { useRouter } from 'expo-router';
+
 import apiClient from '../../utils/apiClient';
 import { fetchPublicMembershipPlans, UIMembershipPlan } from '../../utils/membershipPlans';
 
 const PENDING_LINK_KEY = 'pending_membership_payment_link';
 
 export default function MembershipScreen() {
-  const router = useRouter();
-  const { user } = useAuthStore();
+
   const { currentSubscription, isLoading, fetchCurrentSubscription, clearError } = useMembershipStore();
 
   const [selectedPlan, setSelectedPlan] = useState('');
   const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
   const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
 
-  useEffect(() => {
-    fetchCurrentSubscription();
-    loadPublicPlans();
-  }, []);
-
-  const loadPublicPlans = async () => {
+  const loadPublicPlans = useCallback(async () => {
     const dynamicPlans = await fetchPublicMembershipPlans();
     setPlans(dynamicPlans);
     if (dynamicPlans.length > 0) {
       setSelectedPlan(dynamicPlans[0].id);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchCurrentSubscription();
+    loadPublicPlans();
+  }, [fetchCurrentSubscription, loadPublicPlans]);
 
   // If user paid and came back later (or app was closed), confirm any pending payment link
   useEffect(() => {
@@ -54,7 +52,7 @@ export default function MembershipScreen() {
       }
     })();
     return () => { cancelled = true; };
-  }, [currentSubscription?.status]);
+  }, [currentSubscription, fetchCurrentSubscription]);
 
   const getDisplayPrice = (plan: UIMembershipPlan) => `₹${plan.price.toLocaleString('en-IN')}`;
 

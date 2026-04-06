@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Image, Animated, ActivityIndicator } from 'react-native';
 
 interface SplashScreenProps {
@@ -6,8 +6,8 @@ interface SplashScreenProps {
 }
 
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
-  const fadeAnim = new Animated.Value(0);
-  const scaleAnim = new Animated.Value(0.8);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
     // Fade in and scale animation   
@@ -36,7 +36,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
     }, 2500);                     
    
     return () => clearTimeout(timer);        
-  }, []);        
+  }, [fadeAnim, scaleAnim, onFinish]);        
 
   return (
     <View className="flex-1 bg-white justify-center items-center">

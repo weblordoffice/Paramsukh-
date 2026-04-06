@@ -21,7 +21,7 @@ export default function ProductDetailScreen() {
         if (productId) {
             fetchProductById(productId as string);
         }
-    }, [productId]);
+    }, [productId, fetchProductById]);
 
     if (isLoading || !currentProduct) {
         return (

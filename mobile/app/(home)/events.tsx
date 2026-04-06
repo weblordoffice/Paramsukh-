@@ -18,7 +18,7 @@ export default function EventsScreen() {
 
   useEffect(() => {
     fetchEvents(activeTab);
-  }, [activeTab]);
+  }, [activeTab, fetchEvents]);
 
   const formatDate = (dateString: string) => {
     try {
@@ -27,7 +27,7 @@ export default function EventsScreen() {
         day: 'numeric',
         year: 'numeric'
       });
-    } catch (e) {
+    } catch {
       return dateString;
     }
   };

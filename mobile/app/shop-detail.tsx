@@ -1,5 +1,5 @@
 import React, { useState , useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
@@ -14,7 +14,7 @@ export default function ShopDetailScreen() {
   const [cart, setCart] = useState<string[]>([]);
 
   // Products fetch logic
-  const { currentShop, products, fetchShopDetails, fetchProductsByShop, isLoading } = useProductStore();
+  const { currentShop, products, fetchShopDetails, fetchProductsByShop } = useProductStore();
 
   useEffect(() => {
     if (params.shopId) {
@@ -22,7 +22,7 @@ export default function ShopDetailScreen() {
       fetchShopDetails(id);
       fetchProductsByShop(id);
     }
-  }, [params.shopId]);
+  }, [params.shopId, fetchShopDetails, fetchProductsByShop]);
 
   if (!currentShop) {
     return (

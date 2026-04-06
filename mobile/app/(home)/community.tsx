@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  ActivityIndicator,
   Modal,
   Image,
   Alert,
@@ -14,12 +13,11 @@ import {
   Dimensions,
   Platform,
   FlatList,
-  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import Header from '@/components/Header';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@/store/authStore';
 import AssessmentModal from '@/components/AssessmentModal';
@@ -48,15 +46,14 @@ export default function CommunityScreen() {
 
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [postContent, setPostContent] = useState('');
   const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>('feed');
-  const [postType, setPostType] = useState<'feed' | 'channel'>('feed');
+  const [, setPostType] = useState<'feed' | 'channel'>('feed');
   const [showPostTypeFilter, setShowPostTypeFilter] = useState(false);
   const [selectedPostFilter, setSelectedPostFilter] = useState<'all' | 'image' | 'video' | 'audio' | 'text'>('all');
   const [showTagFilter, setShowTagFilter] = useState(false);
@@ -90,50 +87,14 @@ export default function CommunityScreen() {
   const [assessmentCompleted, setAssessmentCompleted] = useState(false);
   const [showPostTypeSelector, setShowPostTypeSelector] = useState(false);
 
-  useEffect(() => {
-    checkAssessmentStatus();
-    // Fetch user groups on mount
-    fetchMyGroups();
-  }, []);
-
-  // When groups are loaded, auto-select first group for now (or 'All' if backend supports global feed)
-  useEffect(() => {
-    if (groups.length > 0 && !activeGroup) {
-      setActiveGroup(groups[0]);
-    }
-  }, [groups]);
-
-  // When active group changes, fetch its posts
-  useEffect(() => {
-    if (activeGroup) {
-      fetchGroupPosts(activeGroup._id);
-    }
-  }, [activeGroup]);
-
-  useEffect(() => {
-    Animated.timing(sidebarAnimation, {
-      toValue: showSidebar ? 0 : -SIDEBAR_WIDTH,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [showSidebar]);
-
-  const toggleSidebar = () => {
-    setShowSidebar(!showSidebar);
-  };
-
-  const handleViewChange = (view: ViewType) => {
-    setCurrentView(view);
-    setShowSidebar(false);
-  };
-  const checkAssessmentStatus = async () => {
+  const checkAssessmentStatus = useCallback(async () => {
     try {
       const completed = await AsyncStorage.getItem('assessment_completed');
       setAssessmentCompleted(completed === 'true');
     } catch (error) {
       console.error('Error checking assessment status:', error);
     }
-  };
+  }, []);
 
   const handleAssessmentComplete = async (answers: Record<string, string | boolean>) => {
     try {
@@ -145,6 +106,45 @@ export default function CommunityScreen() {
     } catch (error) {
       console.error('Error saving assessment:', error);
     }
+  };
+
+  const [, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    checkAssessmentStatus();
+    // Fetch user groups on mount
+    fetchMyGroups();
+  }, [fetchMyGroups, checkAssessmentStatus]);
+
+  // When groups are loaded, auto-select first group for now (or 'All' if backend supports global feed)
+  useEffect(() => {
+    if (groups.length > 0 && !activeGroup) {
+      setActiveGroup(groups[0]);
+    }
+  }, [groups, activeGroup]);
+
+  // When active group changes, fetch its posts
+  useEffect(() => {
+    if (activeGroup) {
+      fetchGroupPosts(activeGroup._id);
+    }
+  }, [activeGroup, fetchGroupPosts]);
+
+  const toggleSidebar = useCallback(() => {
+    setShowSidebar(!showSidebar);
+  }, [showSidebar]);
+
+  useEffect(() => {
+    Animated.timing(sidebarAnimation, {
+      toValue: showSidebar ? 0 : -SIDEBAR_WIDTH,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [showSidebar, sidebarAnimation]);
+
+  const handleViewChange = (view: ViewType) => {
+    setCurrentView(view);
+    setShowSidebar(false);
   };
 
   const handlePickImage = async () => {
@@ -160,8 +160,6 @@ export default function CommunityScreen() {
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.7, // Compress to 70% quality
-        maxWidth: 1920, // Limit to 1920px width
-        maxHeight: 1080, // Limit to 1080px height
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {

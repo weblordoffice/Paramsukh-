@@ -16,7 +16,7 @@ export default function CounselingScreen() {
 
   useEffect(() => {
     fetchCounselingTypes();
-  }, []);
+  }, [fetchCounselingTypes]);
 
   const handleContinue = () => {
     if (selectedType) {

@@ -32,11 +32,11 @@ export default function ShopsScreen() {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, selectedCategory]);
+  }, [searchQuery, selectedCategory, fetchAllProducts]);
 
   useEffect(() => {
     fetchCart();
-  }, []);
+  }, [fetchCart]);
 
   const handleAddToCart = async (productId: string) => {
     const success = await addToCart(productId, 1);

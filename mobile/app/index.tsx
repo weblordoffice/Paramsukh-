@@ -7,7 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
                             
 export default function Home() {
   const router = useRouter();
-  const { user, isLoading, loadUser, fetchCurrentUser } = useAuthStore();
+  const { loadUser, fetchCurrentUser } = useAuthStore();
   const [hasChecked, setHasChecked] = useState(false);
 
   useEffect(() => {

@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Platform,
   ActivityIndicator,
   RefreshControl,
   Alert,
@@ -18,7 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
-import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { Video, ResizeMode } from 'expo-av';
 import { useAuthStore } from '../../store/authStore';
 
 const { width } = Dimensions.get('window');
@@ -56,12 +55,12 @@ export default function PodcastsScreen() {
 
   // Video Player State
   const [currentPodcast, setCurrentPodcast] = useState<Podcast | null>(null);
-  const [videoStatus, setVideoStatus] = useState<AVPlaybackStatus | null>(null);
+
   const videoRef = useRef<Video>(null);
 
   const categories = ['All', 'Meditation', 'Discourse', 'Scripture', 'Mindfulness', 'Mantra', 'Other'];
 
-  const fetchPodcasts = async () => {
+  const fetchPodcasts = useCallback(async () => {
     try {
       let response;
       if (user && token) {
@@ -95,16 +94,16 @@ export default function PodcastsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [user, token]);
 
   useEffect(() => {
     fetchPodcasts();
-  }, [user, token]);
+  }, [fetchPodcasts]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchPodcasts();
-  }, [user, token]);
+  }, [fetchPodcasts]);
 
   const handlePlayPodcast = async (podcast: Podcast) => {
     if (!user && podcast.accessType !== 'free') {
@@ -416,7 +415,7 @@ export default function PodcastsScreen() {
                 resizeMode={ResizeMode.CONTAIN}
                 isLooping={false}
                 shouldPlay={true}
-                onPlaybackStatusUpdate={status => setVideoStatus(status)}
+
                 onError={(error) => {
                   console.error('Video Load Error:', error);
                   Alert.alert('Error', 'Could not load video source');

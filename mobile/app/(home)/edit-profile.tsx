@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,             
   TextInput,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';

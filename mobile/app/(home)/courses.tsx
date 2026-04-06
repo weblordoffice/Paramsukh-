@@ -129,7 +129,7 @@ export default function CoursesScreen() {
   const { currentSubscription, fetchCurrentSubscription } = useMembershipStore();
   const [planLookup, setPlanLookup] = useState<Record<string, PlanVisual>>({});
 
-  const loadPlanMetadata = async () => {
+  const loadPlanMetadata = useCallback(async () => {
     const plans = await fetchPublicMembershipPlans();
     const lookup = plans.reduce<Record<string, PlanVisual>>((acc, plan: UIMembershipPlan) => {
       const slug = normalize(plan.id);
@@ -144,13 +144,13 @@ export default function CoursesScreen() {
     }, {});
 
     setPlanLookup(lookup);
-  };
+  }, []);
 
   useEffect(() => {
     fetchCourses();
     fetchCurrentSubscription();
     loadPlanMetadata();
-  }, []);
+  }, [fetchCourses, fetchCurrentSubscription, loadPlanMetadata]);
 
   // Refresh subscription when screen comes into focus (e.g., after purchase)
   useFocusEffect(
@@ -160,7 +160,7 @@ export default function CoursesScreen() {
       if (__DEV__) {
         console.log('📊 Courses screen focused - fetching latest subscription');
       }
-    }, [])
+    }, [fetchCurrentSubscription])
   );
 
   const userPlan = currentSubscription?.plan;
@@ -223,7 +223,7 @@ export default function CoursesScreen() {
               <Ionicons name="book-outline" size={72} color="#475569" />
               <Text style={styles.emptyStateTitle}>No Courses Yet</Text>
               <Text style={styles.emptyStateSubtitle}>
-                We're preparing amazing courses for you. Check back soon for new content!
+                We&apos;re preparing amazing courses for you. Check back soon for new content!
               </Text>
             </View>
           ) : (

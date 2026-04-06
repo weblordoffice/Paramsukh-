@@ -5,7 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCounselingStore } from '../store/counselingStore';
-import { useAuthStore } from '../store/authStore';
 import { Calendar } from 'react-native-calendars';
 
 export default function BookCounselingScreen() {
@@ -43,7 +42,7 @@ export default function BookCounselingScreen() {
       }
     };
     fetchSlots();
-  }, [selectedDate, id, title]);
+  }, [selectedDate, id, title, checkAvailability]);
 
 
   const handleBooking = async () => {

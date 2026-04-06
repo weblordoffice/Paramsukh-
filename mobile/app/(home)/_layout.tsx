@@ -1,41 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
-import { Platform, View, TouchableOpacity, Modal, ScrollView, Text, StyleSheet, Alert } from 'react-native';
+import { Platform, View, TouchableOpacity, Modal, ScrollView, Text, StyleSheet } from 'react-native';
 import { useState } from 'react';
 import * as Haptics from 'expo-haptics';
-import { useAuthStore } from '../../store/authStore';
-import axios from 'axios';
-import { API_URL } from '../../config/api';
+
+
 
 // Add profile screen to tabs
 
 
 export default function HomeLayout() {
   const [menuModalVisible, setMenuModalVisible] = useState(false);
-  const { user, logout } = useAuthStore();
+
   const router = useRouter();
 
-  const handleSignOut = async () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel'
-        },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
-            setMenuModalVisible(false);
-            router.replace('/signin');
-          }
-        }
-      ]
-    );
-  };
+
 
   return (
     <>

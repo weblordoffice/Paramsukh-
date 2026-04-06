@@ -35,7 +35,7 @@ export default function CourseDetailScreen() {
         fetchEnrollmentProgress(courseId);
       }
     }
-  }, [courseId, token]);
+  }, [courseId, token, fetchCourseById, fetchEnrollmentProgress]);
 
   const videos: Video[] = currentCourse?.videos || [];
   const completedVideos = enrollmentProgress?.completedVideos?.length || 0;

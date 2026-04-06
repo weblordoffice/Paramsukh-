@@ -13,7 +13,7 @@ export default function CartScreen() {
 
     useEffect(() => {
         fetchCart();
-    }, []);
+    }, [fetchCart]);
 
     const handleUpdateQuantity = async (itemId: string, newQuantity: number) => {
         if (newQuantity < 1) return;

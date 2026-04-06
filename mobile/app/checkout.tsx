@@ -11,7 +11,7 @@ import { useAddressStore } from '../store/addressStore';
 export default function CheckoutScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { cart, clearCart, fetchCart } = useCartStore();
+    const { cart, clearCart } = useCartStore();
     const { createOrder, createOrderPaymentLink, confirmOrderPaymentLink, isLoading: isOrderLoading } = useOrderStore();
     const { addresses, fetchAddresses, addAddress, isLoading: isAddressLoading } = useAddressStore();
 
@@ -33,7 +33,7 @@ export default function CheckoutScreen() {
 
     useEffect(() => {
         fetchAddresses();
-    }, []);
+    }, [fetchAddresses]);
 
     useEffect(() => {
         if (addresses.length > 0 && !selectedAddressId) {
@@ -42,7 +42,7 @@ export default function CheckoutScreen() {
         } else if (addresses.length === 0) {
             setIsAddingAddress(true);
         }
-    }, [addresses]);
+    }, [addresses, selectedAddressId]);
 
     const handlePlaceOrder = async () => {
         if (!selectedAddressId) {
@@ -72,7 +72,7 @@ export default function CheckoutScreen() {
                 return;
             }
             const { url, paymentLinkId } = linkResult;
-            const browserResult = await WebBrowser.openBrowserAsync(url, { presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN });
+            await WebBrowser.openBrowserAsync(url, { presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN });
             const confirmResult = await confirmOrderPaymentLink(orderId, paymentLinkId);
             if (confirmResult.success) {
                 Alert.alert("Success", "Payment successful! Order confirmed.", [
