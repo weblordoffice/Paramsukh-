@@ -115,20 +115,7 @@ export default function MembershipsPage() {
     }, {});
   }, [availablePlans]);
 
-  useEffect(() => {
-    fetchUsers();
-    fetchAvailablePlans();
-    fetchAdminGrants();
-  }, [fetchUsers, fetchAvailablePlans]);
-  
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (users.length > 0) {
-      calculateStats(users);
-    }
-  // Re-run only when availablePlans changes; users intentionally omitted
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availablePlans]);
+
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -172,7 +159,7 @@ export default function MembershipsPage() {
     }
   }, []);
 
-  const fetchAdminGrants = async () => {
+  const fetchAdminGrants = useCallback(async () => {
     try {
       setGrantsLoading(true);
       const response = await apiClient.get('/api/membership-plans/admin/grants');
@@ -185,7 +172,7 @@ export default function MembershipsPage() {
     } finally {
       setGrantsLoading(false);
     }
-  };
+  }, []);
 
   const handleGrantMembership = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -371,6 +358,21 @@ export default function MembershipsPage() {
     };
     return colors[status] || 'bg-gray-100 text-gray-700';
   };
+
+  useEffect(() => {
+    fetchUsers();
+    fetchAvailablePlans();
+    fetchAdminGrants();
+  }, [fetchUsers, fetchAvailablePlans, fetchAdminGrants]);
+  
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (users.length > 0) {
+      calculateStats(users);
+    }
+  // Re-run only when availablePlans changes; users intentionally omitted
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availablePlans]);
 
   if (loading) {
     return (

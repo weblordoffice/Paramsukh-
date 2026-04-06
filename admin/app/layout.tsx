@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 import AuthInitializer from "@/components/AuthInitializer";
 import SessionProvider from "@/components/SessionProvider";
@@ -19,14 +21,23 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="en">
+        <html lang="en" suppressHydrationWarning>
             <body className={inter.className}>
                 <SessionProvider>
-                    <AuthInitializer />
-                    {children}
-                    <Toaster position="top-right" />
+                    <ThemeProvider
+                        attribute="class"
+                        defaultTheme="system"
+                        enableSystem
+                        disableTransitionOnChange
+                    >
+                        <AuthInitializer />
+                        {children}
+                        <Toaster position="top-right" />
+                        <SonnerToaster position="bottom-right" />
+                    </ThemeProvider>
                 </SessionProvider>
             </body>
         </html>
     );
 }
+
