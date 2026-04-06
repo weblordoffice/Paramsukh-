@@ -20,11 +20,27 @@ import {
   RefreshCw
 } from 'lucide-react';
 
+interface Service {
+  _id: string;
+  title: string;
+}
+
+interface Exception {
+  _id: string;
+  unavailableDate: string;
+  reason: string;
+  notes?: string;
+  serviceId?: {
+    _id: string;
+    title: string;
+  };
+}
+
 export default function CounselingManagementPage() {
   const [cleanupLoading, setCleanupLoading] = useState(false);
   const [completeLoading, setCompleteLoading] = useState(false);
-  const [exceptions, setExceptions] = useState([]);
-  const [services, setServices] = useState([]);
+  const [exceptions, setExceptions] = useState<Exception[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [showForm, setShowForm] = useState(false);
   
   const [formData, setFormData] = useState({
@@ -131,15 +147,15 @@ export default function CounselingManagementPage() {
     }
   };
 
-  const getReasonBadge = (reason) => {
-    const colors = {
+  const getReasonBadge = (reason: string) => {
+    const colors: Record<string, string> = {
       holiday: 'bg-blue-100 text-blue-800',
       sick_leave: 'bg-red-100 text-red-800',
       personal: 'bg-purple-100 text-purple-800',
       training: 'bg-yellow-100 text-yellow-800',
       other: 'bg-gray-100 text-gray-800'
     };
-    const labels = {
+    const labels: Record<string, string> = {
       holiday: 'Holiday',
       sick_leave: 'Sick Leave',
       personal: 'Personal',
@@ -147,8 +163,8 @@ export default function CounselingManagementPage() {
       other: 'Other'
     };
     return (
-      <Badge className={colors[reason]}>
-        {labels[reason]}
+      <Badge className={colors[reason] || colors.other}>
+        {labels[reason] || labels.other}
       </Badge>
     );
   };
@@ -330,7 +346,7 @@ export default function CounselingManagementPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {exception.notes && (
-                      <AlertTriangle className="h-4 w-4 text-yellow-500" title={exception.notes} />
+                      <AlertTriangle className="h-4 w-4 text-yellow-500" />
                     )}
                     <Button
                       variant="ghost"
