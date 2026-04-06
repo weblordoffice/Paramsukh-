@@ -61,6 +61,7 @@ interface CommunityState {
     comments: { [postId: string]: Comment[] }; // Store comments by postId
     isLoading: boolean;
     error: string | null;
+    communityAccessDenied: boolean;
 
     fetchMyGroups: () => Promise<void>;
     fetchGroupPosts: (groupId: string, page?: number) => Promise<void>;
@@ -80,6 +81,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     comments: {}, // Initialize comments object
     isLoading: false,
     error: null,
+    communityAccessDenied: false,
 
     fetchMyGroups: async () => {
         set({ isLoading: true, error: null });
@@ -104,8 +106,18 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             if (__DEV__) {
                 console.error('Fetch Groups Error:', error);
             }
-            // Don't show error to user, show empty list (user might be offline)
-            set({ groups: [], isLoading: false, error: null });
+            // Handle 403 - user doesn't have community access
+            if (error.response?.status === 403) {
+                set({ 
+                    groups: [], 
+                    isLoading: false, 
+                    error: null,
+                    communityAccessDenied: true 
+                });
+            } else {
+                // Don't show error to user for other cases, show empty list (user might be offline)
+                set({ groups: [], isLoading: false, error: null });
+            }
         }
     },
 

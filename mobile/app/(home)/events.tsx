@@ -102,6 +102,22 @@ export default function EventsScreen() {
           {/* Events List */}
           {isLoading ? (
             <ActivityIndicator size="large" color="#EAB308" style={{ marginTop: 20 }} />
+          ) : events.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons 
+                name={activeTab === 'upcoming' ? 'calendar-outline' : 'time-outline'} 
+                size={72} 
+                color="#475569" 
+              />
+              <Text style={styles.emptyStateTitle}>
+                {activeTab === 'upcoming' ? 'No Upcoming Events' : 'No Past Events'}
+              </Text>
+              <Text style={styles.emptyStateSubtitle}>
+                {activeTab === 'upcoming' 
+                  ? 'We\'re planning exciting events for you. Stay tuned for updates!'
+                  : 'No past events to show yet. Join our upcoming events to create memories!'}
+              </Text>
+            </View>
           ) : (
             events.map((event) => {
               const handleCardPress = () => {
@@ -407,12 +423,32 @@ export default function EventsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: '#FDF8F3',
   },
   content: {
     padding: 20,
     paddingTop: 16,
     paddingBottom: 120,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 32,
+  },
+  emptyStateTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginTop: 20,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyStateSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
   },
   sectionHeader: {
     marginBottom: 24,
@@ -421,13 +457,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: '#1F2937',
     marginBottom: 6,
     letterSpacing: 0.3,
   },
   sectionSubtitle: {
     fontSize: 15,
-    color: '#94A3B8',
+    color: '#6B7280',
     fontWeight: '500',
   },
   tabSwitcher: {

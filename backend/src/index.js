@@ -24,6 +24,7 @@ import membershipPlanRoutes from './routes/membership/membershipPlanRoute.js';
 import uploadRoutes from './routes/upload/uploadRoute.js';
 import podcastRoutes from './routes/podcast/podcastRoute.js';
 import adminRoutes from './routes/admin/adminRoute.js';
+import { setupCounselingCrons } from './services/counselingCron.service.js';
 dotenv.config();
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -259,6 +260,68 @@ app.get('/', (req, res) => {
 
 // Connect to database first so login and other routes don't hang waiting for MongoDB
 await connectDatabase();
+
+// Setup counseling system cron jobs (in-app automation)
+setupCounselingCrons();
+
+// GLOBAL ERROR HANDLER - Must be after all routes
+app.use((err, req, res, next) => {
+  console.error('❌ Global Error Handler:', err);
+  console.error('Stack:', err.stack);
+  
+  // Mongoose validation error
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation Error',
+      errors: err.errors
+    });
+  }
+  
+  // Mongoose duplicate key error
+  if (err.code === 11000) {
+    return res.status(400).json({
+      success: false,
+      message: 'Duplicate entry error',
+      field: Object.keys(err.keyPattern)[0]
+    });
+  }
+  
+  // JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid token'
+    });
+  }
+  
+  if (err.name === 'TokenExpiredError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Token expired'
+    });
+  }
+  
+  // Default error
+  res.status(err.status || 500).json({
+    success: false,
+    message: err.message || 'Internal Server Error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('❌ Unhandled Promise Rejection:', err);
+  // Don't crash the server, just log it
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('❌ Uncaught Exception:', err);
+  process.exit(1); // Exit gracefully
+});
 
 // Listen on all interfaces (0.0.0.0) so phone/other devices on LAN can reach the API
 app.listen(PORT, '0.0.0.0', () => {

@@ -67,7 +67,7 @@ export default function Header({ useSafeArea = false }: HeaderProps) {
             activeOpacity={0.7}
           >
             <View style={styles.notificationContainer}>
-              <Ionicons name="notifications-outline" size={24} color="#F8FAFC" />
+              <Ionicons name="notifications-outline" size={24} color="#374151" />
               <View style={styles.badge}>
                 <Text style={styles.badgeText}>3</Text>
               </View>
@@ -91,16 +91,16 @@ export default function Header({ useSafeArea = false }: HeaderProps) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(148, 163, 184, 0.15)',
+    borderBottomColor: '#E5E7EB',
     paddingHorizontal: 20,
     paddingBottom: 16,
-    shadowColor: '#0F172A',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.06,
     shadowRadius: 8,
-    elevation: 4,
+    elevation: 3,
   },
   content: {
     flexDirection: 'row',
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: '#1F2937',
     letterSpacing: 0.5,
   },
   actions: {
@@ -126,11 +126,11 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
+    backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(148, 163, 184, 0.15)',
+    borderColor: '#E5E7EB',
   },
   badge: {
     position: 'absolute',

@@ -157,7 +157,7 @@ const commentSchema = new mongoose.Schema({
 });
 
 // Indexes
-groupSchema.index({ courseId: 1 });
+groupSchema.index({ courseId: 1 }, { unique: true });  // Prevent duplicate groups for same course
 groupMemberSchema.index({ groupId: 1, userId: 1 }, { unique: true });
 groupMemberSchema.index({ userId: 1 });
 postSchema.index({ groupId: 1, createdAt: -1 });

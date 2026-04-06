@@ -18,6 +18,7 @@ import { Group, GroupMember } from '../../models/community.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { resolveMembershipPlanChargeAmount } from '../../services/membershipPlan.service.js';
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
+import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
 
 /**
@@ -351,6 +352,15 @@ export const confirmMembershipPaymentLink = async (req, res) => {
     });
     console.log(`✅ Membership activated for user ${userId}: ${finalPlan}`);
 
+    // Handle plan upgrade - enroll in new community groups
+    try {
+      const upgradeResult = await handlePlanUpgrade(userId, finalPlan);
+      console.log(`⬆️ Plan upgrade: Enrolled in ${upgradeResult.enrolledInGroups} new groups`);
+    } catch (error) {
+      console.error('⚠️ Plan upgrade group enrollment failed (non-critical):', error.message);
+      // Don't fail the payment if group enrollment fails
+    }
+
     // Enroll in courses for this plan (same as purchaseMembership)
     const courses = await getAutoEnrollCoursesForPlan(finalPlan);
 
@@ -366,21 +376,24 @@ export const confirmMembershipPaymentLink = async (req, res) => {
         await course.save();
       }
 
-      let group = await Group.findOne({ courseId: course._id });
-      if (!group) {
-        group = await Group.create({
-          name: `${course.title} Community`,
-          description: `Discussion group for ${course.title} course members`,
-          courseId: course._id,
-          coverImage: course.thumbnailUrl || null,
-          memberCount: 0
-        });
-      }
+      // Get or create group for this course (atomic upsert to prevent duplicates)
+      let group = await Group.findOneAndUpdate(
+        { courseId: course._id },
+        {
+          $setOnInsert: {
+            name: `${course.title} Community`,
+            description: `Discussion group for ${course.title} course members`,
+            coverImage: course.thumbnailUrl || null,
+            memberCount: 0
+          }
+        },
+        { upsert: true, new: true }
+      );
       const existingMember = await GroupMember.findOne({ groupId: group._id, userId });
       if (!existingMember) {
         await GroupMember.create({ groupId: group._id, userId, role: 'member' });
-        group.memberCount = (group.memberCount || 0) + 1;
-        await group.save();
+        // Use atomic increment to prevent race conditions
+        await Group.findByIdAndUpdate(group._id, { $inc: { memberCount: 1 } });
       }
     }
     console.log(`   Enrolled in ${courses.length} course(s) for plan ${finalPlan}`);
@@ -490,21 +503,24 @@ export const syncMembershipFromRazorpay = async (req, res) => {
           course.enrollmentCount = (course.enrollmentCount || 0) + 1;
           await course.save();
         }
-        let group = await Group.findOne({ courseId: course._id });
-        if (!group) {
-          group = await Group.create({
-            name: `${course.title} Community`,
-            description: `Discussion group for ${course.title} course members`,
-            courseId: course._id,
-            coverImage: course.thumbnailUrl || null,
-            memberCount: 0
-          });
-        }
+        // Get or create group for this course (atomic upsert to prevent duplicates)
+        let group = await Group.findOneAndUpdate(
+          { courseId: course._id },
+          {
+            $setOnInsert: {
+              name: `${course.title} Community`,
+              description: `Discussion group for ${course.title} course members`,
+              coverImage: course.thumbnailUrl || null,
+              memberCount: 0
+            }
+          },
+          { upsert: true, new: true }
+        );
         const existingMember = await GroupMember.findOne({ groupId: group._id, userId });
         if (!existingMember) {
           await GroupMember.create({ groupId: group._id, userId, role: 'member' });
-          group.memberCount = (group.memberCount || 0) + 1;
-          await group.save();
+          // Use atomic increment to prevent race conditions
+          await Group.findByIdAndUpdate(group._id, { $inc: { memberCount: 1 } });
         }
       }
       console.log(`✅ Sync: Membership activated for user ${userId}: ${finalPlan} (from payment link ${orderId})`);
@@ -789,6 +805,14 @@ export const handleWebhook = async (req, res) => {
               metadata: { sourceController: 'payments.webhook.payment.captured' },
             });
             console.log(`✅ Membership activated via payment.captured for user ${pNotes.userId}: ${pNotes.plan}`);
+
+            // Handle plan upgrade - enroll in new community groups
+            try {
+              const upgradeResult = await handlePlanUpgrade(pNotes.userId, String(pNotes.plan).toLowerCase());
+              console.log(`⬆️ Webhook plan upgrade: Enrolled in ${upgradeResult.enrolledInGroups} new groups`);
+            } catch (error) {
+              console.error('⚠️ Webhook plan upgrade group enrollment failed (non-critical):', error.message);
+            }
           }
         }
 
@@ -862,6 +886,14 @@ export const handleWebhook = async (req, res) => {
                 metadata: { sourceController: 'payments.webhook.payment_link.paid' },
               });
               console.log(`✅ Membership activated via payment_link.paid for user ${plUserId}: ${plPlan}`);
+
+              // Handle plan upgrade - enroll in new community groups
+              try {
+                const upgradeResult = await handlePlanUpgrade(plUserId, String(plPlan).toLowerCase());
+                console.log(`⬆️ Payment link plan upgrade: Enrolled in ${upgradeResult.enrolledInGroups} new groups`);
+              } catch (error) {
+                console.error('⚠️ Payment link plan upgrade group enrollment failed (non-critical):', error.message);
+              }
             } else {
               console.log(`ℹ️ Payment already recorded for user ${plUserId}, skipping`);
             }

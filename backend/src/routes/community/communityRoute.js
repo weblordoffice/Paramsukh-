@@ -1,8 +1,9 @@
 import express from 'express';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
-import { contentCreationLimiter } from '../../middleware/rateLimiter.js';
+import { contentCreationLimiter, communityPostLimiter, communityCommentLimiter, communityLikeLimiter } from '../../middleware/rateLimiter.js';
 import { validateCreatePost, validateCreateComment } from '../../middleware/validators.js';
+import { sanitizePostContent, sanitizeCommentContent } from '../../middleware/sanitizeInput.js';
 import {
   checkCommunityAccess,
   getMyGroups,
@@ -15,6 +16,7 @@ import {
   deletePost
 } from '../../controller/community/community.controller.js';
 import { getAllPosts, deletePostAdmin, togglePinPost } from '../../controller/community/admin.community.controller.js';
+import { runScheduledCleanup } from '../../controller/community/communityCleanup.controller.js';
 
 const router = express.Router();
 
@@ -22,6 +24,7 @@ const router = express.Router();
 router.get('/all', adminAuth, getAllPosts);
 router.delete('/posts/:postId/admin', adminAuth, deletePostAdmin);
 router.patch('/posts/:postId/pin', adminAuth, togglePinPost);
+router.get('/admin/cleanup-expired', adminAuth, runScheduledCleanup);  // Scheduled cleanup endpoint
 
 // All other community routes require authentication
 router.use(protectedRoutes);
@@ -36,19 +39,19 @@ router.get('/check-access', checkCommunityAccess);
 // ========================================
 router.get('/my-groups', getMyGroups);
 router.get('/groups/:groupId/posts', getGroupPosts);
-router.post('/groups/:groupId/posts', contentCreationLimiter, validateCreatePost, createPost);
+router.post('/groups/:groupId/posts', communityPostLimiter, sanitizePostContent, validateCreatePost, createPost);
 
 // ========================================
 // Posts
 // ========================================
-router.post('/posts/:postId/like', togglePostLike);
+router.post('/posts/:postId/like', communityLikeLimiter, togglePostLike);
 router.delete('/posts/:postId', deletePost);
 
 // ========================================
 // Comments
 // ========================================
 router.get('/posts/:postId/comments', getPostComments);
-router.post('/posts/:postId/comments', contentCreationLimiter, validateCreateComment, addComment);
-router.post('/comments/:commentId/like', toggleCommentLike);
+router.post('/posts/:postId/comments', communityCommentLimiter, sanitizeCommentContent, validateCreateComment, addComment);
+router.post('/comments/:commentId/like', communityLikeLimiter, toggleCommentLike);
 
 export default router;

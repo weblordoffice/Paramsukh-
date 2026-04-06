@@ -1,5 +1,6 @@
 import Booking from '../../models/booking.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
+import { cleanupExpiredBookings, autoCompletePastBookings } from '../../services/bookingCleanup.service.js';
 
 // @desc    Get all bookings (Admin only)
 // @route   GET /api/counseling/all
@@ -100,6 +101,16 @@ export const updateBookingStatusAdmin = async (req, res) => {
 
         const oldStatus = booking.status;
         booking.status = status;
+
+        // MEETING LINK VALIDATION: Require meeting link before marking as completed
+        if (status === 'completed' && !booking.isFree) {
+          if (!booking.meetingLink && !booking.meetingId) {
+            return res.status(400).json({
+              success: false,
+              message: 'Cannot mark as completed. Please add a meeting link or meeting ID first.'
+            });
+          }
+        }
 
         if (status === 'cancelled') {
             booking.cancelledAt = Date.now();
@@ -221,6 +232,48 @@ export const deleteBookingAdmin = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to delete booking',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Cleanup expired unpaid bookings (Admin/Cron)
+// @route   POST /api/counseling/admin/cleanup-expired
+// @access  Admin
+export const triggerCleanupExpired = async (req, res) => {
+    try {
+        const result = await cleanupExpiredBookings();
+        res.status(200).json({
+            success: true,
+            message: 'Cleanup completed',
+            data: result
+        });
+    } catch (error) {
+        console.error('Cleanup Expired Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to cleanup expired bookings',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Auto-complete past bookings (Admin/Cron)
+// @route   POST /api/counseling/admin/auto-complete
+// @access  Admin
+export const triggerAutoComplete = async (req, res) => {
+    try {
+        const result = await autoCompletePastBookings();
+        res.status(200).json({
+            success: true,
+            message: 'Auto-completion completed',
+            data: result
+        });
+    } catch (error) {
+        console.error('Auto Complete Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to auto-complete bookings',
             error: error.message
         });
     }

@@ -5,6 +5,7 @@ import { Group } from '../../models/community.models.js';
 import { GroupMember } from '../../models/community.models.js';
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
+import { cleanupExpiredCommunityMemberships, restoreCommunityMemberships } from '../../services/communityCleanup.service.js';
 
 /**
  * Create a new user (Admin only)
@@ -216,11 +217,36 @@ export const updateUserMembership = async (req, res) => {
 
     // Update subscription fields
     if (subscriptionPlan) user.subscriptionPlan = subscriptionPlan;
+    
+    // Track if membership status is changing
+    const oldStatus = user.subscriptionStatus;
     if (subscriptionStatus) user.subscriptionStatus = subscriptionStatus;
     if (subscriptionStartDate) user.subscriptionStartDate = new Date(subscriptionStartDate);
     if (subscriptionEndDate) user.subscriptionEndDate = new Date(subscriptionEndDate);
 
     await user.save();
+
+    // Handle community membership cleanup when membership expires/cancels
+    if ((subscriptionStatus === 'expired' || subscriptionStatus === 'cancelled' || subscriptionPlan === 'free') && 
+        oldStatus === 'active') {
+      try {
+        await cleanupExpiredCommunityMemberships(id);
+        console.log(`🧹 Cleaned up community memberships for user ${id}`);
+      } catch (error) {
+        console.error(`⚠️ Failed to cleanup community memberships for user ${id}:`, error.message);
+        // Don't fail the request, log the error
+      }
+    }
+
+    // Handle community membership restoration when membership renews
+    if (subscriptionStatus === 'active' && oldStatus !== 'active' && subscriptionPlan && subscriptionPlan !== 'free') {
+      try {
+        await restoreCommunityMemberships(id);
+        console.log(`♻️ Restored community memberships for user ${id}`);
+      } catch (error) {
+        console.error(`⚠️ Failed to restore community memberships for user ${id}:`, error.message);
+      }
+    }
 
     if (user.subscriptionPlan && user.subscriptionPlan !== 'free' && user.subscriptionStatus === 'active') {
       await upsertActiveUserMembership({
@@ -263,17 +289,19 @@ export const updateUserMembership = async (req, res) => {
 
         // Add to community groups
         for (const course of courses) {
-          let group = await Group.findOne({ courseId: course._id });
-
-          if (!group) {
-            group = await Group.create({
-              name: `${course.title} Community`,
-              description: `Discussion group for ${course.title} course members`,
-              courseId: course._id,
-              coverImage: course.thumbnail,
-              memberCount: 0
-            });
-          }
+          // Get or create group for this course (atomic upsert to prevent duplicates)
+          let group = await Group.findOneAndUpdate(
+            { courseId: course._id },
+            {
+              $setOnInsert: {
+                name: `${course.title} Community`,
+                description: `Discussion group for ${course.title} course members`,
+                coverImage: course.thumbnail,
+                memberCount: 0
+              }
+            },
+            { upsert: true, new: true }
+          );
 
           const existingMembership = await GroupMember.findOne({
             groupId: group._id,
@@ -286,9 +314,9 @@ export const updateUserMembership = async (req, res) => {
               userId: id,
               role: 'member'
             });
-
-            group.memberCount += 1;
-            await group.save();
+            
+            // Update group member count atomically
+            await Group.findByIdAndUpdate(group._id, { $inc: { memberCount: 1 } });
           }
         }
 

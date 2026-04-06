@@ -41,7 +41,16 @@
       ],
       "expo-web-browser",
       "expo-secure-store",
-      "expo-video"
+      "expo-video",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#F1842D",
+          "defaultChannel": "default",
+          "sounds": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

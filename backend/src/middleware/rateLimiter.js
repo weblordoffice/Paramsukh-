@@ -112,11 +112,84 @@ export const contentCreationLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+/**
+ * Community post creation limiter - 10 posts per hour per user
+ */
+export const communityPostLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // Max 10 posts per hour
+  message: {
+    success: false,
+    message: 'You have exceeded the post creation limit. Please wait before creating more posts.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    // Rate limit by user ID instead of IP
+    return `community:post:${req.user?._id || req.ip}`;
+  }
+});
+
+/**
+ * Community comment limiter - 20 comments per hour per user
+ */
+export const communityCommentLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 20, // Max 20 comments per hour
+  message: {
+    success: false,
+    message: 'You have exceeded the comment limit. Please wait before adding more comments.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return `community:comment:${req.user?._id || req.ip}`;
+  }
+});
+
+/**
+ * Community like limiter - 50 likes per 10 minutes per user
+ */
+export const communityLikeLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 50,
+  message: {
+    success: false,
+    message: 'Too many likes. Please take a break.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return `community:like:${req.user?._id || req.ip}`;
+  }
+});
+
+/**
+ * Booking rate limiter - 5 bookings per hour per user
+ */
+export const bookingLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 5,
+  message: {
+    success: false,
+    message: 'Too many booking attempts. Please wait before trying again.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return `booking:${req.user?._id || req.ip}`;
+  }
+});
+
 export default {
   generalLimiter,
   authLimiter,
   uploadLimiter,
   paymentLimiter,
   otpLimiter,
-  contentCreationLimiter
+  contentCreationLimiter,
+  communityPostLimiter,
+  communityCommentLimiter,
+  communityLikeLimiter,
+  bookingLimiter
 };

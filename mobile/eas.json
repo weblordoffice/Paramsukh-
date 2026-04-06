@@ -22,6 +22,9 @@
     "production": {
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_NO_DOTENV": "1"
       }
     }
   },

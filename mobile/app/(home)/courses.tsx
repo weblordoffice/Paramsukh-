@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import Header from '../../components/Header';
 import { Course, useCourseStore } from '../../store/courseStore';
 import { useMembershipStore } from '../../store/membershipStore';
@@ -104,9 +104,23 @@ function isCourseAccessible(
   if (!userPlans || userPlans.length === 0 || !isActive) return false;
   // Check if user's plan is in the required list
   const normalizedUserPlans = userPlans.map((plan) => normalize(plan));
-  return includedInPlans
-    .map((plan) => normalize(plan))
-    .some((plan) => normalizedUserPlans.includes(plan));
+  const normalizedCoursePlans = includedInPlans.map((plan) => normalize(plan));
+  
+  const accessible = normalizedCoursePlans.some((plan) => normalizedUserPlans.includes(plan));
+  
+  // Debug logging
+  if (__DEV__) {
+    console.log('🔓 Course Access Check:', {
+      coursePlans: includedInPlans,
+      userPlans,
+      isActive,
+      normalizedUserPlans,
+      normalizedCoursePlans,
+      accessible
+    });
+  }
+  
+  return accessible;
 }
 /* ─── Screen ─────────────────────────────────────────────────────────── */
 export default function CoursesScreen() {
@@ -138,9 +152,30 @@ export default function CoursesScreen() {
     loadPlanMetadata();
   }, []);
 
+  // Refresh subscription when screen comes into focus (e.g., after purchase)
+  useFocusEffect(
+    useCallback(() => {
+      fetchCurrentSubscription();
+      // Debug: Log subscription status
+      if (__DEV__) {
+        console.log('📊 Courses screen focused - fetching latest subscription');
+      }
+    }, [])
+  );
+
   const userPlan = currentSubscription?.plan;
   const isActive = currentSubscription?.status === 'active' || currentSubscription?.status === 'trial';
   const effectivePlans = currentSubscription?.effectivePlans || (userPlan ? [userPlan] : []);
+
+  // Debug: Log subscription and plan info
+  if (__DEV__) {
+    console.log('📋 Current Subscription:', {
+      plan: userPlan,
+      status: currentSubscription?.status,
+      isActive,
+      effectivePlans
+    });
+  }
 
   const handleCardPress = (module: Course, locked: boolean) => {
     if (locked) {
@@ -183,6 +218,14 @@ export default function CoursesScreen() {
 
           {isLoading ? (
             <ActivityIndicator size="large" color="#EAB308" style={{ marginTop: 20 }} />
+          ) : enrichedCourses.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="book-outline" size={72} color="#475569" />
+              <Text style={styles.emptyStateTitle}>No Courses Yet</Text>
+              <Text style={styles.emptyStateSubtitle}>
+                We're preparing amazing courses for you. Check back soon for new content!
+              </Text>
+            </View>
           ) : (
             enrichedCourses.map((module) => {
               const catCfg = getCategoryConfig(module.category);
@@ -353,12 +396,34 @@ export default function CoursesScreen() {
 
 /* ─── Styles ─────────────────────────────────────────────────────────── */
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F172A' },
+  container: { flex: 1, backgroundColor: '#FDF8F3' },
   scrollContent: { padding: 20, paddingTop: 16, paddingBottom: 120 },
 
+  /* ── Empty State ── */
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 80,
+    paddingHorizontal: 32,
+  },
+  emptyStateTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginTop: 20,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyStateSubtitle: {
+    fontSize: 15,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+
   sectionHeader: { marginBottom: 24, paddingHorizontal: 4 },
-  sectionTitle: { fontSize: 24, fontWeight: '700', color: '#F8FAFC', marginBottom: 6, letterSpacing: 0.3 },
-  sectionSubtitle: { fontSize: 15, color: '#94A3B8', fontWeight: '500' },
+  sectionTitle: { fontSize: 24, fontWeight: '700', color: '#1F2937', marginBottom: 6, letterSpacing: 0.3 },
+  sectionSubtitle: { fontSize: 15, color: '#6B7280', fontWeight: '500' },
 
   /* ── Card ── */
   card: {

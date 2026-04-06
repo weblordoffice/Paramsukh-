@@ -125,7 +125,24 @@ const bookingSchema = new mongoose.Schema({
   },
   cancelledBy: {
     type: String,
-    enum: ['user', 'counselor', 'admin']
+    enum: ['user', 'counselor', 'admin', 'system']
+  },
+  // Refund tracking
+  refundId: {
+    type: String
+  },
+  refundAmount: {
+    type: Number
+  },
+  refundStatus: {
+    type: String,
+    enum: ['pending', 'processed', 'failed', 'completed']
+  },
+  refundError: {
+    type: String
+  },
+  refundProcessedAt: {
+    type: Date
   },
   // Completion
   completedAt: {
@@ -160,6 +177,17 @@ const bookingSchema = new mongoose.Schema({
 bookingSchema.index({ user: 1, status: 1, bookingDate: -1 });
 bookingSchema.index({ counselorType: 1, bookingDate: 1, status: 1 });
 bookingSchema.index({ bookingDate: 1, bookingTime: 1 });
+
+// UNIQUE compound index to prevent double booking (race condition prevention)
+bookingSchema.index({ 
+  counselorType: 1, 
+  bookingDate: 1, 
+  bookingTime: 1, 
+  status: 1 
+}, { 
+  unique: true,
+  partialFilterExpression: { status: { $in: ['pending', 'confirmed'] } }
+});
 
 // Virtual for formatted date
 bookingSchema.virtual('formattedDate').get(function () {
@@ -199,7 +227,7 @@ bookingSchema.methods.canBeRescheduled = function () {
   return hoursUntilBooking >= 48;
 };
 
-// Static method to get available slots
+// Static method to get available slots (TIMEZONE FIX: Use UTC consistently)
 bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
   const CounselingService = mongoose.model('CounselingService');
   const service = await CounselingService.findOne({ title: counselorType });
@@ -208,9 +236,42 @@ bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
     return [];
   }
 
-  // Determine day of week
+  // TIMEZONE FIX: Parse date as UTC to avoid server timezone issues
+  const queryDate = new Date(date);
+  const startOfDay = new Date(Date.UTC(
+    queryDate.getUTCFullYear(),
+    queryDate.getUTCMonth(),
+    queryDate.getUTCDate(),
+    0, 0, 0, 0
+  ));
+  const endOfDay = new Date(Date.UTC(
+    queryDate.getUTCFullYear(),
+    queryDate.getUTCMonth(),
+    queryDate.getUTCDate(),
+    23, 59, 59, 999
+  ));
+
+  // DYNAMIC AVAILABILITY: Check for exceptions (holidays, sick leave, etc.)
+  try {
+    const CounselorAvailabilityException = mongoose.model('CounselorAvailabilityException');
+    const exception = await CounselorAvailabilityException.findOne({
+      serviceId: service._id,
+      unavailableDate: { $gte: startOfDay, $lt: endOfDay },
+      isActive: true
+    });
+
+    if (exception) {
+      console.log(`🚫 Service ${counselorType} unavailable on ${date}: ${exception.reason}`);
+      return []; // No slots available on this date
+    }
+  } catch (error) {
+    // Model might not exist yet, continue without exception check
+    console.log('⚠️ CounselorAvailabilityException model not found, skipping exception check');
+  }
+
+  // Determine day of week in UTC
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const dayOfWeek = days[new Date(date).getDay()];
+  const dayOfWeek = days[queryDate.getUTCDay()];
   const hours = service.businessHours[dayOfWeek];
 
   if (!hours || !hours.isActive) {
@@ -219,8 +280,8 @@ bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
 
   const bookings = await this.find({
     bookingDate: {
-      $gte: new Date(date).setHours(0, 0, 0, 0),
-      $lt: new Date(date).setHours(23, 59, 59, 999)
+      $gte: startOfDay,
+      $lt: endOfDay
     },
     counselorType,
     status: { $in: ['pending', 'confirmed'] }
@@ -249,10 +310,10 @@ bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
 
   const availableSlots = [];
   
-  // Current time check for today
+  // TIMEZONE FIX: Use UTC for current time check
   const now = new Date();
-  const isToday = new Date(date).toDateString() === now.toDateString();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const isToday = now.toISOString().split('T')[0] === queryDate.toISOString().split('T')[0];
+  const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
 
   for (let current = startMinutes; current + interval <= endMinutes; current += interval) {
     // If it's today, only show future slots (add 30 min buffer)

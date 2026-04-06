@@ -42,7 +42,8 @@ export default function CommunityScreen() {
     fetchMyGroups,
     fetchGroupPosts,
     createPost: storeCreatePost,
-    togglePostLike: storeToggleLike
+    togglePostLike: storeToggleLike,
+    communityAccessDenied
   } = useCommunityStore();
 
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
@@ -158,11 +159,21 @@ export default function CommunityScreen() {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [4, 3],
-        quality: 1,
+        quality: 0.7, // Compress to 70% quality
+        maxWidth: 1920, // Limit to 1920px width
+        maxHeight: 1080, // Limit to 1080px height
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setSelectedMedia(result.assets[0].uri);
+        const asset = result.assets[0];
+        
+        // Check file size (5MB limit)
+        if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+          Alert.alert('File Too Large', 'Image must be less than 5MB. Please choose a smaller image.');
+          return;
+        }
+
+        setSelectedMedia(asset.uri);
         setMediaType('image');
       }
     } catch (error) {
@@ -182,11 +193,26 @@ export default function CommunityScreen() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
         allowsEditing: true,
-        quality: 1,
+        quality: 0.7,
+        videoMaxDuration: 60, // Limit to 60 seconds
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setSelectedMedia(result.assets[0].uri);
+        const asset = result.assets[0];
+        
+        // Check duration
+        if (asset.duration && asset.duration > 60) {
+          Alert.alert('Video Too Long', 'Video must be less than 60 seconds.');
+          return;
+        }
+
+        // Check file size (50MB limit)
+        if (asset.fileSize && asset.fileSize > 50 * 1024 * 1024) {
+          Alert.alert('File Too Large', 'Video must be less than 50MB. Please choose a smaller video.');
+          return;
+        }
+
+        setSelectedMedia(asset.uri);
         setMediaType('video');
       }
     } catch (error) {
@@ -650,10 +676,14 @@ export default function CommunityScreen() {
                 <Text style={styles.sectionTitle}>Groups</Text>
                 {groups.length === 0 ? (
                   <View style={styles.emptyState}>
-                    <Ionicons name="people-outline" size={64} color="#9CA3AF" />
-                    <Text style={styles.emptyStateText}>No groups yet</Text>
+                    <Ionicons name="lock-closed-outline" size={64} color="#9CA3AF" />
+                    <Text style={styles.emptyStateText}>
+                      {communityAccessDenied ? 'Membership Required' : 'No groups yet'}
+                    </Text>
                     <Text style={styles.emptyStateSubtext}>
-                      Join courses to be added to their community groups.
+                      {communityAccessDenied 
+                        ? 'You need an active membership to access community groups.'
+                        : 'Join courses to be added to their community groups.'}
                     </Text>
                   </View>
                 ) : (

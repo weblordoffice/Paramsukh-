@@ -515,18 +515,21 @@ export const purchaseMembership = async (req, res) => {
 
     // Auto-create groups for courses and add user to them
     const groupPromises = courses.map(async (course) => {
-      // Check if group exists for this course
-      let group = await Group.findOne({ courseId: course._id });
+      // Get or create group for this course (atomic upsert to prevent duplicates)
+      let group = await Group.findOneAndUpdate(
+        { courseId: course._id },
+        {
+          $setOnInsert: {
+            name: `${course.title} Community`,
+            description: `Discussion group for ${course.title} course members`,
+            coverImage: course.thumbnail,
+            memberCount: 0
+          }
+        },
+        { upsert: true, new: true }
+      );
 
-      if (!group) {
-        // Create group if it doesn't exist
-        group = await Group.create({
-          name: `${course.title} Community`,
-          description: `Discussion group for ${course.title} course members`,
-          courseId: course._id,
-          coverImage: course.thumbnail,
-          memberCount: 0
-        });
+      if (!group.name) {
         console.log(`✅ Created group for course: ${course.title}`);
       }
 
@@ -543,9 +546,8 @@ export const purchaseMembership = async (req, res) => {
           role: 'member'
         });
 
-        // Update group member count
-        group.memberCount += 1;
-        await group.save();
+        // Update group member count atomically
+        await Group.findByIdAndUpdate(group._id, { $inc: { memberCount: 1 } });
 
         console.log(`✅ Added user to group: ${group.name}`);
       } else if (!existingMembership.isActive) {
@@ -553,8 +555,8 @@ export const purchaseMembership = async (req, res) => {
         existingMembership.isActive = true;
         await existingMembership.save();
 
-        group.memberCount += 1;
-        await group.save();
+        // Update group member count atomically
+        await Group.findByIdAndUpdate(group._id, { $inc: { memberCount: 1 } });
       }
 
       return group;

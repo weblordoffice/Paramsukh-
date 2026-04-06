@@ -103,6 +103,15 @@ export const getGroupPosts = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
+    // Double-check: User must have active community access
+    const access = await evaluateCommunityAccess(userId);
+    if (!access.hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: "Community access requires an active membership"
+      });
+    }
+
     // Check if user is a member of this group
     const membership = await GroupMember.findOne({ groupId, userId, isActive: true });
     if (!membership) {

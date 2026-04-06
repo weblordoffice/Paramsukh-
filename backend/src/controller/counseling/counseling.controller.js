@@ -2,7 +2,7 @@ import Booking from '../../models/booking.models.js';
 import { User } from '../../models/user.models.js';
 import CounselingService from '../../models/counselingService.model.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
-import { verifyRazorpaySignature } from '../../services/razorpayService.js';
+import { verifyRazorpaySignature, createRefund } from '../../services/razorpayService.js';
 import mongoose from 'mongoose';
 export const getAllServices = async (req, res) => {
   try {
@@ -23,17 +23,25 @@ export const getAllServices = async (req, res) => {
 
 export const getAllServicesAdmin = async (req, res) => {
   try {
+    console.log('📋 Fetching all counseling services (Admin)...');
     const services = await CounselingService.find({}).sort({ createdAt: -1 });
+    
+    console.log(`✅ Found ${services.length} counseling services`);
+    
     res.status(200).json({
       success: true,
-      data: { services }
+      data: { services },
+      count: services.length
     });
   } catch (error) {
-    console.error('Get Counseling Services (Admin) Error:', error);
+    console.error('❌ Get Counseling Services (Admin) Error:', error);
+    console.error('Stack trace:', error.stack);
+    
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch services',
-      error: error.message
+      message: 'Failed to fetch counseling services',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
@@ -163,6 +171,35 @@ export const bookCounseling = async (req, res) => {
       });
     }
 
+    // PAST DATE VALIDATION: Prevent booking dates in the past
+    const requestedDate = new Date(bookingDate);
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const requestedDay = new Date(Date.UTC(requestedDate.getUTCFullYear(), requestedDate.getUTCMonth(), requestedDate.getUTCDate()));
+    
+    if (requestedDay < today) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot book sessions for past dates'
+      });
+    }
+
+    // BOOKING LIMIT: Check if user has too many pending/confirmed bookings
+    const userBookingCount = await Booking.countDocuments({
+      user: userId,
+      status: { $in: ['pending', 'confirmed'] },
+      bookingDate: { $gte: today }
+    });
+
+    const MAX_ACTIVE_BOOKINGS = 5; // Max 5 active bookings per user
+    if (userBookingCount >= MAX_ACTIVE_BOOKINGS) {
+      return res.status(400).json({
+        success: false,
+        message: `You have reached the maximum limit of ${MAX_ACTIVE_BOOKINGS} active bookings. Please cancel or complete some bookings before creating new ones.`,
+        currentBookings: userBookingCount
+      });
+    }
+
     // Resolve service from counselor type (title or ObjectId) and enforce server-side pricing
     const serviceQuery = mongoose.Types.ObjectId.isValid(String(counselorType))
       ? { _id: counselorType }
@@ -258,6 +295,27 @@ export const bookCounseling = async (req, res) => {
       actionUrl: `/counseling/${booking._id}`
     });
 
+    // COUNSELOR NOTIFICATION: Notify admins about new booking
+    try {
+      const { User } = await import('../../models/user.models.js');
+      const admins = await User.find({ role: 'admin' }).select('_id');
+      
+      for (const admin of admins) {
+        await sendNotification(admin._id, {
+          type: 'counseling_booked',
+          title: 'New Booking Received',
+          message: `${user.displayName} booked ${bookingTitle} on ${new Date(bookingDate).toLocaleDateString()} at ${bookingTime}`,
+          icon: '🔔',
+          priority: 'high',
+          relatedId: booking._id,
+          relatedType: 'booking'
+        });
+      }
+      console.log(`🔔 Notified ${admins.length} admin(s) about new booking`);
+    } catch (error) {
+      console.error('⚠️ Failed to notify admins:', error.message);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Counseling session booked successfully',
@@ -265,6 +323,15 @@ export const bookCounseling = async (req, res) => {
     });
   } catch (error) {
     console.error('Book Counseling Error:', error);
+    
+    // Handle unique index violation (double booking prevention)
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'This time slot was just booked by another user. Please select a different time.'
+      });
+    }
+
     res.status(500).json({
       success: false,
       message: 'Failed to book counseling session',
@@ -393,6 +460,34 @@ export const cancelBooking = async (req, res) => {
     booking.cancelledAt = Date.now();
     booking.cancellationReason = reason || 'User requested cancellation';
     booking.cancelledBy = 'user';
+
+    // REFUND PROCESSING: If booking was paid, initiate refund
+    if (!booking.isFree && booking.paymentStatus === 'paid' && booking.paymentId) {
+      try {
+        console.log(`💰 Processing refund for booking ${booking._id}, payment ${booking.paymentId}`);
+        const refund = await createRefund(
+          booking.paymentId,
+          Math.round(booking.amount * 100), // Convert to paise
+          {
+            booking_id: booking._id.toString(),
+            reason: reason || 'User cancellation',
+            cancelled_by: 'user'
+          }
+        );
+
+        booking.refundId = refund.id;
+        booking.refundAmount = booking.amount;
+        booking.refundStatus = 'processed';
+        booking.refundProcessedAt = new Date();
+
+        console.log(`✅ Refund processed: ${refund.id}`);
+      } catch (refundError) {
+        console.error('❌ Refund processing failed:', refundError.message);
+        booking.refundStatus = 'failed';
+        booking.refundError = refundError.message;
+        // Don't fail the cancellation if refund fails - log it
+      }
+    }
 
     await booking.save();
 
@@ -628,6 +723,14 @@ export const submitFeedback = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Feedback can only be submitted for completed sessions'
+      });
+    }
+
+    // PREVENT MULTIPLE FEEDBACK: Check if feedback already submitted
+    if (booking.feedbackSubmittedAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'Feedback has already been submitted for this session'
       });
     }
 
