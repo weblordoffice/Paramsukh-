@@ -4,6 +4,7 @@ import { ScrollView, Text, TouchableOpacity, View, Linking, Animated, StyleSheet
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Header from '../../components/Header';
+import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
 
 interface FeatureCardProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -103,6 +104,7 @@ function QuickAccessItem({ icon, emoji, title, description, iconBg, iconColor, o
 export default function HomeTab() {
   const router = useRouter();
   const scrollY = useRef(new Animated.Value(0)).current;
+  const bottomTabHeight = useBottomTabBarHeight();
   const heroScale = scrollY.interpolate({
     inputRange: [0, 100],
     outputRange: [1, 0.92],
@@ -120,7 +122,7 @@ export default function HomeTab() {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomTabHeight }]}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={Animated.event(
@@ -128,31 +130,32 @@ export default function HomeTab() {
           { useNativeDriver: false }
         )}
       >
-        {/* Hero Section - Warm Spiritual Ambient */}
+        {/* Hero Section - Premium Gradient */}
         <Animated.View style={[styles.heroSection, { transform: [{ scale: heroScale }] }]}>
           <View style={styles.heroGradient} />
-          <View style={styles.heroAmbientGlow} />
           <View style={styles.heroContent}>
-            <View style={styles.heroVideoThumbnail}>
-              <View style={styles.playButton}>
-                <Ionicons name="play" size={32} color="#FFFFFF" />
+            <View style={styles.heroHeader}>
+              <View style={styles.heroIconContainer}>
+                <Ionicons name="sparkles" size={32} color="#FFFFFF" />
               </View>
-              <View style={styles.playButtonGlow} />
+              <View style={styles.heroTextContainer}>
+                <Text style={styles.heroGreeting}>Welcome to</Text>
+                <Text style={styles.heroTitle}>ParamSukh</Text>
+              </View>
             </View>
-            <View style={styles.heroText}>
-              <Text style={styles.heroTitle}>Welcome to ParamSukh</Text>
-              <Text style={styles.heroDescription}>
-                Your spiritual companion for meditation, learning, and community connection.
-              </Text>
-              <TouchableOpacity
-                style={styles.heroButton}
-                onPress={handleWatchIntro}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="play-circle" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={styles.heroButtonText}>Watch Intro</Text>
-              </TouchableOpacity>
-            </View>
+            
+            <Text style={styles.heroDescription}>
+              Your spiritual companion for meditation, learning & community
+            </Text>
+
+            <TouchableOpacity
+              style={styles.heroButton}
+              onPress={handleWatchIntro}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="play" size={16} color="#F1842D" style={{ marginRight: 6 }} />
+              <Text style={styles.heroButtonText}>Watch Intro Video</Text>
+            </TouchableOpacity>
           </View>
         </Animated.View>
 
@@ -256,21 +259,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 140,
+    // paddingBottom is now handled dynamically via useBottomTabBarHeight hook
   },
-  // Hero Section
+  // Hero Section - Premium Gradient
   heroSection: {
     marginHorizontal: 20,
     marginTop: 8,
-    marginBottom: 28,
-    borderRadius: 28,
+    marginBottom: 24,
+    borderRadius: 20,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
     shadowColor: '#F1842D',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 6,
   },
   heroGradient: {
     position: 'absolute',
@@ -278,93 +281,69 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'linear-gradient(135deg, rgba(92, 74, 66, 0.88) 0%, rgba(139, 92, 246, 0.72) 50%, rgba(241, 132, 45, 0.65) 100%)',
-  },
-  heroAmbientGlow: {
-    position: 'absolute',
-    top: -50,
-    left: -50,
-    right: -50,
-    bottom: -50,
-    backgroundColor: 'transparent',
-    borderRadius: 60,
-    shadowColor: '#F1842D',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 40,
-    elevation: 8,
+    backgroundColor: '#2C2420',
+    opacity: 0.92,
   },
   heroContent: {
-    padding: 32,
+    padding: 28,
   },
-  heroVideoThumbnail: {
-    width: '100%',
-    height: 176,
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-    borderRadius: 22,
+  heroHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  heroIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: 'rgba(241, 132, 45, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginRight: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(241, 132, 45, 0.4)',
   },
-  playButton: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
+  heroTextContainer: {
+    flex: 1,
   },
-  playButtonGlow: {
-    position: 'absolute',
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: 'rgba(241, 132, 45, 0.3)',
-    shadowColor: '#F1842D',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 6,
-  },
-  heroText: {
-    alignItems: 'flex-start',
+  heroGreeting: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 3,
   },
   heroTitle: {
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 12,
     letterSpacing: 0.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
   },
   heroDescription: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '500',
-    color: 'rgba(255, 254, 249, 0.92)',
-    lineHeight: 24,
-    marginBottom: 24,
-    maxWidth: '90%',
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 22,
+    marginBottom: 22,
   },
   heroButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(241, 132, 45, 0.85)',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 18,
-    shadowColor: '#F1842D',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
   heroButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#F1842D',
   },
   // Feature Section
   featureSection: {

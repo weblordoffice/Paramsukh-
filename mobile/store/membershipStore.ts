@@ -69,7 +69,10 @@ export const useMembershipStore = create<MembershipState>((set) => ({
         } catch (error: any) {
             // Silently handle subscription fetch errors - don't show to user
             if (__DEV__) {
-                console.log('Could not load subscription details');
+                console.log('❌ Could not load subscription details');
+                console.log('❌ Error:', error?.message);
+                console.log('❌ Response:', error?.response?.data);
+                console.log('❌ Status:', error?.response?.status);
             }
             // Don't logout or show errors - user might be on free tier or offline
             set({

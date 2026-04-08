@@ -185,6 +185,13 @@ export default function MyMembershipScreen() {
     const isTrial = currentSubscription?.status === 'trial';
     const hasNoPlan = !activePlan || (!isActive && !isTrial);
 
+    // Debug logging for subscription state
+    if (__DEV__) {
+        console.log('[Membership Screen] currentSubscription:', JSON.stringify(currentSubscription, null, 2));
+        console.log('[Membership Screen] activePlan:', activePlan, 'isActive:', isActive, 'isTrial:', isTrial, 'hasNoPlan:', hasNoPlan);
+        console.log('[Membership Screen] purchases:', JSON.stringify(purchases.map(p => ({ plan: p.plan, status: p.status })), null, 2));
+    }
+
     /* current plan config */
     const currentPlanCfg = plans.find(p => p.id === activePlan);
 
@@ -211,11 +218,23 @@ export default function MyMembershipScreen() {
                 ) : hasNoPlan ? (
                     /* No active plan */
                     <View style={styles.noPlanCard}>
-                        <Text style={styles.noPlanEmoji}>🔓</Text>
-                        <Text style={styles.noPlanTitle}>No Active Plan</Text>
-                        <Text style={styles.noPlanSub}>
-                            You&apos;re currently on the free tier. Upgrade below to unlock courses and premium features.
-                        </Text>
+                        {purchases.length > 0 ? (
+                            <>
+                                <Text style={styles.noPlanEmoji}>⏳</Text>
+                                <Text style={styles.noPlanTitle}>Plan Expired</Text>
+                                <Text style={styles.noPlanSub}>
+                                    Your previous membership has ended. Renew now to regain access to premium courses and features.
+                                </Text>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={styles.noPlanEmoji}>🔓</Text>
+                                <Text style={styles.noPlanTitle}>No Active Plan</Text>
+                                <Text style={styles.noPlanSub}>
+                                    You&apos;re currently on the free tier. Upgrade below to unlock courses and premium features.
+                                </Text>
+                            </>
+                        )}
                         <TouchableOpacity
                             style={styles.upgradeCta}
                             onPress={scrollToPlans}
@@ -314,15 +333,35 @@ export default function MyMembershipScreen() {
                 )}
 
                 {plans.map(plan => {
-                    const isCurrent = activePlan === plan.id && (isActive || isTrial);
+                    const planId = plan.id.toLowerCase().trim();
+                    const currentPlanId = activePlan ? activePlan.toLowerCase().trim() : '';
+                    const isCurrentPlan = currentPlanId === planId && (isActive || isTrial);
+                    const isAlreadyPurchased = purchases.some(p => {
+                        const purchasePlan = p.plan ? p.plan.toLowerCase().trim() : '';
+                        return purchasePlan === planId && p.status === 'completed';
+                    });
+                    
+                    // Debug logging
+                    if (__DEV__) {
+                        console.log(`[Membership] Plan: ${plan.name} (${planId}), Current: ${activePlan} (${currentPlanId}), isActive: ${isActive}, isTrial: ${isTrial}, isCurrentPlan: ${isCurrentPlan}, isAlreadyPurchased: ${isAlreadyPurchased}`);
+                    }
                     return (
                         <View
                             key={plan.id}
                             style={[
                                 styles.planCard,
-                                isCurrent && { borderColor: plan.color, borderWidth: 2 },
+                                isCurrentPlan && { borderColor: plan.color, borderWidth: 2 },
                             ]}
                         >
+                            {/* Active badge for current plan */}
+                            {isCurrentPlan && (
+                                <View style={[styles.activeBadge, { backgroundColor: plan.color }]}>
+                                    <Ionicons name="checkmark-circle" size={14} color="#fff" />
+                                    <Text style={styles.activeBadgeText}>ACTIVE</Text>
+                                </View>
+                            )}
+                            
+                            
                             {/* Popular ribbon */}
                             {plan.popular && (
                                 <View style={[styles.popularRibbon, { backgroundColor: plan.color }]}>
@@ -342,10 +381,10 @@ export default function MyMembershipScreen() {
                                     <Text style={[styles.planPrice, { color: plan.color }]}>
                                         ₹{plan.price.toLocaleString('en-IN')}
                                     </Text>
-                                    {isCurrent && (
+                                    {isCurrentPlan && (
                                         <View style={[styles.currentChip, { backgroundColor: plan.color + '22', borderColor: plan.color }]}>
                                             <Ionicons name="checkmark-circle" size={12} color={plan.color} />
-                                            <Text style={[styles.currentChipText, { color: plan.color }]}>Your Plan</Text>
+                                            <Text style={[styles.currentChipText, { color: plan.color }]}>Current Plan</Text>
                                         </View>
                                     )}
                                 </View>
@@ -380,8 +419,8 @@ export default function MyMembershipScreen() {
                                 </View>
                             ))}
 
-                            {/* Buy button */}
-                            {!isCurrent && (
+                            {/* Buy button or Active indicator */}
+                            {!isCurrentPlan && !isAlreadyPurchased && (
                                 <TouchableOpacity
                                     style={[styles.buyBtn, { borderColor: plan.color }]}
                                     onPress={() => handlePurchase(plan)}
@@ -396,6 +435,14 @@ export default function MyMembershipScreen() {
                                         </Text>
                                     )}
                                 </TouchableOpacity>
+                            )}
+                            
+                            {/* Show purchased indicator for non-current purchased plans */}
+                            {isAlreadyPurchased && !isCurrentPlan && (
+                                <View style={[styles.purchasedIndicator, { borderColor: plan.color }]}>
+                                    <Ionicons name="shield-checkmark" size={16} color={plan.color} />
+                                    <Text style={[styles.purchasedText, { color: plan.color }]}>Previously Purchased</Text>
+                                </View>
                             )}
                         </View>
                     );
@@ -597,6 +644,20 @@ const styles = StyleSheet.create({
         borderTopLeftRadius: 8, borderBottomLeftRadius: 8,
     },
     popularText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
+    activeBadge: {
+        position: 'absolute',
+        top: 14,
+        left: -1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderTopRightRadius: 8,
+        borderBottomRightRadius: 8,
+        zIndex: 10,
+    },
+    activeBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
     planHeaderRow: {
         flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14,
     },
@@ -627,6 +688,18 @@ const styles = StyleSheet.create({
         borderWidth: 1.5, alignItems: 'center',
     },
     buyBtnText: { fontSize: 14, fontWeight: '700' },
+    purchasedIndicator: {
+        marginTop: 14,
+        paddingVertical: 11,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        borderColor: '#10B981',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    purchasedText: { fontSize: 14, fontWeight: '700' },
 
     /* ── Purchase history ── */
     refundNote: { fontSize: 13, color: '#F59E0B', marginBottom: 14, fontWeight: '500' },

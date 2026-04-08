@@ -331,9 +331,9 @@ export default function CommunityScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       {/* Custom Header with Menu Button */}
-      <View style={styles.customHeader}>
+      <View style={[styles.customHeader, { paddingTop: Platform.OS === 'ios' ? 50 : 40 }]}>
         <View style={styles.headerContent}>
           <TouchableOpacity
             style={styles.menuButton}
@@ -1248,7 +1248,7 @@ export default function CommunityScreen() {
         postId={activePostId}
         onClose={() => setShowCommentsModal(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -1261,7 +1261,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(92, 74, 66, 0.06)',
-    paddingTop: Platform.OS === 'ios' ? 10 : 16,
+    paddingTop: Platform.OS === 'ios' ? 50 : 40,
     paddingHorizontal: 20,
     paddingBottom: 16,
     shadowColor: '#5C4A42',

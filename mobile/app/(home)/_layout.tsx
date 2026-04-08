@@ -3,6 +3,8 @@ import { Tabs, useRouter } from 'expo-router';
 import { Platform, View, TouchableOpacity, Modal, ScrollView, Text, StyleSheet } from 'react-native';
 import { useState } from 'react';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 
 
@@ -11,7 +13,7 @@ import * as Haptics from 'expo-haptics';
 
 export default function HomeLayout() {
   const [menuModalVisible, setMenuModalVisible] = useState(false);
-
+  const insets = useSafeAreaInsets();
   const router = useRouter();
 
 
@@ -21,39 +23,32 @@ export default function HomeLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#FFFFFF',
+          tabBarActiveTintColor: '#F1842D',
           tabBarInactiveTintColor: '#8C7B73',
           tabBarStyle: {
-            backgroundColor: 'rgba(44, 36, 32, 0.92)',
+            backgroundColor: '#FFFFFF',
             borderTopWidth: 0,
-            height: Platform.OS === 'ios' ? 80 : 72,
-            paddingBottom: Platform.OS === 'ios' ? 28 : 16,
-            paddingTop: 12,
-            paddingHorizontal: 12,
+            height: 60 + insets.bottom,
+            paddingBottom: insets.bottom,
+            paddingTop: 8,
+            paddingHorizontal: 0,
             position: 'absolute',
-            bottom: Platform.OS === 'android' ? 25 : 0,
+            bottom: 0,
             left: 0,
             right: 0,
-            marginLeft: 20,
-            marginRight: 20,
-            marginBottom: Platform.OS === 'android' ? 15 : 0,
             elevation: 0,
-            borderRadius: 36,
-            shadowColor: '#F1842D',
-            shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.2,
-            shadowRadius: 24,
+            shadowOpacity: 0,
           },
           tabBarLabelStyle: {
-            fontSize: 10,
+            fontSize: 11,
             fontWeight: '600',
-            marginBottom: Platform.OS === 'android' ? 6 : 0,
-            letterSpacing: 0.5,
-            textTransform: 'uppercase',
+            marginTop: 4,
+            marginBottom: 0,
+            letterSpacing: 0.3,
           },
           tabBarItemStyle: {
             paddingVertical: 4,
-            marginHorizontal: 2,
+            paddingHorizontal: 8,
           },
         }}
       >
@@ -62,14 +57,7 @@ export default function HomeLayout() {
           options={{
             title: 'Home',
             tabBarIcon: ({ color, focused }) => (
-              <View
-                style={[
-                  styles.tabIconContainer,
-                  focused && styles.tabIconContainerActive
-                ]}
-              >
-                <Ionicons name={focused ? 'home' : 'home-outline'} size={22} color={focused ? '#FFFFFF' : color} />
-              </View>
+              <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
             ),
           }}
         />
@@ -78,14 +66,7 @@ export default function HomeLayout() {
           options={{
             title: 'Courses',
             tabBarIcon: ({ color, focused }) => (
-              <View
-                style={[
-                  styles.tabIconContainer,
-                  focused && styles.tabIconContainerActive
-                ]}
-              >
-                <Ionicons name={focused ? 'book' : 'book-outline'} size={22} color={focused ? '#FFFFFF' : color} />
-              </View>
+              <Ionicons name={focused ? 'book' : 'book-outline'} size={24} color={color} />
             ),
           }}
         />
@@ -94,14 +75,7 @@ export default function HomeLayout() {
           options={{
             title: 'Events',
             tabBarIcon: ({ color, focused }) => (
-              <View
-                style={[
-                  styles.tabIconContainer,
-                  focused && styles.tabIconContainerActive
-                ]}
-              >
-                <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={22} color={focused ? '#FFFFFF' : color} />
-              </View>
+              <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={24} color={color} />
             ),
           }}
         />
@@ -116,14 +90,7 @@ export default function HomeLayout() {
           options={{
             title: 'Membership',
             tabBarIcon: ({ color, focused }) => (
-              <View
-                style={[
-                  styles.tabIconContainer,
-                  focused && styles.tabIconContainerActive,
-                ]}
-              >
-                <Ionicons name={focused ? 'card' : 'card-outline'} size={22} color={focused ? '#FFFFFF' : color} />
-              </View>
+              <Ionicons name={focused ? 'card' : 'card-outline'} size={24} color={color} />
             ),
           }}
         />
@@ -132,14 +99,7 @@ export default function HomeLayout() {
           options={{
             title: 'Community',
             tabBarIcon: ({ color, focused }) => (
-              <View
-                style={[
-                  styles.tabIconContainer,
-                  focused && styles.tabIconContainerActive
-                ]}
-              >
-                <Ionicons name={focused ? 'people' : 'people-outline'} size={22} color={focused ? '#FFFFFF' : color} />
-              </View>
+              <Ionicons name={focused ? 'people' : 'people-outline'} size={24} color={color} />
             ),
           }}
         />
@@ -276,21 +236,6 @@ export default function HomeLayout() {
 }
 
 const styles = StyleSheet.create({
-  tabIconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabIconContainerActive: {
-    backgroundColor: 'rgba(241, 132, 45, 0.3)',
-    shadowColor: '#F1842D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 3,
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(44, 36, 32, 0.5)',

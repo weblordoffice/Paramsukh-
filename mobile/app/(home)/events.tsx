@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, StyleSheet, Image } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, StyleSheet, Image, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Header from '../../components/Header';
 import { useEventStore } from '../../store/eventStore';
+import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
 
 type EventTab = 'upcoming' | 'past';
 
@@ -15,9 +16,17 @@ export default function EventsScreen() {
     visible: false,
     event: null
   });
+  const [refreshing, setRefreshing] = useState(false);
+  const bottomTabHeight = useBottomTabBarHeight();
 
   useEffect(() => {
     fetchEvents(activeTab);
+  }, [activeTab, fetchEvents]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchEvents(activeTab);
+    setRefreshing(false);
   }, [activeTab, fetchEvents]);
 
   const formatDate = (dateString: string) => {
@@ -56,7 +65,13 @@ export default function EventsScreen() {
   return (
     <View style={styles.container}>
       <Header />
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: bottomTabHeight }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#EAB308']} />
+        }
+      >
         <View style={styles.content}>
           {/* Tab Switcher */}
           <View style={styles.tabSwitcher}>

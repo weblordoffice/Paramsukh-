@@ -28,16 +28,8 @@ import { adminAuth } from '../../middleware/adminAuth.js';
 const router = express.Router();
 
 // ========================================
-// Admin Routes (Requires X-Admin-API-Key header)
-// Must define specific paths (/all, /create) BEFORE parameterized /:id
-// ========================================
-
-router.get('/all', adminAuth, getAllUsers);
-router.post('/create', adminAuth, createUserAdmin);
-
-// ========================================
 // User Routes (Requires authentication)
-// Specific paths (/profile, /subscription, etc.) BEFORE admin /:id
+// MUST come before admin parameterized routes to avoid matching /:id
 // ========================================
 
 router.use(protectedRoutes);
@@ -54,9 +46,14 @@ router.post('/deactivate', deactivateAccount);
 router.delete('/account', deleteAccount);
 
 // ========================================
-// Admin parameterized routes (after all specific paths)
+// Admin Routes (Requires X-Admin-API-Key header)
+// Must define specific paths BEFORE parameterized /:id
 // ========================================
 
+router.get('/all', adminAuth, getAllUsers);
+router.post('/create', adminAuth, createUserAdmin);
+
+// Admin parameterized routes (must be after specific user paths)
 router.get('/:id', adminAuth, getUserById);
 router.patch('/:id', adminAuth, updateUserAdmin);
 router.delete('/:id', adminAuth, deleteUserAdmin);
@@ -66,4 +63,3 @@ router.get('/:userId/payments', adminAuth, getUserPayments);
 router.get('/:userId/activity', adminAuth, getUserActivity);
 
 export default router;
-
