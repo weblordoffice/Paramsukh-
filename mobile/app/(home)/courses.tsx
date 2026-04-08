@@ -67,7 +67,7 @@ function getPlanBadges(
         color: DEFAULT_PLAN_COLOR,
       };
     })
-    .filter((plan) => !!plan.slug);
+    .filter((plan) => Boolean(plan?.slug));
 }
 
 function getCategoryConfig(category?: string) {
