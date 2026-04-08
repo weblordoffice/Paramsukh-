@@ -32,18 +32,18 @@ const router = express.Router();
 // MUST come before admin parameterized routes to avoid matching /:id
 // ========================================
 
-router.use(protectedRoutes);
+// router.use(protectedRoutes); - Removed to prevent interference with Admin routes below
 
-router.get('/profile', getProfile);
-router.put('/profile', updateProfile);
-router.put('/profile/photo', updateProfilePhoto);
-router.delete('/profile/photo', removeProfilePhoto);
-router.put('/preferences', updatePreferences);
-router.get('/subscription', getSubscription);
-router.post('/membership/purchase', purchaseMembership);
-router.get('/stats', getUserStats);
-router.post('/deactivate', deactivateAccount);
-router.delete('/account', deleteAccount);
+router.get('/profile', protectedRoutes, getProfile);
+router.put('/profile', protectedRoutes, updateProfile);
+router.put('/profile/photo', protectedRoutes, updateProfilePhoto);
+router.delete('/profile/photo', protectedRoutes, removeProfilePhoto);
+router.put('/preferences', protectedRoutes, updatePreferences);
+router.get('/subscription', protectedRoutes, getSubscription);
+router.post('/membership/purchase', protectedRoutes, purchaseMembership);
+router.get('/stats', protectedRoutes, getUserStats);
+router.post('/deactivate', protectedRoutes, deactivateAccount);
+router.delete('/account', protectedRoutes, deleteAccount);
 
 // ========================================
 // Admin Routes (Requires X-Admin-API-Key header)
