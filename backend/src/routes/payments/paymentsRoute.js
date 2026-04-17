@@ -1,10 +1,13 @@
 import express from 'express';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
+import { adminAuth } from '../../middleware/adminAuth.js';
 import { paymentLimiter } from '../../middleware/rateLimiter.js';
 import { validateCreateOrder, validateVerifyPayment } from '../../middleware/validators.js';
 import {
   createMembershipOrder,
   createMembershipPaymentLink,
+  createAdminMembershipPaymentLink,
+  getAdminMembershipPaymentLinks,
   confirmMembershipPaymentLink,
   syncMembershipFromRazorpay,
   createBookingOrder,
@@ -28,6 +31,14 @@ router.post('/create-order', protectedRoutes, createMembershipOrder);
 // Create hosted payment link for membership (opens Razorpay checkout page)
 // POST /api/payments/membership-link
 router.post('/membership-link', protectedRoutes, paymentLimiter, createMembershipPaymentLink);
+
+// Create hosted membership payment link for any user (admin flow)
+// POST /api/payments/admin/membership-link
+router.post('/admin/membership-link', adminAuth, paymentLimiter, createAdminMembershipPaymentLink);
+
+// List admin-generated membership payment links
+// GET /api/payments/admin/membership-links
+router.get('/admin/membership-links', adminAuth, getAdminMembershipPaymentLinks);
 
 // Confirm payment link status and activate (fallback for local dev when webhook can't reach)
 // POST /api/payments/membership-link/confirm

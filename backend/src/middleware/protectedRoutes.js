@@ -1,5 +1,6 @@
 import { User } from "../models/user.models.js";
 import jwt from 'jsonwebtoken';
+import { reconcileUserSubscriptionPlanIntegrity } from '../services/membershipPlan.service.js';
 
 
 export const protectedRoutes = async(req, res, next) => {
@@ -37,6 +38,12 @@ export const protectedRoutes = async(req, res, next) => {
                 success: false,
                 message: "User not found"
             });
+        }
+
+        // If plan records were deleted manually, downgrade stale plan slugs to free.
+        const reconciliation = await reconcileUserSubscriptionPlanIntegrity(user, { save: true });
+        if (reconciliation?.reconciled) {
+            console.warn(`⚠️ Reconciled orphan plan for user ${user._id}: ${reconciliation.previousPlan} -> free`);
         }
         
         req.user = user;

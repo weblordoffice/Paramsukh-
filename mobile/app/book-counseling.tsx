@@ -9,8 +9,21 @@ import { Calendar } from 'react-native-calendars';
 
 export default function BookCounselingScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
-  const { id, title, description, price, counselorName, duration, color, bgColor, isFree } = params;
+  const { id } = useLocalSearchParams();
+  const { counselingTypes, checkAvailability, bookSession, createBookingPaymentLink, confirmBookingPaymentLink, isLoading } = useCounselingStore();
+  
+  // Safely extract from store instead of URL params
+  const service = counselingTypes.find(t => t.id === id) || counselingTypes[0]; // fallback
+  const title = service?.title || 'Counseling Session';
+  const description = service?.description || '';
+  const price = service?.price || 0;
+  const counselorName = service?.counselorName || 'Expert Counselor';
+  const duration = service?.duration || '60 mins';
+  const color = service?.color || '#F1842D';
+  const bgColor = service?.bgColor || '#FDF8F3';
+  const isFree = service?.isFree ? 'true' : 'false';
+  const usesCalendly = service?.usesCalendly ? 'true' : 'false';
+  const calendlyUri = service?.calendlyEventUri || '';
 
   // Set today as initial date
   const today = new Date().toISOString().split('T')[0];
@@ -18,10 +31,24 @@ export default function BookCounselingScreen() {
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
 
-  const { checkAvailability, bookSession, createBookingPaymentLink, confirmBookingPaymentLink, isLoading } = useCounselingStore();
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [fetchingSlots, setFetchingSlots] = useState(false);
   const [processing, setProcessing] = useState(false);
+
+  // Redirect to Calendly if service uses it
+  React.useEffect(() => {
+    if (usesCalendly === 'true' && calendlyUri) {
+      WebBrowser.openBrowserAsync(calendlyUri as string, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        enableBarCollapsing: true,
+        showTitle: true,
+      });
+      // Go back after opening Calendly
+      setTimeout(() => {
+        router.back();
+      }, 1000);
+    }
+  }, []);
 
   // Effect: Fetch availability when date changes
   React.useEffect(() => {
@@ -135,185 +162,196 @@ export default function BookCounselingScreen() {
   const displayColor = (color as string) || '#3B82F6';
   const displayBgColor = (bgColor as string) || '#EFF6FF';
 
+  // If this is a Calendly service, show a loading state while redirecting
+  if (usesCalendly === 'true') {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={displayColor} />
+          <Text style={{ color: '#6B7280', marginTop: 16 }}>Opening Calendly...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
-        <TouchableOpacity onPress={() => router.back()} className="w-10">
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#FDF8F3' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', borderRadius: 20 }}>
+          <Ionicons name="arrow-back" size={20} color="#2C2420" />
         </TouchableOpacity>
-        <Text className="text-lg font-bold text-gray-900">Book Session</Text>
-        <View className="w-10" />
+        <Text style={{ fontSize: 18, fontWeight: '700', color: '#2C2420' }}>Book Session</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-        <View className="p-5">
-          {/* Service Info */}
-          <View
-            className="rounded-2xl p-5 mb-6 border"
-            style={{
-              backgroundColor: displayBgColor,
-              borderColor: displayColor
-            }}
-          >
-            <View className="flex-row justify-between items-start mb-2">
-              <View className="flex-1">
-                <Text className="text-xl font-bold text-gray-900 mb-1">{title}</Text>
-                <Text className="text-sm text-gray-600 font-medium mb-1">{counselorName}</Text>
-              </View>
-              <View className="bg-white px-3 py-1 rounded-full">
-                <Text className="font-bold" style={{ color: displayColor }}>
-                  {isFree === 'true' ? 'FREE' : `₹${price}`}
-                </Text>
-              </View>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 36 }} showsVerticalScrollIndicator={false}>
+        <View style={{ borderRadius: 24, padding: 20, marginBottom: 20, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F3F4F6' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: '#2C2420', marginBottom: 4 }}>{title}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: '#F1842D' }}>{counselorName}</Text>
             </View>
-
-            <Text className="text-sm text-gray-500 mb-3 leading-5">{description}</Text>
-
-            <View className="flex-row items-center gap-4">
-              <View className="flex-row items-center gap-1">
-                <Ionicons name="time-outline" size={14} color="#6B7280" />
-                <Text className="text-xs text-gray-500">{duration || '60 mins'}</Text>
-              </View>
-              <View className="flex-row items-center gap-1">
-                <Ionicons name="videocam-outline" size={14} color="#6B7280" />
-                <Text className="text-xs text-gray-500">Video Session</Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Select Date */}
-          <View className="mb-5">
-            <Text className="text-base font-bold text-gray-900 mb-3">Select Date</Text>
-            <View className="bg-white rounded-2xl overflow-hidden border border-gray-200">
-              <Calendar
-                current={today}
-                minDate={today}
-                onDayPress={(day: any) => setSelectedDate(day.dateString)}
-                markedDates={{
-                  [selectedDate]: { selected: true, selectedColor: displayColor }
-                }}
-                theme={{
-                  calendarBackground: '#ffffff',
-                  textSectionTitleColor: '#b6c1cd',
-                  selectedDayBackgroundColor: displayColor,
-                  selectedDayTextColor: '#ffffff',
-                  todayTextColor: displayColor,
-                  dayTextColor: '#2d4150',
-                  textDisabledColor: '#d9e1e8',
-                  dotColor: displayColor,
-                  selectedDotColor: '#ffffff',
-                  arrowColor: displayColor,
-                  monthTextColor: '#111827',
-                  indicatorColor: displayColor,
-                  textDayFontWeight: '500',
-                  textMonthFontWeight: 'bold',
-                  textDayHeaderFontWeight: '500',
-                  textDayFontSize: 14,
-                  textMonthFontSize: 16,
-                  textDayHeaderFontSize: 12
-                }}
-              />
-            </View>
-          </View>
-
-          {/* Select Time */}
-          {selectedDate && (
-            <View className="mb-5">
-              <Text className="text-base font-bold text-gray-900 mb-3">Select Time</Text>
-              {fetchingSlots ? (
-                <View className="flex-row items-center gap-2">
-                  <ActivityIndicator size="small" color={displayColor} />
-                  <Text className="text-gray-500 italic">Finding available slots...</Text>
-                </View>
-              ) : availableSlots.length === 0 ? (
-                <View className="bg-orange-50 p-4 rounded-xl border border-orange-100 flex-row items-center gap-2">
-                  <Ionicons name="information-circle" size={20} color="#F97316" />
-                  <Text className="text-orange-700 text-sm font-medium">No slots available for this date.</Text>
-                </View>
-              ) : (
-                <View className="flex-row flex-wrap gap-2">
-                  {availableSlots.map((time) => {
-                    const isSelected = selectedTime === time;
-                    return (
-                      <TouchableOpacity
-                        key={time}
-                        onPress={() => setSelectedTime(time)}
-                        className={`px-4 py-3 rounded-xl ${isSelected ? 'border-2' : 'border border-gray-200'
-                          }`}
-                        style={{
-                          backgroundColor: isSelected ? displayBgColor : '#FFFFFF',
-                          borderColor: isSelected ? displayColor : undefined,
-                        }}
-                      >
-                        <Text
-                          className="text-sm font-semibold"
-                          style={{ color: isSelected ? displayColor : '#6B7280' }}
-                        >
-                          {time}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Additional Notes */}
-          {selectedTime && (
-            <View className="mb-5">
-              <Text className="text-base font-bold text-gray-900 mb-3">
-                Additional Notes (Optional)
+            <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: displayColor + '15' }}>
+              <Text style={{ fontWeight: '700', fontSize: 12, color: displayColor }}>
+                {isFree === 'true' ? 'FREE' : `₹${price}`}
               </Text>
-              <TextInput
-                className="bg-white border border-gray-200 rounded-xl p-4 text-sm text-gray-900"
-                placeholder="Share any specific concerns or topics you'd like to discuss..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                numberOfLines={4}
-                textAlignVertical="top"
-                value={notes}
-                onChangeText={setNotes}
-              />
             </View>
-          )}
+          </View>
 
-          {/* Payment Summary */}
-          {selectedTime && showPayment && (
-            <View className="bg-gray-50 rounded-2xl p-4 mb-5 border border-gray-200">
-              <Text className="text-base font-bold text-gray-900 mb-3">Payment Summary</Text>
-              <View className="flex-row justify-between items-center mb-2">
-                <Text className="text-sm text-gray-600">Session Fee</Text>
-                <Text className="text-sm font-semibold text-gray-900">₹{price}</Text>
-              </View>
-              <View className="border-t border-gray-200 pt-2 mt-2">
-                <View className="flex-row justify-between items-center">
-                  <Text className="text-base font-bold text-gray-900">Total</Text>
-                  <Text className="text-xl font-bold text-gray-900">₹{price}</Text>
-                </View>
-              </View>
+          <Text style={{ fontSize: 14, color: '#5C4A42', marginBottom: 14, lineHeight: 20 }}>{description}</Text>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 16, borderTopWidth: 1, borderTopColor: '#F9FAFB', paddingTop: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="time-outline" size={16} color="#8C7B73" />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#8C7B73', marginLeft: 6 }}>{duration || '60 mins'}</Text>
             </View>
-          )}
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Ionicons name="videocam-outline" size={16} color="#8C7B73" />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#8C7B73', marginLeft: 6 }}>Video Call</Text>
+            </View>
+          </View>
         </View>
+
+        <View style={{ marginBottom: 20 }}>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420', marginBottom: 10 }}>Select Date</Text>
+          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: '#F3F4F6', padding: 8 }}>
+            <Calendar
+              current={today}
+              minDate={today}
+              onDayPress={(day: any) => setSelectedDate(day.dateString)}
+              markedDates={{
+                [selectedDate]: { selected: true, selectedColor: displayColor }
+              }}
+              theme={{
+                calendarBackground: '#ffffff',
+                textSectionTitleColor: '#8C7B73',
+                selectedDayBackgroundColor: displayColor,
+                selectedDayTextColor: '#ffffff',
+                todayTextColor: displayColor,
+                dayTextColor: '#2C2420',
+                textDisabledColor: '#E5E7EB',
+                dotColor: displayColor,
+                selectedDotColor: '#ffffff',
+                arrowColor: displayColor,
+                monthTextColor: '#2C2420',
+                indicatorColor: displayColor,
+                textDayFontWeight: '600',
+                textMonthFontWeight: 'bold',
+                textDayHeaderFontWeight: '600',
+                textDayFontSize: 15,
+                textMonthFontSize: 16,
+                textDayHeaderFontSize: 13,
+                'stylesheet.calendar.header': {
+                  week: {
+                    marginTop: 7,
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    paddingHorizontal: 10
+                  }
+                }
+              }}
+            />
+          </View>
+        </View>
+
+        {selectedDate && (
+          <View style={{ marginBottom: 20 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420', marginBottom: 10 }}>Select Time</Text>
+            {fetchingSlots ? (
+              <View style={{ backgroundColor: '#FFFFFF', padding: 16, borderRadius: 24, borderWidth: 1, borderColor: '#F3F4F6', flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="small" color={displayColor} />
+                <Text style={{ color: '#8C7B73', fontWeight: '500', marginLeft: 10 }}>Finding available slots...</Text>
+              </View>
+            ) : availableSlots.length === 0 ? (
+              <View style={{ backgroundColor: '#FFF7ED', padding: 16, borderRadius: 24, borderWidth: 1, borderColor: '#FED7AA', flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="information-circle" size={24} color="#F97316" />
+                <Text style={{ color: '#9A3412', fontSize: 13, fontWeight: '500', flex: 1, marginLeft: 10 }}>No slots available for this date. Try another day.</Text>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+                {availableSlots.map((time) => {
+                  const isSelected = selectedTime === time;
+                  return (
+                    <TouchableOpacity
+                      key={time}
+                      onPress={() => setSelectedTime(time)}
+                      activeOpacity={0.7}
+                      style={{
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                        borderRadius: 16,
+                        backgroundColor: isSelected ? displayColor + '10' : '#FFFFFF',
+                        borderWidth: isSelected ? 2 : 1,
+                        borderColor: isSelected ? displayColor : '#F3F4F6'
+                      }}
+                    >
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: isSelected ? displayColor : '#5C4A42' }}>{time}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
+
+        {selectedTime && (
+          <View style={{ marginBottom: 20 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420', marginBottom: 10 }}>Additional Notes (Optional)</Text>
+            <TextInput
+              style={{ backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#F3F4F6', borderRadius: 24, padding: 16, minHeight: 96, color: '#2C2420' }}
+              placeholder="Share any specific concerns or topics you'd like to discuss before the session..."
+              placeholderTextColor="#9CA3AF"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+              value={notes}
+              onChangeText={setNotes}
+            />
+          </View>
+        )}
+
+        {selectedTime && showPayment && (
+          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 24, padding: 16, borderWidth: 1, borderColor: '#F3F4F6' }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420', marginBottom: 12 }}>Payment Summary</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <Text style={{ fontSize: 14, fontWeight: '500', color: '#5C4A42' }}>Session Fee</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: '#2C2420' }}>₹{price}</Text>
+            </View>
+            <View style={{ borderTopWidth: 1, borderTopColor: '#E5E7EB', marginTop: 8, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420' }}>Total Amount</Text>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: '#F1842D' }}>₹{price}</Text>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
-      {/* Fixed Bottom Button */}
       {selectedDate && selectedTime && (
-        <View className="bg-white border-t border-gray-200 p-4">
+        <View style={{ backgroundColor: '#FFFFFF', paddingTop: 12, paddingBottom: 24, paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: '#F3F4F6' }}>
           <TouchableOpacity
             onPress={handleBooking}
             disabled={isLoading || processing}
-            className="flex-row items-center justify-center gap-2 py-4 rounded-xl disabled:opacity-70"
-            style={{ backgroundColor: displayColor }}
+            activeOpacity={0.8}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingVertical: 14,
+              borderRadius: 16,
+              backgroundColor: displayColor,
+              opacity: isLoading || processing ? 0.7 : 1
+            }}
           >
-            <Ionicons name="calendar" size={20} color="#FFFFFF" />
-            <Text className="text-base font-bold text-white">
+            {processing || isLoading ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Ionicons name="calendar" size={20} color="#FFFFFF" />
+            )}
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#FFFFFF', marginLeft: 8 }}>
               {processing || isLoading
-                ? (showPayment ? 'Opening payment...' : 'Booking...')
+                ? (showPayment ? 'Opening secure payment...' : 'Confirming booking...')
                 : showPayment
-                  ? 'Proceed to Payment'
-                  : 'Confirm Booking'}
+                  ? `Pay ₹${price} & Book`
+                  : 'Confirm Free Booking'}
             </Text>
           </TouchableOpacity>
         </View>

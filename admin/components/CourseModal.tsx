@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { X } from 'lucide-react';
 import apiClient from '@/lib/api/client';
@@ -11,13 +11,7 @@ interface MembershipPlan {
     title: string;
     slug: string;
     status: string;
-    access?: {
-        includedCategories: string[];
-        inheritedPlanIds?: string[];
-    };
 }
-
-const DEFAULT_CATEGORIES = ['physical', 'mental', 'financial', 'relationship', 'spiritual', 'general'];
 
 interface Course {
     _id?: string;
@@ -58,6 +52,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
     });
     const [tagsInput, setTagsInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const submitLockRef = useRef(false);
     const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
     const [loadingPlans, setLoadingPlans] = useState(true);
 
@@ -107,13 +102,35 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Prevent accidental double-submit from rapid taps/enter key.
+        if (submitLockRef.current) {
+            return;
+        }
+
+        submitLockRef.current = true;
         setLoading(true);
 
         try {
+            const selectedPlanSlugs = formData.includedInPlans || [];
+            if (selectedPlanSlugs.length === 0) {
+                toast.error('Select at least one membership plan.');
+                setLoading(false);
+                return;
+            }
+
+            const normalizedCategory = String(formData.category || '').trim().toLowerCase();
+            if (!normalizedCategory) {
+                toast.error('Category is required.');
+                setLoading(false);
+                return;
+            }
+
             // Create a payload derived from formData
             // Ensure tags is an array
             const payload = {
                 ...formData,
+                category: normalizedCategory,
                 tags: tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag !== '')
             };
 
@@ -133,6 +150,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
             console.error(error);
         } finally {
             setLoading(false);
+            submitLockRef.current = false;
         }
     };
 
@@ -186,59 +204,6 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
             toast.error(error.response?.data?.message || 'Upload failed', { id: toastId });
         }
     };
-
-    // Calculate categories to display based on selected plans and their inheritances
-    const selectedPlansData = membershipPlans.filter((p: MembershipPlan) => (formData.includedInPlans || []).includes(p.slug));
-
-    // Resolve inherited plans recursively (now using slugs instead of _ids)
-    const getAllInheritedPlans = (planSlugs: string[], allPlans: MembershipPlan[]): MembershipPlan[] => {
-        const result = new Set<string>();
-        const queue = [...planSlugs];
-
-        while (queue.length > 0) {
-            const currentSlug = queue.shift()!;
-            if (!result.has(currentSlug)) {
-                result.add(currentSlug);
-                const plan = allPlans.find((p: MembershipPlan) => p.slug === currentSlug);
-                if (plan && plan.access?.inheritedPlanIds) {
-                    // inheritedPlanIds are ObjectIds — resolve to slugs
-                    plan.access.inheritedPlanIds.forEach((inheritedId: string) => {
-                        const inherited = allPlans.find((p: MembershipPlan) => p._id === inheritedId);
-                        if (inherited) queue.push(inherited.slug);
-                    });
-                }
-            }
-        }
-
-        return Array.from(result)
-            .map((slug: string) => allPlans.find((p: MembershipPlan) => p.slug === slug))
-            .filter(Boolean) as MembershipPlan[];
-    };
-
-    const fullyResolvedPlans = getAllInheritedPlans(formData.includedInPlans || [], membershipPlans);
-
-    let derivedCategories = new Set<string>();
-    fullyResolvedPlans.forEach(p => {
-        const cats = p.access?.includedCategories || [];
-        cats.forEach(c => derivedCategories.add(c.toLowerCase()));
-    });
-    
-    // If plans selected and they specifically restrict categories, only show those. Otherwise, show all.
-    const categoriesToDisplay = fullyResolvedPlans.length > 0 && derivedCategories.size > 0 
-        ? Array.from(derivedCategories) 
-        : DEFAULT_CATEGORIES;
-
-    // Optional: Reset category if selected plans restricted the allowed categories, causing the current choice to be invalid.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    useEffect(() => {
-        if (formData.category && selectedPlansData.length > 0 && derivedCategories.size > 0) {
-            if (!derivedCategories.has(formData.category.toLowerCase())) {
-                setFormData((prev: any) => ({ ...prev, category: '' }));
-            }
-        }
-    // Only re-run when plan selection changes, not on every category/derivedCategories change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formData.includedInPlans, membershipPlans]);
 
     if (!isOpen) return null;
 
@@ -354,28 +319,19 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                             />
                         </div>
 
-                        {/* Category */}
                         <div>
                             <label className="block text-sm font-medium text-secondary mb-2">
                                 Category *
                             </label>
-                            <select
+                            <input
+                                type="text"
                                 name="category"
                                 value={formData.category}
                                 onChange={handleChange}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none capitalize text-black"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-black"
+                                placeholder="e.g. stress-management"
                                 required
-                            >
-                                <option value="">Select Category</option>
-                                {categoriesToDisplay.map(cat => (
-                                    <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
-                                ))}
-                            </select>
-                            {selectedPlansData.length > 0 && derivedCategories.size > 0 && (
-                                <p className="text-xs text-primary mt-1">
-                                    Options restricted by selected membership plans.
-                                </p>
-                            )}
+                            />
                         </div>
                     </div>
 

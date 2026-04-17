@@ -56,6 +56,25 @@ const counselingServiceSchema = new mongoose.Schema({
     intervalMinutes: {
         type: Number,
         default: 60 // Slot length in minutes
+    },
+    calendlyIntegration: {
+        isEnabled: {
+            type: Boolean,
+            default: false
+        },
+        eventUri: {
+            type: String,
+            default: ''  // e.g., "https://calendly.com/param-sukh/mental-health"
+        },
+        eventType: {
+            type: String,
+            enum: ['one_on_one', 'group', 'collective'],
+            default: 'one_on_one'
+        },
+        webhookSecret: {
+            type: String,
+            default: ''  // For receiving booking confirmations
+        }
     }
 }, {
     timestamps: true

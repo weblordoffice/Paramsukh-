@@ -113,6 +113,9 @@ export const verifyOTPController = async (req, res) => {
         displayName: name.trim(),
         email: email.toLowerCase().trim(),
         authProvider: 'phone',
+        subscriptionPlan: 'free',
+        subscriptionStatus: 'inactive',
+        trialEndsAt: null,
         loginCount: 1,
         lastLoginAt: new Date()
       });

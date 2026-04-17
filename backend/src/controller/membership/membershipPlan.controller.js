@@ -1,6 +1,7 @@
 import { MembershipPlan } from '../../models/membershipPlan.models.js';
-
-const ALLOWED_COURSE_CATEGORIES = ['physical', 'mental', 'financial', 'relationship', 'spiritual', 'general'];
+import { User } from '../../models/user.models.js';
+import { UserMembership } from '../../models/userMembership.models.js';
+import { CoursePlan } from '../../models/coursePlan.models.js';
 
 const normalizeSlug = (value) => {
   return String(value || '')
@@ -24,13 +25,17 @@ const sanitizePlanPayload = (body = {}) => {
     payload.slug = normalizeSlug(payload.title);
   }
 
-  if (payload.access?.includedCategories && Array.isArray(payload.access.includedCategories)) {
-    const rawCategories = payload.access.includedCategories
-      .map((cat) => String(cat || '').trim().toLowerCase())
-      .filter(Boolean);
-    
-    // Silently remove duplicates to prevent the 400 Bad Request error
-    payload.access.includedCategories = [...new Set(rawCategories)];
+  if (payload.access) {
+    // Plan-level categories are deprecated. Course categories now live at course level only.
+    payload.access.includedCategories = [];
+
+    // Feature removed: keep these neutral regardless of incoming payload.
+    payload.access.includedCourseIds = [];
+    payload.access.limits = {
+      maxCategories: null,
+      maxCoursesTotal: null,
+      perCategoryCourseLimit: null,
+    };
   }
 
   if (payload.access?.inheritedPlanIds && Array.isArray(payload.access.inheritedPlanIds)) {
@@ -85,48 +90,6 @@ const validatePlanPayload = (payload = {}) => {
   const validityDays = Number(payload.validityDays ?? 365);
   if (Number.isNaN(validityDays) || validityDays < 1) {
     return 'validityDays must be at least 1';
-  }
-
-  const includedCategories = payload.access?.includedCategories || [];
-  const invalidCategories = includedCategories.filter((cat) => !ALLOWED_COURSE_CATEGORIES.includes(cat));
-  if (invalidCategories.length > 0) {
-    return `Invalid categories: ${invalidCategories.join(', ')}`;
-  }
-
-  const uniqueCategories = new Set(includedCategories);
-  if (uniqueCategories.size !== includedCategories.length) {
-    return 'includedCategories cannot contain duplicates';
-  }
-
-  const maxCategories = payload.access?.limits?.maxCategories;
-  if (maxCategories !== null && maxCategories !== undefined) {
-    const parsed = Number(maxCategories);
-    if (Number.isNaN(parsed) || parsed < 1) {
-      return 'access.limits.maxCategories must be at least 1 when provided';
-    }
-    if (includedCategories.length > 0 && parsed > includedCategories.length) {
-      return 'access.limits.maxCategories cannot exceed includedCategories count';
-    }
-  }
-
-  const maxCoursesTotal = payload.access?.limits?.maxCoursesTotal;
-  if (maxCoursesTotal !== null && maxCoursesTotal !== undefined) {
-    const parsed = Number(maxCoursesTotal);
-    if (Number.isNaN(parsed) || parsed < 1) {
-      return 'access.limits.maxCoursesTotal must be at least 1 when provided';
-    }
-  }
-
-  const perCategoryCourseLimit = payload.access?.limits?.perCategoryCourseLimit;
-  if (perCategoryCourseLimit !== null && perCategoryCourseLimit !== undefined) {
-    const parsed = Number(perCategoryCourseLimit);
-    if (Number.isNaN(parsed) || parsed < 1) {
-      return 'access.limits.perCategoryCourseLimit must be at least 1 when provided';
-    }
-
-    if (maxCoursesTotal !== null && maxCoursesTotal !== undefined && parsed > Number(maxCoursesTotal)) {
-      return 'access.limits.perCategoryCourseLimit cannot exceed maxCoursesTotal';
-    }
   }
 
   const accessMode = payload.access?.accessMode;
@@ -250,6 +213,10 @@ export const updateMembershipPlan = async (req, res) => {
     }
 
     Object.assign(existingPlan, mergedPayload);
+    if (!existingPlan.access) {
+      existingPlan.access = {};
+    }
+    existingPlan.access.includedCategories = [];
     await existingPlan.save();
 
     return res.status(200).json({
@@ -290,6 +257,60 @@ export const updateMembershipPlanStatus = async (req, res) => {
   } catch (error) {
     console.error('Error updating membership plan status:', error);
     return res.status(500).json({ success: false, message: 'Failed to update plan status', error: error.message });
+  }
+};
+
+export const deleteMembershipPlan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const plan = await MembershipPlan.findById(id);
+
+    if (!plan) {
+      return res.status(404).json({ success: false, message: 'Membership plan not found' });
+    }
+
+    const slug = normalizeSlug(plan.slug);
+
+    // Prevent deleting plans currently assigned to users.
+    const assignedUsers = await User.countDocuments({ subscriptionPlan: slug });
+    if (assignedUsers > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete "${plan.title}" because ${assignedUsers} user(s) are currently assigned to it. Archive it instead.`,
+      });
+    }
+
+    // Prevent deleting plans with active membership grants.
+    const activeMemberships = await UserMembership.countDocuments({
+      planId: plan._id,
+      status: 'active',
+      endDate: { $gte: new Date() },
+    });
+    if (activeMemberships > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete "${plan.title}" because it has ${activeMemberships} active membership record(s).`,
+      });
+    }
+
+    // Remove this plan from inheritance chains and course-plan mappings.
+    await Promise.all([
+      MembershipPlan.updateMany(
+        { 'access.inheritedPlanIds': plan._id },
+        { $pull: { 'access.inheritedPlanIds': plan._id } }
+      ),
+      CoursePlan.deleteMany({ planId: plan._id }),
+    ]);
+
+    await MembershipPlan.findByIdAndDelete(plan._id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Membership plan deleted successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting membership plan:', error);
+    return res.status(500).json({ success: false, message: 'Failed to delete membership plan', error: error.message });
   }
 };
 

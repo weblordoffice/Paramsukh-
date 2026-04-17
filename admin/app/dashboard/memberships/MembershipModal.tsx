@@ -29,15 +29,6 @@ interface PlanOption {
   status?: string;
 }
 
-const FREE_PLAN: PlanOption = {
-  value: 'free',
-  label: 'Free',
-  description: 'No paid courses',
-  validityDays: 0,
-  amount: 0,
-  status: 'published',
-};
-
 export default function MembershipModal({ user, onClose }: MembershipModalProps) {
   const [formData, setFormData] = useState({
     subscriptionPlan: user.subscriptionPlan,
@@ -52,7 +43,7 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
   const [loading, setLoading] = useState(false);
   const [plansLoading, setPlansLoading] = useState(true);
   const [autoEnroll, setAutoEnroll] = useState(false);
-  const [plans, setPlans] = useState<PlanOption[]>([FREE_PLAN]);
+  const [plans, setPlans] = useState<PlanOption[]>([]);
 
   const planLookup = useMemo(() => {
     return plans.reduce<Record<string, PlanOption>>((acc, plan) => {
@@ -70,7 +61,7 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
         const apiPlans = response.data?.data;
 
         if (!Array.isArray(apiPlans) || apiPlans.length === 0) {
-          setPlans([FREE_PLAN]);
+          setPlans([]);
           return;
         }
 
@@ -85,14 +76,11 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
             amount: Number(plan?.pricing?.oneTime?.amount || 0),
             status: String(plan?.status || 'draft'),
           }))
-          .filter((plan: PlanOption) => Boolean(plan.value));
+          .filter((plan: PlanOption) => Boolean(plan.value) && plan.value !== 'free');
 
-        const freeFromApi = dynamicPlans.find((plan: PlanOption) => plan.value === 'free') || FREE_PLAN;
-        const paidPlans = dynamicPlans.filter((plan: PlanOption) => plan.value !== 'free');
-
-        setPlans([freeFromApi, ...paidPlans]);
+        setPlans(dynamicPlans);
       } catch (error) {
-        setPlans([FREE_PLAN]);
+        setPlans([]);
       } finally {
         setPlansLoading(false);
       }
@@ -104,7 +92,6 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
   const statuses = [
     { value: 'active', label: 'Active', color: 'text-green-600' },
     { value: 'inactive', label: 'Inactive', color: 'text-gray-600' },
-    { value: 'trial', label: 'Trial', color: 'text-blue-600' },
     { value: 'cancelled', label: 'Cancelled', color: 'text-red-600' },
   ];
 
@@ -231,7 +218,7 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
                       <p className="font-medium text-gray-900">{plan.label}</p>
                       <p className="text-xs text-gray-500">{plan.description}</p>
                       <p className="text-xs text-gray-400 mt-1">
-                        {plan.value === 'free' ? 'Free tier' : `INR ${Number(plan.amount || 0).toLocaleString('en-IN')} • ${plan.validityDays || 365} days`}
+                        {`INR ${Number(plan.amount || 0).toLocaleString('en-IN')} • ${plan.validityDays || 365} days`}
                         {plan.status ? ` • ${plan.status}` : ''}
                       </p>
                     </div>
@@ -241,6 +228,9 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
                   )}
                 </label>
               ))}
+              {!plansLoading && plans.length === 0 && (
+                <p className="text-sm text-gray-500">No paid plans available right now.</p>
+              )}
             </div>
           </div>
 

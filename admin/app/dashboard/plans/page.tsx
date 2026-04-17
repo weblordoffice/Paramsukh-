@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { AlertTriangle, Crown, Edit3, Plus, RefreshCw, Save, Search } from "lucide-react";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api/client";
@@ -25,13 +25,7 @@ interface MembershipPlan {
   };
   access?: {
     includedCategories?: string[];
-    includedCourseIds?: string[];
     inheritedPlanIds?: string[];
-    limits?: {
-      maxCategories?: number | null;
-      maxCoursesTotal?: number | null;
-      perCategoryCourseLimit?: number | null;
-    };
     accessMode?: AccessMode;
     communityAccess?: boolean;
     counselingAccess?: boolean;
@@ -55,12 +49,7 @@ interface PlanFormState {
   amount: number;
   currency: string;
   accessMode: AccessMode;
-  includedCategoriesText: string;
-  includedCourseIdsText: string;
   inheritedPlanIds: string[];
-  maxCategories: string;
-  maxCoursesTotal: string;
-  perCategoryCourseLimit: string;
   communityAccess: boolean;
   counselingAccess: boolean;
   eventAccess: boolean;
@@ -73,10 +62,7 @@ type FormErrors = Partial<Record<
   | "title"
   | "slug"
   | "amount"
-  | "validityDays"
-  | "maxCategories"
-  | "maxCoursesTotal"
-  | "perCategoryCourseLimit",
+  | "validityDays",
   string
 >>;
 
@@ -91,12 +77,7 @@ const DEFAULT_FORM: PlanFormState = {
   amount: 0,
   currency: "INR",
   accessMode: "entitlement_only",
-  includedCategoriesText: "",
-  includedCourseIdsText: "",
   inheritedPlanIds: [],
-  maxCategories: "",
-  maxCoursesTotal: "",
-  perCategoryCourseLimit: "",
   communityAccess: false,
   counselingAccess: false,
   eventAccess: false,
@@ -114,29 +95,17 @@ const toSlug = (value: string) => {
     .replace(/-+/g, "-");
 };
 
-const parseCategoryInput = (input: string) => {
-  return input
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
-};
-
-const parseCourseIdInput = (input: string) => {
-  return input
-    .split(/[\n,]/g)
-    .map((item) => item.trim())
-    .filter(Boolean);
-};
-
 export default function MembershipPlansPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingPlanId, setDeletingPlanId] = useState<string | null>(null);
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [form, setForm] = useState<PlanFormState>(DEFAULT_FORM);
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [planUsage, setPlanUsage] = useState<Record<string, number>>({});
+  const hasInitializedSelection = useRef(false);
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan._id === selectedPlanId) || null,
@@ -162,17 +131,26 @@ export default function MembershipPlansPage() {
       const response = await apiClient.get("/api/membership-plans");
       const apiPlans: MembershipPlan[] = response.data?.data || [];
       setPlans(apiPlans);
+      setSelectedPlanId((prevSelectedPlanId) => {
+        if (prevSelectedPlanId) {
+          const existingPlan = apiPlans.find((plan) => plan._id === prevSelectedPlanId);
+          return existingPlan ? prevSelectedPlanId : (apiPlans[0]?._id || null);
+        }
 
-      if (apiPlans.length > 0 && !selectedPlanId) {
-        setSelectedPlanId(apiPlans[0]._id);
-      }
+        if (!hasInitializedSelection.current && apiPlans.length > 0) {
+          hasInitializedSelection.current = true;
+          return apiPlans[0]._id;
+        }
+
+        return prevSelectedPlanId;
+      });
     } catch (error: any) {
       console.error("Error loading membership plans:", error);
       toast.error(error.response?.data?.message || "Failed to load plans");
     } finally {
       setLoading(false);
     }
-  }, [selectedPlanId]);
+  }, []);
 
   const loadPlanUsage = useCallback(async () => {
     try {
@@ -212,21 +190,7 @@ export default function MembershipPlansPage() {
       amount: selectedPlan.pricing?.oneTime?.amount ?? 0,
       currency: selectedPlan.pricing?.oneTime?.currency || "INR",
       accessMode: selectedPlan.access?.accessMode || "entitlement_only",
-      includedCategoriesText: (selectedPlan.access?.includedCategories || []).join(", "),
-      includedCourseIdsText: (selectedPlan.access?.includedCourseIds || []).join(", "),
       inheritedPlanIds: (selectedPlan.access?.inheritedPlanIds || []).map((id) => String(id)),
-      maxCategories:
-        selectedPlan.access?.limits?.maxCategories === null || selectedPlan.access?.limits?.maxCategories === undefined
-          ? ""
-          : String(selectedPlan.access?.limits?.maxCategories),
-      maxCoursesTotal:
-        selectedPlan.access?.limits?.maxCoursesTotal === null || selectedPlan.access?.limits?.maxCoursesTotal === undefined
-          ? ""
-          : String(selectedPlan.access?.limits?.maxCoursesTotal),
-      perCategoryCourseLimit:
-        selectedPlan.access?.limits?.perCategoryCourseLimit === null || selectedPlan.access?.limits?.perCategoryCourseLimit === undefined
-          ? ""
-          : String(selectedPlan.access?.limits?.perCategoryCourseLimit),
       communityAccess: !!selectedPlan.access?.communityAccess,
       counselingAccess: !!selectedPlan.access?.counselingAccess,
       eventAccess: !!selectedPlan.access?.eventAccess,
@@ -261,11 +225,6 @@ export default function MembershipPlansPage() {
     const amount = Number(form.amount);
     const validityDays = Number(form.validityDays);
 
-    const includedCategories = parseCategoryInput(form.includedCategoriesText);
-    const maxCategories = form.maxCategories ? Number(form.maxCategories) : null;
-    const maxCoursesTotal = form.maxCoursesTotal ? Number(form.maxCoursesTotal) : null;
-    const perCategoryCourseLimit = form.perCategoryCourseLimit ? Number(form.perCategoryCourseLimit) : null;
-
     if (!title) {
       errors.title = "Title is required";
     }
@@ -279,30 +238,11 @@ export default function MembershipPlansPage() {
       errors.validityDays = "Validity days must be at least 1";
     }
 
-    if (maxCategories !== null && (!Number.isFinite(maxCategories) || maxCategories < 1)) {
-      errors.maxCategories = "Max categories must be at least 1";
-    }
-    if (maxCoursesTotal !== null && (!Number.isFinite(maxCoursesTotal) || maxCoursesTotal < 1)) {
-      errors.maxCoursesTotal = "Max total courses must be at least 1";
-    }
-    if (perCategoryCourseLimit !== null && (!Number.isFinite(perCategoryCourseLimit) || perCategoryCourseLimit < 1)) {
-      errors.perCategoryCourseLimit = "Per-category cap must be at least 1";
-    }
-
-    if (maxCategories !== null && includedCategories.length > 0 && maxCategories > includedCategories.length) {
-      errors.maxCategories = "Cannot exceed included categories count";
-    }
-    if (maxCoursesTotal !== null && perCategoryCourseLimit !== null && perCategoryCourseLimit > maxCoursesTotal) {
-      errors.perCategoryCourseLimit = "Cannot exceed max total courses";
-    }
-
     return errors;
   };
 
   const buildPayload = () => {
     const slug = toSlug(form.slug || form.title);
-    const includedCategories = parseCategoryInput(form.includedCategoriesText);
-    const includedCourseIds = parseCourseIdInput(form.includedCourseIdsText);
     const inheritedPlanIds = (form.inheritedPlanIds || []).filter(Boolean);
 
     return {
@@ -320,13 +260,13 @@ export default function MembershipPlansPage() {
         },
       },
       access: {
-        includedCategories,
-        includedCourseIds,
+        includedCategories: [],
         inheritedPlanIds,
+        includedCourseIds: [],
         limits: {
-          maxCategories: form.maxCategories ? Number(form.maxCategories) : null,
-          maxCoursesTotal: form.maxCoursesTotal ? Number(form.maxCoursesTotal) : null,
-          perCategoryCourseLimit: form.perCategoryCourseLimit ? Number(form.perCategoryCourseLimit) : null,
+          maxCategories: null,
+          maxCoursesTotal: null,
+          perCategoryCourseLimit: null,
         },
         accessMode: form.accessMode,
         communityAccess: form.communityAccess,
@@ -411,6 +351,38 @@ export default function MembershipPlansPage() {
     }
   };
 
+  const handleDeletePlan = async (plan: MembershipPlan) => {
+    const usageCount = planUsage[plan.slug] || 0;
+    if (usageCount > 0) {
+      toast.error(`Cannot delete ${plan.title}. ${usageCount} user(s) are currently assigned.`);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete "${plan.title}" permanently?\n\nThis removes plan mappings and cannot be undone.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingPlanId(plan._id);
+      await apiClient.delete(`/api/membership-plans/${plan._id}`);
+      toast.success("Plan deleted");
+
+      if (selectedPlanId === plan._id) {
+        setSelectedPlanId(null);
+        setForm(DEFAULT_FORM);
+      }
+
+      await Promise.all([loadPlans(), loadPlanUsage()]);
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Failed to delete plan");
+    } finally {
+      setDeletingPlanId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -427,7 +399,7 @@ export default function MembershipPlansPage() {
             <Crown className="w-8 h-8" />
             Membership Plans
           </h1>
-          <p className="text-gray-600 mt-1">Create and manage dynamic plans, pricing, and category-level access.</p>
+          <p className="text-gray-600 mt-1">Create and manage dynamic plans, pricing, and access behavior.</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -486,7 +458,26 @@ export default function MembershipPlansPage() {
                 <p className="text-xs text-gray-500 mt-1">slug: {plan.slug}</p>
                 <p className="text-sm text-gray-700 mt-2">₹{(plan.pricing?.oneTime?.amount || 0).toLocaleString("en-IN")}</p>
                 <p className="text-xs text-gray-500 mt-1">Users: {planUsage[plan.slug] || 0}</p>
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedPlanId(plan._id);
+                    }}
+                    className="text-xs px-2 py-1 border border-blue-200 text-blue-700 hover:bg-blue-50 rounded"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleDeletePlan(plan);
+                    }}
+                    disabled={deletingPlanId === plan._id}
+                    className="text-xs px-2 py-1 border border-red-200 text-red-700 hover:bg-red-50 rounded disabled:opacity-50"
+                  >
+                    {deletingPlanId === plan._id ? "Deleting..." : "Delete"}
+                  </button>
                   <button
                     onClick={(event) => {
                       event.stopPropagation();
@@ -625,7 +616,7 @@ export default function MembershipPlansPage() {
 
           <div className="border border-gray-200 rounded-lg p-4 space-y-4">
             <h3 className="text-sm font-semibold text-gray-900">Access Rules</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Access Mode</label>
                 <select
@@ -638,60 +629,6 @@ export default function MembershipPlansPage() {
                   <option value="hybrid">Hybrid</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Max Categories</label>
-                <input
-                  type="number"
-                  value={form.maxCategories}
-                  onChange={(event) => updateField("maxCategories", event.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="Blank = unlimited"
-                />
-                {formErrors.maxCategories && <p className="text-xs text-red-600 mt-1">{formErrors.maxCategories}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Max Courses Total</label>
-                <input
-                  type="number"
-                  value={form.maxCoursesTotal}
-                  onChange={(event) => updateField("maxCoursesTotal", event.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="Blank = unlimited"
-                />
-                {formErrors.maxCoursesTotal && <p className="text-xs text-red-600 mt-1">{formErrors.maxCoursesTotal}</p>}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Per-Category Course Cap</label>
-                <input
-                  type="number"
-                  value={form.perCategoryCourseLimit}
-                  onChange={(event) => updateField("perCategoryCourseLimit", event.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  placeholder="Blank = unlimited"
-                />
-                {formErrors.perCategoryCourseLimit && <p className="text-xs text-red-600 mt-1">{formErrors.perCategoryCourseLimit}</p>}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Included Categories (comma separated)</label>
-              <input
-                value={form.includedCategoriesText}
-                onChange={(event) => setForm((prev) => ({ ...prev, includedCategoriesText: event.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                placeholder="physical, mental, spiritual"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Included Course IDs (comma/newline separated)</label>
-              <textarea
-                value={form.includedCourseIdsText}
-                onChange={(event) => setForm((prev) => ({ ...prev, includedCourseIdsText: event.target.value }))}
-                rows={2}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                placeholder="67f0a13..., 67f0a14..."
-              />
             </div>
 
             <div>

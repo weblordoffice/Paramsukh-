@@ -18,50 +18,57 @@
 
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
-import { useRouter } from 'expo-router';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
+import { router as appRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import { useAuthStore } from '../store/authStore';
 import { useNotificationStore } from '../store/notificationStore';
 
-// ─── Android notification channel ─────────────────────────────────────────────
-if (Platform.OS === 'android') {
-  Notifications.setNotificationChannelAsync('default', {
-    name: 'Default',
-    importance: Notifications.AndroidImportance.MAX,
-    vibrationPattern: [0, 250, 250, 250],
-    lightColor: '#F1842D',
-  }).catch(() => {});
-}
-
-// Set foreground notification handler (show alert + badge + sound while app is open)
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
-
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function usePushNotifications() {
-  const router = useRouter();
   const { token: authToken } = useAuthStore();
   const { registerDeviceToken, fetchUnreadCount } = useNotificationStore();
+  const executionEnvironment = (Constants as any).executionEnvironment;
+  const isExpoGo =
+    Constants.appOwnership === 'expo' ||
+    executionEnvironment === 'storeClient';
 
-  const notificationListener = useRef<Notifications.Subscription | null>(null);
-  const responseListener = useRef<Notifications.Subscription | null>(null);
+  const notificationListener = useRef<any>(null);
+  const responseListener = useRef<any>(null);
 
   useEffect(() => {
     // Only run when the user is logged in
     if (!authToken) return;
+    if (__DEV__ || isExpoGo) {
+      console.log('ℹ️ Push notifications are skipped in dev/Expo Go. Use a production or development build to test remote push.');
+      return;
+    }
 
     let cancelled = false;
 
     const setup = async () => {
       try {
+        const Notifications = await import('expo-notifications');
+        const Device = await import('expo-device');
+
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync('default', {
+            name: 'Default',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#F1842D',
+          }).catch(() => {});
+        }
+
+        Notifications.setNotificationHandler({
+          handleNotification: async () => ({
+            shouldShowAlert: true,
+            shouldShowBanner: true,
+            shouldShowList: true,
+            shouldPlaySound: true,
+            shouldSetBadge: true,
+          }),
+        });
+
         // Don't try to get a push token on emulators/simulators
         if (!Device.isDevice) {
           console.log('ℹ️ Push notifications disabled on emulator');
@@ -106,7 +113,7 @@ export function usePushNotifications() {
         responseListener.current = Notifications.addNotificationResponseReceivedListener(
           (response: any) => {
             const data = response?.notification?.request?.content?.data || {};
-            handleNotificationTap(data, router);
+            handleNotificationTap(data);
           }
         );
       } catch (err) {
@@ -121,17 +128,17 @@ export function usePushNotifications() {
       notificationListener.current?.remove();
       responseListener.current?.remove();
     };
-  }, [authToken]); // Re-run when authToken changes (on login/logout)
+  }, [authToken, isExpoGo, registerDeviceToken, fetchUnreadCount]); // Re-run when authToken changes (on login/logout)
 }
 
 /**
  * Navigate to the correct screen when a user taps a push notification.
  * We use the `actionUrl` or `relatedType` + `relatedId` from the push data.
  */
-function handleNotificationTap(data: Record<string, any>, router: any) {
+function handleNotificationTap(data: Record<string, any>) {
   try {
     if (data.actionUrl) {
-      router.push(data.actionUrl);
+      appRouter.push(data.actionUrl);
       return;
     }
 
@@ -140,27 +147,27 @@ function handleNotificationTap(data: Record<string, any>, router: any) {
 
     switch (relatedType) {
       case 'event':
-        router.push({ pathname: '/event-detail', params: { eventId: relatedId } });
+        appRouter.push({ pathname: '/event-detail', params: { eventId: relatedId } });
         break;
       case 'course':
-        router.push({ pathname: '/course-detail', params: { courseId: relatedId } });
+        appRouter.push({ pathname: '/course-detail', params: { courseId: relatedId } });
         break;
       case 'booking':
         // No /counseling-booking page, so redirect to counseling summary/list if available, 
         // or just stay put if specific booking detail isn't implemented.
-        router.push('/counseling');
+        appRouter.push('/counseling');
         break;
       case 'membership':
-        router.push('/(home)/my-membership');
+        appRouter.push('/(home)/my-membership');
         break;
       case 'order':
-        router.push({ pathname: '/order-detail', params: { orderId: relatedId } });
+        appRouter.push({ pathname: '/order-detail', params: { orderId: relatedId } });
         break;
       case 'post':
-        router.push({ pathname: '/community-post', params: { postId: relatedId } });
+        appRouter.push('/(home)/community');
         break;
       default:
-        router.push('/(home)/notifications');
+        appRouter.push('/(home)/notifications');
     }
   } catch (e) {
     // navigation failures shouldn't crash the app

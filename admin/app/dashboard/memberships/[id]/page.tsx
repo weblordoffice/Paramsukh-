@@ -122,7 +122,6 @@ export default function MembershipDetailsPage() {
     const colors: Record<string, string> = {
       active: 'bg-green-100 text-green-700',
       inactive: 'bg-gray-100 text-gray-700',
-      trial: 'bg-blue-100 text-blue-700',
       cancelled: 'bg-red-100 text-red-700'
     };
     return colors[status] || 'bg-gray-100 text-gray-700';
@@ -297,7 +296,17 @@ export default function MembershipDetailsPage() {
         <div className="p-6">
           {activeTab === "subscription" && <SubscriptionTab user={user} onUpdate={fetchUserDetails} />}
           {activeTab === "enrollments" && <EnrollmentsTab userId={userId} />}
-          {activeTab === "payments" && <PaymentsTab userId={userId} />}
+          {activeTab === "payments" && (
+            <PaymentsTab
+              userId={userId}
+              userInfo={{
+                displayName: user.displayName,
+                email: user.email,
+                phone: user.phone,
+                subscriptionPlan: user.subscriptionPlan,
+              }}
+            />
+          )}
           {activeTab === "activity" && <ActivityTab userId={userId} />}
         </div>
       </div>

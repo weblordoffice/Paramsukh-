@@ -182,13 +182,12 @@ export default function MyMembershipScreen() {
 
     const activePlan = currentSubscription?.plan?.toLowerCase();
     const isActive = currentSubscription?.status === 'active';
-    const isTrial = currentSubscription?.status === 'trial';
-    const hasNoPlan = !activePlan || (!isActive && !isTrial);
+    const hasNoPlan = !activePlan || !isActive;
 
     // Debug logging for subscription state
     if (__DEV__) {
         console.log('[Membership Screen] currentSubscription:', JSON.stringify(currentSubscription, null, 2));
-        console.log('[Membership Screen] activePlan:', activePlan, 'isActive:', isActive, 'isTrial:', isTrial, 'hasNoPlan:', hasNoPlan);
+        console.log('[Membership Screen] activePlan:', activePlan, 'isActive:', isActive, 'hasNoPlan:', hasNoPlan);
         console.log('[Membership Screen] purchases:', JSON.stringify(purchases.map(p => ({ plan: p.plan, status: p.status })), null, 2));
     }
 
@@ -288,7 +287,7 @@ export default function MyMembershipScreen() {
                             >
                                 <View style={[styles.statusDot, { backgroundColor: isActive ? '#10B981' : '#F59E0B' }]} />
                                 <Text style={[styles.statusText, { color: isActive ? '#10B981' : '#D97706' }]}>
-                                    {isTrial ? `Trial · ${currentSubscription?.trialDaysLeft ?? 0}d left` : 'Active'}
+                                    Active
                                 </Text>
                             </View>
                         </View>
@@ -335,7 +334,7 @@ export default function MyMembershipScreen() {
                 {plans.map(plan => {
                     const planId = plan.id.toLowerCase().trim();
                     const currentPlanId = activePlan ? activePlan.toLowerCase().trim() : '';
-                    const isCurrentPlan = currentPlanId === planId && (isActive || isTrial);
+                    const isCurrentPlan = currentPlanId === planId && isActive;
                     const isAlreadyPurchased = purchases.some(p => {
                         const purchasePlan = p.plan ? p.plan.toLowerCase().trim() : '';
                         return purchasePlan === planId && p.status === 'completed';
@@ -343,7 +342,7 @@ export default function MyMembershipScreen() {
                     
                     // Debug logging
                     if (__DEV__) {
-                        console.log(`[Membership] Plan: ${plan.name} (${planId}), Current: ${activePlan} (${currentPlanId}), isActive: ${isActive}, isTrial: ${isTrial}, isCurrentPlan: ${isCurrentPlan}, isAlreadyPurchased: ${isAlreadyPurchased}`);
+                        console.log(`[Membership] Plan: ${plan.name} (${planId}), Current: ${activePlan} (${currentPlanId}), isActive: ${isActive}, isCurrentPlan: ${isCurrentPlan}, isAlreadyPurchased: ${isAlreadyPurchased}`);
                     }
                     return (
                         <View

@@ -75,10 +75,14 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
 
     useEffect(() => {
         if (podcast) {
+            const normalizedSource = podcast.source || 'local';
+            const isYoutube = normalizedSource === 'youtube';
             setFormData({
                 ...podcast,
-                source: podcast.source || 'local',
-                accessType: podcast.accessType || 'free',
+                source: normalizedSource,
+                accessType: isYoutube ? 'free' : (podcast.accessType || 'free'),
+                requiredMemberships: isYoutube ? [] : (podcast.requiredMemberships || []),
+                price: isYoutube ? 0 : (podcast.price || 0),
                 currencyCode: podcast.currencyCode || 'INR',
             });
             setVideoUploadType('url');
@@ -189,36 +193,45 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
         setLoading(true);
 
         try {
+            const payload: Podcast = { ...formData };
+
+            // YouTube podcasts are always free.
+            if (payload.source === 'youtube') {
+                payload.accessType = 'free';
+                payload.price = 0;
+                payload.requiredMemberships = [];
+            }
+
             // Validation
-            if (formData.source === 'youtube' && !formData.youtubeUrl) {
+            if (payload.source === 'youtube' && !payload.youtubeUrl) {
                 toast.error('YouTube URL is required');
                 setLoading(false);
                 return;
             }
 
-            if (formData.source === 'local' && !formData.videoUrl) {
+            if (payload.source === 'local' && !payload.videoUrl) {
                 toast.error('Video URL is required');
                 setLoading(false);
                 return;
             }
 
-            if (formData.accessType === 'membership' && (!formData.requiredMemberships || formData.requiredMemberships.length === 0)) {
+            if (payload.accessType === 'membership' && (!payload.requiredMemberships || payload.requiredMemberships.length === 0)) {
                 toast.error('Select at least one membership plan');
                 setLoading(false);
                 return;
             }
 
-            if (formData.accessType === 'paid' && !formData.price) {
+            if (payload.accessType === 'paid' && !payload.price) {
                 toast.error('Price is required for paid podcasts');
                 setLoading(false);
                 return;
             }
 
             if (podcast?._id) {
-                await apiClient.put(`/api/podcasts/admin/${podcast._id}`, formData);
+                await apiClient.put(`/api/podcasts/admin/${podcast._id}`, payload);
                 toast.success('Podcast updated successfully');
             } else {
-                await apiClient.post('/api/podcasts/admin/create', formData);
+                await apiClient.post('/api/podcasts/admin/create', payload);
                 toast.success('Podcast created successfully');
             }
             onSuccess();
@@ -321,7 +334,13 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
                                         name="source"
                                         value="youtube"
                                         checked={formData.source === 'youtube'}
-                                        onChange={() => setFormData({ ...formData, source: 'youtube' })}
+                                        onChange={() => setFormData({
+                                            ...formData,
+                                            source: 'youtube',
+                                            accessType: 'free',
+                                            requiredMemberships: [],
+                                            price: 0,
+                                        })}
                                         className="w-4 h-4"
                                     />
                                     <span className="text-sm font-medium text-black">YouTube</span>
@@ -439,12 +458,18 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
                             <select
                                 value={formData.accessType}
                                 onChange={(e) => setFormData({ ...formData, accessType: e.target.value as any })}
+                                disabled={formData.source === 'youtube'}
                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-black"
                             >
                                 <option value="free">🔓 Free (Everyone)</option>
                                 <option value="membership">🔐 Membership Only</option>
                                 <option value="paid">💰 Paid</option>
                             </select>
+                            {formData.source === 'youtube' && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                    YouTube podcasts are always free.
+                                </p>
+                            )}
                         </div>
 
                         {/* Price (for paid podcasts) */}

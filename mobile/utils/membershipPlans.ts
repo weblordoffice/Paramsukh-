@@ -2,6 +2,8 @@ import apiClient from './apiClient';
 
 export interface UIMembershipPlan {
   id: string;
+  slug: string;
+  rawId?: string;
   name: string;
   emoji: string;
   price: number;
@@ -58,6 +60,8 @@ export const fetchPublicMembershipPlans = async (): Promise<UIMembershipPlan[]> 
 
       return {
         id: slug,
+        slug,
+        rawId: plan?._id ? String(plan._id) : undefined,
         name: plan?.title || toTitle(slug),
         emoji: plan?.metadata?.icon || defaultVisual.emoji,
         price: Number(plan?.pricing?.oneTime?.amount || 0),

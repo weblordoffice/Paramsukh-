@@ -299,7 +299,7 @@ eventSchema.pre('save', function(next) {
   next();
 });
 
-// Pre-delete middleware to cascade delete EventRegistrations
+// Pre-delete middleware to soft-delete EventRegistrations (preserve payment data)
 eventSchema.pre('deleteOne', { document: false, query: true }, async function() {
   try {
     const { EventRegistration } = await import('./eventRegistration.models.js');
@@ -307,11 +307,11 @@ eventSchema.pre('deleteOne', { document: false, query: true }, async function() 
     const eventId = filter._id;
     
     if (eventId) {
-      const result = await EventRegistration.deleteMany({ eventId });
-      console.log(`✅ Cascade deleted ${result.deletedCount} registrations for event: ${eventId}`);
+      const result = await EventRegistration.updateMany({ eventId }, { status: 'cancelled', notes: 'Event was deleted by Admin' });
+      console.log(`✅ Cancelled ${result.modifiedCount} registrations for deleted event: ${eventId}`);
     }
   } catch (error) {
-    console.error('❌ Error deleting event registrations:', error);
+    console.error('❌ Error updating event registrations on cascade delete:', error);
   }
 });
 

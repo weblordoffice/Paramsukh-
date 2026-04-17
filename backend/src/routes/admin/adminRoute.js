@@ -10,6 +10,7 @@ import {
     getAdminMe,
     refreshTokenAdmin
 } from '../../controller/auth/authAdmin.controller.js';
+import { getBasicAnalytics } from '../../controller/admin/analytics.controller.js';
 import { protectAdmin, restrictTo } from '../../middleware/authAdmin.js';
 import { authLimiter } from '../../middleware/rateLimiter.js';
 
@@ -25,6 +26,7 @@ router.post('/refresh-token', authLimiter, refreshTokenAdmin);
 router.use(protectAdmin);
 
 router.get('/me', getAdminMe);
+router.get('/analytics/basic', getBasicAnalytics);
 
 // Super Admin routes (Manage other admins)
 router.use(restrictTo('super_admin')); // All below routes require super_admin role

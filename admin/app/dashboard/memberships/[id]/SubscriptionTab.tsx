@@ -112,13 +112,9 @@ export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps
     }
 
     const features: string[] = [];
-    const includedCategories = selectedPlan.access?.includedCategories || [];
 
     if (selectedPlan.shortDescription) {
       features.push(selectedPlan.shortDescription);
-    }
-    if (includedCategories.length > 0) {
-      features.push(`Included categories: ${includedCategories.join(', ')}`);
     }
     if (selectedPlan.access?.communityAccess) {
       features.push('Community access enabled');
@@ -152,12 +148,8 @@ export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps
   }, [selectedPlan]);
 
   const isActive = user.subscriptionStatus === 'active';
-  const isTrial = user.subscriptionStatus === 'trial';
   const daysRemaining = user.subscriptionEndDate 
     ? Math.floor((new Date(user.subscriptionEndDate).getTime() - REFERENCE_NOW) / (1000 * 60 * 60 * 24))
-    : null;
-  const trialDaysRemaining = user.trialEndsAt
-    ? Math.floor((new Date(user.trialEndsAt).getTime() - REFERENCE_NOW) / (1000 * 60 * 60 * 24))
     : null;
 
   return (
@@ -202,19 +194,6 @@ export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps
             <p className="text-sm text-yellow-700 mt-1">
               This subscription will expire in {daysRemaining} days on{' '}
               {new Date(user.subscriptionEndDate!).toLocaleDateString()}.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {isTrial && trialDaysRemaining !== null && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex gap-3">
-          <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-medium text-blue-900">Trial Period Active</p>
-            <p className="text-sm text-blue-700 mt-1">
-              Trial ends in {trialDaysRemaining} days on{' '}
-              {new Date(user.trialEndsAt!).toLocaleDateString()}.
             </p>
           </div>
         </div>

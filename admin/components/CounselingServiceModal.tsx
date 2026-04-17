@@ -34,6 +34,12 @@ interface CounselingService {
     counselorName: string;
     intervalMinutes?: number;
     businessHours?: BusinessHours;
+    calendlyIntegration?: {
+        isEnabled: boolean;
+        eventUri: string;
+        eventType: 'one_on_one' | 'group' | 'collective';
+        webhookSecret?: string;
+    };
 }
 
 interface CounselingServiceForm {
@@ -49,6 +55,12 @@ interface CounselingServiceForm {
     counselorName: string;
     intervalMinutes: number;
     businessHours: BusinessHours;
+    calendlyIntegration: {
+        isEnabled: boolean;
+        eventUri: string;
+        eventType: 'one_on_one' | 'group' | 'collective';
+        webhookSecret: string;
+    };
 }
 
 interface ServiceModalProps {
@@ -98,7 +110,13 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
         icon: 'help-buoy',
         counselorName: 'Expert Counselor',
         intervalMinutes: 60,
-        businessHours: INITIAL_BUSINESS_HOURS
+        businessHours: INITIAL_BUSINESS_HOURS,
+        calendlyIntegration: {
+            isEnabled: false,
+            eventUri: '',
+            eventType: 'one_on_one',
+            webhookSecret: ''
+        }
     });
 
     useEffect(() => {
@@ -106,7 +124,13 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
             setFormData({
                 ...service,
                 intervalMinutes: service.intervalMinutes ?? 60,
-                businessHours: service.businessHours ?? INITIAL_BUSINESS_HOURS
+                businessHours: service.businessHours ?? INITIAL_BUSINESS_HOURS,
+                calendlyIntegration: {
+                    isEnabled: service.calendlyIntegration?.isEnabled ?? false,
+                    eventUri: service.calendlyIntegration?.eventUri ?? '',
+                    eventType: service.calendlyIntegration?.eventType ?? 'one_on_one',
+                    webhookSecret: service.calendlyIntegration?.webhookSecret ?? ''
+                }
             });
         } else {
             setFormData({
@@ -120,7 +144,13 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
                 icon: 'help-buoy',
                 counselorName: 'Expert Counselor',
                 intervalMinutes: 60,
-                businessHours: INITIAL_BUSINESS_HOURS
+                businessHours: INITIAL_BUSINESS_HOURS,
+                calendlyIntegration: {
+                    isEnabled: false,
+                    eventUri: '',
+                    eventType: 'one_on_one',
+                    webhookSecret: ''
+                }
             });
         }
     }, [service, isOpen]);
@@ -352,6 +382,114 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
                                     onChange={(e) => setFormData({ ...formData, icon: e.target.value })}
                                     className="px-3 py-1 text-xs border border-gray-300 rounded-full w-32 focus:outline-none focus:border-blue-500 ml-2 text-gray-900 placeholder:text-gray-500"
                                 />
+                            </div>
+                        </div>
+
+                        {/* Calendly Integration */}
+                        <div className="col-span-2 space-y-4">
+                            <div className="border-t border-gray-200 pt-6">
+                                <div className="flex items-center justify-between mb-4">
+                                    <div>
+                                        <h3 className="text-base font-semibold text-gray-900">Calendly Integration</h3>
+                                        <p className="text-xs text-gray-500 mt-1">Use Calendly for booking management</p>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.calendlyIntegration.isEnabled}
+                                            onChange={(e) => setFormData({
+                                                ...formData,
+                                                calendlyIntegration: {
+                                                    ...formData.calendlyIntegration,
+                                                    isEnabled: e.target.checked
+                                                }
+                                            })}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                    </label>
+                                </div>
+
+                                {formData.calendlyIntegration.isEnabled && (
+                                    <div className="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                        {/* Event URI */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Calendly Event URI <span className="text-red-500">*</span>
+                                            </label>
+                                            <input
+                                                type="url"
+                                                required={formData.calendlyIntegration.isEnabled}
+                                                value={formData.calendlyIntegration.eventUri}
+                                                onChange={(e) => setFormData({
+                                                    ...formData,
+                                                    calendlyIntegration: {
+                                                        ...formData.calendlyIntegration,
+                                                        eventUri: e.target.value
+                                                    }
+                                                })}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-gray-900 placeholder:text-gray-500"
+                                                placeholder="https://calendly.com/your-org/event-type"
+                                            />
+                                            <p className="text-xs text-gray-500 mt-2">
+                                                Go to Calendly → Event Type → Share → Copy link
+                                            </p>
+                                            {formData.calendlyIntegration.eventUri && (
+                                                <a
+                                                    href={formData.calendlyIntegration.eventUri}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1 mt-2 text-sm text-blue-600 hover:text-blue-700"
+                                                >
+                                                    Test Link <span className="text-xs">↗</span>
+                                                </a>
+                                            )}
+                                        </div>
+
+                                        {/* Event Type */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">Event Type</label>
+                                            <select
+                                                value={formData.calendlyIntegration.eventType}
+                                                onChange={(e) => setFormData({
+                                                    ...formData,
+                                                    calendlyIntegration: {
+                                                        ...formData.calendlyIntegration,
+                                                        eventType: e.target.value as 'one_on_one' | 'group' | 'collective'
+                                                    }
+                                                })}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-gray-900 bg-white"
+                                            >
+                                                <option value="one_on_one">One-on-One</option>
+                                                <option value="group">Group Session</option>
+                                                <option value="collective">Collective</option>
+                                            </select>
+                                        </div>
+
+                                        {/* Webhook Secret (Optional) */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Webhook Secret <span className="text-xs text-gray-400">(Optional)</span>
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={formData.calendlyIntegration.webhookSecret}
+                                                onChange={(e) => setFormData({
+                                                    ...formData,
+                                                    calendlyIntegration: {
+                                                        ...formData.calendlyIntegration,
+                                                        webhookSecret: e.target.value
+                                                    }
+                                                })}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-gray-900 placeholder:text-gray-500"
+                                                placeholder="Leave empty if not using webhooks"
+                                            />
+                                            <p className="text-xs text-gray-500 mt-2">
+                                                Used for syncing bookings from Calendly to database
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

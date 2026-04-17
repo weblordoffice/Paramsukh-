@@ -22,8 +22,15 @@ import {
   getUserPayments,
   getUserActivity
 } from '../../controller/user/admin.controller.js';
+import {
+  previewUserImport,
+  commitUserImport,
+  getUserImportTemplate,
+} from '../../controller/user/import.controller.js';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { uploadLimiter } from '../../middleware/rateLimiter.js';
+import { uploadSingleSpreadsheet, handleMulterError } from '../../middleware/uploadMiddleware.js';
 
 const router = express.Router();
 
@@ -52,6 +59,9 @@ router.delete('/account', protectedRoutes, deleteAccount);
 
 router.get('/all', adminAuth, getAllUsers);
 router.post('/create', adminAuth, createUserAdmin);
+router.get('/import/template', adminAuth, getUserImportTemplate);
+router.post('/import/preview', adminAuth, uploadLimiter, uploadSingleSpreadsheet, handleMulterError, previewUserImport);
+router.post('/import/commit', adminAuth, commitUserImport);
 
 // Admin parameterized routes (must be after specific user paths)
 router.get('/:id', adminAuth, getUserById);

@@ -1,5 +1,6 @@
 import { User } from '../../models/user.models.js';
 import jwt from 'jsonwebtoken';
+import { reconcileUserSubscriptionPlanIntegrity } from '../../services/membershipPlan.service.js';
 
 /**
  * Refresh access token using refresh token
@@ -41,6 +42,11 @@ export const refreshToken = async (req, res) => {
         success: false,
         message: 'User account is inactive'
       });
+    }
+
+    const reconciliation = await reconcileUserSubscriptionPlanIntegrity(user, { save: true });
+    if (reconciliation?.reconciled) {
+      console.warn(`⚠️ Reconciled orphan plan for user ${user._id}: ${reconciliation.previousPlan} -> free`);
     }
 
     // Update login count

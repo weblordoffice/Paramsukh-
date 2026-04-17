@@ -11,7 +11,7 @@ interface Video {
     title: string;
     videoUrl?: string;
     url?: string;
-    duration: number;
+    duration: number | string;
     thumbnailUrl?: string;
     order?: number;
     description?: string;
@@ -40,8 +40,61 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
 
     const sortedVideos = [...videos].sort((a, b) => (a.order || 0) - (b.order || 0));
 
+    const durationStringToMinutes = (durationValue: number | string | null | undefined) => {
+        if (durationValue === null || durationValue === undefined) return 0;
+
+        if (typeof durationValue === 'number') {
+            return Number.isFinite(durationValue) ? durationValue : 0;
+        }
+
+        const text = String(durationValue).trim();
+        if (!text) return 0;
+
+        if (/^\d+:\d{1,2}$/.test(text)) {
+            const [minsPart, secsPart] = text.split(':');
+            const mins = Number(minsPart);
+            const secs = Number(secsPart);
+            if (Number.isFinite(mins) && Number.isFinite(secs)) {
+                return mins + (secs / 60);
+            }
+        }
+
+        const numericValue = Number(text);
+        return Number.isFinite(numericValue) ? numericValue : 0;
+    };
+
+    const detectVideoDurationMinutes = (file: File) => {
+        return new Promise<number | null>((resolve) => {
+            const objectUrl = URL.createObjectURL(file);
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+
+            const cleanup = () => {
+                URL.revokeObjectURL(objectUrl);
+                video.remove();
+            };
+
+            video.onloadedmetadata = () => {
+                const seconds = Number(video.duration);
+                cleanup();
+                if (!Number.isFinite(seconds) || seconds <= 0) {
+                    resolve(null);
+                    return;
+                }
+                resolve(Math.round((seconds / 60) * 10) / 10);
+            };
+
+            video.onerror = () => {
+                cleanup();
+                resolve(null);
+            };
+
+            video.src = objectUrl;
+        });
+    };
+
     const formatMinutesToDuration = (minutesValue: number | string) => {
-        const minutes = typeof minutesValue === 'string' ? parseFloat(minutesValue) : minutesValue;
+        const minutes = durationStringToMinutes(minutesValue);
         if (!Number.isFinite(minutes) || minutes <= 0) return '';
 
         const totalSeconds = Math.round(minutes * 60);
@@ -62,7 +115,7 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
             setFormData({
                 title: video.title ?? '',
                 url: video.videoUrl ?? video.url ?? '',
-                duration: video.duration ?? 0,
+                duration: durationStringToMinutes(video.duration),
                 thumbnailUrl: video.thumbnailUrl ?? '',
                 description: video.description ?? '',
             });
@@ -96,6 +149,13 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
         const file = e.target.files?.[0];
         if (!file) return;
 
+        if (type === 'video') {
+            const localMinutes = await detectVideoDurationMinutes(file);
+            if (localMinutes && localMinutes > 0) {
+                setFormData((prev) => ({ ...prev, duration: localMinutes }));
+            }
+        }
+
         // Create form data
         const formData = new FormData();
         const fieldName = type === 'video' ? 'video' : 'image';
@@ -128,7 +188,9 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
                     setFormData(prev => ({
                         ...prev,
                         url: data?.url ?? prev.url ?? '',
-                        duration: data?.duration != null ? Math.round(Number(data.duration) / 60) : (prev.duration ?? 0)
+                        duration: data?.duration != null
+                            ? (Math.round((Number(data.duration) / 60) * 10) / 10)
+                            : (prev.duration ?? 0)
                     }));
                 } else {
                     setFormData(prev => ({
@@ -153,10 +215,17 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
         e.preventDefault();
         setSubmitting(true);
 
+        const normalizedDuration = formatMinutesToDuration(formData.duration);
+        if (!normalizedDuration) {
+            toast.error('Duration is required. Upload a video or enter minutes manually.');
+            setSubmitting(false);
+            return;
+        }
+
         const payload = {
             title: formData.title,
             description: formData.description,
-            duration: formatMinutesToDuration(formData.duration),
+            duration: normalizedDuration,
             videoUrl: formData.url,
             thumbnailUrl: formData.thumbnailUrl,
             order: editingVideo?.order ?? getNextOrder(),

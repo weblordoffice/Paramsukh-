@@ -13,7 +13,8 @@ import {
     Crown,
     X,
     Mic,
-    Settings
+    Settings,
+    BarChart3
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -37,6 +38,7 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
     { icon: Home, label: 'Dashboard', href: '/dashboard' },
+    { icon: BarChart3, label: 'Analytics', href: '/dashboard/analytics', superAdminOnly: true },
     { icon: Users, label: 'Users', href: '/dashboard/users', permission: 'manage_users' },
     { icon: Crown, label: 'Memberships', href: '/dashboard/memberships', permission: 'manage_users' },
     { icon: Crown, label: 'Plans', href: '/dashboard/plans', permission: 'manage_users' },

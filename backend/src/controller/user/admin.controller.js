@@ -1,11 +1,41 @@
 import { User } from '../../models/user.models.js';
 import { Enrollment } from '../../models/enrollment.models.js';
 import { Course } from '../../models/course.models.js';
-import { Group } from '../../models/community.models.js';
-import { GroupMember } from '../../models/community.models.js';
+import { UserMembership } from '../../models/userMembership.models.js';
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
-import { cleanupExpiredCommunityMemberships, restoreCommunityMemberships } from '../../services/communityCleanup.service.js';
+import { resolveMembershipPlanChargeAmount } from '../../services/membershipPlan.service.js';
+import { syncUserCommunityMembershipsByPlan } from '../../services/planUpgrade.service.js';
+
+const normalizeText = (value) => String(value || '').trim();
+const normalizeEmail = (value) => normalizeText(value).toLowerCase();
+const normalizePhone = (value) => normalizeText(value).replace(/[\s-]/g, '');
+const normalizePlan = (value) => normalizeText(value).toLowerCase();
+const normalizeSubscriptionStatusInput = (value) => {
+  const normalized = normalizeText(value).toLowerCase();
+  if (!normalized) {
+    return normalized;
+  }
+  return normalized === 'trial' ? 'inactive' : normalized;
+};
+const normalizeTags = (value) => {
+  const raw = Array.isArray(value)
+    ? value
+    : typeof value === 'string'
+      ? value.split(',')
+      : [];
+
+  return Array.from(
+    new Set(
+      raw
+        .map((tag) => normalizeText(tag).toLowerCase())
+        .filter(Boolean)
+    )
+  );
+};
+
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+const isValidPhone = (phone) => /^\+?[0-9]{10,15}$/.test(phone);
 
 /**
  * Create a new user (Admin only)
@@ -13,13 +43,53 @@ import { cleanupExpiredCommunityMemberships, restoreCommunityMemberships } from 
  */
 export const createUserAdmin = async (req, res) => {
   try {
-    const { displayName, email, phone, subscriptionPlan } = req.body;
+    const {
+      displayName: rawDisplayName,
+      email: rawEmail,
+      phone: rawPhone,
+      subscriptionPlan: rawSubscriptionPlan,
+      tags: rawTags,
+    } = req.body;
+
+    const displayName = normalizeText(rawDisplayName);
+    const email = normalizeEmail(rawEmail);
+    const phone = normalizePhone(rawPhone);
+    const tags = normalizeTags(rawTags);
 
     if (!displayName || !phone) {
       return res.status(400).json({
         success: false,
         message: 'Name and Phone are required'
       });
+    }
+
+    if (!isValidPhone(phone)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number must be 10-15 digits (optionally with + prefix)'
+      });
+    }
+
+    if (email && !isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid email address'
+      });
+    }
+
+    const requestedPlan = normalizePlan(rawSubscriptionPlan || 'free');
+    let finalPlan = 'free';
+    let planConfig = null;
+
+    if (requestedPlan !== 'free') {
+      planConfig = await resolveMembershipPlanChargeAmount(requestedPlan);
+      if (!planConfig.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid membership plan'
+        });
+      }
+      finalPlan = planConfig.slug;
     }
 
     // Check if user exists
@@ -39,14 +109,38 @@ export const createUserAdmin = async (req, res) => {
 
     const user = new User({
       displayName,
-      email,
+      email: email || undefined,
       phone,
-      subscriptionPlan: subscriptionPlan || 'free',
+      subscriptionPlan: finalPlan,
+      subscriptionStatus: finalPlan === 'free' ? 'inactive' : 'active',
+      subscriptionStartDate: finalPlan === 'free' ? null : new Date(),
+      subscriptionEndDate: finalPlan === 'free'
+        ? null
+        : new Date(Date.now() + Number(planConfig?.plan?.validityDays || 365) * 24 * 60 * 60 * 1000),
+      trialEndsAt: null,
       authProvider: 'phone', // Default since schema requires it
-      isActive: true
+      isActive: true,
+      tags,
     });
 
     await user.save();
+
+    if (finalPlan !== 'free') {
+      await upsertActiveUserMembership({
+        userId: user._id,
+        planSlug: finalPlan,
+        startDate: user.subscriptionStartDate,
+        endDate: user.subscriptionEndDate,
+        source: 'admin_grant',
+        metadata: { sourceController: 'admin.createUserAdmin' },
+      });
+
+      await syncUserCommunityMembershipsByPlan({
+        userId: user._id,
+        planSlug: finalPlan,
+        membershipActive: true,
+      });
+    }
 
     return res.status(201).json({
       success: true,
@@ -55,6 +149,14 @@ export const createUserAdmin = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error creating user:', error);
+
+    if (error?.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'User with this phone or email already exists'
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: 'Failed to create user',
@@ -70,7 +172,7 @@ export const createUserAdmin = async (req, res) => {
 export const updateUserAdmin = async (req, res) => {
   try {
     const { id } = req.params;
-    const { displayName, email, phone, subscriptionPlan, isActive } = req.body;
+    const { displayName, email, phone, subscriptionPlan, isActive, tags } = req.body;
 
     const user = await User.findById(id);
 
@@ -81,13 +183,122 @@ export const updateUserAdmin = async (req, res) => {
       });
     }
 
-    if (displayName) user.displayName = displayName;
-    if (email) user.email = email;
-    if (phone) user.phone = phone;
-    if (subscriptionPlan) user.subscriptionPlan = subscriptionPlan;
+    if (displayName !== undefined) {
+      const normalizedDisplayName = normalizeText(displayName);
+      if (!normalizedDisplayName) {
+        return res.status(400).json({ success: false, message: 'Name is required' });
+      }
+      user.displayName = normalizedDisplayName;
+    }
+
+    if (email !== undefined) {
+      const normalizedEmail = normalizeEmail(email);
+      if (normalizedEmail && !isValidEmail(normalizedEmail)) {
+        return res.status(400).json({ success: false, message: 'Invalid email address' });
+      }
+
+      if (normalizedEmail) {
+        const emailConflict = await User.findOne({ email: normalizedEmail, _id: { $ne: id } }).select('_id').lean();
+        if (emailConflict) {
+          return res.status(400).json({ success: false, message: 'Email is already in use by another user' });
+        }
+      }
+
+      user.email = normalizedEmail || undefined;
+    }
+
+    let selectedPlanConfig = null;
+    let shouldExpireMemberships = false;
+    const membershipChanged = subscriptionPlan !== undefined;
+    if (subscriptionPlan !== undefined) {
+      const requestedPlan = normalizePlan(subscriptionPlan || 'free');
+      let finalPlan = 'free';
+
+      if (requestedPlan !== 'free') {
+        selectedPlanConfig = await resolveMembershipPlanChargeAmount(requestedPlan);
+        if (!selectedPlanConfig.isValid) {
+          return res.status(400).json({ success: false, message: 'Invalid membership plan' });
+        }
+        finalPlan = selectedPlanConfig.slug;
+      }
+
+      user.subscriptionPlan = finalPlan;
+
+      if (finalPlan === 'free') {
+        shouldExpireMemberships = true;
+        user.subscriptionStatus = 'inactive';
+        user.subscriptionStartDate = null;
+        user.subscriptionEndDate = null;
+        user.trialEndsAt = null;
+      } else {
+        user.subscriptionStatus = 'active';
+        user.subscriptionStartDate = new Date();
+        user.subscriptionEndDate = new Date(
+          Date.now() + Number(selectedPlanConfig?.plan?.validityDays || 365) * 24 * 60 * 60 * 1000
+        );
+        user.trialEndsAt = null;
+      }
+    }
+
+    if (phone !== undefined) {
+      const normalizedPhone = normalizePhone(phone);
+      if (!normalizedPhone) {
+        return res.status(400).json({ success: false, message: 'Phone is required' });
+      }
+      if (!isValidPhone(normalizedPhone)) {
+        return res.status(400).json({ success: false, message: 'Phone number must be 10-15 digits (optionally with + prefix)' });
+      }
+
+      const phoneConflict = await User.findOne({ phone: normalizedPhone, _id: { $ne: id } }).select('_id').lean();
+      if (phoneConflict) {
+        return res.status(400).json({ success: false, message: 'Phone is already in use by another user' });
+      }
+
+      user.phone = normalizedPhone;
+    }
+
     if (typeof isActive === 'boolean') user.isActive = isActive;
 
+    if (tags !== undefined) {
+      user.tags = normalizeTags(tags);
+    }
+
     await user.save();
+
+    if (user.subscriptionPlan && user.subscriptionPlan !== 'free' && user.subscriptionStatus === 'active') {
+      await upsertActiveUserMembership({
+        userId: id,
+        planSlug: user.subscriptionPlan,
+        startDate: user.subscriptionStartDate || new Date(),
+        endDate: user.subscriptionEndDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+        source: 'admin_grant',
+        metadata: { sourceController: 'admin.updateUserAdmin' },
+      });
+    }
+
+    if (shouldExpireMemberships) {
+      await UserMembership.updateMany(
+        { userId: id, status: 'active', endDate: { $gte: new Date() } },
+        {
+          $set: {
+            status: 'expired',
+            endDate: new Date(),
+            metadata: {
+              sourceController: 'admin.updateUserAdmin',
+              reason: 'downgraded_to_free',
+            },
+          },
+        }
+      );
+    }
+
+    if (membershipChanged) {
+      await syncUserCommunityMembershipsByPlan({
+        userId: id,
+        planSlug: user.subscriptionPlan,
+        membershipActive: user.subscriptionStatus === 'active',
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -96,6 +307,14 @@ export const updateUserAdmin = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Error updating user:', error);
+
+    if (error?.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone or email is already in use by another user'
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: 'Failed to update user',
@@ -216,37 +435,27 @@ export const updateUserMembership = async (req, res) => {
     }
 
     // Update subscription fields
-    if (subscriptionPlan) user.subscriptionPlan = subscriptionPlan;
+    if (subscriptionPlan !== undefined) {
+      const requestedPlan = normalizePlan(subscriptionPlan || 'free');
+      if (requestedPlan !== 'free') {
+        const planConfig = await resolveMembershipPlanChargeAmount(requestedPlan);
+        if (!planConfig.isValid) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid membership plan'
+          });
+        }
+        user.subscriptionPlan = planConfig.slug;
+      } else {
+        user.subscriptionPlan = 'free';
+      }
+    }
     
-    // Track if membership status is changing
-    const oldStatus = user.subscriptionStatus;
-    if (subscriptionStatus) user.subscriptionStatus = subscriptionStatus;
+    if (subscriptionStatus) user.subscriptionStatus = normalizeSubscriptionStatusInput(subscriptionStatus);
     if (subscriptionStartDate) user.subscriptionStartDate = new Date(subscriptionStartDate);
     if (subscriptionEndDate) user.subscriptionEndDate = new Date(subscriptionEndDate);
 
     await user.save();
-
-    // Handle community membership cleanup when membership expires/cancels
-    if ((subscriptionStatus === 'expired' || subscriptionStatus === 'cancelled' || subscriptionPlan === 'free') && 
-        oldStatus === 'active') {
-      try {
-        await cleanupExpiredCommunityMemberships(id);
-        console.log(`🧹 Cleaned up community memberships for user ${id}`);
-      } catch (error) {
-        console.error(`⚠️ Failed to cleanup community memberships for user ${id}:`, error.message);
-        // Don't fail the request, log the error
-      }
-    }
-
-    // Handle community membership restoration when membership renews
-    if (subscriptionStatus === 'active' && oldStatus !== 'active' && subscriptionPlan && subscriptionPlan !== 'free') {
-      try {
-        await restoreCommunityMemberships(id);
-        console.log(`♻️ Restored community memberships for user ${id}`);
-      } catch (error) {
-        console.error(`⚠️ Failed to restore community memberships for user ${id}:`, error.message);
-      }
-    }
 
     if (user.subscriptionPlan && user.subscriptionPlan !== 'free' && user.subscriptionStatus === 'active') {
       await upsertActiveUserMembership({
@@ -257,11 +466,25 @@ export const updateUserMembership = async (req, res) => {
         source: 'admin_grant',
         metadata: { sourceController: 'admin.updateUserMembership' },
       });
+    } else {
+      await UserMembership.updateMany(
+        { userId: id, status: 'active', endDate: { $gte: new Date() } },
+        {
+          $set: {
+            status: 'expired',
+            endDate: new Date(),
+            metadata: {
+              sourceController: 'admin.updateUserMembership',
+              reason: 'membership_not_active',
+            },
+          },
+        }
+      );
     }
 
     // Auto-enroll in courses if requested
-    if (autoEnroll && subscriptionPlan && subscriptionPlan !== 'free') {
-      const courses = await getAutoEnrollCoursesForPlan(subscriptionPlan);
+    if (autoEnroll && user.subscriptionPlan && user.subscriptionPlan !== 'free') {
+      const courses = await getAutoEnrollCoursesForPlan(user.subscriptionPlan);
 
       if (courses.length > 0) {
 
@@ -287,46 +510,19 @@ export const updateUserMembership = async (req, res) => {
           }
         }
 
-        // Add to community groups
-        for (const course of courses) {
-          // Get or create group for this course (atomic upsert to prevent duplicates)
-          let group = await Group.findOneAndUpdate(
-            { courseId: course._id },
-            {
-              $setOnInsert: {
-                name: `${course.title} Community`,
-                description: `Discussion group for ${course.title} course members`,
-                coverImage: course.thumbnail,
-                memberCount: 0
-              }
-            },
-            { upsert: true, new: true }
-          );
-
-          const existingMembership = await GroupMember.findOne({
-            groupId: group._id,
-            userId: id
-          });
-
-          if (!existingMembership) {
-            await GroupMember.create({
-              groupId: group._id,
-              userId: id,
-              role: 'member'
-            });
-            
-            // Update group member count atomically
-            await Group.findByIdAndUpdate(group._id, { $inc: { memberCount: 1 } });
-          }
-        }
-
-        console.log(`✅ Admin updated membership for user ${id}: ${subscriptionPlan} (auto-enrolled in ${courses.length} courses)`);
+        console.log(`✅ Admin updated membership for user ${id}: ${user.subscriptionPlan} (auto-enrolled in ${courses.length} courses)`);
       } else {
-        console.warn(`⚠️ No published courses configured for ${subscriptionPlan} plan`);
+        console.warn(`⚠️ No published courses configured for ${user.subscriptionPlan} plan`);
       }
     } else {
-      console.log(`✅ Admin updated membership for user ${id}: ${subscriptionPlan}`);
+      console.log(`✅ Admin updated membership for user ${id}: ${user.subscriptionPlan}`);
     }
+
+    await syncUserCommunityMembershipsByPlan({
+      userId: id,
+      planSlug: user.subscriptionPlan,
+      membershipActive: user.subscriptionStatus === 'active',
+    });
 
     return res.status(200).json({
       success: true,

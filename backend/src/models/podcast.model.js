@@ -81,6 +81,15 @@ const podcastSchema = new mongoose.Schema({
 
 // Validate that YouTube URL is provided when source is youtube
 podcastSchema.pre('save', function(next) {
+    if (this.source === 'youtube') {
+        this.accessType = 'free';
+        this.price = 0;
+        this.requiredMemberships = [];
+        this.videoUrl = '';
+    } else if (this.source === 'local') {
+        this.youtubeUrl = '';
+    }
+
     if (this.source === 'youtube' && !this.youtubeUrl) {
         return next(new Error('YouTube URL is required when source is youtube'));
     }
@@ -94,6 +103,26 @@ podcastSchema.pre('save', function(next) {
         return next(new Error('Price is required for paid access type'));
     }
     this.updatedAt = Date.now();
+    next();
+});
+
+podcastSchema.pre('findOneAndUpdate', function(next) {
+    const update = this.getUpdate() || {};
+    const hasSet = !!update.$set;
+    const target = hasSet ? update.$set : update;
+    const source = target.source;
+
+    if (source === 'youtube') {
+        target.accessType = 'free';
+        target.price = 0;
+        target.requiredMemberships = [];
+        target.videoUrl = '';
+    } else if (source === 'local') {
+        target.youtubeUrl = '';
+    }
+
+    target.updatedAt = Date.now();
+    this.setUpdate(update);
     next();
 });
 

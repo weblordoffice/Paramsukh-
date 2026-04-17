@@ -230,7 +230,10 @@ bookingSchema.methods.canBeRescheduled = function () {
 // Static method to get available slots (TIMEZONE FIX: Use UTC consistently)
 bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
   const CounselingService = mongoose.model('CounselingService');
-  const service = await CounselingService.findOne({ title: counselorType });
+  const serviceQuery = mongoose.Types.ObjectId.isValid(String(counselorType))
+    ? { _id: counselorType }
+    : { title: counselorType };
+  const service = await CounselingService.findOne(serviceQuery);
 
   if (!service || !service.isActive) {
     return [];

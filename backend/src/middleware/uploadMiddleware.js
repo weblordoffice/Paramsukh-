@@ -55,6 +55,28 @@ const pdfFilter = (req, file, cb) => {
   }
 };
 
+// File filter for spreadsheets
+const spreadsheetFilter = (req, file, cb) => {
+  const allowedMimes = [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-excel',
+    'text/csv',
+    'application/csv',
+    'text/plain'
+  ];
+
+  const extension = String(file?.originalname || '').split('.').pop()?.toLowerCase();
+  const allowedExtensions = ['xlsx', 'xls', 'csv'];
+  const isMimeAllowed = allowedMimes.includes(file.mimetype);
+  const isExtensionAllowed = allowedExtensions.includes(extension || '');
+
+  if (isMimeAllowed || isExtensionAllowed) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only XLSX, XLS and CSV are allowed.'), false);
+  }
+};
+
 // File filter for both images and videos
 const mediaFilter = (req, file, cb) => {
   const allowedMimes = [
@@ -115,6 +137,15 @@ export const uploadSinglePdf = multer({
   }
 }).single('pdf');
 
+// Single spreadsheet upload (max 10MB)
+export const uploadSingleSpreadsheet = multer({
+  storage: storage,
+  fileFilter: spreadsheetFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  }
+}).single('file');
+
 // Mixed media upload (images and videos)
 export const uploadMixedMedia = multer({
   storage: storage,
@@ -169,6 +200,7 @@ export default {
   uploadSingleVideo,
   uploadProfilePhoto,
   uploadSinglePdf,
+  uploadSingleSpreadsheet,
   uploadMixedMedia,
   handleMulterError
 };

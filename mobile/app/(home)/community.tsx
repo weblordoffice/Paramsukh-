@@ -32,7 +32,7 @@ type ViewType = 'feed' | 'groups' | 'message';
 
 export default function CommunityScreen() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
   const {
     posts,
     groups,
@@ -50,12 +50,10 @@ export default function CommunityScreen() {
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [postContent, setPostContent] = useState('');
   const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
-  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>('feed');
-  const [, setPostType] = useState<'feed' | 'channel'>('feed');
   const [showPostTypeFilter, setShowPostTypeFilter] = useState(false);
-  const [selectedPostFilter, setSelectedPostFilter] = useState<'all' | 'image' | 'video' | 'audio' | 'text'>('all');
+  const [selectedPostFilter, setSelectedPostFilter] = useState<'all' | 'image' | 'text'>('all');
   const [showTagFilter, setShowTagFilter] = useState(false);
   const [selectedTag, setSelectedTag] = useState<string>('all');
   const [showCommentsModal, setShowCommentsModal] = useState(false);
@@ -85,7 +83,6 @@ export default function CommunityScreen() {
 
   const [showAssessment, setShowAssessment] = useState(false);
   const [assessmentCompleted, setAssessmentCompleted] = useState(false);
-  const [showPostTypeSelector, setShowPostTypeSelector] = useState(false);
 
   const checkAssessmentStatus = useCallback(async () => {
     try {
@@ -115,6 +112,12 @@ export default function CommunityScreen() {
     // Fetch user groups on mount
     fetchMyGroups();
   }, [fetchMyGroups, checkAssessmentStatus]);
+
+  useEffect(() => {
+    if (token) {
+      fetchMyGroups();
+    }
+  }, [token, fetchMyGroups]);
 
   // When groups are loaded, auto-select first group for now (or 'All' if backend supports global feed)
   useEffect(() => {
@@ -172,7 +175,6 @@ export default function CommunityScreen() {
         }
 
         setSelectedMedia(asset.uri);
-        setMediaType('image');
       }
     } catch (error) {
       console.error('Error picking image:', error);
@@ -180,46 +182,7 @@ export default function CommunityScreen() {
     }
   };
 
-  const handlePickVideo = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please grant permission to access your videos');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-        allowsEditing: true,
-        quality: 0.7,
-        videoMaxDuration: 60, // Limit to 60 seconds
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        
-        // Check duration
-        if (asset.duration && asset.duration > 60) {
-          Alert.alert('Video Too Long', 'Video must be less than 60 seconds.');
-          return;
-        }
-
-        // Check file size (50MB limit)
-        if (asset.fileSize && asset.fileSize > 50 * 1024 * 1024) {
-          Alert.alert('File Too Large', 'Video must be less than 50MB. Please choose a smaller video.');
-          return;
-        }
-
-        setSelectedMedia(asset.uri);
-        setMediaType('video');
-      }
-    } catch (error) {
-      console.error('Error picking video:', error);
-      Alert.alert('Error', 'Failed to pick video');
-    }
-  };
-
-  const publishPost = async (type: 'feed' | 'channel') => {
+  const publishPost = async () => {
     if (!activeGroup) {
       Alert.alert('Error', 'No active group selected to post to.');
       return;
@@ -230,8 +193,8 @@ export default function CommunityScreen() {
       let uploadedImageUrls: string[] = [];
 
       // Upload media to Cloudinary if present
-      if (selectedMedia && mediaType) {
-        const uploadedUrl = await useCommunityStore.getState().uploadMedia(selectedMedia, mediaType);
+      if (selectedMedia) {
+        const uploadedUrl = await useCommunityStore.getState().uploadMedia(selectedMedia, 'image');
 
         if (uploadedUrl) {
           uploadedImageUrls = [uploadedUrl];
@@ -252,11 +215,8 @@ export default function CommunityScreen() {
       if (success) {
         setPostContent('');
         setSelectedMedia(null);
-        setMediaType(null);
         setCreatePostTags([]);
-        setPostType('feed');
         setShowCreatePost(false);
-        setShowPostTypeSelector(false);
         setIsLoading(false);
 
         Alert.alert('Success', 'Your post has been published!');
@@ -277,13 +237,7 @@ export default function CommunityScreen() {
       return;
     }
 
-    // Show post type selector
-    setShowPostTypeSelector(true);
-  };
-
-  const handlePostTypeSelection = (type: 'feed' | 'channel') => {
-    setPostType(type);
-    publishPost(type);
+    publishPost();
   };
 
   const toggleLike = async (postId: string) => {
@@ -303,7 +257,7 @@ export default function CommunityScreen() {
     }
   };
 
-  const handlePostFilterSelect = (filter: 'all' | 'image' | 'video' | 'audio' | 'text') => {
+  const handlePostFilterSelect = (filter: 'all' | 'image' | 'text') => {
     setSelectedPostFilter(filter);
     setShowPostTypeFilter(false);
   };
@@ -314,10 +268,8 @@ export default function CommunityScreen() {
     // Filter by Post Type
     if (selectedPostFilter !== 'all') {
       filtered = filtered.filter(post => {
-        if (post.postType) return post.postType === selectedPostFilter;
         if (selectedPostFilter === 'image' && post.images && post.images.length > 0) return true;
-        if (selectedPostFilter === 'video' && post.video) return true;
-        if (selectedPostFilter === 'text' && !post.images && !post.video) return true;
+        if (selectedPostFilter === 'text' && (!post.images || post.images.length === 0)) return true;
         return false;
       });
     }
@@ -567,8 +519,7 @@ export default function CommunityScreen() {
                     </Text>
                   </View>
                   <View style={styles.mediaIcons}>
-                    <Ionicons name="image-outline" size={20} color="#6B7280" style={{ marginRight: 12 }} />
-                    <Ionicons name="videocam-outline" size={20} color="#6B7280" />
+                    <Ionicons name="image-outline" size={20} color="#6B7280" />
                   </View>
                 </TouchableOpacity>
 
@@ -730,7 +681,6 @@ export default function CommunityScreen() {
         transparent={true}
         onRequestClose={() => {
           setShowCreatePost(false);
-          setShowPostTypeSelector(false);
         }}
       >
         <View style={styles.modalOverlay}>
@@ -739,7 +689,6 @@ export default function CommunityScreen() {
               <Text style={styles.modalTitle}>Create Post</Text>
               <TouchableOpacity onPress={() => {
                 setShowCreatePost(false);
-                setShowPostTypeSelector(false);
               }}>
                 <Ionicons name="close" size={28} color="#6B7280" />
               </TouchableOpacity>
@@ -758,12 +707,9 @@ export default function CommunityScreen() {
             {selectedMedia && (
               <View style={styles.selectedMediaContainer}>
                 <View style={styles.selectedMediaPreview}>
-                  <Text style={styles.selectedMediaText}>
-                    {mediaType === 'image' ? '📷 Image selected' : '🎥 Video selected'}
-                  </Text>
+                  <Text style={styles.selectedMediaText}>📷 Image selected</Text>
                   <TouchableOpacity onPress={() => {
                     setSelectedMedia(null);
-                    setMediaType(null);
                   }}>
                     <Ionicons name="close-circle" size={24} color="#EF4444" />
                   </TouchableOpacity>
@@ -813,14 +759,6 @@ export default function CommunityScreen() {
               >
                 <Ionicons name="image-outline" size={24} color="#F1842D" />
                 <Text style={styles.mediaButtonText}>Photo</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.mediaButton}
-                onPress={handlePickVideo}
-              >
-                <Ionicons name="videocam-outline" size={24} color="#F1842D" />
-                <Text style={styles.mediaButtonText}>Video</Text>
               </TouchableOpacity>
             </View>
 
@@ -906,56 +844,6 @@ export default function CommunityScreen() {
                   Image
                 </Text>
                 {selectedPostFilter === 'image' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#F1842D" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterOption,
-                  selectedPostFilter === 'video' && styles.filterOptionActive
-                ]}
-                onPress={() => handlePostFilterSelect('video')}
-              >
-                <Ionicons
-                  name="videocam-outline"
-                  size={24}
-                  color={selectedPostFilter === 'video' ? '#F1842D' : '#5C4A42'}
-                />
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    selectedPostFilter === 'video' && styles.filterOptionTextActive
-                  ]}
-                >
-                  Video
-                </Text>
-                {selectedPostFilter === 'video' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#F1842D" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterOption,
-                  selectedPostFilter === 'audio' && styles.filterOptionActive
-                ]}
-                onPress={() => handlePostFilterSelect('audio')}
-              >
-                <Ionicons
-                  name="musical-notes-outline"
-                  size={24}
-                  color={selectedPostFilter === 'audio' ? '#F1842D' : '#5C4A42'}
-                />
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    selectedPostFilter === 'audio' && styles.filterOptionTextActive
-                  ]}
-                >
-                  Audio
-                </Text>
-                {selectedPostFilter === 'audio' && (
                   <Ionicons name="checkmark-circle" size={20} color="#F1842D" />
                 )}
               </TouchableOpacity>
@@ -1179,59 +1067,6 @@ export default function CommunityScreen() {
                 )}
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Post Type Selector Modal */}
-      <Modal
-        visible={showPostTypeSelector}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => setShowPostTypeSelector(false)}
-      >
-        <View style={styles.postTypeModalOverlay}>
-          <View style={styles.postTypeModalContent}>
-            <Text style={styles.postTypeModalTitle}>Where would you like to post?</Text>
-
-            <TouchableOpacity
-              style={styles.postTypeOption}
-              onPress={() => handlePostTypeSelection('feed')}
-            >
-              <View style={styles.postTypeOptionIcon}>
-                <Ionicons name="home" size={24} color="#F1842D" />
-              </View>
-              <View style={styles.postTypeOptionContent}>
-                <Text style={styles.postTypeOptionTitle}>Post on Feed</Text>
-                <Text style={styles.postTypeOptionDescription}>
-                  Share with the entire community
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.postTypeOption}
-              onPress={() => handlePostTypeSelection('channel')}
-            >
-              <View style={styles.postTypeOptionIcon}>
-                <Ionicons name="chatbubbles" size={24} color="#F1842D" />
-              </View>
-              <View style={styles.postTypeOptionContent}>
-                <Text style={styles.postTypeOptionTitle}>Post in Channel</Text>
-                <Text style={styles.postTypeOptionDescription}>
-                  Share in a specific group channel
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.postTypeCancelButton}
-              onPress={() => setShowPostTypeSelector(false)}
-            >
-              <Text style={styles.postTypeCancelText}>Cancel</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>

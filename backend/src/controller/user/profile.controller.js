@@ -1,10 +1,9 @@
 import { User } from '../../models/user.models.js';
 import { Enrollment } from '../../models/enrollment.models.js';
-import { Course } from '../../models/course.models.js';
-import { Group, GroupMember } from '../../models/community.models.js';
 import { resolveMembershipPlanChargeAmount, resolveMembershipPlanInheritanceBySlug, normalizePlanSlug } from '../../services/membershipPlan.service.js';
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
+import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
 
 /**
  * Get user profile
@@ -252,7 +251,7 @@ export const getSubscription = async (req, res) => {
     const userId = req.user._id;
 
     const user = await User.findById(userId)
-      .select('subscriptionPlan subscriptionStatus trialEndsAt');
+      .select('subscriptionPlan subscriptionStatus');
 
     if (!user) {
       return res.status(404).json({
@@ -261,11 +260,7 @@ export const getSubscription = async (req, res) => {
       });
     }
 
-    const now = new Date();
-    const isTrialActive = user.subscriptionStatus === 'trial' && user.trialEndsAt > now;
-    const trialDaysLeft = isTrialActive
-      ? Math.ceil((user.trialEndsAt - now) / (1000 * 60 * 60 * 24))
-      : 0;
+    const normalizedStatus = user.subscriptionStatus === 'trial' ? 'inactive' : user.subscriptionStatus;
 
     const normalizedPlan = normalizePlanSlug(user.subscriptionPlan || 'free');
     let effectivePlans = normalizedPlan ? [normalizedPlan] : [];
@@ -281,10 +276,10 @@ export const getSubscription = async (req, res) => {
       success: true,
       subscription: {
         plan: user.subscriptionPlan,
-        status: user.subscriptionStatus,
-        trialEndsAt: user.trialEndsAt,
-        isTrialActive,
-        trialDaysLeft,
+        status: normalizedStatus,
+        trialEndsAt: null,
+        isTrialActive: false,
+        trialDaysLeft: 0,
         hasProAccess: user.hasProAccess(),
         effectivePlans
       }
@@ -513,60 +508,11 @@ export const purchaseMembership = async (req, res) => {
 
     const enrollments = await Promise.all(enrollmentPromises);
 
-    // Auto-create groups for courses and add user to them
-    const groupPromises = courses.map(async (course) => {
-      // Get or create group for this course (atomic upsert to prevent duplicates)
-      let group = await Group.findOneAndUpdate(
-        { courseId: course._id },
-        {
-          $setOnInsert: {
-            name: `${course.title} Community`,
-            description: `Discussion group for ${course.title} course members`,
-            coverImage: course.thumbnail,
-            memberCount: 0
-          }
-        },
-        { upsert: true, new: true }
-      );
-
-      if (!group.name) {
-        console.log(`✅ Created group for course: ${course.title}`);
-      }
-
-      // Add user to group (skip if already member)
-      const existingMembership = await GroupMember.findOne({
-        groupId: group._id,
-        userId
-      });
-
-      if (!existingMembership) {
-        await GroupMember.create({
-          groupId: group._id,
-          userId,
-          role: 'member'
-        });
-
-        // Update group member count atomically
-        await Group.findByIdAndUpdate(group._id, { $inc: { memberCount: 1 } });
-
-        console.log(`✅ Added user to group: ${group.name}`);
-      } else if (!existingMembership.isActive) {
-        // Reactivate membership if it was deactivated
-        existingMembership.isActive = true;
-        await existingMembership.save();
-
-        // Update group member count atomically
-        await Group.findByIdAndUpdate(group._id, { $inc: { memberCount: 1 } });
-      }
-
-      return group;
-    });
-
-    const groups = await Promise.all(groupPromises);
+    const communitySync = await handlePlanUpgrade(userId, finalPlan);
 
     console.log(`✅ User ${user.displayName} purchased ${finalPlan} membership`);
     console.log(`   - Created ${enrollments.length} enrollment(s) for courses: ${courses.map(c => c.title).join(', ')}`);
-    console.log(`   - Added to ${groups.length} community group(s): ${groups.map(g => g.name).join(', ')}`);
+    console.log(`   - Category groups synced: ${communitySync.totalCategories}`);
 
     return res.status(200).json({
       success: true,
@@ -580,11 +526,8 @@ export const purchaseMembership = async (req, res) => {
         title: c.title
       })),
       enrollmentCount: enrollments.length,
-      communityGroups: groups.map(g => ({
-        _id: g._id,
-        name: g.name,
-        memberCount: g.memberCount
-      })),
+      communityGroups: [],
+      communityGroupsCount: communitySync.totalCategories,
       communityAccess: true
     });
 

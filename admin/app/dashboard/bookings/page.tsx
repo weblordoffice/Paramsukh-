@@ -10,7 +10,7 @@ interface Booking {
     bookingTitle: string;
     counselorName: string;
     counselorType: string;
-    user: { displayName?: string; email?: string; phone?: string; phoneNumber?: string };
+    user: { _id?: string; displayName?: string; email?: string; phone?: string; phoneNumber?: string };
     bookingDate: string;
     bookingTime: string;
     status: string;
@@ -55,8 +55,30 @@ export default function BookingsPage() {
 
     const fetchBookings = async () => {
         try {
-            const response = await apiClient.get('/api/counseling/all');
-            setBookings(response.data.data?.bookings || response.data.bookings || response.data || []);
+            const response = await apiClient.get('/api/counseling/all', {
+                params: { status: 'confirmed', limit: 500 }
+            });
+
+            const rawBookings: Booking[] = response.data.data?.bookings || response.data.bookings || response.data || [];
+
+            // Keep only one card for the same slot/person/service combination.
+            const unique = new Map<string, Booking>();
+            for (const booking of rawBookings) {
+                const slotDate = new Date(booking.bookingDate).toISOString().slice(0, 10);
+                const key = [
+                    booking.user?._id || booking.user?.email || booking.user?.displayName || 'unknown-user',
+                    booking.bookingTitle || '',
+                    booking.counselorName || '',
+                    slotDate,
+                    booking.bookingTime || ''
+                ].join('|');
+
+                if (!unique.has(key)) {
+                    unique.set(key, booking);
+                }
+            }
+
+            setBookings(Array.from(unique.values()));
         } catch (error: any) {
             if (error.response?.status !== 404) {
                 console.error('Error fetching bookings:', error);

@@ -15,6 +15,17 @@ interface CounselorType {
     duration: string;
     isFree?: boolean;
     price?: number;
+    calendlyEventUri?: string;
+    usesCalendly?: boolean;
+}
+
+interface UserBooking {
+    _id: string;
+    bookingTitle: string;
+    counselorName: string;
+    bookingDate: string;
+    bookingTime: string;
+    status: string;
 }
 
 interface CounselingState {
@@ -28,6 +39,7 @@ interface CounselingState {
     createBookingPaymentLink: (bookingId: string) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; message?: string }>;
     confirmBookingPaymentLink: (paymentLinkId: string, bookingId: string) => Promise<{ success: boolean; message?: string }>;
     verifyCounselingPayment: (bookingId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => Promise<{ success: boolean; message?: string }>;
+    fetchMyBookings: (status?: string) => Promise<UserBooking[]>;
 }
 
 export const useCounselingStore = create<CounselingState>((set) => ({
@@ -51,7 +63,9 @@ export const useCounselingStore = create<CounselingState>((set) => ({
                     bgColor: s.bgColor || '#EFF6FF',
                     duration: s.duration, // Ensure string or format it
                     price: s.price,
-                    isFree: s.isFree
+                    isFree: s.isFree,
+                    calendlyEventUri: s.calendlyIntegration?.isEnabled ? s.calendlyIntegration.eventUri : null,
+                    usesCalendly: s.calendlyIntegration?.isEnabled || false
                 }));
                 set({ counselingTypes: types, isLoading: false });
             } else {
@@ -178,6 +192,23 @@ export const useCounselingStore = create<CounselingState>((set) => ({
             return { success: false, message: response.data?.message || 'Payment verification failed' };
         } catch (error: any) {
             return { success: false, message: error.response?.data?.message || 'Payment verification failed' };
+        }
+    },
+
+    fetchMyBookings: async (status?: string) => {
+        try {
+            const token = useAuthStore.getState().token;
+            if (!token) return [];
+
+            const response = await axios.get(`${API_URL}/counseling/my-bookings`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params: status ? { status } : {}
+            });
+
+            return response.data?.data?.bookings || [];
+        } catch (error: any) {
+            console.error('Fetch My Bookings Error:', error);
+            return [];
         }
     }
 }));

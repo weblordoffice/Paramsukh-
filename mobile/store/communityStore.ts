@@ -97,7 +97,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             });
 
             if (response.data && response.data.success) {
-                set({ groups: response.data.groups || [], isLoading: false });
+                set({
+                    groups: response.data.groups || [],
+                    isLoading: false,
+                    communityAccessDenied: false,
+                    error: null
+                });
             } else {
                 console.log('Fetch groups response:', response.data);
                 set({ groups: [], isLoading: false, error: null });

@@ -97,3 +97,35 @@ export const isKnownMembershipPlan = async (planSlug) => {
   const result = await resolveMembershipPlanChargeAmount(planSlug);
   return result.isValid;
 };
+
+export const reconcileUserSubscriptionPlanIntegrity = async (user, { save = true } = {}) => {
+  if (!user) {
+    return { reconciled: false, reason: 'no_user' };
+  }
+
+  const currentPlan = normalizePlanSlug(user.subscriptionPlan || 'free');
+  if (!currentPlan || currentPlan === 'free') {
+    return { reconciled: false, reason: 'free_or_empty' };
+  }
+
+  const planExists = await MembershipPlan.exists({ slug: currentPlan });
+  if (planExists) {
+    return { reconciled: false, reason: 'plan_exists' };
+  }
+
+  user.subscriptionPlan = 'free';
+  user.subscriptionStatus = 'inactive';
+  user.subscriptionStartDate = null;
+  user.subscriptionEndDate = null;
+  user.trialEndsAt = null;
+
+  if (save && typeof user.save === 'function') {
+    await user.save();
+  }
+
+  return {
+    reconciled: true,
+    previousPlan: currentPlan,
+    newPlan: 'free',
+  };
+};

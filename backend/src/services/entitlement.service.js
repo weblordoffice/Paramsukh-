@@ -27,22 +27,13 @@ export const getUserEntitlementContext = async (userId) => {
     const inheritance = await resolveMembershipPlanInheritanceFromPlan(plan);
     const resolvedPlans = inheritance.plans.length > 0 ? inheritance.plans : [plan];
     const planSlugs = inheritance.planSlugs.length > 0 ? inheritance.planSlugs : [normalizePlanSlug(plan.slug)];
-
-    const includedCategoriesSet = new Set();
-    const includedCourseIdsSet = new Set();
     let communityAccess = false;
 
     resolvedPlans.forEach((resolved) => {
-      (resolved.access?.includedCategories || []).forEach((cat) => includedCategoriesSet.add(normalize(cat)));
-      (resolved.access?.includedCourseIds || []).forEach((id) => includedCourseIdsSet.add(String(id)));
       if (resolved.access?.communityAccess) {
         communityAccess = true;
       }
     });
-
-    const maxCoursesTotal = plan.access?.limits?.maxCoursesTotal ?? null;
-    const maxCategories = plan.access?.limits?.maxCategories ?? null;
-    const perCategoryCourseLimit = plan.access?.limits?.perCategoryCourseLimit ?? null;
 
     return {
       source: 'dynamic',
@@ -51,11 +42,6 @@ export const getUserEntitlementContext = async (userId) => {
       planSlug: normalize(plan.slug),
       planSlugs,
       accessMode: plan.access?.accessMode || 'entitlement_only',
-      includedCategories: Array.from(includedCategoriesSet),
-      includedCourseIds: Array.from(includedCourseIdsSet),
-      maxCategories,
-      maxCoursesTotal,
-      perCategoryCourseLimit,
       communityAccess,
       isPaid: normalize(plan.slug) !== 'free',
     };
@@ -67,11 +53,6 @@ export const getUserEntitlementContext = async (userId) => {
     planSlug: 'free',
     planSlugs: ['free'],
     accessMode: 'entitlement_only',
-    includedCategories: [],
-    includedCourseIds: [],
-    maxCategories: null,
-    maxCoursesTotal: 0,
-    perCategoryCourseLimit: null,
     communityAccess: false,
     isPaid: false,
   };
@@ -106,10 +87,6 @@ export const evaluateCourseEnrollmentAccess = async ({
     };
   }
 
-  const normalizedCategory = normalize(course.category);
-  const allowedCategories = entitlement.includedCategories || [];
-  const allowedCourseIds = entitlement.includedCourseIds || [];
-
   // course.includedInPlans may contain slugs (new) or ObjectIds (legacy from old admin UI)
   // We handle both: slugs are compared to planSlugs, ObjectIds are compared to the active plan's _id
   const isObjectId = (v) => /^[a-f\d]{24}$/i.test(String(v));
@@ -122,14 +99,12 @@ export const evaluateCourseEnrollmentAccess = async ({
     // new format — compare slug
     return (entitlement.planSlugs || [entitlement.planSlug]).map(normalize).includes(t);
   });
-  const categoryAllowed = allowedCategories.length === 0 || allowedCategories.includes(normalizedCategory);
-  const explicitCourseAllowed = allowedCourseIds.includes(String(course._id));
 
-  if (!categoryAllowed && !explicitCourseAllowed && !matchesPlanTag) {
+  if (!matchesPlanTag) {
     return {
       allowed: false,
-      reason: 'category_not_included',
-      message: `Your ${entitlement.planSlug} plan does not include this course category.`,
+      reason: 'course_not_included',
+      message: `Your ${entitlement.planSlug} plan does not include this course.`,
       statusCode: 403,
       upgradeRequired: true,
     };
@@ -142,46 +117,6 @@ export const evaluateCourseEnrollmentAccess = async ({
       message: `Your ${entitlement.planSlug} membership includes pre-selected courses. Manual enrollment is not available.`,
       statusCode: 403,
       restrictedPlan: true,
-    };
-  }
-
-  const maxCategories = entitlement.maxCategories;
-  const categoriesUnlimited = maxCategories === null || maxCategories === 'Infinity' || maxCategories === Infinity;
-  if (!categoriesUnlimited && !isAlreadyUsingCourseCategory && distinctEnrolledCategoryCount >= Number(maxCategories)) {
-    return {
-      allowed: false,
-      reason: 'category_limit_exceeded',
-      message: `Your ${entitlement.planSlug} plan allows access to ${maxCategories} category(ies). Please upgrade to unlock more categories.`,
-      statusCode: 403,
-      upgradeRequired: true,
-      limit: maxCategories,
-    };
-  }
-
-  const limit = entitlement.maxCoursesTotal;
-  const isUnlimited = limit === null || limit === 'Infinity' || limit === Infinity;
-
-  if (!isUnlimited && currentEnrollments >= Number(limit)) {
-    return {
-      allowed: false,
-      reason: 'limit_exceeded',
-      message: `Your ${entitlement.planSlug} plan allows ${limit} course(s). Please upgrade to enroll in more courses.`,
-      statusCode: 403,
-      upgradeRequired: true,
-      limit,
-    };
-  }
-
-  const perCategoryLimit = entitlement.perCategoryCourseLimit;
-  const perCategoryUnlimited = perCategoryLimit === null || perCategoryLimit === 'Infinity' || perCategoryLimit === Infinity;
-  if (!perCategoryUnlimited && enrollmentsInSameCategory >= Number(perCategoryLimit)) {
-    return {
-      allowed: false,
-      reason: 'per_category_limit_exceeded',
-      message: `Your ${entitlement.planSlug} plan allows ${perCategoryLimit} course(s) in ${normalizedCategory} category.`,
-      statusCode: 403,
-      upgradeRequired: true,
-      limit: perCategoryLimit,
     };
   }
 

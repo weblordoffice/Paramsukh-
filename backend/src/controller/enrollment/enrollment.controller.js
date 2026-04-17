@@ -1,6 +1,7 @@
 import { Enrollment } from '../../models/enrollment.models.js';
 import { Course } from '../../models/course.models.js';
 import { evaluateCourseEnrollmentAccess } from '../../services/entitlement.service.js';
+import { syncUserCommunityMembershipsByPlan } from '../../services/planUpgrade.service.js';
 
 /**
  * Get published course catalog with access reason flags
@@ -173,6 +174,17 @@ export const enrollInCourse = async (req, res) => {
     // Update course enrollment count
     course.enrollmentCount += 1;
     await course.save();
+
+    // Keep plan-category community groups aligned with the user's enrolled categories.
+    try {
+      await syncUserCommunityMembershipsByPlan({
+        userId,
+        planSlug: req.user?.subscriptionPlan,
+        membershipActive: req.user?.subscriptionStatus === 'active',
+      });
+    } catch (syncError) {
+      console.error(`⚠️ Community sync failed after enrollment for user ${userId}:`, syncError.message);
+    }
 
     console.log(`✅ User ${userId} enrolled in course: ${course.title}`);
 

@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import Header from '../../components/Header';
 import { useEventStore } from '../../store/eventStore';
 import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
+// Styles
 
 type EventTab = 'upcoming' | 'past';
 
@@ -80,7 +81,7 @@ export default function EventsScreen() {
               onPress={() => setActiveTab('upcoming')}
             >
               <Ionicons
-                name="calendar"
+                name="calendar"   
                 size={18}
                 color={activeTab === 'upcoming' ? '#EAB308' : '#94A3B8'}
               />

@@ -43,7 +43,7 @@ export const getCurrentUser = async (req, res) => {
         photoURL: user.photoURL ?? null,
         authProvider: user.authProvider ?? 'phone',
         subscriptionPlan: user.subscriptionPlan ?? 'free',
-        subscriptionStatus: user.subscriptionStatus ?? 'trial',
+        subscriptionStatus: user.subscriptionStatus ?? 'inactive',
         trialEndsAt: user.trialEndsAt ?? null,
         lastLoginAt: user.lastLoginAt ?? null,
         loginCount: user.loginCount ?? 0,

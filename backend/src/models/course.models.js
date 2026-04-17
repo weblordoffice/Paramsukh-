@@ -232,7 +232,8 @@ const courseSchema = new mongoose.Schema({
   // Course Metadata
   category: {
     type: String,
-    enum: ['physical', 'mental', 'financial', 'relationship', 'spiritual', 'general'],
+    trim: true,
+    lowercase: true,
     required: true
   },
   tags: [{

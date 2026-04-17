@@ -40,6 +40,11 @@ const DEFAULT_PLAN_COLOR = '#64748B';
 
 const normalize = (value?: string | null) => String(value || '').trim().toLowerCase();
 
+const canonicalizePlanTag = (value: string, planAliases: Record<string, string>) => {
+  const normalized = normalize(value);
+  return planAliases[normalized] || normalized;
+};
+
 const toTitle = (value: string) => {
   const text = String(value || '').trim();
   if (!text) return 'Plan';
@@ -53,17 +58,19 @@ const toTitle = (value: string) => {
 function getPlanBadges(
   includedInPlans: string[] | undefined,
   planLookup: Record<string, PlanVisual>,
+  planAliases: Record<string, string>,
 ): PlanVisual[] {
   if (!includedInPlans || includedInPlans.length === 0) return [];
 
   return includedInPlans
     .map((plan) => {
-      const key = normalize(plan);
+      const rawKey = normalize(plan);
+      const key = canonicalizePlanTag(plan, planAliases);
       const visual = planLookup[key];
       if (visual) return visual;
       return {
-        slug: key,
-        label: toTitle(key),
+        slug: rawKey,
+        label: toTitle(rawKey),
         color: DEFAULT_PLAN_COLOR,
       };
     })
@@ -85,14 +92,15 @@ function isCourseAccessible(
   includedInPlans: string[] | undefined,
   userPlans: string[] | undefined,
   isActive: boolean,
+  planAliases: Record<string, string>,
 ): boolean {
   // No plan restriction → free/open to all
   if (!includedInPlans || includedInPlans.length === 0) return true;
   // User has no active plan → locked
   if (!userPlans || userPlans.length === 0 || !isActive) return false;
   // Check if user's plan is in the required list
-  const normalizedUserPlans = userPlans.map((plan) => normalize(plan));
-  const normalizedCoursePlans = includedInPlans.map((plan) => normalize(plan));
+  const normalizedUserPlans = userPlans.map((plan) => canonicalizePlanTag(plan, planAliases));
+  const normalizedCoursePlans = includedInPlans.map((plan) => canonicalizePlanTag(plan, planAliases));
   
   const accessible = normalizedCoursePlans.some((plan) => normalizedUserPlans.includes(plan));
   
@@ -117,13 +125,14 @@ export default function CoursesScreen() {
   const { courses, fetchCourses, isLoading } = useCourseStore();
   const { currentSubscription, fetchCurrentSubscription } = useMembershipStore();
   const [planLookup, setPlanLookup] = useState<Record<string, PlanVisual>>({});
+  const [planAliases, setPlanAliases] = useState<Record<string, string>>({});
   const [refreshing, setRefreshing] = useState(false);
   const bottomTabHeight = useBottomTabBarHeight();
 
   const loadPlanMetadata = useCallback(async () => {
     const plans = await fetchPublicMembershipPlans();
     const lookup = plans.reduce<Record<string, PlanVisual>>((acc, plan: UIMembershipPlan) => {
-      const slug = normalize(plan.id);
+      const slug = normalize(plan.slug || plan.id);
       if (!slug) return acc;
 
       acc[slug] = {
@@ -134,7 +143,27 @@ export default function CoursesScreen() {
       return acc;
     }, {});
 
+    const aliases = plans.reduce<Record<string, string>>((acc, plan: UIMembershipPlan) => {
+      const slug = normalize(plan.slug || plan.id);
+      if (!slug) return acc;
+
+      acc[slug] = slug;
+
+      const normalizedName = normalize(plan.name);
+      if (normalizedName) {
+        acc[normalizedName] = slug;
+      }
+
+      const normalizedRawId = normalize(plan.rawId);
+      if (normalizedRawId) {
+        acc[normalizedRawId] = slug;
+      }
+
+      return acc;
+    }, {});
+
     setPlanLookup(lookup);
+    setPlanAliases(aliases);
   }, []);
 
   useEffect(() => {
@@ -165,8 +194,17 @@ export default function CoursesScreen() {
   );
 
   const userPlan = currentSubscription?.plan;
-  const isActive = currentSubscription?.status === 'active' || currentSubscription?.status === 'trial';
-  const effectivePlans = currentSubscription?.effectivePlans || (userPlan ? [userPlan] : []);
+  const isActive = currentSubscription?.status === 'active';
+  const effectivePlans = useMemo(() => {
+    const plans = [
+      ...(currentSubscription?.effectivePlans || []),
+      ...(userPlan ? [userPlan] : []),
+    ]
+      .map((plan) => normalize(plan))
+      .filter(Boolean);
+
+    return Array.from(new Set(plans));
+  }, [currentSubscription?.effectivePlans, userPlan]);
 
   // Debug: Log subscription and plan info
   if (__DEV__) {
@@ -199,9 +237,9 @@ export default function CoursesScreen() {
   const enrichedCourses = useMemo(
     () => courses.map((course) => ({
       ...course,
-      dynamicPlanBadges: getPlanBadges(course.includedInPlans, planLookup),
+      dynamicPlanBadges: getPlanBadges(course.includedInPlans, planLookup, planAliases),
     })),
-    [courses, planLookup]
+    [courses, planLookup, planAliases]
   );
 
   return (
@@ -236,7 +274,8 @@ export default function CoursesScreen() {
               const accessible = isCourseAccessible(
                 course.includedInPlans,
                 effectivePlans,
-                isActive
+                isActive,
+                planAliases
               );
               const locked = !accessible;
               const categoryConfig = getCategoryConfig(course.category);

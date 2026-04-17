@@ -74,30 +74,32 @@ export const canUserAccessPodcast = async (userId, podcastId) => {
 export const createPodcast = async (req, res) => {
     try {
         const { title, description, host, videoUrl, thumbnailUrl, duration, category, source, youtubeUrl, accessType, requiredMemberships, price, currencyCode } = req.body;
+        const resolvedSource = source || 'local';
+        const normalizedAccessType = resolvedSource === 'youtube' ? 'free' : (accessType || 'free');
 
         // Validation
-        if (source === 'youtube' && !youtubeUrl) {
+        if (resolvedSource === 'youtube' && !youtubeUrl) {
             return res.status(400).json({
                 success: false,
                 message: 'YouTube URL is required when source is youtube',
             });
         }
 
-        if (source === 'local' && !videoUrl) {
+        if (resolvedSource === 'local' && !videoUrl) {
             return res.status(400).json({
                 success: false,
                 message: 'Video URL is required when source is local',
             });
         }
 
-        if (accessType === 'membership' && (!requiredMemberships || requiredMemberships.length === 0)) {
+        if (normalizedAccessType === 'membership' && (!requiredMemberships || requiredMemberships.length === 0)) {
             return res.status(400).json({
                 success: false,
                 message: 'At least one membership plan must be selected',
             });
         }
 
-        if (accessType === 'paid' && !price) {
+        if (normalizedAccessType === 'paid' && !price) {
             return res.status(400).json({
                 success: false,
                 message: 'Price is required for paid access type',
@@ -111,22 +113,24 @@ export const createPodcast = async (req, res) => {
             thumbnailUrl,
             duration,
             category,
-            source: source || 'local',
-            accessType: accessType || 'free',
+            source: resolvedSource,
+            accessType: normalizedAccessType,
             currencyCode: currencyCode || 'INR',
         };
 
-        if (source === 'youtube') {
+        if (resolvedSource === 'youtube') {
             podcastData.youtubeUrl = youtubeUrl;
+            podcastData.price = 0;
+            podcastData.requiredMemberships = [];
         } else {
             podcastData.videoUrl = videoUrl;
         }
 
-        if (accessType === 'membership') {
+        if (normalizedAccessType === 'membership') {
             podcastData.requiredMemberships = requiredMemberships;
         }
 
-        if (accessType === 'paid') {
+        if (normalizedAccessType === 'paid') {
             podcastData.price = price;
         }
 
@@ -346,37 +350,49 @@ export const updatePodcast = async (req, res) => {
         }
 
         const { source, youtubeUrl, videoUrl, accessType, requiredMemberships, price } = req.body;
+        const resolvedSource = source || podcast.source || 'local';
+        const normalizedAccessType = resolvedSource === 'youtube' ? 'free' : (accessType || podcast.accessType || 'free');
+        const updatePayload = { ...req.body, source: resolvedSource, accessType: normalizedAccessType };
 
         // Validation
-        if (source === 'youtube' && !youtubeUrl) {
+        if (resolvedSource === 'youtube' && !youtubeUrl) {
             return res.status(400).json({
                 success: false,
                 message: 'YouTube URL is required when source is youtube',
             });
         }
 
-        if (source === 'local' && !videoUrl) {
+        if (resolvedSource === 'local' && !videoUrl) {
             return res.status(400).json({
                 success: false,
                 message: 'Video URL is required when source is local',
             });
         }
 
-        if (accessType === 'membership' && (!requiredMemberships || requiredMemberships.length === 0)) {
+        if (normalizedAccessType === 'membership' && (!requiredMemberships || requiredMemberships.length === 0)) {
             return res.status(400).json({
                 success: false,
                 message: 'At least one membership plan must be selected',
             });
         }
 
-        if (accessType === 'paid' && !price) {
+        if (normalizedAccessType === 'paid' && !price) {
             return res.status(400).json({
                 success: false,
                 message: 'Price is required for paid access type',
             });
         }
 
-        podcast = await Podcast.findByIdAndUpdate(req.params.id, req.body, {
+        if (resolvedSource === 'youtube') {
+            updatePayload.accessType = 'free';
+            updatePayload.price = 0;
+            updatePayload.requiredMemberships = [];
+            updatePayload.videoUrl = '';
+        } else {
+            updatePayload.youtubeUrl = '';
+        }
+
+        podcast = await Podcast.findByIdAndUpdate(req.params.id, updatePayload, {
             new: true,
             runValidators: true,
             useFindAndModify: false,

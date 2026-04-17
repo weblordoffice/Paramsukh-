@@ -29,7 +29,7 @@ interface User {
 interface Stats {
   totalUsers: number;
   activeSubscriptions: number;
-  trialUsers: number;
+  inactiveSubscriptions: number;
   totalRevenue: number;
   planBreakdown: Record<string, number>;
 }
@@ -68,25 +68,19 @@ interface MembershipGrant {
   };
 }
 
-const FREE_PLAN: PlanInfo = {
-  slug: 'free',
-  title: 'Free',
-  status: 'published',
-  displayOrder: -1,
-};
-
 const normalize = (value: string) => String(value || '').trim().toLowerCase();
+const isFreePlan = (value: string) => normalize(value || 'free') === 'free';
 
 const isHexColor = (value: string) => /^#[0-9a-fA-F]{6}$/.test(value || '');
 
 export default function MembershipsPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
-  const [availablePlans, setAvailablePlans] = useState<PlanInfo[]>([FREE_PLAN]);
+  const [availablePlans, setAvailablePlans] = useState<PlanInfo[]>([]);
   const [stats, setStats] = useState<Stats>({
     totalUsers: 0,
     activeSubscriptions: 0,
-    trialUsers: 0,
+    inactiveSubscriptions: 0,
     totalRevenue: 0,
     planBreakdown: {}
   });
@@ -106,7 +100,7 @@ export default function MembershipsPage() {
     reason: '',
     replaceActive: true,
   });
-  const statuses = ['active', 'inactive', 'trial', 'cancelled'];
+  const statuses = ['active', 'inactive', 'cancelled'];
 
   const planLookup = useMemo(() => {
     return availablePlans.reduce<Record<string, PlanInfo>>((acc, plan) => {
@@ -147,15 +141,14 @@ export default function MembershipsPage() {
           displayOrder: Number(plan.displayOrder || 0),
           badgeColor: plan?.metadata?.badgeColor,
         }))
-        .filter((plan: PlanInfo) => Boolean(plan.slug));
+        .filter((plan: PlanInfo) => Boolean(plan.slug) && plan.slug !== 'free');
 
       const dedup = new Map<string, PlanInfo>();
-      dedup.set(FREE_PLAN.slug, FREE_PLAN);
       plans.forEach((plan: PlanInfo) => dedup.set(plan.slug, plan));
 
       setAvailablePlans(Array.from(dedup.values()).sort((a, b) => a.displayOrder - b.displayOrder));
     } catch {
-      setAvailablePlans([FREE_PLAN]);
+      setAvailablePlans([]);
     }
   }, []);
 
@@ -263,19 +256,20 @@ export default function MembershipsPage() {
   };
 
   const calculateStats = (usersData: User[]) => {
+    const membershipUsers = usersData.filter((user) => !isFreePlan(user.subscriptionPlan));
     const stats: Stats = {
-      totalUsers: usersData.length,
-      activeSubscriptions: usersData.filter(u => u.subscriptionStatus === 'active').length,
-      trialUsers: usersData.filter(u => u.subscriptionStatus === 'trial').length,
+      totalUsers: membershipUsers.length,
+      activeSubscriptions: membershipUsers.filter(u => u.subscriptionStatus === 'active').length,
+      inactiveSubscriptions: membershipUsers.filter(u => u.subscriptionStatus === 'inactive').length,
       totalRevenue: 0,
       planBreakdown: {}
     };
 
-    const dynamicPlanSet = new Set(['free', ...availablePlans.map((plan) => normalize(plan.slug))]);
-    usersData.forEach((user) => dynamicPlanSet.add(normalize(user.subscriptionPlan || 'free')));
+    const dynamicPlanSet = new Set(availablePlans.map((plan) => normalize(plan.slug)));
+    membershipUsers.forEach((user) => dynamicPlanSet.add(normalize(user.subscriptionPlan || 'free')));
 
     Array.from(dynamicPlanSet).forEach((plan) => {
-      stats.planBreakdown[plan] = usersData.filter(
+      stats.planBreakdown[plan] = membershipUsers.filter(
         (u) => normalize(u.subscriptionPlan || 'free') === plan
       ).length;
     });
@@ -283,7 +277,9 @@ export default function MembershipsPage() {
     setStats(stats);
   };
 
-  const filteredUsers = users.filter((user) => {
+  const membershipUsers = users.filter((user) => !isFreePlan(user.subscriptionPlan));
+
+  const filteredUsers = membershipUsers.filter((user) => {
     const matchesSearch = 
       user.displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -353,7 +349,6 @@ export default function MembershipsPage() {
     const colors: Record<string, string> = {
       active: 'bg-green-100 text-green-700',
       inactive: 'bg-gray-100 text-gray-700',
-      trial: 'bg-blue-100 text-blue-700',
       cancelled: 'bg-red-100 text-red-700'
     };
     return colors[status] || 'bg-gray-100 text-gray-700';
@@ -431,8 +426,8 @@ export default function MembershipsPage() {
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Trial Users</p>
-              <p className="text-2xl font-bold text-blue-600">{stats.trialUsers}</p>
+              <p className="text-sm text-gray-600">Inactive Subscriptions</p>
+              <p className="text-2xl font-bold text-blue-600">{stats.inactiveSubscriptions}</p>
             </div>
             <TrendingUp className="w-8 h-8 text-blue-500" />
           </div>
@@ -668,7 +663,7 @@ export default function MembershipsPage() {
 
       {/* Results Count */}
       <div className="text-sm text-gray-600">
-        Showing {filteredUsers.length} of {users.length} users
+        Showing {filteredUsers.length} of {membershipUsers.length} users
       </div>
 
       {/* Users Table */}
@@ -755,10 +750,6 @@ export default function MembershipsPage() {
                             to {new Date(user.subscriptionEndDate).toLocaleDateString()}
                           </div>
                         )}
-                      </div>
-                    ) : user.subscriptionStatus === 'trial' && user.trialEndsAt ? (
-                      <div className="text-xs">
-                        Trial until {new Date(user.trialEndsAt).toLocaleDateString()}
                       </div>
                     ) : (
                       'N/A'

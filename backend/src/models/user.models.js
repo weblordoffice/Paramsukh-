@@ -26,6 +26,11 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  tags: [{
+    type: String,
+    trim: true,
+    lowercase: true
+  }],
 
   // Authentication type
   authProvider: {
@@ -47,7 +52,7 @@ const userSchema = new mongoose.Schema({
   subscriptionStatus: {
     type: String,
     enum: ['active', 'inactive', 'trial', 'cancelled'],
-    default: 'trial'
+    default: 'inactive'
   },
   subscriptionStartDate: {
     type: Date,
@@ -59,7 +64,7 @@ const userSchema = new mongoose.Schema({
   },
   trialEndsAt: {
     type: Date,
-    default: () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000) // 14 days
+    default: null
   },
 
   // Payment history
@@ -152,6 +157,7 @@ const userSchema = new mongoose.Schema({
 // Indexes
 userSchema.index({ phone: 1 });
 userSchema.index({ email: 1 });
+userSchema.index({ tags: 1 });
 
 // Methods
 userSchema.methods.updateLastLogin = function () {

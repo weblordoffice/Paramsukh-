@@ -1,7 +1,6 @@
-import { User } from '../../models/user.models.js';
-import { Group, GroupMember, Post, Comment } from '../../models/community.models.js';
-import { Course } from '../../models/course.models.js';
+import { GroupMember, Post, Comment } from '../../models/community.models.js';
 import { evaluateCommunityAccess } from '../../services/entitlement.service.js';
+import { syncUserCommunityMembershipsByPlan } from '../../services/planUpgrade.service.js';
 
 /**
  * Check if user has community access (any paid membership)
@@ -53,8 +52,7 @@ export const getMyGroups = async (req, res) => {
       });
     }
 
-    // Get user's group memberships
-    const memberships = await GroupMember.find({ userId, isActive: true })
+    const loadMemberships = async () => GroupMember.find({ userId, isActive: true })
       .populate({
         path: 'groupId',
         populate: {
@@ -64,16 +62,53 @@ export const getMyGroups = async (req, res) => {
       })
       .sort({ joinedAt: -1 });
 
-    const groups = memberships.map(m => ({
-      _id: m.groupId._id,
-      name: m.groupId.name,
-      description: m.groupId.description,
-      memberCount: m.groupId.memberCount,
-      coverImage: m.groupId.coverImage,
-      course: m.groupId.courseId,
-      joinedAt: m.joinedAt,
-      role: m.role
-    }));
+    // Always sync current plan -> category groups before loading memberships,
+    // so existing users and plan changes are reflected immediately.
+    if (access.plan && access.plan !== 'free') {
+      try {
+        await syncUserCommunityMembershipsByPlan({
+          userId,
+          planSlug: access.plan,
+          membershipActive: true,
+        });
+      } catch (syncError) {
+        console.error(`⚠️ Failed community sync for user ${userId}:`, syncError.message);
+      }
+    }
+
+    // Get user's group memberships
+    const memberships = await loadMemberships();
+
+    const groups = memberships
+      .filter((membership) => Boolean(membership.groupId))
+      .map((m) => {
+        const group = m.groupId;
+        const category = String(group.category || '').trim().toLowerCase();
+        const planSlug = String(group.planSlug || '').trim().toLowerCase();
+
+        const fallbackCourse = category
+          ? {
+              _id: `category:${planSlug || 'generic'}:${category}`,
+              title: group.name || `${category.charAt(0).toUpperCase()}${category.slice(1)} Community`,
+              category,
+              thumbnail: null,
+            }
+          : null;
+
+        return {
+          _id: group._id,
+          name: group.name,
+          description: group.description,
+          memberCount: group.memberCount,
+          coverImage: group.coverImage,
+          groupType: group.groupType || 'course',
+          planSlug: planSlug || null,
+          category: category || null,
+          course: group.courseId || fallbackCourse,
+          joinedAt: m.joinedAt,
+          role: m.role,
+        };
+      });
 
     return res.status(200).json({
       success: true,

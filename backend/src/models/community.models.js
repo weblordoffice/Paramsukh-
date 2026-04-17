@@ -2,6 +2,25 @@ import mongoose from "mongoose";
 
 // Community Group Schema (Course-based groups)
 const groupSchema = new mongoose.Schema({
+  groupType: {
+    type: String,
+    enum: ['course', 'category'],
+    default: 'course',
+    index: true,
+  },
+  category: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    default: null,
+  },
+  planSlug: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    default: null,
+    index: true,
+  },
   name: {
     type: String,
     required: true,
@@ -14,7 +33,10 @@ const groupSchema = new mongoose.Schema({
   courseId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Course',
-    required: true
+    required: function() {
+      return this.groupType === 'course';
+    },
+    default: undefined,
   },
   coverImage: {
     type: String,
@@ -157,7 +179,18 @@ const commentSchema = new mongoose.Schema({
 });
 
 // Indexes
-groupSchema.index({ courseId: 1 }, { unique: true });  // Prevent duplicate groups for same course
+groupSchema.index({ courseId: 1 }, { unique: true, sparse: true });  // Prevent duplicate course groups
+groupSchema.index(
+  { groupType: 1, planSlug: 1, category: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      groupType: 'category',
+      planSlug: { $type: 'string' },
+      category: { $type: 'string' },
+    },
+  }
+); // Prevent duplicate plan-category groups
 groupMemberSchema.index({ groupId: 1, userId: 1 }, { unique: true });
 groupMemberSchema.index({ userId: 1 });
 postSchema.index({ groupId: 1, createdAt: -1 });

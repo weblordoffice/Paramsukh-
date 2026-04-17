@@ -19,7 +19,7 @@ export interface MembershipPlan {
 
 export interface Subscription {
     plan: string;
-    status: 'trial' | 'active' | 'expired' | 'cancelled';
+    status: 'active' | 'inactive' | 'expired' | 'cancelled';
     trialEndsAt?: string;
     isTrialActive: boolean;
     trialDaysLeft: number;

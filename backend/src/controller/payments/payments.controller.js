@@ -14,12 +14,90 @@ import Booking from '../../models/booking.models.js';
 import Order from '../../models/order.models.js';
 import { Course } from '../../models/course.models.js';
 import { Enrollment } from '../../models/enrollment.models.js';
-import { Group, GroupMember } from '../../models/community.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { resolveMembershipPlanChargeAmount } from '../../services/membershipPlan.service.js';
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
 import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
+import { AdminPaymentLink } from '../../models/adminPaymentLink.models.js';
+
+const MAX_ADMIN_LINK_EXPIRY_HOURS = 24 * 30;
+
+const normalizePhoneForRazorpay = (phone) => {
+  const raw = String(phone || '').trim();
+  if (!raw) {
+    return undefined;
+  }
+
+  return raw.replace(/^\+91/, '').replace(/\s+/g, '').trim() || undefined;
+};
+
+const resolveMembershipValidityDays = ({ notes = {}, planConfig = null } = {}) => {
+  const fromNotes = Number(notes?.validityDays);
+  if (Number.isFinite(fromNotes) && fromNotes > 0) {
+    return fromNotes;
+  }
+
+  return Number(planConfig?.plan?.validityDays || 365);
+};
+
+const upsertUserPaymentEntry = ({ user, orderId, paymentId, amount, plan, metadata = {} }) => {
+  user.payments = user.payments || [];
+
+  const alreadyRecorded = user.payments.some(
+    (entry) => entry.orderId === orderId || entry.paymentId === paymentId
+  );
+  if (alreadyRecorded) {
+    return false;
+  }
+
+  user.payments.push({
+    orderId,
+    paymentId,
+    amount,
+    plan,
+    status: 'completed',
+    date: new Date(),
+    metadata,
+  });
+
+  return true;
+};
+
+const resolveTargetUserForAdminLink = async ({ targetUserId, targetEmail, targetPhone }) => {
+  if (targetUserId) {
+    const byId = await User.findById(targetUserId);
+    if (byId) {
+      return byId;
+    }
+  }
+
+  if (targetEmail) {
+    const byEmail = await User.findOne({ email: String(targetEmail).trim().toLowerCase() });
+    if (byEmail) {
+      return byEmail;
+    }
+  }
+
+  if (targetPhone) {
+    const normalizedInput = String(targetPhone).trim();
+    const variants = Array.from(
+      new Set([
+        normalizedInput,
+        normalizedInput.replace(/\s+/g, ''),
+        normalizedInput.replace(/^\+91/, ''),
+        `+91${normalizedInput.replace(/^\+91/, '')}`,
+      ])
+    ).filter(Boolean);
+
+    const byPhone = await User.findOne({ phone: { $in: variants } });
+    if (byPhone) {
+      return byPhone;
+    }
+  }
+
+  return null;
+};
 
 /**
  * Create Razorpay payment link for counseling booking (hosted checkout)
@@ -143,6 +221,7 @@ export const createMembershipOrder = async (req, res) => {
 
     const finalPlan = planConfig.slug;
     const amount = Number(planConfig.amount || 0);
+    const validityDays = Number(planConfig.plan?.validityDays || 365);
 
     // Validate amount
     if (!amount || amount <= 0) {
@@ -160,7 +239,8 @@ export const createMembershipOrder = async (req, res) => {
       notes: {
         type: 'membership',
         plan: finalPlan,
-        userId: userId.toString()
+        userId: userId.toString(),
+        validityDays: String(validityDays),
       }
     });
 
@@ -204,6 +284,7 @@ export const createMembershipPaymentLink = async (req, res) => {
 
     const finalPlan = planConfig.slug;
     const amount = Number(planConfig.amount || 0);
+    const validityDays = Number(planConfig.plan?.validityDays || 365);
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' });
@@ -229,6 +310,7 @@ export const createMembershipPaymentLink = async (req, res) => {
         type: 'membership',
         plan: finalPlan,
         userId: userId.toString(),
+        validityDays: String(validityDays),
       },
     });
 
@@ -247,6 +329,191 @@ export const createMembershipPaymentLink = async (req, res) => {
       success: false,
       message: 'Failed to create payment link',
       error: error.message
+    });
+  }
+};
+
+/**
+ * Create Razorpay payment link for a target user (admin flow)
+ * POST /api/payments/admin/membership-link
+ */
+export const createAdminMembershipPaymentLink = async (req, res) => {
+  try {
+    const {
+      targetUserId,
+      targetEmail,
+      targetPhone,
+      plan,
+      amount,
+      expiresInHours,
+    } = req.body;
+
+    if (!plan) {
+      return res.status(400).json({ success: false, message: 'plan is required' });
+    }
+
+    if (!targetUserId && !targetEmail && !targetPhone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Provide one of targetUserId, targetEmail, or targetPhone',
+      });
+    }
+
+    const targetUser = await resolveTargetUserForAdminLink({ targetUserId, targetEmail, targetPhone });
+    if (!targetUser) {
+      return res.status(404).json({ success: false, message: 'Target user not found' });
+    }
+
+    const planConfig = await resolveMembershipPlanChargeAmount(plan, amount);
+    if (!planConfig.isValid) {
+      return res.status(400).json({ success: false, message: 'Invalid membership plan' });
+    }
+
+    const finalPlan = planConfig.slug;
+    const finalAmount = Number(amount || planConfig.amount || 0);
+    if (!Number.isFinite(finalAmount) || finalAmount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid amount' });
+    }
+
+    const finalValidityDays = Number(planConfig.plan?.validityDays || 365);
+    const expiryHours = Math.min(
+      Math.max(Number(expiresInHours || 72), 1),
+      MAX_ADMIN_LINK_EXPIRY_HOURS
+    );
+    const expiresAt = new Date(Date.now() + expiryHours * 60 * 60 * 1000);
+
+    const adminIdentifier = req.admin?._id
+      ? String(req.admin._id)
+      : 'api_key_admin';
+
+    const customer = {
+      name: targetUser.displayName || targetUser.name || 'ParamSukh User',
+      email: targetUser.email || undefined,
+      contact: normalizePhoneForRazorpay(targetUser.phone),
+    };
+
+    const trackingId = `admin_plink_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+    const link = await createRazorpayPaymentLink({
+      amount: finalAmount,
+      currency: planConfig.currency || 'INR',
+      description: `${String(finalPlan).toUpperCase()} Membership · ParamSukh`,
+      customer,
+      notes: {
+        type: 'membership',
+        plan: finalPlan,
+        userId: String(targetUser._id),
+        adminCreated: 'true',
+        adminId: adminIdentifier,
+        trackingId,
+        validityDays: String(finalValidityDays),
+      },
+    });
+
+    await AdminPaymentLink.create({
+      paymentLinkId: link.id,
+      shortUrl: link.short_url,
+      userId: targetUser._id,
+      planSlug: finalPlan,
+      amount: finalAmount,
+      currency: planConfig.currency || 'INR',
+      validityDays: finalValidityDays,
+      status: 'created',
+      adminId: req.admin?._id || null,
+      adminIdentifier,
+      expiresAt,
+      metadata: {
+        trackingId,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Admin membership payment link created',
+      data: {
+        paymentLinkId: link.id,
+        url: link.short_url,
+        trackingId,
+        user: {
+          _id: String(targetUser._id),
+          displayName: targetUser.displayName || targetUser.name || 'User',
+          email: targetUser.email || null,
+          phone: targetUser.phone || null,
+        },
+        plan: finalPlan,
+        amount: finalAmount,
+        currency: planConfig.currency || 'INR',
+        validityDays: finalValidityDays,
+        expiresAt,
+        testMode: isTestMode(),
+      },
+    });
+  } catch (error) {
+    console.error('❌ Create admin membership payment link error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to create admin membership payment link',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * List admin-created membership payment links
+ * GET /api/payments/admin/membership-links
+ */
+export const getAdminMembershipPaymentLinks = async (req, res) => {
+  try {
+    const { userId, status, page = 1, limit = 20 } = req.query;
+
+    await AdminPaymentLink.updateMany(
+      {
+        status: 'created',
+        expiresAt: { $lt: new Date() },
+      },
+      { $set: { status: 'expired' } }
+    );
+
+    const query = {};
+    if (userId) {
+      query.userId = userId;
+    }
+    if (status) {
+      query.status = String(status).toLowerCase();
+    }
+
+    const pageNum = Math.max(Number(page) || 1, 1);
+    const limitNum = Math.min(Math.max(Number(limit) || 20, 1), 100);
+    const skip = (pageNum - 1) * limitNum;
+
+    const [items, total] = await Promise.all([
+      AdminPaymentLink.find(query)
+        .populate('userId', 'displayName email phone')
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      AdminPaymentLink.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        links: items,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total,
+          totalPages: Math.ceil(total / limitNum),
+        },
+      },
+    });
+  } catch (error) {
+    console.error('❌ Get admin membership payment links error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch admin membership payment links',
+      error: error.message,
     });
   }
 };
@@ -284,10 +551,12 @@ export const confirmMembershipPaymentLink = async (req, res) => {
 
     const status = String(link?.status || '').toLowerCase();
     const notes = link?.notes || {};
+    const isAdminCreated = String(notes?.adminCreated || '').toLowerCase() === 'true';
+    const targetUserId = notes?.userId ? String(notes.userId) : String(userId);
     console.log(`   Razorpay link status: ${status}, notes.plan: ${notes?.plan}, notes.userId: ${notes?.userId}`);
 
     // Basic ownership check (if notes were set)
-    if (notes?.userId && String(notes.userId) !== String(userId)) {
+    if (!isAdminCreated && notes?.userId && String(notes.userId) !== String(userId)) {
       return res.status(403).json({ success: false, message: 'Payment link does not belong to this user' });
     }
 
@@ -300,7 +569,7 @@ export const confirmMembershipPaymentLink = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findById(targetUserId);
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
@@ -311,7 +580,7 @@ export const confirmMembershipPaymentLink = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid membership plan' });
     }
 
-    const validityDays = Number(finalPlanConfig.plan?.validityDays || 365);
+    const validityDays = resolveMembershipValidityDays({ notes, planConfig: finalPlanConfig });
 
     user.subscriptionPlan = finalPlan;
     user.subscriptionStatus = 'active';
@@ -324,19 +593,22 @@ export const confirmMembershipPaymentLink = async (req, res) => {
     const paymentId = firstPayment?.payment_id || link?.payment_id || `pay_link_${Date.now()}`;
     const amountPaise = link?.amount ?? firstPayment?.amount ?? 0;
 
-    user.payments = user.payments || [];
-    user.payments.push({
+    upsertUserPaymentEntry({
+      user,
       orderId: paymentLinkId,
       paymentId,
       amount: Number(amountPaise) / 100,
       plan: finalPlan,
-      status: 'completed',
-      date: new Date()
+      metadata: {
+        sourceController: 'payments.confirmMembershipPaymentLink',
+        adminCreated: isAdminCreated,
+        trackingId: notes?.trackingId || null,
+      },
     });
 
     await user.save();
     await upsertActiveUserMembership({
-      userId,
+      userId: targetUserId,
       planSlug: finalPlan,
       startDate: user.subscriptionStartDate,
       endDate: user.subscriptionEndDate,
@@ -348,55 +620,50 @@ export const confirmMembershipPaymentLink = async (req, res) => {
         amount: Number(amountPaise) / 100,
         currency: 'INR',
       },
-      metadata: { sourceController: 'payments.confirmMembershipPaymentLink' },
+      metadata: {
+        sourceController: 'payments.confirmMembershipPaymentLink',
+        adminCreated: isAdminCreated,
+        trackingId: notes?.trackingId || null,
+      },
     });
-    console.log(`✅ Membership activated for user ${userId}: ${finalPlan}`);
+    console.log(`✅ Membership activated for user ${targetUserId}: ${finalPlan}`);
 
-    // Handle plan upgrade - enroll in new community groups
-    try {
-      const upgradeResult = await handlePlanUpgrade(userId, finalPlan);
-      console.log(`⬆️ Plan upgrade: Enrolled in ${upgradeResult.enrolledInGroups} new groups`);
-    } catch (error) {
-      console.error('⚠️ Plan upgrade group enrollment failed (non-critical):', error.message);
-      // Don't fail the payment if group enrollment fails
+    if (isAdminCreated) {
+      await AdminPaymentLink.findOneAndUpdate(
+        { paymentLinkId },
+        {
+          status: 'paid',
+          paymentId,
+          paidAt: new Date(),
+        }
+      );
     }
 
     // Enroll in courses for this plan (same as purchaseMembership)
     const courses = await getAutoEnrollCoursesForPlan(finalPlan);
 
     for (const course of courses) {
-      const existingEnrollment = await Enrollment.findOne({ userId, courseId: course._id });
+      const existingEnrollment = await Enrollment.findOne({ userId: targetUserId, courseId: course._id });
       if (!existingEnrollment) {
         await Enrollment.create({
-          userId,
+          userId: targetUserId,
           courseId: course._id,
           currentVideoId: course.videos?.length > 0 ? course.videos[0]._id : null
         });
         course.enrollmentCount = (course.enrollmentCount || 0) + 1;
         await course.save();
       }
-
-      // Get or create group for this course (atomic upsert to prevent duplicates)
-      let group = await Group.findOneAndUpdate(
-        { courseId: course._id },
-        {
-          $setOnInsert: {
-            name: `${course.title} Community`,
-            description: `Discussion group for ${course.title} course members`,
-            coverImage: course.thumbnailUrl || null,
-            memberCount: 0
-          }
-        },
-        { upsert: true, new: true }
-      );
-      const existingMember = await GroupMember.findOne({ groupId: group._id, userId });
-      if (!existingMember) {
-        await GroupMember.create({ groupId: group._id, userId, role: 'member' });
-        // Use atomic increment to prevent race conditions
-        await Group.findByIdAndUpdate(group._id, { $inc: { memberCount: 1 } });
-      }
     }
     console.log(`   Enrolled in ${courses.length} course(s) for plan ${finalPlan}`);
+
+    // Sync plan-category groups after enrollments are created.
+    try {
+      const upgradeResult = await handlePlanUpgrade(targetUserId, finalPlan);
+      console.log(`⬆️ Plan-category sync: Enrolled in ${upgradeResult.enrolledInGroups} groups`);
+    } catch (error) {
+      console.error('⚠️ Plan-category sync failed (non-critical):', error.message);
+      // Don't fail payment completion when community sync fails.
+    }
 
     return res.status(200).json({
       success: true,
@@ -454,7 +721,7 @@ export const syncMembershipFromRazorpay = async (req, res) => {
       const finalPlanConfig = await resolveMembershipPlanChargeAmount(finalPlan);
       if (!finalPlanConfig.isValid) continue;
 
-      const validityDays = Number(finalPlanConfig.plan?.validityDays || 365);
+      const validityDays = resolveMembershipValidityDays({ notes, planConfig: finalPlanConfig });
 
       const paymentsRaw = full?.payments;
       const firstPayment = Array.isArray(paymentsRaw) ? paymentsRaw[0] : paymentsRaw;
@@ -465,15 +732,20 @@ export const syncMembershipFromRazorpay = async (req, res) => {
       user.subscriptionStatus = 'active';
       user.subscriptionStartDate = new Date();
       user.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
-      user.payments = user.payments || [];
-      user.payments.push({
+
+      upsertUserPaymentEntry({
+        user,
         orderId,
         paymentId,
         amount: Number(amountPaise) / 100,
         plan: finalPlan,
-        status: 'completed',
-        date: new Date()
+        metadata: {
+          sourceController: 'payments.syncMembershipFromRazorpay',
+          adminCreated: String(notes?.adminCreated || '').toLowerCase() === 'true',
+          trackingId: notes?.trackingId || null,
+        },
       });
+
       await user.save();
       await upsertActiveUserMembership({
         userId,
@@ -488,8 +760,23 @@ export const syncMembershipFromRazorpay = async (req, res) => {
           amount: Number(amountPaise) / 100,
           currency: 'INR',
         },
-        metadata: { sourceController: 'payments.syncMembershipFromRazorpay' },
+        metadata: {
+          sourceController: 'payments.syncMembershipFromRazorpay',
+          adminCreated: String(notes?.adminCreated || '').toLowerCase() === 'true',
+          trackingId: notes?.trackingId || null,
+        },
       });
+
+      if (String(notes?.adminCreated || '').toLowerCase() === 'true') {
+        await AdminPaymentLink.findOneAndUpdate(
+          { paymentLinkId: orderId },
+          {
+            status: 'paid',
+            paymentId,
+            paidAt: new Date(),
+          }
+        );
+      }
 
       const courses = await getAutoEnrollCoursesForPlan(finalPlan);
       for (const course of courses) {
@@ -503,26 +790,8 @@ export const syncMembershipFromRazorpay = async (req, res) => {
           course.enrollmentCount = (course.enrollmentCount || 0) + 1;
           await course.save();
         }
-        // Get or create group for this course (atomic upsert to prevent duplicates)
-        let group = await Group.findOneAndUpdate(
-          { courseId: course._id },
-          {
-            $setOnInsert: {
-              name: `${course.title} Community`,
-              description: `Discussion group for ${course.title} course members`,
-              coverImage: course.thumbnailUrl || null,
-              memberCount: 0
-            }
-          },
-          { upsert: true, new: true }
-        );
-        const existingMember = await GroupMember.findOne({ groupId: group._id, userId });
-        if (!existingMember) {
-          await GroupMember.create({ groupId: group._id, userId, role: 'member' });
-          // Use atomic increment to prevent race conditions
-          await Group.findByIdAndUpdate(group._id, { $inc: { memberCount: 1 } });
-        }
       }
+      await handlePlanUpgrade(userId, finalPlan);
       console.log(`✅ Sync: Membership activated for user ${userId}: ${finalPlan} (from payment link ${orderId})`);
       return res.status(200).json({
         success: true,
@@ -771,23 +1040,30 @@ export const handleWebhook = async (req, res) => {
 
         if (pNotes.type === 'membership' && pNotes.userId && pNotes.plan) {
           const mUser = await User.findById(pNotes.userId);
-          if (mUser && mUser.subscriptionStatus !== 'active') {
+          if (mUser) {
+            const planConfig = await resolveMembershipPlanChargeAmount(String(pNotes.plan).toLowerCase());
+            if (!planConfig.isValid) {
+              break;
+            }
+            const validityDays = resolveMembershipValidityDays({ notes: pNotes, planConfig });
             mUser.subscriptionPlan = String(pNotes.plan).toLowerCase();
             mUser.subscriptionStatus = 'active';
             mUser.subscriptionStartDate = new Date();
-            mUser.subscriptionEndDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-            mUser.payments = mUser.payments || [];
-            const alreadyRecorded = mUser.payments.some(p => p.paymentId === payment.id);
-            if (!alreadyRecorded) {
-              mUser.payments.push({
-                orderId: payment.order_id || payment.id,
-                paymentId: payment.id,
-                amount: payment.amount / 100,
-                plan: String(pNotes.plan).toLowerCase(),
-                status: 'completed',
-                date: new Date()
-              });
-            }
+            mUser.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
+
+            upsertUserPaymentEntry({
+              user: mUser,
+              orderId: payment.order_id || payment.id,
+              paymentId: payment.id,
+              amount: payment.amount / 100,
+              plan: String(pNotes.plan).toLowerCase(),
+              metadata: {
+                sourceController: 'payments.webhook.payment.captured',
+                adminCreated: String(pNotes?.adminCreated || '').toLowerCase() === 'true',
+                trackingId: pNotes?.trackingId || null,
+              },
+            });
+
             await mUser.save();
             await upsertActiveUserMembership({
               userId: pNotes.userId,
@@ -802,9 +1078,24 @@ export const handleWebhook = async (req, res) => {
                 amount: payment.amount / 100,
                 currency: 'INR',
               },
-              metadata: { sourceController: 'payments.webhook.payment.captured' },
+              metadata: {
+                sourceController: 'payments.webhook.payment.captured',
+                adminCreated: String(pNotes?.adminCreated || '').toLowerCase() === 'true',
+                trackingId: pNotes?.trackingId || null,
+              },
             });
             console.log(`✅ Membership activated via payment.captured for user ${pNotes.userId}: ${pNotes.plan}`);
+
+            if (String(pNotes?.adminCreated || '').toLowerCase() === 'true') {
+              await AdminPaymentLink.findOneAndUpdate(
+                { paymentLinkId: payment.order_id || payment.id },
+                {
+                  status: 'paid',
+                  paymentId: payment.id,
+                  paidAt: new Date(),
+                }
+              );
+            }
 
             // Handle plan upgrade - enroll in new community groups
             try {
@@ -854,21 +1145,32 @@ export const handleWebhook = async (req, res) => {
         if (plUserId && plPlan) {
           const plUser = await User.findById(plUserId);
           if (plUser) {
-            plUser.payments = plUser.payments || [];
-            const alreadyRecorded = plUser.payments.some(p => p.orderId === pl?.id || p.paymentId === plPaymentId);
-            if (!alreadyRecorded) {
-              plUser.subscriptionPlan = String(plPlan).toLowerCase();
-              plUser.subscriptionStatus = 'active';
-              plUser.subscriptionStartDate = new Date();
-              plUser.subscriptionEndDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
-              plUser.payments.push({
-                orderId: pl?.id || `plink_${Date.now()}`,
-                paymentId: plPaymentId,
-                amount: (pl?.amount ? pl.amount / 100 : 0),
-                plan: String(plPlan).toLowerCase(),
-                status: 'completed',
-                date: new Date()
-              });
+            const planConfig = await resolveMembershipPlanChargeAmount(String(plPlan).toLowerCase());
+            if (!planConfig.isValid) {
+              break;
+            }
+            const validityDays = resolveMembershipValidityDays({ notes, planConfig });
+
+            plUser.subscriptionPlan = String(plPlan).toLowerCase();
+            plUser.subscriptionStatus = 'active';
+            plUser.subscriptionStartDate = new Date();
+            plUser.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
+
+            const orderId = pl?.id || `plink_${Date.now()}`;
+            const inserted = upsertUserPaymentEntry({
+              user: plUser,
+              orderId,
+              paymentId: plPaymentId,
+              amount: pl?.amount ? pl.amount / 100 : 0,
+              plan: String(plPlan).toLowerCase(),
+              metadata: {
+                sourceController: 'payments.webhook.payment_link.paid',
+                adminCreated: String(notes?.adminCreated || '').toLowerCase() === 'true',
+                trackingId: notes?.trackingId || null,
+              },
+            });
+
+            if (inserted) {
               await plUser.save();
               await upsertActiveUserMembership({
                 userId: plUserId,
@@ -878,14 +1180,29 @@ export const handleWebhook = async (req, res) => {
                 source: 'purchase',
                 payment: {
                   provider: 'razorpay',
-                  orderId: pl?.id || `plink_${Date.now()}`,
+                  orderId,
                   paymentId: plPaymentId,
                   amount: (pl?.amount ? pl.amount / 100 : 0),
                   currency: 'INR',
                 },
-                metadata: { sourceController: 'payments.webhook.payment_link.paid' },
+                metadata: {
+                  sourceController: 'payments.webhook.payment_link.paid',
+                  adminCreated: String(notes?.adminCreated || '').toLowerCase() === 'true',
+                  trackingId: notes?.trackingId || null,
+                },
               });
               console.log(`✅ Membership activated via payment_link.paid for user ${plUserId}: ${plPlan}`);
+
+              if (String(notes?.adminCreated || '').toLowerCase() === 'true') {
+                await AdminPaymentLink.findOneAndUpdate(
+                  { paymentLinkId: orderId },
+                  {
+                    status: 'paid',
+                    paymentId: plPaymentId,
+                    paidAt: new Date(),
+                  }
+                );
+              }
 
               // Handle plan upgrade - enroll in new community groups
               try {
@@ -978,6 +1295,8 @@ export const getPaymentHistory = async (req, res) => {
 export default {
   createMembershipOrder,
   createMembershipPaymentLink,
+  createAdminMembershipPaymentLink,
+  getAdminMembershipPaymentLinks,
   confirmMembershipPaymentLink,
   syncMembershipFromRazorpay,
   createBookingOrder,

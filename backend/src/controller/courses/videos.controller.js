@@ -2,11 +2,34 @@ import { Course } from '../../models/course.models.js';
 
 // Helper function to parse duration string to seconds
 function parseDurationToSeconds(duration) {
-    // Format: "15:30" or "20:00"
-    const parts = duration.split(':');
-    if (parts.length === 2) {
-        return parseInt(parts[0]) * 60 + parseInt(parts[1]);
+    if (duration === null || duration === undefined) return 0;
+
+    if (typeof duration === 'number') {
+        // Treat plain numeric value as minutes.
+        return Number.isFinite(duration) && duration > 0
+            ? Math.round(duration * 60)
+            : 0;
     }
+
+    const text = String(duration).trim();
+    if (!text) return 0;
+
+    // Format: "15:30" or "20:00"
+    const parts = text.split(':');
+    if (parts.length === 2) {
+        const mins = Number(parts[0]);
+        const secs = Number(parts[1]);
+        if (Number.isFinite(mins) && Number.isFinite(secs)) {
+            return (mins * 60) + secs;
+        }
+    }
+
+    // Fallback: treat string number as minutes.
+    const numericMinutes = Number(text);
+    if (Number.isFinite(numericMinutes) && numericMinutes > 0) {
+        return Math.round(numericMinutes * 60);
+    }
+
     return 0;
 }
 
@@ -21,16 +44,24 @@ export const addVideoToCourse = async (req, res) => {
         }
 
         const { title, description, duration, videoUrl, thumbnailUrl, order, isFree } = req.body;
+        const normalizedDuration = typeof duration === 'string' ? duration.trim() : duration;
+        const durationInSeconds = parseDurationToSeconds(normalizedDuration);
+
         // Only validate truly required fields
-        if (!title || !duration || !videoUrl || order === undefined) {
+        if (!title || !videoUrl || order === undefined) {
             return res.status(400).json({
                 success: false,
-                message: "Title, duration, videoUrl, and order are required"
+                message: "Title, videoUrl, and order are required"
             });
         }
 
-        // calculate duration in seconds
-        const durationInSeconds = parseDurationToSeconds(duration);
+        if (!normalizedDuration || durationInSeconds <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "A valid duration is required"
+            });
+        }
+
         const course = await Course.findById(courseId);
         if (!course) {
             return res.status(404).json({
@@ -42,7 +73,7 @@ export const addVideoToCourse = async (req, res) => {
         course.videos.push({
             title,
             description: description || '',
-            duration,
+            duration: normalizedDuration,
             durationInSeconds,
             videoUrl,
             thumbnailUrl: thumbnailUrl || null,

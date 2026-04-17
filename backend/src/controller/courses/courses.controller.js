@@ -1,43 +1,57 @@
 import { Course } from '../../models/course.models.js';
-import { MembershipPlan } from '../../models/membershipPlan.models.js';
 import { CoursePlan } from '../../models/coursePlan.models.js';
+import { MembershipPlan } from '../../models/membershipPlan.models.js';
+import mongoose from 'mongoose';
 
-const enforcePlanLimits = async (planIds, newCategory, courseIdToExclude = null) => {
-    for (const planId of planIds) {
-        const plan = await MembershipPlan.findById(planId);
-        if (!plan) throw new Error(`Plan not found: ${planId}`);
-        const limits = plan.access?.limits || {};
+const normalizePlanIdentifier = (value) => String(value || '').trim();
+const normalizeText = (value) => String(value || '').trim();
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-        // Find all junction mappings for this plan
-        const mappings = await CoursePlan.find({ planId }).populate('courseId');
-        
-        // Filter out null courseIds (if a course was deleted without cleaning up) and the current course being edited
-        let existingCourses = mappings
-            .map(m => m.courseId)
-            .filter(c => c && c._id.toString() !== String(courseIdToExclude));
+const isObjectIdLike = (value) => {
+    const normalized = normalizePlanIdentifier(value);
+    return normalized.length === 24 && mongoose.Types.ObjectId.isValid(normalized);
+};
 
-        // Check maxCoursesTotal
-        if (limits.maxCoursesTotal && existingCourses.length >= limits.maxCoursesTotal) {
-            throw new Error(`Plan "${plan.title}" has reached its maximum course limit of ${limits.maxCoursesTotal}`);
-        }
+const resolveIncludedPlans = async (includedInPlans = []) => {
+    const rawValues = Array.isArray(includedInPlans) ? includedInPlans : [];
+    const normalizedValues = Array.from(
+        new Set(rawValues.map(normalizePlanIdentifier).filter(Boolean))
+    );
 
-        // Check maxCategories
-        if (limits.maxCategories) {
-            const currentCategories = new Set(existingCourses.map(c => c.category).filter(Boolean));
-            currentCategories.add(newCategory);
-            if (currentCategories.size > limits.maxCategories) {
-                throw new Error(`Plan "${plan.title}" allows only ${limits.maxCategories} unique categories. Adding category "${newCategory}" exceeds this limit.`);
-            }
-        }
-
-        // Check perCategoryCourseLimit
-        if (limits.perCategoryCourseLimit) {
-            const categoryCount = existingCourses.filter(c => c.category === newCategory).length;
-            if (categoryCount >= limits.perCategoryCourseLimit) {
-                 throw new Error(`Plan "${plan.title}" allows maximum ${limits.perCategoryCourseLimit} courses per category. Category "${newCategory}" limit reached.`);
-            }
-        }
+    if (normalizedValues.length === 0) {
+        return { planIds: [], planSlugs: [], invalidValues: [] };
     }
+
+    const objectIdValues = normalizedValues.filter(isObjectIdLike);
+    const slugValues = normalizedValues
+        .filter((value) => !isObjectIdLike(value))
+        .map((value) => value.toLowerCase());
+
+    const query = [];
+    if (objectIdValues.length > 0) {
+        query.push({ _id: { $in: objectIdValues } });
+    }
+    if (slugValues.length > 0) {
+        query.push({ slug: { $in: slugValues } });
+    }
+
+    const plans = await MembershipPlan.find({ $or: query }).select('_id slug').lean();
+
+    const planIds = Array.from(new Set(plans.map((plan) => String(plan._id))));
+    const planSlugs = Array.from(
+        new Set(plans.map((plan) => String(plan.slug || '').trim().toLowerCase()).filter(Boolean))
+    );
+
+    const foundById = new Set(plans.map((plan) => String(plan._id)));
+    const foundBySlug = new Set(planSlugs);
+    const invalidValues = normalizedValues.filter((value) => {
+        if (isObjectIdLike(value)) {
+            return !foundById.has(value);
+        }
+        return !foundBySlug.has(value.toLowerCase());
+    });
+
+    return { planIds, planSlugs, invalidValues };
 };
 
 const syncCoursePlans = async (courseId, newPlanIds) => {
@@ -63,35 +77,52 @@ export const createCourse = async (req, res) => {
             });
         }
 
-        // Enforce limits before creation
-        if (includedInPlans && includedInPlans.length > 0) {
-            try {
-                await enforcePlanLimits(includedInPlans, category);
-            } catch (err) {
-                return res.status(400).json({
-                    success: false,
-                    message: err.message
-                });
-            }
+        const normalizedTitle = normalizeText(title);
+        const normalizedCategory = normalizeText(category).toLowerCase();
+        const existingCourse = await Course.findOne({
+            title: { $regex: `^${escapeRegex(normalizedTitle)}$`, $options: 'i' },
+            category: normalizedCategory,
+        }).select('_id title').lean();
+
+        if (existingCourse) {
+            return res.status(409).json({
+                success: false,
+                message: 'A course with the same title already exists in this category'
+            });
+        }
+
+        const { planIds, planSlugs, invalidValues } = await resolveIncludedPlans(includedInPlans || []);
+        if (invalidValues.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid membership plan values: ${invalidValues.join(', ')}`
+            });
+        }
+
+        if (planSlugs.length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'At least one membership plan is required'
+            });
         }
 
         // creating a courses 
         const course = await Course.create({
-            title,
-            description,
+            title: normalizedTitle,
+            description: normalizeText(description),
             color,
-            icon,
+            icon: normalizeText(icon),
             thumbnailUrl,
             bannerUrl,
-            duration,
-            category,
+            duration: normalizeText(duration),
+            category: normalizedCategory,
             tags,
             status,
-            includedInPlans: includedInPlans || []
+            includedInPlans: planSlugs
         });
 
         // Sync junction table
-        await syncCoursePlans(course._id, includedInPlans || []);
+        await syncCoursePlans(course._id, planIds);
 
         return res.status(201).json({
             success: true,
@@ -164,19 +195,56 @@ export const updateCourse = async (req, res) => {
             })
         }
 
-        // Enforce limits before updating
-        if (includedInPlans) {
-            try {
-                await enforcePlanLimits(includedInPlans, category, id);
-            } catch (err) {
-                return res.status(400).json({
-                    success: false,
-                    message: err.message
-                });
-            }
+        const normalizedTitle = normalizeText(title);
+        const normalizedCategory = normalizeText(category).toLowerCase();
+        const duplicateCourse = await Course.findOne({
+            _id: { $ne: id },
+            title: { $regex: `^${escapeRegex(normalizedTitle)}$`, $options: 'i' },
+            category: normalizedCategory,
+        }).select('_id').lean();
+
+        if (duplicateCourse) {
+            return res.status(409).json({
+                success: false,
+                message: 'Another course with the same title already exists in this category'
+            });
         }
 
-        const course = await Course.findByIdAndUpdate(id, { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status, includedInPlans }, { new: true }).populate('assignments');
+        let planIds = null;
+        let planSlugs = null;
+        if (includedInPlans !== undefined) {
+            const resolved = await resolveIncludedPlans(includedInPlans);
+            if (resolved.invalidValues.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Invalid membership plan values: ${resolved.invalidValues.join(', ')}`
+                });
+            }
+            if (resolved.planSlugs.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'At least one membership plan is required'
+                });
+            }
+            planIds = resolved.planIds;
+            planSlugs = resolved.planSlugs;
+        }
+
+        const updatePayload = {
+            title: normalizedTitle,
+            description: normalizeText(description),
+            color,
+            icon: normalizeText(icon),
+            thumbnailUrl,
+            bannerUrl,
+            duration: normalizeText(duration),
+            category: normalizedCategory,
+            tags,
+            status,
+            ...(planSlugs !== null ? { includedInPlans: planSlugs } : {})
+        };
+
+        const course = await Course.findByIdAndUpdate(id, updatePayload, { new: true }).populate('assignments');
         if (!course) {
             return res.status(404).json({
                 success: false,
@@ -185,8 +253,8 @@ export const updateCourse = async (req, res) => {
         }
 
         // Sync junction table
-        if (includedInPlans) {
-            await syncCoursePlans(course._id, includedInPlans);
+        if (planIds !== null) {
+            await syncCoursePlans(course._id, planIds);
         }
 
         return res.status(200).json({

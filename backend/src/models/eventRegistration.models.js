@@ -13,6 +13,11 @@ const eventRegistrationSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  ticketId: {
+    type: String,
+    sparse: true,
+    unique: true
+  },
   
   // Registration status
   registeredAt: {
@@ -83,6 +88,16 @@ eventRegistrationSchema.index({ userId: 1, eventId: 1 }, { unique: true });
 eventRegistrationSchema.index({ eventId: 1, status: 1 });
 eventRegistrationSchema.index({ userId: 1, status: 1 });
 eventRegistrationSchema.index({ registeredAt: -1 });
+eventRegistrationSchema.index({ ticketId: 1 });
+
+eventRegistrationSchema.pre('save', function(next) {
+  if (this.status === 'confirmed' && !this.ticketId) {
+    const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
+    const timestampStr = Date.now().toString().slice(-4);
+    this.ticketId = `EVT-${randomStr}-${timestampStr}`;
+  }
+  next();
+});
 
 // Methods
 eventRegistrationSchema.methods.markAttended = function() {
@@ -98,4 +113,3 @@ eventRegistrationSchema.methods.cancel = function() {
 };
 
 export const EventRegistration = mongoose.model("EventRegistration", eventRegistrationSchema);
-
