@@ -241,14 +241,6 @@ export default function BookCounselingScreen() {
                 textDayFontSize: 15,
                 textMonthFontSize: 16,
                 textDayHeaderFontSize: 13,
-                'stylesheet.calendar.header': {
-                  week: {
-                    marginTop: 7,
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    paddingHorizontal: 10
-                  }
-                }
               }}
             />
           </View>
