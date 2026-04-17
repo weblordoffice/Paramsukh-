@@ -302,7 +302,7 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImpo
             {step === 'upload' && (
               <div className="space-y-5">
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
-                  Required columns: <span className="font-semibold">displayName, phone, subscriptionPlan</span>. Optional: email, tags, isActive.
+                  Required columns: <span className="font-semibold">displayName, phone, email</span>. Optional: subscriptionPlan, tags, isActive.
                 </div>
 
                 <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 bg-gray-50">

@@ -4,7 +4,7 @@ import { MembershipPlan } from '../models/membershipPlan.models.js';
 import { User } from '../models/user.models.js';
 
 const MAX_IMPORT_ROWS = 2000;
-const REQUIRED_HEADERS = ['displayName', 'phone', 'subscriptionPlan'];
+const REQUIRED_HEADERS = ['displayName', 'phone', 'email'];
 const ALLOWED_SUBSCRIPTION_STATUSES = new Set(['active', 'inactive', 'cancelled']);
 const HEADER_ALIASES = {
   displayName: ['displayname', 'name', 'full name', 'full_name', 'fullname', 'user name', 'username'],
@@ -156,10 +156,12 @@ const buildNormalizedRow = (rawRow, rowNumber, headerMap) => {
   }
 
   if (!row.normalized.subscriptionPlan) {
-    addError(row, 'MISSING_SUBSCRIPTION_PLAN', 'subscriptionPlan is required');
+    row.normalized.subscriptionPlan = 'free';
   }
 
-  if (row.normalized.email && !isValidEmail(row.normalized.email)) {
+  if (!row.normalized.email) {
+    addError(row, 'MISSING_EMAIL', 'email is required');
+  } else if (!isValidEmail(row.normalized.email)) {
     addError(row, 'INVALID_EMAIL', 'email format is invalid');
   }
 
@@ -423,7 +425,7 @@ export const parseAndValidateImportFile = async ({ buffer, fileName }) => {
 
 export const buildImportTemplateCsv = () => {
   const header = 'displayName,phone,subscriptionPlan,email,tags,isActive';
-  const exampleOne = 'Ravi Kumar,+919876543210,bronze,ravi@example.com,"school-a,vip",true';
+  const exampleOne = 'Ravi Kumar,+919876543210,,ravi@example.com,"school-a,vip",true';
   const exampleTwo = 'Anita Sharma,9988776655,silver,anita@example.com,"cohort-2",false';
   return `${header}\n${exampleOne}\n${exampleTwo}\n`;
 };
