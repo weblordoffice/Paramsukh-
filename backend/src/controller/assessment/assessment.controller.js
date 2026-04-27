@@ -10,6 +10,10 @@ export const submitAssessment = async (req, res) => {
     const {
       age,
       occupation,
+      countryCode,
+      countryName,
+      stateCode,
+      stateName,
       location,
       physicalIssue,
       physicalIssueDetails,
@@ -25,8 +29,19 @@ export const submitAssessment = async (req, res) => {
       spiritualGrowthDetails
     } = req.body;
 
+    const normalizedCountryCode = String(countryCode || '').trim().toUpperCase();
+    const normalizedCountryName = String(countryName || '').trim();
+    const normalizedStateCode = String(stateCode || '').trim().toUpperCase();
+    const normalizedStateName = String(stateName || '').trim();
+    const normalizedLocation = String(location || '').trim();
+    const derivedLocation =
+      normalizedStateName && normalizedCountryName
+        ? `${normalizedStateName}, ${normalizedCountryName}`
+        : '';
+    const finalLocation = normalizedLocation || derivedLocation;
+
     // Validate required fields
-    if (!age || !occupation || !location) {
+    if (!age || !occupation || !finalLocation) {
       return res.status(400).json({
         success: false,
         message: 'Age, occupation, and location are required'
@@ -55,7 +70,11 @@ export const submitAssessment = async (req, res) => {
       // Update existing assessment
       assessment.age = age;
       assessment.occupation = occupation;
-      assessment.location = location;
+      assessment.countryCode = normalizedCountryCode;
+      assessment.countryName = normalizedCountryName;
+      assessment.stateCode = normalizedStateCode;
+      assessment.stateName = normalizedStateName;
+      assessment.location = finalLocation;
       assessment.physicalIssue = physicalIssue;
       assessment.physicalIssueDetails = physicalIssueDetails || '';
       assessment.specialDiseaseIssue = specialDiseaseIssue;
@@ -85,7 +104,11 @@ export const submitAssessment = async (req, res) => {
       user: userId,
       age,
       occupation,
-      location,
+      countryCode: normalizedCountryCode,
+      countryName: normalizedCountryName,
+      stateCode: normalizedStateCode,
+      stateName: normalizedStateName,
+      location: finalLocation,
       physicalIssue,
       physicalIssueDetails: physicalIssueDetails || '',
       specialDiseaseIssue,

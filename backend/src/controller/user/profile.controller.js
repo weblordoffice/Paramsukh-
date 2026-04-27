@@ -1,6 +1,12 @@
 import { User } from '../../models/user.models.js';
 import { Enrollment } from '../../models/enrollment.models.js';
-import { resolveMembershipPlanChargeAmount, resolveMembershipPlanInheritanceBySlug, normalizePlanSlug } from '../../services/membershipPlan.service.js';
+import {
+  resolveMembershipPlanChargeAmount,
+  resolveMembershipPlanInheritanceBySlug,
+  normalizePlanSlug,
+  normalizePlanVariantSlug,
+  buildMembershipSelectionKey,
+} from '../../services/membershipPlan.service.js';
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
 import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
@@ -251,7 +257,7 @@ export const getSubscription = async (req, res) => {
     const userId = req.user._id;
 
     const user = await User.findById(userId)
-      .select('subscriptionPlan subscriptionStatus');
+      .select('subscriptionPlan subscriptionPlanVariant subscriptionStatus');
 
     if (!user) {
       return res.status(404).json({
@@ -263,7 +269,20 @@ export const getSubscription = async (req, res) => {
     const normalizedStatus = user.subscriptionStatus === 'trial' ? 'inactive' : user.subscriptionStatus;
 
     const normalizedPlan = normalizePlanSlug(user.subscriptionPlan || 'free');
+    const normalizedVariant = normalizePlanVariantSlug(user.subscriptionPlanVariant || null) || null;
     let effectivePlans = normalizedPlan ? [normalizedPlan] : [];
+    const selectedPlan = buildMembershipSelectionKey(normalizedPlan, normalizedVariant);
+
+    let selectedPlanLabel = normalizedPlan;
+    if (normalizedPlan && normalizedPlan !== 'free') {
+      const selectedPlanConfig = await resolveMembershipPlanChargeAmount({
+        plan: normalizedPlan,
+        variantSlug: normalizedVariant,
+      });
+      if (selectedPlanConfig?.isValid) {
+        selectedPlanLabel = selectedPlanConfig.displayTitle || normalizedPlan;
+      }
+    }
 
     if (normalizedPlan && normalizedPlan !== 'free') {
       const inheritance = await resolveMembershipPlanInheritanceBySlug(normalizedPlan);
@@ -276,6 +295,9 @@ export const getSubscription = async (req, res) => {
       success: true,
       subscription: {
         plan: user.subscriptionPlan,
+        variant: normalizedVariant,
+        selectedPlan,
+        selectedPlanLabel,
         status: normalizedStatus,
         trialEndsAt: null,
         isTrialActive: false,
@@ -436,9 +458,9 @@ export const deleteAccount = async (req, res) => {
 export const purchaseMembership = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { plan } = req.body;
+    const { plan, variantSlug } = req.body;
 
-    const planConfig = await resolveMembershipPlanChargeAmount(plan);
+    const planConfig = await resolveMembershipPlanChargeAmount({ plan, variantSlug });
     if (!planConfig.isValid) {
       return res.status(400).json({
         success: false,
@@ -447,6 +469,7 @@ export const purchaseMembership = async (req, res) => {
     }
 
     const finalPlan = planConfig.slug;
+    const finalVariant = planConfig.variantSlug || null;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -468,12 +491,13 @@ export const purchaseMembership = async (req, res) => {
 
     // Update user subscription
     user.subscriptionPlan = finalPlan;
+    user.subscriptionPlanVariant = finalVariant;
     user.subscriptionStatus = 'active';
     if (!user.subscriptionStartDate) {
       user.subscriptionStartDate = new Date();
     }
     if (!user.subscriptionEndDate) {
-      const validityDays = Number(planConfig.plan?.validityDays || 365);
+      const validityDays = Number(planConfig.validityDays || planConfig.plan?.validityDays || 365);
       user.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
     }
     await user.save();
@@ -481,10 +505,16 @@ export const purchaseMembership = async (req, res) => {
     await upsertActiveUserMembership({
       userId,
       planSlug: finalPlan,
+      planVariantSlug: finalVariant,
+      planConfig,
       startDate: user.subscriptionStartDate,
       endDate: user.subscriptionEndDate,
       source: 'purchase',
-      metadata: { sourceController: 'profile.purchaseMembership' },
+      metadata: {
+        sourceController: 'profile.purchaseMembership',
+        planVariantSlug: finalVariant,
+        planSelectionKey: planConfig.selectionKey,
+      },
     });
 
     // Auto-enroll in courses (skip if already enrolled)
@@ -519,6 +549,8 @@ export const purchaseMembership = async (req, res) => {
       message: `Successfully purchased ${finalPlan} membership`,
       subscription: {
         plan: user.subscriptionPlan,
+        variant: user.subscriptionPlanVariant || null,
+        selectedPlan: buildMembershipSelectionKey(user.subscriptionPlan, user.subscriptionPlanVariant || null),
         status: user.subscriptionStatus
       },
       enrolledCourses: courses.map(c => ({

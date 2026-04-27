@@ -45,6 +45,11 @@ const userMembershipSchema = new mongoose.Schema({
   planSnapshot: {
     title: { type: String, required: true },
     slug: { type: String, required: true, lowercase: true },
+    variant: {
+      slug: { type: String, default: null, lowercase: true },
+      title: { type: String, default: null },
+      selectionKey: { type: String, default: null, lowercase: true },
+    },
     pricing: {
       amount: { type: Number, required: true, min: 0 },
       currency: { type: String, default: 'INR' },

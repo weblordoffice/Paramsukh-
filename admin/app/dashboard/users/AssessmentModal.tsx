@@ -12,6 +12,11 @@ interface AssessmentModalProps {
 export default function AssessmentModal({ isOpen, onClose, assessment, userName }: AssessmentModalProps) {
     if (!isOpen) return null;
 
+    const locationDisplay = assessment?.location ||
+        (assessment?.stateName && assessment?.countryName
+            ? `${assessment.stateName}, ${assessment.countryName}`
+            : 'Not provided');
+
     const sections = [
         {
             title: 'Physical Health',
@@ -89,7 +94,7 @@ export default function AssessmentModal({ isOpen, onClose, assessment, userName 
                     ) : (
                         <>
                             {/* Personal Info */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3">
                                     <div className="p-2 bg-white rounded-lg shadow-sm text-blue-600">
                                         <Calendar className="w-4 h-4" />
@@ -109,12 +114,30 @@ export default function AssessmentModal({ isOpen, onClose, assessment, userName 
                                     </div>
                                 </div>
                                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3">
+                                    <div className="p-2 bg-white rounded-lg shadow-sm text-indigo-600">
+                                        <MapPin className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Country</p>
+                                        <p className="font-semibold text-gray-900 line-clamp-1" title={assessment.countryName || 'Not provided'}>{assessment.countryName || 'Not provided'}</p>
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3">
+                                    <div className="p-2 bg-white rounded-lg shadow-sm text-amber-600">
+                                        <MapPin className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">State</p>
+                                        <p className="font-semibold text-gray-900 line-clamp-1" title={assessment.stateName || 'Not provided'}>{assessment.stateName || 'Not provided'}</p>
+                                    </div>
+                                </div>
+                                <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3">
                                     <div className="p-2 bg-white rounded-lg shadow-sm text-red-600">
                                         <MapPin className="w-4 h-4" />
                                     </div>
                                     <div>
                                         <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Location</p>
-                                        <p className="font-semibold text-gray-900 line-clamp-1" title={assessment.location}>{assessment.location}</p>
+                                        <p className="font-semibold text-gray-900 line-clamp-1" title={locationDisplay}>{locationDisplay}</p>
                                     </div>
                                 </div>
                             </div>

@@ -55,6 +55,11 @@ const accessSchema = new mongoose.Schema({
     trim: true,
     lowercase: true,
   }],
+  includedSubcategories: [{
+    type: String,
+    trim: true,
+    lowercase: true,
+  }],
   includedCourseIds: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Course',
@@ -97,6 +102,69 @@ const benefitSchema = new mongoose.Schema({
     default: true,
   },
 }, { _id: false });
+
+const planVariantSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  slug: {
+    type: String,
+    required: true,
+    lowercase: true,
+    trim: true,
+  },
+  shortDescription: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  longDescription: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+  displayOrder: {
+    type: Number,
+    default: 0,
+  },
+  useCustomPricingAndValidity: {
+    type: Boolean,
+    default: false,
+  },
+  customPricing: {
+    amount: {
+      type: Number,
+      default: null,
+      min: 0,
+    },
+    currency: {
+      type: String,
+      default: 'INR',
+      uppercase: true,
+      trim: true,
+    },
+  },
+  customValidityDays: {
+    type: Number,
+    default: null,
+    min: 1,
+  },
+  benefits: {
+    type: [benefitSchema],
+    default: [],
+  },
+  metadata: {
+    badgeColor: { type: String, default: null },
+    icon: { type: String, default: null },
+    popular: { type: Boolean, default: false },
+  },
+}, { _id: true });
 
 const membershipPlanSchema = new mongoose.Schema({
   title: {
@@ -141,6 +209,14 @@ const membershipPlanSchema = new mongoose.Schema({
     type: Number,
     default: 365,
     min: 1,
+  },
+  planVariantsEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  planVariants: {
+    type: [planVariantSchema],
+    default: [],
   },
   access: {
     type: accessSchema,

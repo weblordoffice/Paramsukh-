@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,8 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Picker } from '@react-native-picker/picker';
+import { Country, State } from 'country-state-city';
 
 import apiClient from '../utils/apiClient';
 
@@ -24,15 +26,23 @@ export default function AssessmentScreen() {
   const [textInputs, setTextInputs] = useState({
     age: '',
     occupation: '',
-    location: '',
   });
+  const [selectedCountryCode, setSelectedCountryCode] = useState('');
+  const [selectedStateCode, setSelectedStateCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const textFields = [
     { id: 'age', label: 'Age', placeholder: 'Enter your age', keyboardType: 'numeric' as const, required: true },
     { id: 'occupation', label: 'Occupation', placeholder: 'Enter your occupation', keyboardType: 'default' as const, required: true },
-    { id: 'location', label: 'Location', placeholder: 'Enter your location', keyboardType: 'default' as const, required: true },
   ];
+
+  const countries = useMemo(() => Country.getAllCountries(), []);
+  const states = useMemo(
+    () => (selectedCountryCode ? State.getStatesOfCountry(selectedCountryCode) : []),
+    [selectedCountryCode]
+  );
+  const selectedCountry = countries.find((country) => country.isoCode === selectedCountryCode);
+  const selectedState = states.find((state) => state.isoCode === selectedStateCode);
             
   const questions = [
     {
@@ -75,12 +85,18 @@ export default function AssessmentScreen() {
     setTextInputs({ ...textInputs, [fieldId]: value });
   };
 
+  const handleCountryChange = (countryCode: string) => {
+    setSelectedCountryCode(countryCode);
+    setSelectedStateCode('');
+  };
+
   const handleSubmit = async () => {
     // Check if all fields are filled
     const answeredCount = Object.keys(answers).length;
     const filledTextInputs = Object.values(textInputs).filter(val => val.trim() !== '').length;
-    const totalFields = questions.length + textFields.length;
-    const totalAnswered = answeredCount + filledTextInputs;
+    const locationSelections = (selectedCountryCode ? 1 : 0) + (selectedStateCode ? 1 : 0);
+    const totalFields = questions.length + textFields.length + 2;
+    const totalAnswered = answeredCount + filledTextInputs + locationSelections;
 
     if (totalAnswered < totalFields) {
       const missingFields = totalFields - totalAnswered;
@@ -100,7 +116,11 @@ export default function AssessmentScreen() {
       const assessmentData = {
         age: parseInt(textInputs.age),
         occupation: textInputs.occupation,
-        location: textInputs.location,
+        countryCode: selectedCountry?.isoCode || '',
+        countryName: selectedCountry?.name || '',
+        stateCode: selectedState?.isoCode || '',
+        stateName: selectedState?.name || '',
+        location: selectedState && selectedCountry ? `${selectedState.name}, ${selectedCountry.name}` : '',
         physicalIssue: answers.physical_issue === 'Yes',
         physicalIssueDetails: '',
         specialDiseaseIssue: answers.special_disease_issue === 'Yes',
@@ -121,7 +141,14 @@ export default function AssessmentScreen() {
       if (response.data.success) {
         // Save assessment completion locally
         await AsyncStorage.setItem('assessment_completed', 'true');
-        const allAnswers = { ...answers, ...textInputs };
+        const allAnswers = {
+          ...answers,
+          ...textInputs,
+          countryCode: selectedCountry?.isoCode || '',
+          countryName: selectedCountry?.name || '',
+          stateCode: selectedState?.isoCode || '',
+          stateName: selectedState?.name || '',
+        };
         await AsyncStorage.setItem('assessment_answers', JSON.stringify(allAnswers));
         
         // Small delay for better UX
@@ -142,8 +169,9 @@ export default function AssessmentScreen() {
 
   const answeredCount = Object.keys(answers).length;
   const filledTextInputs = Object.values(textInputs).filter(val => val.trim() !== '').length;
-  const totalFields = questions.length + textFields.length;
-  const totalAnswered = answeredCount + filledTextInputs;
+  const locationSelections = (selectedCountryCode ? 1 : 0) + (selectedStateCode ? 1 : 0);
+  const totalFields = questions.length + textFields.length + 2;
+  const totalAnswered = answeredCount + filledTextInputs + locationSelections;
   const progressPercentage = (totalAnswered / totalFields) * 100;
   const isComplete = totalAnswered === totalFields;
 
@@ -203,6 +231,52 @@ export default function AssessmentScreen() {
               />
             </View>
           ))}
+
+          <View style={styles.inputBlock}>
+            <Text style={styles.inputLabel}>
+              Country <Text style={styles.required}>*</Text>
+            </Text>
+            <View style={[styles.pickerWrapper, selectedCountryCode ? styles.textInputFilled : null]}>
+              <Picker
+                selectedValue={selectedCountryCode}
+                onValueChange={(value) => handleCountryChange(String(value))}
+                style={styles.picker}
+              >
+                <Picker.Item label="Select your country" value="" />
+                {countries.map((country) => (
+                  <Picker.Item key={country.isoCode} label={country.name} value={country.isoCode} />
+                ))}
+              </Picker>
+            </View>
+          </View>
+
+          <View style={styles.inputBlock}>
+            <Text style={styles.inputLabel}>
+              State <Text style={styles.required}>*</Text>
+            </Text>
+            <View
+              style={[
+                styles.pickerWrapper,
+                !selectedCountryCode ? styles.pickerWrapperDisabled : null,
+                selectedStateCode ? styles.textInputFilled : null,
+              ]}
+            >
+              <Picker
+                enabled={!!selectedCountryCode}
+                selectedValue={selectedStateCode}
+                onValueChange={(value) => setSelectedStateCode(String(value))}
+                style={styles.picker}
+              >
+                <Picker.Item
+                  label={selectedCountryCode ? 'Select your state' : 'Select country first'}
+                  value=""
+                />
+                {states.map((state) => (
+                  <Picker.Item key={state.isoCode} label={state.name} value={state.isoCode} />
+                ))}
+              </Picker>
+            </View>
+          </View>
 
           {/* Yes/No Questions */}
           {questions.map((question) => (
@@ -363,6 +437,20 @@ const styles = StyleSheet.create({
   textInputFilled: {
     borderColor: '#3B82F6',
     backgroundColor: '#FFFFFF',
+  },
+  pickerWrapper: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  pickerWrapperDisabled: {
+    backgroundColor: '#F3F4F6',
+    borderColor: '#E5E7EB',
+  },
+  picker: {
+    color: '#111827',
   },
   questionBlock: {
     marginBottom: 24,

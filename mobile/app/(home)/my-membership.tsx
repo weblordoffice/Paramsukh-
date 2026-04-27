@@ -31,14 +31,22 @@ export default function MyMembershipScreen() {
     const { token } = useAuthStore();
 
     const [purchases, setPurchases] = useState<
-        { orderId: string; paymentId: string; amount: number; plan: string; status: string; date: string }[]
+        {
+            orderId: string;
+            paymentId: string;
+            amount: number;
+            plan: string;
+            planVariant?: string | null;
+            status: string;
+            date: string;
+        }[]
     >([]);
     const [loadingPurchases, setLoadingPurchases] = useState(true);
     const [syncingPayment, setSyncingPayment] = useState(false);
     const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
 
     const loadPublicPlans = useCallback(async () => {
-        const dynamicPlans = await fetchPublicMembershipPlans();
+        const dynamicPlans = await fetchPublicMembershipPlans({ includeVariants: true });
         setPlans(dynamicPlans);
     }, []);
 
@@ -74,9 +82,13 @@ export default function MyMembershipScreen() {
             try {
                 const raw = await AsyncStorage.getItem(PENDING_LINK_KEY);
                 if (!raw || cancelled) return;
-                const { paymentLinkId, plan } = JSON.parse(raw);
+                const { paymentLinkId, plan, variantSlug: pendingVariantSlug } = JSON.parse(raw);
                 if (!paymentLinkId || !plan) return;
-                const res = await apiClient.post('/payments/membership-link/confirm', { paymentLinkId, plan });
+                const res = await apiClient.post('/payments/membership-link/confirm', {
+                    paymentLinkId,
+                    plan,
+                    variantSlug: pendingVariantSlug || null,
+                });
                 if (res.data?.success && res.data?.data?.status === 'active') {
                     await AsyncStorage.removeItem(PENDING_LINK_KEY);
                     await fetchCurrentSubscription();
@@ -100,9 +112,13 @@ export default function MyMembershipScreen() {
         try {
             const raw = await AsyncStorage.getItem(PENDING_LINK_KEY);
             if (raw) {
-                const { paymentLinkId, plan } = JSON.parse(raw);
+                const { paymentLinkId, plan, variantSlug: pendingVariantSlug } = JSON.parse(raw);
                 if (paymentLinkId && plan) {
-                    const res = await apiClient.post('/payments/membership-link/confirm', { paymentLinkId, plan });
+                    const res = await apiClient.post('/payments/membership-link/confirm', {
+                        paymentLinkId,
+                        plan,
+                        variantSlug: pendingVariantSlug || null,
+                    });
                     if (res.data?.success && res.data?.data?.status === 'active') {
                         await AsyncStorage.removeItem(PENDING_LINK_KEY);
                         await fetchCurrentSubscription();
@@ -128,7 +144,8 @@ export default function MyMembershipScreen() {
         if (!token) {
             return;
         }
-        if (currentSubscription?.plan === plan.id && currentSubscription?.status === 'active') {
+        const currentSelection = currentSubscription?.selectedPlan || currentSubscription?.plan;
+        if (currentSelection === plan.id && currentSubscription?.status === 'active') {
             return;
         }
 
@@ -137,7 +154,8 @@ export default function MyMembershipScreen() {
         try {
             // Create Razorpay hosted checkout URL from backend
             const linkRes = await apiClient.post('/payments/membership-link', {
-                plan: plan.id,
+                plan: plan.parentSlug,
+                variantSlug: plan.variantSlug || null,
                 amount: plan.price
             });
 
@@ -150,7 +168,11 @@ export default function MyMembershipScreen() {
             const paymentLinkId = linkRes.data.data.paymentLinkId as string | undefined;
 
             if (paymentLinkId) {
-                await AsyncStorage.setItem(PENDING_LINK_KEY, JSON.stringify({ paymentLinkId, plan: plan.id }));
+                await AsyncStorage.setItem(PENDING_LINK_KEY, JSON.stringify({
+                    paymentLinkId,
+                    plan: plan.parentSlug,
+                    variantSlug: plan.variantSlug || null,
+                }));
             }
 
             await WebBrowser.openBrowserAsync(url, {
@@ -162,7 +184,8 @@ export default function MyMembershipScreen() {
             if (paymentLinkId) {
                 const confirmRes = await apiClient.post('/payments/membership-link/confirm', {
                     paymentLinkId,
-                    plan: plan.id,
+                    plan: plan.parentSlug,
+                    variantSlug: plan.variantSlug || null,
                 });
                 if (confirmRes.data?.success) {
                     await AsyncStorage.removeItem(PENDING_LINK_KEY);
@@ -180,7 +203,7 @@ export default function MyMembershipScreen() {
 
 
 
-    const activePlan = currentSubscription?.plan?.toLowerCase();
+    const activePlan = (currentSubscription?.selectedPlan || currentSubscription?.plan || '').toLowerCase();
     const isActive = currentSubscription?.status === 'active';
     const hasNoPlan = !activePlan || !isActive;
 
@@ -188,11 +211,11 @@ export default function MyMembershipScreen() {
     if (__DEV__) {
         console.log('[Membership Screen] currentSubscription:', JSON.stringify(currentSubscription, null, 2));
         console.log('[Membership Screen] activePlan:', activePlan, 'isActive:', isActive, 'hasNoPlan:', hasNoPlan);
-        console.log('[Membership Screen] purchases:', JSON.stringify(purchases.map(p => ({ plan: p.plan, status: p.status })), null, 2));
+        console.log('[Membership Screen] purchases:', JSON.stringify(purchases.map(p => ({ plan: p.plan, variant: p.planVariant, status: p.status })), null, 2));
     }
 
     /* current plan config */
-    const currentPlanCfg = plans.find(p => p.id === activePlan);
+    const currentPlanCfg = plans.find(p => p.id === activePlan || p.parentSlug === activePlan);
 
     return (
         <SafeAreaView style={styles.root}>
@@ -337,7 +360,9 @@ export default function MyMembershipScreen() {
                     const isCurrentPlan = currentPlanId === planId && isActive;
                     const isAlreadyPurchased = purchases.some(p => {
                         const purchasePlan = p.plan ? p.plan.toLowerCase().trim() : '';
-                        return purchasePlan === planId && p.status === 'completed';
+                        const purchaseVariant = p.planVariant ? p.planVariant.toLowerCase().trim() : '';
+                        const purchaseKey = purchaseVariant ? `${purchasePlan}::${purchaseVariant}` : purchasePlan;
+                        return purchaseKey === planId && p.status === 'completed';
                     });
                     
                     // Debug logging

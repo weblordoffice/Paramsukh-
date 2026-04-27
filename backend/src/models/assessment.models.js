@@ -19,6 +19,22 @@ const assessmentSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  countryCode: {
+    type: String,
+    trim: true
+  },
+  countryName: {
+    type: String,
+    trim: true
+  },
+  stateCode: {
+    type: String,
+    trim: true
+  },
+  stateName: {
+    type: String,
+    trim: true
+  },
   location: {
     type: String,
     required: true,

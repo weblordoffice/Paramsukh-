@@ -32,6 +32,7 @@ interface PlanInfo {
   };
   access?: {
     includedCategories?: string[];
+    includedSubcategories?: string[];
     communityAccess?: boolean;
     counselingAccess?: boolean;
     eventAccess?: boolean;
@@ -124,6 +125,18 @@ export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps
     }
     if (selectedPlan.access?.eventAccess) {
       features.push('Event access enabled');
+    }
+    const includedCategoriesCount = Array.isArray(selectedPlan.access?.includedCategories)
+      ? selectedPlan.access?.includedCategories.length
+      : 0;
+    if (includedCategoriesCount > 0) {
+      features.push(`Included categories: ${includedCategoriesCount}`);
+    }
+    const includedSubcategoriesCount = Array.isArray(selectedPlan.access?.includedSubcategories)
+      ? selectedPlan.access?.includedSubcategories.length
+      : 0;
+    if (includedSubcategoriesCount > 0) {
+      features.push(`Included subcategories: ${includedSubcategoriesCount}`);
     }
 
     const limits = selectedPlan.access?.limits;

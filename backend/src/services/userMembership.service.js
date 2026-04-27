@@ -1,11 +1,14 @@
 import { MembershipPlan } from '../models/membershipPlan.models.js';
 import { UserMembership } from '../models/userMembership.models.js';
+import { buildMembershipSelectionKey, normalizePlanVariantSlug } from './membershipPlan.service.js';
 
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
 export const upsertActiveUserMembership = async ({
   userId,
   planSlug,
+  planVariantSlug = null,
+  planConfig = null,
   startDate,
   endDate,
   source = 'purchase',
@@ -22,12 +25,26 @@ export const upsertActiveUserMembership = async ({
     return null;
   }
 
+  const resolvedVariantSlug = normalizePlanVariantSlug(planConfig?.variantSlug || planVariantSlug || null) || null;
+  const selectedVariant = resolvedVariantSlug && Array.isArray(plan?.planVariants)
+    ? plan.planVariants.find((variant) => normalizePlanVariantSlug(variant.slug) === resolvedVariantSlug) || null
+    : null;
+
+  const selectionKey = buildMembershipSelectionKey(slug, resolvedVariantSlug);
+  const snapshotAmount = Number(planConfig?.amount ?? plan.pricing?.oneTime?.amount ?? 0);
+  const snapshotCurrency = planConfig?.currency || plan.pricing?.oneTime?.currency || 'INR';
+
   const planSnapshot = {
-    title: plan.title,
+    title: planConfig?.displayTitle || plan.title,
     slug: plan.slug,
+    variant: {
+      slug: resolvedVariantSlug,
+      title: selectedVariant?.title || null,
+      selectionKey,
+    },
     pricing: {
-      amount: Number(plan.pricing?.oneTime?.amount || 0),
-      currency: plan.pricing?.oneTime?.currency || 'INR',
+      amount: snapshotAmount,
+      currency: snapshotCurrency,
       type: 'one_time',
     },
   };
@@ -39,9 +56,13 @@ export const upsertActiveUserMembership = async ({
     status: 'active',
     source,
     startDate: startDate || new Date(),
-    endDate: endDate || new Date(Date.now() + Number(plan.validityDays || 365) * 24 * 60 * 60 * 1000),
+    endDate: endDate || new Date(Date.now() + Number(planConfig?.validityDays || plan.validityDays || 365) * 24 * 60 * 60 * 1000),
     autoRenew: false,
-    metadata,
+    metadata: {
+      ...metadata,
+      planVariantSlug: resolvedVariantSlug,
+      planSelectionKey: selectionKey,
+    },
   };
 
   if (payment) {

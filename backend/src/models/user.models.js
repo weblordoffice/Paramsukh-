@@ -49,6 +49,12 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     default: 'free'
   },
+  subscriptionPlanVariant: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    default: null
+  },
   subscriptionStatus: {
     type: String,
     enum: ['active', 'inactive', 'trial', 'cancelled'],
@@ -85,6 +91,12 @@ const userSchema = new mongoose.Schema({
       type: String,
       required: true
     },
+    planVariant: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: null
+    },
     status: {
       type: String,
       enum: ['pending', 'completed', 'failed', 'refunded'],
@@ -93,6 +105,10 @@ const userSchema = new mongoose.Schema({
     date: {
       type: Date,
       default: Date.now
+    },
+    metadata: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
     }
   }],
 

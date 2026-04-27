@@ -79,6 +79,7 @@ export const createUserAdmin = async (req, res) => {
 
     const requestedPlan = normalizePlan(rawSubscriptionPlan || 'free');
     let finalPlan = 'free';
+    let finalVariant = null;
     let planConfig = null;
 
     if (requestedPlan !== 'free') {
@@ -90,6 +91,7 @@ export const createUserAdmin = async (req, res) => {
         });
       }
       finalPlan = planConfig.slug;
+      finalVariant = planConfig.variantSlug || null;
     }
 
     // Check if user exists
@@ -112,11 +114,12 @@ export const createUserAdmin = async (req, res) => {
       email: email || undefined,
       phone,
       subscriptionPlan: finalPlan,
+      subscriptionPlanVariant: finalVariant,
       subscriptionStatus: finalPlan === 'free' ? 'inactive' : 'active',
       subscriptionStartDate: finalPlan === 'free' ? null : new Date(),
       subscriptionEndDate: finalPlan === 'free'
         ? null
-        : new Date(Date.now() + Number(planConfig?.plan?.validityDays || 365) * 24 * 60 * 60 * 1000),
+        : new Date(Date.now() + Number(planConfig?.validityDays || planConfig?.plan?.validityDays || 365) * 24 * 60 * 60 * 1000),
       trialEndsAt: null,
       authProvider: 'phone', // Default since schema requires it
       isActive: true,
@@ -129,10 +132,16 @@ export const createUserAdmin = async (req, res) => {
       await upsertActiveUserMembership({
         userId: user._id,
         planSlug: finalPlan,
+        planVariantSlug: finalVariant,
+        planConfig,
         startDate: user.subscriptionStartDate,
         endDate: user.subscriptionEndDate,
         source: 'admin_grant',
-        metadata: { sourceController: 'admin.createUserAdmin' },
+        metadata: {
+          sourceController: 'admin.createUserAdmin',
+          planVariantSlug: finalVariant,
+          planSelectionKey: planConfig?.selectionKey || finalPlan,
+        },
       });
 
       await syncUserCommunityMembershipsByPlan({
@@ -213,6 +222,7 @@ export const updateUserAdmin = async (req, res) => {
     if (subscriptionPlan !== undefined) {
       const requestedPlan = normalizePlan(subscriptionPlan || 'free');
       let finalPlan = 'free';
+      let finalVariant = null;
 
       if (requestedPlan !== 'free') {
         selectedPlanConfig = await resolveMembershipPlanChargeAmount(requestedPlan);
@@ -220,9 +230,11 @@ export const updateUserAdmin = async (req, res) => {
           return res.status(400).json({ success: false, message: 'Invalid membership plan' });
         }
         finalPlan = selectedPlanConfig.slug;
+        finalVariant = selectedPlanConfig.variantSlug || null;
       }
 
       user.subscriptionPlan = finalPlan;
+      user.subscriptionPlanVariant = finalPlan === 'free' ? null : finalVariant;
 
       if (finalPlan === 'free') {
         shouldExpireMemberships = true;
@@ -234,7 +246,7 @@ export const updateUserAdmin = async (req, res) => {
         user.subscriptionStatus = 'active';
         user.subscriptionStartDate = new Date();
         user.subscriptionEndDate = new Date(
-          Date.now() + Number(selectedPlanConfig?.plan?.validityDays || 365) * 24 * 60 * 60 * 1000
+          Date.now() + Number(selectedPlanConfig?.validityDays || selectedPlanConfig?.plan?.validityDays || 365) * 24 * 60 * 60 * 1000
         );
         user.trialEndsAt = null;
       }
@@ -266,13 +278,24 @@ export const updateUserAdmin = async (req, res) => {
     await user.save();
 
     if (user.subscriptionPlan && user.subscriptionPlan !== 'free' && user.subscriptionStatus === 'active') {
+      const currentPlanConfig = await resolveMembershipPlanChargeAmount({
+        plan: user.subscriptionPlan,
+        variantSlug: user.subscriptionPlanVariant,
+      });
+
       await upsertActiveUserMembership({
         userId: id,
         planSlug: user.subscriptionPlan,
+        planVariantSlug: user.subscriptionPlanVariant || null,
+        planConfig: currentPlanConfig?.isValid ? currentPlanConfig : null,
         startDate: user.subscriptionStartDate || new Date(),
         endDate: user.subscriptionEndDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
         source: 'admin_grant',
-        metadata: { sourceController: 'admin.updateUserAdmin' },
+        metadata: {
+          sourceController: 'admin.updateUserAdmin',
+          planVariantSlug: user.subscriptionPlanVariant || null,
+          planSelectionKey: currentPlanConfig?.selectionKey || user.subscriptionPlan,
+        },
       });
     }
 
@@ -446,8 +469,10 @@ export const updateUserMembership = async (req, res) => {
           });
         }
         user.subscriptionPlan = planConfig.slug;
+        user.subscriptionPlanVariant = planConfig.variantSlug || null;
       } else {
         user.subscriptionPlan = 'free';
+        user.subscriptionPlanVariant = null;
       }
     }
     
@@ -458,13 +483,24 @@ export const updateUserMembership = async (req, res) => {
     await user.save();
 
     if (user.subscriptionPlan && user.subscriptionPlan !== 'free' && user.subscriptionStatus === 'active') {
+      const currentPlanConfig = await resolveMembershipPlanChargeAmount({
+        plan: user.subscriptionPlan,
+        variantSlug: user.subscriptionPlanVariant,
+      });
+
       await upsertActiveUserMembership({
         userId: id,
         planSlug: user.subscriptionPlan,
+        planVariantSlug: user.subscriptionPlanVariant || null,
+        planConfig: currentPlanConfig?.isValid ? currentPlanConfig : null,
         startDate: user.subscriptionStartDate || new Date(),
         endDate: user.subscriptionEndDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
         source: 'admin_grant',
-        metadata: { sourceController: 'admin.updateUserMembership' },
+        metadata: {
+          sourceController: 'admin.updateUserMembership',
+          planVariantSlug: user.subscriptionPlanVariant || null,
+          planSelectionKey: currentPlanConfig?.selectionKey || user.subscriptionPlan,
+        },
       });
     } else {
       await UserMembership.updateMany(

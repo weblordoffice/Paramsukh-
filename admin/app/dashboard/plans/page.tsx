@@ -8,6 +8,26 @@ import { apiClient } from "@/lib/api/client";
 type PlanStatus = "draft" | "published" | "archived";
 type AccessMode = "entitlement_only" | "auto_enroll" | "hybrid";
 
+interface PlanVariant {
+  _id?: string;
+  title: string;
+  slug: string;
+  shortDescription?: string;
+  isActive: boolean;
+  displayOrder: number;
+  useCustomPricingAndValidity: boolean;
+  customPricing: {
+    amount: number | null;
+    currency: string;
+  };
+  customValidityDays: number | null;
+  metadata?: {
+    badgeColor?: string | null;
+    icon?: string | null;
+    popular?: boolean;
+  };
+}
+
 interface MembershipPlan {
   _id: string;
   title: string;
@@ -17,6 +37,8 @@ interface MembershipPlan {
   status: PlanStatus;
   displayOrder: number;
   validityDays: number;
+  planVariantsEnabled?: boolean;
+  planVariants?: PlanVariant[];
   pricing: {
     oneTime: {
       amount: number;
@@ -25,6 +47,7 @@ interface MembershipPlan {
   };
   access?: {
     includedCategories?: string[];
+    includedSubcategories?: string[];
     inheritedPlanIds?: string[];
     accessMode?: AccessMode;
     communityAccess?: boolean;
@@ -48,6 +71,8 @@ interface PlanFormState {
   validityDays: number;
   amount: number;
   currency: string;
+  includedCategoriesText: string;
+  includedSubcategoriesText: string;
   accessMode: AccessMode;
   inheritedPlanIds: string[];
   communityAccess: boolean;
@@ -56,13 +81,16 @@ interface PlanFormState {
   badgeColor: string;
   icon: string;
   popular: boolean;
+  planVariantsEnabled: boolean;
+  planVariants: PlanVariant[];
 }
 
 type FormErrors = Partial<Record<
   | "title"
   | "slug"
   | "amount"
-  | "validityDays",
+  | "validityDays"
+  | "planVariants",
   string
 >>;
 
@@ -76,6 +104,8 @@ const DEFAULT_FORM: PlanFormState = {
   validityDays: 365,
   amount: 0,
   currency: "INR",
+  includedCategoriesText: "",
+  includedSubcategoriesText: "",
   accessMode: "entitlement_only",
   inheritedPlanIds: [],
   communityAccess: false,
@@ -84,6 +114,8 @@ const DEFAULT_FORM: PlanFormState = {
   badgeColor: "#64748B",
   icon: "✨",
   popular: false,
+  planVariantsEnabled: false,
+  planVariants: [],
 };
 
 const toSlug = (value: string) => {
@@ -94,6 +126,36 @@ const toSlug = (value: string) => {
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
 };
+
+const parseListInput = (value: string) => {
+  return Array.from(
+    new Set(
+      String(value || "")
+        .split(",")
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+};
+
+const createDefaultVariant = (displayOrder = 0): PlanVariant => ({
+  title: "",
+  slug: "",
+  shortDescription: "",
+  isActive: true,
+  displayOrder,
+  useCustomPricingAndValidity: false,
+  customPricing: {
+    amount: null,
+    currency: "INR",
+  },
+  customValidityDays: null,
+  metadata: {
+    badgeColor: null,
+    icon: null,
+    popular: false,
+  },
+});
 
 export default function MembershipPlansPage() {
   const [loading, setLoading] = useState(true);
@@ -189,6 +251,8 @@ export default function MembershipPlansPage() {
       validityDays: selectedPlan.validityDays ?? 365,
       amount: selectedPlan.pricing?.oneTime?.amount ?? 0,
       currency: selectedPlan.pricing?.oneTime?.currency || "INR",
+      includedCategoriesText: (selectedPlan.access?.includedCategories || []).join(", "),
+      includedSubcategoriesText: (selectedPlan.access?.includedSubcategories || []).join(", "),
       accessMode: selectedPlan.access?.accessMode || "entitlement_only",
       inheritedPlanIds: (selectedPlan.access?.inheritedPlanIds || []).map((id) => String(id)),
       communityAccess: !!selectedPlan.access?.communityAccess,
@@ -197,6 +261,28 @@ export default function MembershipPlansPage() {
       badgeColor: selectedPlan.metadata?.badgeColor || "#64748B",
       icon: selectedPlan.metadata?.icon || "✨",
       popular: !!selectedPlan.metadata?.popular,
+      planVariantsEnabled: !!selectedPlan.planVariantsEnabled,
+      planVariants: Array.isArray(selectedPlan.planVariants)
+        ? selectedPlan.planVariants.map((variant, index) => ({
+            _id: variant._id,
+            title: variant.title || "",
+            slug: variant.slug || "",
+            shortDescription: variant.shortDescription || "",
+            isActive: variant.isActive !== false,
+            displayOrder: Number(variant.displayOrder ?? index),
+            useCustomPricingAndValidity: !!variant.useCustomPricingAndValidity,
+            customPricing: {
+              amount: variant.customPricing?.amount ?? null,
+              currency: variant.customPricing?.currency || "INR",
+            },
+            customValidityDays: variant.customValidityDays ?? null,
+            metadata: {
+              badgeColor: variant.metadata?.badgeColor || null,
+              icon: variant.metadata?.icon || null,
+              popular: !!variant.metadata?.popular,
+            },
+          }))
+        : [],
     });
   }, [selectedPlan]);
 
@@ -215,6 +301,45 @@ export default function MembershipPlansPage() {
       }
       return next;
     });
+  };
+
+  const updateVariant = (index: number, updates: Partial<PlanVariant>) => {
+    setForm((prev) => {
+      const nextVariants = [...prev.planVariants];
+      const existing = nextVariants[index];
+      if (!existing) {
+        return prev;
+      }
+      nextVariants[index] = {
+        ...existing,
+        ...updates,
+        customPricing: {
+          ...existing.customPricing,
+          ...(updates.customPricing || {}),
+        },
+        metadata: {
+          ...(existing.metadata || {}),
+          ...(updates.metadata || {}),
+        },
+      };
+      return { ...prev, planVariants: nextVariants };
+    });
+
+    setFormErrors((prev) => {
+      if (!prev.planVariants) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next.planVariants;
+      return next;
+    });
+  };
+
+  const addVariant = () => {
+    setForm((prev) => ({
+      ...prev,
+      planVariants: [...prev.planVariants, createDefaultVariant(prev.planVariants.length)],
+    }));
   };
 
   const validateForm = () => {
@@ -238,12 +363,79 @@ export default function MembershipPlansPage() {
       errors.validityDays = "Validity days must be at least 1";
     }
 
+    const seenVariantSlugs = new Set<string>();
+    for (let index = 0; index < form.planVariants.length; index += 1) {
+      const variant = form.planVariants[index];
+      const variantTitle = variant.title.trim();
+      const variantSlug = toSlug(variant.slug || variant.title);
+
+      if (!variantTitle) {
+        errors.planVariants = `Variant #${index + 1}: title is required`;
+        break;
+      }
+
+      if (!variantSlug) {
+        errors.planVariants = `Variant #${index + 1}: slug is required`;
+        break;
+      }
+
+      if (variantSlug === slug) {
+        errors.planVariants = `Variant #${index + 1}: slug cannot match plan slug`;
+        break;
+      }
+
+      if (seenVariantSlugs.has(variantSlug)) {
+        errors.planVariants = `Variant #${index + 1}: duplicate slug "${variantSlug}"`;
+        break;
+      }
+      seenVariantSlugs.add(variantSlug);
+
+      if (variant.useCustomPricingAndValidity) {
+        const customAmount = Number(variant.customPricing?.amount);
+        const customValidityDays = Number(variant.customValidityDays);
+
+        if (Number.isNaN(customAmount) || customAmount < 0) {
+          errors.planVariants = `Variant #${index + 1}: custom amount must be non-negative`;
+          break;
+        }
+
+        if (Number.isNaN(customValidityDays) || customValidityDays < 1) {
+          errors.planVariants = `Variant #${index + 1}: custom validity must be at least 1 day`;
+          break;
+        }
+      }
+    }
+
     return errors;
   };
 
   const buildPayload = () => {
     const slug = toSlug(form.slug || form.title);
     const inheritedPlanIds = (form.inheritedPlanIds || []).filter(Boolean);
+    const includedCategories = parseListInput(form.includedCategoriesText);
+    const includedSubcategories = parseListInput(form.includedSubcategoriesText);
+    const variantsPayload = (form.planVariants || []).map((variant, index) => ({
+      title: variant.title.trim(),
+      slug: toSlug(variant.slug || variant.title),
+      shortDescription: String(variant.shortDescription || "").trim(),
+      isActive: variant.isActive !== false,
+      displayOrder: Number(variant.displayOrder ?? index),
+      useCustomPricingAndValidity: !!variant.useCustomPricingAndValidity,
+      customPricing: {
+        amount: variant.customPricing?.amount === null || variant.customPricing?.amount === undefined
+          ? null
+          : Number(variant.customPricing.amount),
+        currency: String(variant.customPricing?.currency || form.currency || "INR").toUpperCase(),
+      },
+      customValidityDays: variant.customValidityDays === null || variant.customValidityDays === undefined
+        ? null
+        : Number(variant.customValidityDays),
+      metadata: {
+        badgeColor: variant.metadata?.badgeColor || null,
+        icon: variant.metadata?.icon || null,
+        popular: !!variant.metadata?.popular,
+      },
+    }));
 
     return {
       title: form.title.trim(),
@@ -260,7 +452,8 @@ export default function MembershipPlansPage() {
         },
       },
       access: {
-        includedCategories: [],
+        includedCategories,
+        includedSubcategories,
         inheritedPlanIds,
         includedCourseIds: [],
         limits: {
@@ -278,6 +471,8 @@ export default function MembershipPlansPage() {
         icon: form.icon,
         popular: form.popular,
       },
+      planVariantsEnabled: form.planVariantsEnabled,
+      planVariants: variantsPayload,
     };
   };
 
@@ -615,6 +810,133 @@ export default function MembershipPlansPage() {
           </div>
 
           <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900">Plan Variant</h3>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={form.planVariantsEnabled}
+                  onChange={(event) => updateField("planVariantsEnabled", event.target.checked)}
+                />
+                Enable Plan Variant
+              </label>
+            </div>
+
+            <p className="text-xs text-gray-500">
+              Turning this off hides variants from purchase screens, but keeps them saved for later re-enable.
+            </p>
+
+            {formErrors.planVariants && <p className="text-xs text-red-600">{formErrors.planVariants}</p>}
+
+            <div className="space-y-3">
+              {form.planVariants.map((variant, index) => (
+                <div key={variant._id || `${variant.slug || "variant"}-${index}`} className="rounded-lg border border-gray-200 p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-gray-900">Variant #{index + 1}</p>
+                    <label className="flex items-center gap-2 text-xs text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={variant.isActive !== false}
+                        onChange={(event) => updateVariant(index, { isActive: event.target.checked })}
+                      />
+                      Visible for purchase
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div className="md:col-span-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Title</label>
+                      <input
+                        value={variant.title}
+                        onChange={(event) => updateVariant(index, { title: event.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        placeholder="Lite"
+                      />
+                    </div>
+                    <div className="md:col-span-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Slug</label>
+                      <input
+                        value={variant.slug}
+                        onChange={(event) => updateVariant(index, { slug: toSlug(event.target.value) })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        placeholder="lite"
+                      />
+                    </div>
+                    <div className="md:col-span-1">
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Display Order</label>
+                      <input
+                        type="number"
+                        value={variant.displayOrder}
+                        onChange={(event) => updateVariant(index, { displayOrder: Number(event.target.value || 0) })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Short Description</label>
+                    <input
+                      value={variant.shortDescription || ""}
+                      onChange={(event) => updateVariant(index, { shortDescription: event.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      placeholder="Best for students"
+                    />
+                  </div>
+
+                  <div className="rounded-lg bg-gray-50 border border-gray-200 p-3 space-y-3">
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={variant.useCustomPricingAndValidity}
+                        onChange={(event) => updateVariant(index, { useCustomPricingAndValidity: event.target.checked })}
+                      />
+                      Use custom price and validity (instead of inheriting parent)
+                    </label>
+
+                    {variant.useCustomPricingAndValidity && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Custom Price (INR)</label>
+                          <input
+                            type="number"
+                            value={variant.customPricing?.amount ?? ""}
+                            onChange={(event) => updateVariant(index, {
+                              customPricing: {
+                                ...variant.customPricing,
+                                amount: event.target.value === "" ? null : Number(event.target.value),
+                              },
+                            })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Custom Validity (days)</label>
+                          <input
+                            type="number"
+                            value={variant.customValidityDays ?? ""}
+                            onChange={(event) => updateVariant(index, {
+                              customValidityDays: event.target.value === "" ? null : Number(event.target.value),
+                            })}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={addVariant}
+                className="px-3 py-2 text-sm border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50"
+              >
+                + Add Variant
+              </button>
+            </div>
+          </div>
+
+          <div className="border border-gray-200 rounded-lg p-4 space-y-4">
             <h3 className="text-sm font-semibold text-gray-900">Access Rules</h3>
             <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
               <div>
@@ -628,6 +950,29 @@ export default function MembershipPlansPage() {
                   <option value="auto_enroll">Auto enroll</option>
                   <option value="hybrid">Hybrid</option>
                 </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Included Categories</label>
+                <input
+                  value={form.includedCategoriesText}
+                  onChange={(event) => updateField("includedCategoriesText", event.target.value)}
+                  placeholder="yoga, mindfulness, nutrition"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+                <p className="text-xs text-gray-500 mt-1">Comma-separated list</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Included Subcategories</label>
+                <input
+                  value={form.includedSubcategoriesText}
+                  onChange={(event) => updateField("includedSubcategoriesText", event.target.value)}
+                  placeholder="beginner-yoga, stress-relief"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+                <p className="text-xs text-gray-500 mt-1">Comma-separated list</p>
               </div>
             </div>
 
@@ -748,6 +1093,8 @@ export default function MembershipPlansPage() {
                 <span className="px-2 py-1 rounded bg-blue-50 text-blue-700">INR {Number(form.amount || 0).toLocaleString("en-IN")}</span>
                 <span className="px-2 py-1 rounded bg-indigo-50 text-indigo-700">{Number(form.validityDays || 365)} days</span>
                 <span className="px-2 py-1 rounded bg-gray-100 text-gray-700">{form.accessMode}</span>
+                {form.planVariantsEnabled && <span className="px-2 py-1 rounded bg-purple-50 text-purple-700">Variants enabled</span>}
+                {!form.planVariantsEnabled && form.planVariants.length > 0 && <span className="px-2 py-1 rounded bg-amber-50 text-amber-700">Variants hidden</span>}
                 {form.communityAccess && <span className="px-2 py-1 rounded bg-green-50 text-green-700">Community</span>}
                 {form.counselingAccess && <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700">Counseling</span>}
                 {form.eventAccess && <span className="px-2 py-1 rounded bg-orange-50 text-orange-700">Events</span>}

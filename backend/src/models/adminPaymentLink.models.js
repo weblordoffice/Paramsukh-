@@ -27,6 +27,20 @@ const adminPaymentLinkSchema = new mongoose.Schema(
       lowercase: true,
       index: true,
     },
+    planVariantSlug: {
+      type: String,
+      default: null,
+      trim: true,
+      lowercase: true,
+      index: true,
+    },
+    planSelectionKey: {
+      type: String,
+      default: null,
+      trim: true,
+      lowercase: true,
+      index: true,
+    },
     amount: {
       type: Number,
       required: true,

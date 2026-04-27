@@ -19,6 +19,9 @@ export interface MembershipPlan {
 
 export interface Subscription {
     plan: string;
+    variant?: string | null;
+    selectedPlan?: string;
+    selectedPlanLabel?: string;
     status: 'active' | 'inactive' | 'expired' | 'cancelled';
     trialEndsAt?: string;
     isTrialActive: boolean;

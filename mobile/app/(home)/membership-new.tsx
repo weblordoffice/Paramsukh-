@@ -20,7 +20,7 @@ export default function MembershipScreen() {
   const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
 
   const loadPublicPlans = useCallback(async () => {
-    const dynamicPlans = await fetchPublicMembershipPlans();
+    const dynamicPlans = await fetchPublicMembershipPlans({ includeVariants: true });
     setPlans(dynamicPlans);
     if (dynamicPlans.length > 0) {
       setSelectedPlan(dynamicPlans[0].id);
@@ -40,9 +40,13 @@ export default function MembershipScreen() {
       try {
         const raw = await AsyncStorage.getItem(PENDING_LINK_KEY);
         if (!raw || cancelled) return;
-        const { paymentLinkId, plan } = JSON.parse(raw);
+        const { paymentLinkId, plan, variantSlug: pendingVariantSlug } = JSON.parse(raw);
         if (!paymentLinkId || !plan) return;
-        const res = await apiClient.post('/payments/membership-link/confirm', { paymentLinkId, plan });
+        const res = await apiClient.post('/payments/membership-link/confirm', {
+          paymentLinkId,
+          plan,
+          variantSlug: pendingVariantSlug || null,
+        });
         if (res.data?.success && res.data?.data?.status === 'active') {
           await AsyncStorage.removeItem(PENDING_LINK_KEY);
           await fetchCurrentSubscription();
@@ -57,7 +61,8 @@ export default function MembershipScreen() {
   const getDisplayPrice = (plan: UIMembershipPlan) => `₹${plan.price.toLocaleString('en-IN')}`;
 
   const handlePurchase = async (plan: UIMembershipPlan) => {
-    if (currentSubscription?.plan === plan.id && currentSubscription?.status === 'active') {
+    const currentSelection = currentSubscription?.selectedPlan || currentSubscription?.plan;
+    if (currentSelection === plan.id && currentSubscription?.status === 'active') {
       Alert.alert('Already Subscribed', `You already have the ${plan.name} plan!`);
       return;
     }
@@ -68,7 +73,8 @@ export default function MembershipScreen() {
     try {
       // Create Razorpay hosted checkout URL from backend
       const linkRes = await apiClient.post('/payments/membership-link', {
-        plan: plan.id,
+        plan: plan.parentSlug,
+        variantSlug: plan.variantSlug || null,
         amount: plan.price
       });
 
@@ -82,7 +88,11 @@ export default function MembershipScreen() {
       const paymentLinkId = linkRes.data.data.paymentLinkId as string | undefined;
 
       if (paymentLinkId) {
-        await AsyncStorage.setItem(PENDING_LINK_KEY, JSON.stringify({ paymentLinkId, plan: plan.id }));
+        await AsyncStorage.setItem(PENDING_LINK_KEY, JSON.stringify({
+          paymentLinkId,
+          plan: plan.parentSlug,
+          variantSlug: plan.variantSlug || null,
+        }));
       }
 
       // Open Razorpay payment page (hosted checkout)
@@ -96,7 +106,8 @@ export default function MembershipScreen() {
       if (paymentLinkId) {
         const confirmRes = await apiClient.post('/payments/membership-link/confirm', {
           paymentLinkId,
-          plan: plan.id,
+          plan: plan.parentSlug,
+          variantSlug: plan.variantSlug || null,
         });
         if (confirmRes.data?.success) {
           await AsyncStorage.removeItem(PENDING_LINK_KEY);
@@ -120,7 +131,8 @@ export default function MembershipScreen() {
   };
 
   const isPlanActive = (planId: string) => {
-    return currentSubscription?.plan === planId && currentSubscription?.status === 'active';
+    const currentSelection = currentSubscription?.selectedPlan || currentSubscription?.plan;
+    return currentSelection === planId && currentSubscription?.status === 'active';
   };
 
   return (
@@ -143,7 +155,7 @@ export default function MembershipScreen() {
               <View className="mt-3 bg-green-100 px-4 py-2 rounded-full flex-row items-center gap-2">
                 <Ionicons name="checkmark-circle" size={16} color="#10B981" />
                 <Text className="text-green-700 font-semibold text-sm">
-                  Active: {currentSubscription.plan.charAt(0).toUpperCase() + currentSubscription.plan.slice(1)} Plan
+                  Active: {currentSubscription.selectedPlanLabel || currentSubscription.plan}
                 </Text>
               </View>
             )}
