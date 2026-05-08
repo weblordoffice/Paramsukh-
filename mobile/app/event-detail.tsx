@@ -329,11 +329,11 @@ export default function EventDetailScreen() {
           </View>
 
           {/* Requirements & Info */}
-          {(event.requirements?.length > 0 || event.whatToBring?.length > 0 || event.additionalInfo) && (
+          {((event.requirements && event.requirements.length > 0) || (event.whatToBring && event.whatToBring.length > 0) || event.additionalInfo) ? (
             <View style={{ marginTop: 32, backgroundColor: '#F9FAFB', borderRadius: 24, padding: 24 }}>
               <Text style={{ fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 16 }}>Important Information</Text>
               
-              {event.requirements?.length > 0 && (
+              {(event.requirements && event.requirements.length > 0) ? (
                 <View style={{ marginBottom: 16 }}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 6 }}>Requirements</Text>
                   {event.requirements.map((item: string, idx: number) => (
@@ -343,9 +343,9 @@ export default function EventDetailScreen() {
                     </View>
                   ))}
                 </View>
-              )}
+              ) : null}
 
-              {event.whatToBring?.length > 0 && (
+              {(event.whatToBring && event.whatToBring.length > 0) ? (
                 <View style={{ marginBottom: 16 }}>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 6 }}>What to Bring</Text>
                   {event.whatToBring.map((item: string, idx: number) => (
@@ -355,7 +355,7 @@ export default function EventDetailScreen() {
                     </View>
                   ))}
                 </View>
-              )}
+              ) : null}
 
               {event.additionalInfo && (
                 <View>
@@ -364,7 +364,7 @@ export default function EventDetailScreen() {
                 </View>
               )}
             </View>
-          )}
+          ) : null}
 
           {/* Online Link */}
           {(event.locationType === 'online' || event.locationType === 'hybrid') && event.onlineMeetingLink && (
@@ -556,7 +556,7 @@ export default function EventDetailScreen() {
               </View>
             </View>
 
-            <View style={{ mt: 24, marginTop: 32 }}>
+            <View style={{ marginTop: 32 }}>
               {event.isPaid ? (
                 <>
                   <View style={{ backgroundColor: '#FFFBEB', padding: 12, borderRadius: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center' }}>

@@ -29,7 +29,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Avoid redirecting if the app is still mounting or there are no segments yet
-    if (!segments || segments.length === 0) return;
+    if (!segments || !segments.length) return;
 
     const isAuthRoute = segments[0] === 'signin' || segments[0] === 'signup';
     
