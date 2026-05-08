@@ -55,18 +55,24 @@ export const sendOTP = async (phone) => {
 
     try {
       if (!isTestMode) {
-        const message = `Your OTP for PARAM is ${otp}. Do Not Share it.`;
+        const message = `Your OTP for PARAM is ${otp}. Do Not Share it`;
         const smsUrl =
           `${OTP_SMS_BASE_URL}` +
           `?apikey=${encodeURIComponent(OTP_SMS_API_KEY)}` +
+          `&type=TEXT` +
           `&sender=${encodeURIComponent(OTP_SMS_SENDER)}` +
-          `&mobile=${encodeURIComponent(`91${cleanPhone}`)}` +
-          `&message=${encodeURIComponent(message)}` +
           `&entityId=${encodeURIComponent(OTP_SMS_ENTITY_ID)}` +
-          `&templateId=${encodeURIComponent(OTP_SMS_TEMPLATE_ID)}`;
+          `&templateId=${encodeURIComponent(OTP_SMS_TEMPLATE_ID)}` +
+          `&mobile=${encodeURIComponent(cleanPhone)}` +
+          `&message=${encodeURIComponent(message)}`;
+
+        console.log('[OTP SMS] Generated URL:', smsUrl);
 
         const response = await axios.get(smsUrl);
         const responseText = String(response.data ?? '').trim();
+
+        console.log('[OTP SMS] Provider response:', responseText);
+
         const isSuccess = responseText.toUpperCase().includes('SUCCESS');
 
         if (!isSuccess) {
