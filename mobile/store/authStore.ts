@@ -34,7 +34,7 @@ interface AuthState {
   biometricEnabled: boolean;
 
   googleSignIn: (idToken: string) => Promise<{ success: boolean; message?: string }>;
-  sendOTP: (phone: string) => Promise<{ success: boolean; message?: string; isNewUser?: boolean; otp?: string }>;
+  sendOTP: (phone: string) => Promise<{ success: boolean; message?: string; isNewUser?: boolean }>;
   verifyOTP: (phone: string, code: string, name?: string, email?: string) => Promise<{ success: boolean; message?: string; isNewUser?: boolean }>;
   logout: () => Promise<void>;
   logoutWithBiometric: () => Promise<{ success: boolean; message?: string }>;
@@ -94,12 +94,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ isLoading: false });
       const data = response.data || {};
-      const otp = data.otp != null ? String(data.otp) : undefined;
       return {
         success: !!data.success,
         message: data.message,
-        isNewUser: data.isNewUser,
-        otp
+        isNewUser: data.isNewUser
       };
     } catch (error: any) {
       let msg = 'Failed to send OTP. Please try again.';

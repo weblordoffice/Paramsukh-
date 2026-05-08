@@ -1,8 +1,13 @@
 import axios from 'axios';
 
-// Simple in-memory OTP service - no external providers needed
+// In-memory OTP store for temporary verification state.
 const otpStore = new Map();
 const OTP_EXPIRY_MINUTES = 10;
+const OTP_SMS_BASE_URL = process.env.OTP_SMS_BASE_URL || 'https://vas.sevenomedia.com/domestic/sendsms/bulksms_v2.php';
+const OTP_SMS_API_KEY = String(process.env.OTP_SMS_API_KEY || process.env.FAST2SMS_API_KEY || '').trim();
+const OTP_SMS_SENDER = process.env.OTP_SMS_SENDER || 'NamJin';
+const OTP_SMS_ENTITY_ID = process.env.OTP_SMS_ENTITY_ID || '1201159239283403256';
+const OTP_SMS_TEMPLATE_ID = process.env.OTP_SMS_TEMPLATE_ID || '1707177796052193562';
 
 /**
  * Generate a random 6-digit OTP
@@ -29,7 +34,7 @@ setInterval(cleanupExpiredOTPs, 5 * 60 * 1000);
 /**
  * Send OTP (stores in memory)
  * @param {string} phone - Phone number (10 digits)
- * @returns {Promise<{success: boolean, message: string, otp?: string}>}
+ * @returns {Promise<{success: boolean, message: string}>}
  */
 export const sendOTP = async (phone) => {
   try {
@@ -41,32 +46,32 @@ export const sendOTP = async (phone) => {
 
     const otp = generateOTP();
 
-    // Send OTP via Seveno Media GET API
+    if (!OTP_SMS_API_KEY) {
+      throw new Error('OTP SMS API key is not configured');
+    }
+
+    // "test" key means local test mode: skip provider call, still generate/store OTP.
+    const isTestMode = OTP_SMS_API_KEY.toLowerCase() === 'test';
+
     try {
-      const message = `Your OTP for PARAM is ${otp}. Do Not Share it.`;
-      const smsUrl =
-        'https://vas.sevenomedia.com/domestic/sendsms/bulksms_v2.php' +
-        `?apikey=dDJuYW1qaW46UG5DNDlGMnI=` +
-        `&sender=${encodeURIComponent('NamJin')}` +
-        `&mobile=${encodeURIComponent(`91${cleanPhone}`)}` +
-        `&message=${encodeURIComponent(message)}` +
-        `&entityId=${encodeURIComponent('1201159239283403256')}` +
-        `&templateId=${encodeURIComponent('1707177796052193562')}`;
+      if (!isTestMode) {
+        const message = `Your OTP for PARAM is ${otp}. Do Not Share it.`;
+        const smsUrl =
+          `${OTP_SMS_BASE_URL}` +
+          `?apikey=${encodeURIComponent(OTP_SMS_API_KEY)}` +
+          `&sender=${encodeURIComponent(OTP_SMS_SENDER)}` +
+          `&mobile=${encodeURIComponent(`91${cleanPhone}`)}` +
+          `&message=${encodeURIComponent(message)}` +
+          `&entityId=${encodeURIComponent(OTP_SMS_ENTITY_ID)}` +
+          `&templateId=${encodeURIComponent(OTP_SMS_TEMPLATE_ID)}`;
 
-      // Print final generated URL before sending
-      console.log('=== SMS URL ===');
-      console.log(smsUrl);    
-      console.log('===============');
+        const response = await axios.get(smsUrl);
+        const responseText = String(response.data ?? '').trim();
+        const isSuccess = responseText.toUpperCase().includes('SUCCESS');
 
-      const response = await axios.get(smsUrl);
-      const responseText = String(response.data ?? '').trim();
-      const isSuccess = responseText.toUpperCase().includes('SUCCESS');
-
-      console.log('SMS API Status:', response.status);
-      console.log('SMS API Response:', responseText);
-
-      if (!isSuccess) {
-        throw new Error(`SMS provider rejected request: ${responseText || 'Empty response'}`);
+        if (!isSuccess) {
+          throw new Error(`SMS provider rejected request: ${responseText || 'Empty response'}`);
+        }
       }
 
       const expiresAt = Date.now() + (OTP_EXPIRY_MINUTES * 60 * 1000);
@@ -76,25 +81,19 @@ export const sendOTP = async (phone) => {
         attempts: 0
       });
 
-      console.log(`OTP sent for +91${cleanPhone}: ${otp}`);
     } catch (smsError) {
       const providerResponse = smsError.response?.data != null
         ? String(smsError.response.data)
         : '';
       const details = providerResponse || smsError.message;
-      console.error('SMS send failed:', details);
       throw new Error(`Failed to send OTP SMS: ${details}`);
     }
 
     return {
       success: true,
-      message: 'OTP generated and sent successfully',
-      otp: process.env.NODE_ENV === 'development' ? otp : undefined // Return OTP for testing in dev only
+      message: 'OTP generated and sent successfully'
     };
   } catch (error) {
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Generate OTP Error:', error.message);
-    }
     throw error;
   }
 };
@@ -136,9 +135,6 @@ export const verifyOTP = async (phone, otp) => {
 
     if (stored.otp === otp.toString()) {
       otpStore.delete(cleanPhone);
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`OTP verified for +91${cleanPhone}`);
-      }
       return {
         success: true,
         message: 'OTP verified successfully'
@@ -152,9 +148,6 @@ export const verifyOTP = async (phone, otp) => {
       };
     }
   } catch (error) {
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Verify OTP Error:', error.message);
-    }
     throw error;
   }
 };

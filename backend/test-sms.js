@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-const API_URL = 'https://vas.sevenomedia.com/domestic/sendsms/jsonapi.php';
-const API_KEY = 'DxqalPWe';
+const API_URL = process.env.OTP_SMS_JSON_API_URL || 'https://vas.sevenomedia.com/domestic/sendsms/jsonapi.php';
+const API_KEY = String(process.env.OTP_SMS_API_KEY || process.env.FAST2SMS_API_KEY || '').trim();
 
 const test = async (label, payload) => {
   console.log(`\n=== ${label} ===`);
@@ -22,6 +22,10 @@ const test = async (label, payload) => {
   }
 
   try {
+    if (!API_KEY || API_KEY.toLowerCase() === 'test') {
+      throw new Error('Set OTP_SMS_API_KEY in environment before running backend/test-sms.js');
+    }
+
     const res = await axios.post(API_URL, payload, {
       headers: { 'Content-Type': 'application/json', 'apiKey': API_KEY }
     });

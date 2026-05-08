@@ -28,21 +28,11 @@ export const sendOTPController = async (req, res) => {
 
     const result = await sendOTP(cleanPhone);
 
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`📱 OTP sent to ${formattedPhone} (${isNewUser ? 'New' : 'Existing'} user)`);
-    }
-
-    const responsePayload = {
+    return res.json({
       success: true,
       message: result.message,
-      isNewUser,
-      otp: result.otp != null ? String(result.otp) : undefined
-    };
-    if (responsePayload.otp) {
-      console.log(`📱 OTP in response for ${formattedPhone} (app can display)`);
-    }
-
-    return res.json(responsePayload);
+      isNewUser
+    });
   } catch (error) {
     console.error("❌ Send OTP error:", error);
     return res.status(500).json({
@@ -176,3 +166,4 @@ export const verifyOTPController = async (req, res) => {
     });
   }
 };
+
