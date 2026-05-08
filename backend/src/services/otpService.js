@@ -63,16 +63,19 @@ export const sendOTP = async (phone) => {
         // ── Uncomment the line below to test with a hardcoded OTP for DLT verification ──
         // const message = 'Your OTP for PARAM is 123456. Do Not Share it';
 
-        const params = new URLSearchParams();
-        params.append('apikey', OTP_SMS_API_KEY);
-        params.append('type', 'TEXT');
-        params.append('sender', OTP_SMS_SENDER);
-        params.append('entityId', OTP_SMS_ENTITY_ID);
-        params.append('templateId', OTP_SMS_TEMPLATE_ID);
-        params.append('mobile', cleanPhone);
-        params.append('message', message);
-
-        const smsUrl = `${OTP_SMS_BASE_URL}?${params.toString()}`;
+        // Build URL manually to match exact dashboard encoding:
+        // - apikey passed raw (preserves = in base64)
+        // - encodeURIComponent for message (spaces → %20, not +)
+        // - other params are alphanumeric, no encoding needed
+        const smsUrl =
+          `${OTP_SMS_BASE_URL}` +
+          `?apikey=${OTP_SMS_API_KEY}` +
+          `&type=TEXT` +
+          `&sender=${OTP_SMS_SENDER}` +
+          `&entityId=${OTP_SMS_ENTITY_ID}` +
+          `&templateId=${OTP_SMS_TEMPLATE_ID}` +
+          `&mobile=${cleanPhone}` +
+          `&message=${encodeURIComponent(message)}`;
 
         // ── Debug: log everything for troubleshooting ──
         console.log('[OTP SMS] ── Request Debug ──');
@@ -90,9 +93,9 @@ export const sendOTP = async (phone) => {
           `&entityId=${OTP_SMS_ENTITY_ID}` +
           `&templateId=${OTP_SMS_TEMPLATE_ID}` +
           `&mobile=${cleanPhone}` +
-          `&message=${encodeURIComponent(`Your OTP for PARAM is {#var#}. Do Not Share it`)}`;
+          `&message=${encodeURIComponent('Your OTP for PARAM is {#var#}. Do Not Share it')}`;
         console.log('[OTP SMS] Dashboard ref URL:', dashboardRef);
-        console.log('[OTP SMS] URLs match (ignoring OTP value):', smsUrl.replace(otp, '{#var#}') === dashboardRef);
+        console.log('[OTP SMS] URLs match (ignoring OTP value):', smsUrl.replace(otp, '%7B%23var%23%7D') === dashboardRef);
 
         const response = await axios.get(smsUrl);
         const responseText = String(response.data ?? '').trim();
