@@ -60,11 +60,12 @@ export interface Event {
     whatToBring?: string[];
     additionalInfo?: string;
     images: { _id?: string; url: string; caption: string }[];
-    youtubeVideos: { _id?: string; url: string; title: string; description: string; thumbnailUrl: string }[];
+    videos: { _id?: string; type?: 'youtube' | 'local'; url: string; title: string; description: string; thumbnailUrl: string }[];
     hasRecording: boolean;
     imageCount: number;
     notificationEnabled: boolean;
     isRegistered?: boolean;
+    hasAttended?: boolean;
     // ... other fields as needed
 }
 
@@ -82,6 +83,7 @@ interface EventState {
     photos: EventPhoto[];
     videos: EventVideo[];
     isLoading: boolean;
+    isCheckingRegistration: boolean;
     error: string | null;
 
     fetchEvents: (tab: 'upcoming' | 'past') => Promise<void>;
@@ -116,32 +118,54 @@ export const useEventStore = create<EventState>((set, get) => ({
     photos: [],
     videos: [],
     isLoading: false,
+    isCheckingRegistration: false,
     error: null,
 
     fetchEvents: async (tab: 'upcoming' | 'past') => {
         set({ isLoading: true, error: null });
         try {
             // Use the convenience endpoints from the backend
-            // /api/events/upcoming or /api/events/past
             const endpoint = tab === 'upcoming' ? `${API_URL}/events/upcoming` : `${API_URL}/events/past`;
             const response = await axios.get(endpoint);
 
             if (response.data && response.data.success) {
-                // Map backend event to frontend interface if needed, 
-                // but direct assignment usually works if keys match enough.
-                // We might need to ensure 'attendees' is populated or used from currentAttendees.
-                const mappedEvents = response.data.events.map((e: any) => ({
+                let mappedEvents = response.data.events.map((e: any) => ({
                     ...e,
                     attendees: e.currentAttendees || 0,
-                    id: e._id // ensure 'id' is available if UI uses it, though we prefer _id
+                    id: e._id
                 }));
+
+                // Fetch user registrations to sync state globally
+                const token = useAuthStore.getState().token;
+                if (token) {
+                    try {
+                        const regResponse = await axios.get(`${API_URL}/events/my-registrations?${tab}=true`, {
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                        if (regResponse.data?.success) {
+                            const registeredEventsMap = new Map();
+                            regResponse.data.registrations.forEach((r: any) => {
+                                const eId = r.eventId?._id || r.eventId;
+                                registeredEventsMap.set(eId, r);
+                            });
+                            mappedEvents = mappedEvents.map((e: any) => {
+                                const reg = registeredEventsMap.get(e._id);
+                                return {
+                                    ...e,
+                                    isRegistered: !!reg,
+                                    hasAttended: reg?.status === 'attended' || reg?.checkedIn === true
+                                };
+                            });
+                        }
+                    } catch (regError) {
+                    }
+                }
+
                 set({ events: mappedEvents, isLoading: false });
             } else {
-                console.log(`Fetch ${tab} Events response:`, response.data);
                 set({ events: [], isLoading: false, error: null });
             }
         } catch (error: any) {
-            console.error(`Fetch ${tab} Events Error:`, error);
             // Don't show error to user, show empty list
             set({ events: [], isLoading: false, error: null });
         }
@@ -163,8 +187,8 @@ export const useEventStore = create<EventState>((set, get) => ({
                     caption: img.caption
                 }));
 
-                // Map youtubeVideos to EventVideo interface
-                const videos: EventVideo[] = (event.youtubeVideos || []).map((vid: any, index: number) => ({
+                // Map videos to EventVideo interface
+                const videos: EventVideo[] = (event.videos || []).map((vid: any, index: number) => ({
                     id: vid._id || `vid-${index}`,
                     url: vid.url,
                     title: vid.title,
@@ -172,12 +196,26 @@ export const useEventStore = create<EventState>((set, get) => ({
                     thumbnailUrl: vid.thumbnailUrl
                 }));
 
+                // Preserve isRegistered state if we already know it from the list or a parallel check
+                const state = get();
+                const existingEventInList = state.events.find(e => e._id === eventId);
+                const isAlreadyRegistered = state.currentEvent?._id === eventId 
+                    ? state.currentEvent.isRegistered 
+                    : (existingEventInList?.isRegistered || false);
+                const hasAlreadyAttended = state.currentEvent?._id === eventId
+                    ? state.currentEvent.hasAttended
+                    : (existingEventInList?.hasAttended || false);
+
+                if (isAlreadyRegistered) {
+                    event.isRegistered = true;
+                    event.hasAttended = hasAlreadyAttended;
+                }
+
                 set({ currentEvent: event, currentEventMeta: meta, photos, videos, isLoading: false });
             } else {
                 set({ isLoading: false, error: 'Failed to fetch event details' });
             }
         } catch (error: any) {
-            console.error('Fetch Event Details Error:', error);
             set({ isLoading: false, error: 'Failed to load event' });
         }
     },
@@ -234,7 +272,6 @@ export const useEventStore = create<EventState>((set, get) => ({
 
             return { success: false, message: response.data?.message || 'Registration failed' };
         } catch (error: any) {
-            console.error('Register For Event Error:', error);
             return {
                 success: false,
                 message: error.response?.data?.message || 'Registration failed'
@@ -362,33 +399,40 @@ export const useEventStore = create<EventState>((set, get) => ({
             }
             return false;
         } catch (error: any) {
-            console.error('Cancel Event Registration Error:', error);
             return false;
         }
     },
 
     checkRegistrationStatus: async (eventId: string) => {
+        set({ isCheckingRegistration: true });
         try {
             const token = useAuthStore.getState().token;
-            if (!token) return false;
+            if (!token) {
+                set({ isCheckingRegistration: false });
+                return false;
+            }
 
             const response = await axios.get(`${API_URL}/events/${eventId}/registration-status`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             const isRegistered = !!response.data?.isRegistered;
+            const regData = response.data?.registration;
+            const hasAttended = regData?.status === 'attended' || regData?.checkedIn === true;
+
             set((state) => ({
+                isCheckingRegistration: false,
                 events: state.events.map((event) =>
-                    event._id === eventId ? { ...event, isRegistered } : event
+                    event._id === eventId ? { ...event, isRegistered, hasAttended } : event
                 ),
                 currentEvent:
                     state.currentEvent?._id === eventId
-                        ? { ...state.currentEvent, isRegistered }
+                        ? { ...state.currentEvent, isRegistered, hasAttended }
                         : state.currentEvent
             }));
             return isRegistered;
         } catch (error: any) {
-            console.error('Check Registration Status Error:', error);
+            set({ isCheckingRegistration: false });
             return false;
         }
     }

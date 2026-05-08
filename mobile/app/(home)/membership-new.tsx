@@ -123,7 +123,6 @@ export default function MembershipScreen() {
           : 'If you completed payment, your plan will activate shortly. Pull down to refresh or reopen this screen.'
       );
     } catch (err: any) {
-      console.error('Membership payment error:', err);
       Alert.alert('Payment Failed', err?.description || err?.message || 'Could not complete payment. Please try again.');
     } finally {
       setPurchasingPlanId(null);
@@ -170,9 +169,7 @@ export default function MembershipScreen() {
             <Text className="text-sm text-purple-700 leading-5">
               • Group follow-up for all courses{'\n'}
               • Free membership counseling by support team{'\n'}
-              • 1-on-1 counseling with Gurudev (₹999/-){'\n'}
-              • 10 bonus points per achievement{'\n'}
-              • Rewards & gifts for bonus points
+              • 1-on-1 counseling with Gurudev (₹999/-)
             </Text>
           </View>
 
@@ -322,14 +319,6 @@ export default function MembershipScreen() {
           <View className="bg-white rounded-2xl p-5 mt-3">
             <Text className="text-lg font-bold text-gray-900 mb-4 text-center">All Memberships Include</Text>
             <View className="flex-row flex-wrap gap-4">
-              <View className="w-[47%] items-center gap-2 p-3 bg-gray-50 rounded-xl">
-                <Ionicons name="trophy" size={24} color="#F59E0B" />
-                <Text className="text-xs font-semibold text-gray-500 text-center">Bonus Points System</Text>
-              </View>
-              <View className="w-[47%] items-center gap-2 p-3 bg-gray-50 rounded-xl">
-                <Ionicons name="gift" size={24} color="#EC4899" />
-                <Text className="text-xs font-semibold text-gray-500 text-center">Rewards & Gifts</Text>
-              </View>
               <View className="w-[47%] items-center gap-2 p-3 bg-gray-50 rounded-xl">
                 <Ionicons name="people" size={24} color="#3B82F6" />
                 <Text className="text-xs font-semibold text-gray-500 text-center">Group Follow-up</Text>

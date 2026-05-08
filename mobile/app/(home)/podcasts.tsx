@@ -155,7 +155,6 @@ export default function PodcastsScreen() {
         })) || []);
       }
     } catch (error: any) {
-      console.error('Error fetching podcasts:', error);
       if (error.response?.status === 401) {
         // Unauthenticated
         Alert.alert('Login Required', 'Please login to view all podcasts');
@@ -295,7 +294,6 @@ export default function PodcastsScreen() {
         );
       }
     } catch (error: any) {
-      console.error('Payment error:', error);
       Alert.alert('Error', error.response?.data?.message || 'Failed to initiate payment');
     } finally {
       setProcessingPayment(false);
@@ -536,7 +534,6 @@ export default function PodcastsScreen() {
                 shouldPlay={true}
 
                 onError={(error) => {
-                  console.error('Video Load Error:', error);
                   Alert.alert('Error', 'Could not load video source');
                 }}
               />

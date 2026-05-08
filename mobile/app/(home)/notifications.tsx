@@ -49,6 +49,8 @@ const TYPE_STYLE: Record<string, { icon: string; color: string }> = {
   // Podcast notifications
   podcast: { icon: 'radio', color: '#8B5CF6' },
   podcast_episode: { icon: 'musical-notes', color: '#8B5CF6' },
+  // Support notifications
+  support_reply: { icon: 'chatbox-ellipses', color: '#2563EB' },
   // System notifications
   system: { icon: 'settings', color: '#6B7280' },
   general: { icon: 'notifications', color: '#EC4899' },

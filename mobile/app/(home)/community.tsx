@@ -16,10 +16,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@/store/authStore';
+import { useNotificationStore } from '@/store/notificationStore';
 import AssessmentModal from '@/components/AssessmentModal';
 import CommentsModal from '@/components/CommentsModal';
 import * as ImagePicker from 'expo-image-picker';
@@ -33,6 +34,7 @@ type ViewType = 'feed' | 'groups' | 'message';
 export default function CommunityScreen() {
   const router = useRouter();
   const { user, token } = useAuthStore();
+  const { unreadCount, fetchUnreadCount } = useNotificationStore();
   const {
     posts,
     groups,
@@ -89,7 +91,6 @@ export default function CommunityScreen() {
       const completed = await AsyncStorage.getItem('assessment_completed');
       setAssessmentCompleted(completed === 'true');
     } catch (error) {
-      console.error('Error checking assessment status:', error);
     }
   }, []);
 
@@ -99,9 +100,7 @@ export default function CommunityScreen() {
       await AsyncStorage.setItem('assessment_answers', JSON.stringify(answers));
       setAssessmentCompleted(true);
       setShowAssessment(false);
-      console.log('Assessment completed:', answers);
     } catch (error) {
-      console.error('Error saving assessment:', error);
     }
   };
 
@@ -118,6 +117,13 @@ export default function CommunityScreen() {
       fetchMyGroups();
     }
   }, [token, fetchMyGroups]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!token) return;
+      fetchUnreadCount();
+    }, [token, fetchUnreadCount])
+  );
 
   // When groups are loaded, auto-select first group for now (or 'All' if backend supports global feed)
   useEffect(() => {
@@ -177,7 +183,6 @@ export default function CommunityScreen() {
         setSelectedMedia(asset.uri);
       }
     } catch (error) {
-      console.error('Error picking image:', error);
       Alert.alert('Error', 'Failed to pick image');
     }
   };
@@ -225,15 +230,14 @@ export default function CommunityScreen() {
         Alert.alert('Error', 'Failed to publish post');
       }
     } catch (error) {
-      console.error('Publish Error:', error);
       setIsLoading(false);
       Alert.alert('Error', 'An unexpected error occurred');
     }
   };
 
   const handleCreatePost = () => {
-    if (!postContent.trim() && !selectedMedia) {
-      Alert.alert('Empty Post', 'Please add some content or media to your post');
+    if (!postContent.trim()) {
+      Alert.alert('Content Required', 'Please add some text to your post before publishing.');
       return;
     }
 
@@ -282,6 +286,8 @@ export default function CommunityScreen() {
     return filtered;
   };
 
+  const notificationBadgeCount = unreadCount > 99 ? '99+' : String(unreadCount);
+
   return (
     <View style={styles.container}>
       {/* Custom Header with Menu Button */}
@@ -305,9 +311,11 @@ export default function CommunityScreen() {
             >
               <View style={styles.notificationIconContainer}>
                 <Ionicons name="notifications-outline" size={24} color="#111827" />
-                <View style={styles.notificationBadge}>
-                  <Text style={styles.notificationBadgeText}>3</Text>
-                </View>
+                {unreadCount > 0 && (
+                  <View style={styles.notificationBadge}>
+                    <Text style={styles.notificationBadgeText}>{notificationBadgeCount}</Text>
+                  </View>
+                )}
               </View>
             </TouchableOpacity>
 
@@ -533,7 +541,11 @@ export default function CommunityScreen() {
             ListEmptyComponent={
               !activeGroup && groups.length === 0 && !isStoreLoading ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>Join a course to access community groups.</Text>
+                  <Text style={styles.emptyStateText}>
+                    {communityAccessDenied
+                      ? 'Membership required to access community groups.'
+                      : 'Join a course to access community groups.'}
+                  </Text>
                 </View>
               ) : (
                 <View style={[styles.emptyState, { paddingTop: 40 }]}>

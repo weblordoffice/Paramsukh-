@@ -134,6 +134,12 @@ export default function HomeLayout() {
           }}
         />
         <Tabs.Screen
+          name="downloads"
+          options={{
+            href: null, // Hide from tabs navigation
+          }}
+        />
+        <Tabs.Screen
           name="podcasts"
           options={{
             href: null, // Hide from tabs navigation

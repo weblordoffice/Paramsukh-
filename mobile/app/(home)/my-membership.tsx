@@ -207,13 +207,6 @@ export default function MyMembershipScreen() {
     const isActive = currentSubscription?.status === 'active';
     const hasNoPlan = !activePlan || !isActive;
 
-    // Debug logging for subscription state
-    if (__DEV__) {
-        console.log('[Membership Screen] currentSubscription:', JSON.stringify(currentSubscription, null, 2));
-        console.log('[Membership Screen] activePlan:', activePlan, 'isActive:', isActive, 'hasNoPlan:', hasNoPlan);
-        console.log('[Membership Screen] purchases:', JSON.stringify(purchases.map(p => ({ plan: p.plan, variant: p.planVariant, status: p.status })), null, 2));
-    }
-
     /* current plan config */
     const currentPlanCfg = plans.find(p => p.id === activePlan || p.parentSlug === activePlan);
 
@@ -365,10 +358,6 @@ export default function MyMembershipScreen() {
                         return purchaseKey === planId && p.status === 'completed';
                     });
                     
-                    // Debug logging
-                    if (__DEV__) {
-                        console.log(`[Membership] Plan: ${plan.name} (${planId}), Current: ${activePlan} (${currentPlanId}), isActive: ${isActive}, isCurrentPlan: ${isCurrentPlan}, isAlreadyPurchased: ${isAlreadyPurchased}`);
-                    }
                     return (
                         <View
                             key={plan.id}

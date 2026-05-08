@@ -233,11 +233,6 @@ export default function CheckoutScreen() {
                                         <Text style={styles.changeText}>Add New Address</Text>
                                     </TouchableOpacity>
 
-                                    {/* Minimal selector logic: if multiples exist, could show a list. For now, simple "Add New" takes over or we just show the selected one. 
-                                        To be more robust, we could show a list of all addresses to pick from. 
-                                        For MVP/Demo, let's keep it simple: Show Selected, or Add New. 
-                                        If user wants to pick another existing one, we should probably list them.
-                                    */}
                                     {addresses.length > 1 && (
                                         <View style={styles.addressList}>
                                             <Text style={styles.otherAddressLabel}>Or select other:</Text>

@@ -211,19 +211,20 @@ export const getMyRegistrations = async (req, res) => {
     let registrations = await EventRegistration.find(query)
       .populate({
         path: 'eventId',
-        select: 'title eventDate eventTime location category emoji color status thumbnailUrl'
+        select: 'title eventDate eventTime startTime location category emoji color status thumbnailUrl'
       })
       .sort({ registeredAt: -1 });
 
-    // Filter by upcoming/past based on event date
+    // Filter by upcoming/past based on startTime
+    const now = new Date();
     if (upcoming === 'true') {
       registrations = registrations.filter(r => 
-        r.eventId && r.eventId.status === 'upcoming'
+        r.eventId && r.eventId.status !== 'cancelled' && new Date(r.eventId.startTime) >= now
       );
     }
     if (past === 'true') {
       registrations = registrations.filter(r => 
-        r.eventId && r.eventId.status === 'past'
+        r.eventId && r.eventId.status !== 'cancelled' && new Date(r.eventId.startTime) < now
       );
     }
 
@@ -714,7 +715,7 @@ export const confirmEventPaymentByLink = async (req, res) => {
       return res.status(403).json({ success: false, message: "Payment link does not belong to you" });
     }
     if (status !== 'paid' && status !== 'captured') {
-      return res.status(200).json({ success: true, data: { status: link?.status }, message: "Payment not completed yet" });
+      return res.status(400).json({ success: false, data: { status: link?.status }, message: "Payment not completed yet" });
     }
 
     const registrationId = notes?.registrationId;

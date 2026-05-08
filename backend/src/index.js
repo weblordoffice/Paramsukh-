@@ -24,6 +24,9 @@ import membershipPlanRoutes from './routes/membership/membershipPlanRoute.js';
 import uploadRoutes from './routes/upload/uploadRoute.js';
 import podcastRoutes from './routes/podcast/podcastRoute.js';
 import adminRoutes from './routes/admin/adminRoute.js';
+
+import donationsRoutes from './routes/donations/donationsRoute.js';
+import supportRoutes from './routes/support/supportRoute.js';
 import { setupCounselingCrons } from './services/counselingCron.service.js';
 dotenv.config();
 
@@ -99,6 +102,9 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/membership-plans', membershipPlanRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/podcasts', podcastRoutes);
+
+app.use('/api/donations', donationsRoutes);
+app.use('/api/support', supportRoutes);
 
 // Health check (for testing if API is reachable)
 app.get('/health', (req, res) => {

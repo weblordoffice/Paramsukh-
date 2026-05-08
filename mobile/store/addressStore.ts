@@ -50,7 +50,6 @@ export const useAddressStore = create<AddressState>((set) => ({
                 set({ isLoading: false, error: 'Failed to fetch addresses' });
             }
         } catch (error: any) {
-            console.error('Fetch Addresses Error:', error);
             set({ isLoading: false, error: 'Failed to fetch addresses' });
         }
     },
@@ -77,7 +76,6 @@ export const useAddressStore = create<AddressState>((set) => ({
             }
             return null;
         } catch (error: any) {
-            console.error('Add Address Error:', error);
             set({ isLoading: false, error: error.response?.data?.message || 'Failed to add address' });
             return null;
         }

@@ -34,7 +34,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
             country: ''
         },
         onlineMeetingLink: '',
-        category: 'Meditation',
+        category: '',
         tags: [] as string[],
         isPaid: false,
         price: 0,
@@ -56,86 +56,91 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
     const [bringInput, setBringInput] = useState('');
 
     useEffect(() => {
-        if (event) {
-            const eventDate = new Date(event.eventDate);
-            const localDate = eventDate.toISOString().split('T')[0];
+        if (isOpen) {
+            if (event) {
+                const eventDate = new Date(event.eventDate);
+                const localDate = eventDate.toISOString().split('T')[0];
 
-            setFormData({
-                title: event.title || '',
-                description: event.description || '',
-                shortDescription: event.shortDescription || '',
-                icon: event.icon || 'calendar',
-                color: event.color || '#8B5CF6',
-                emoji: event.emoji || '📅',
-                thumbnailUrl: event.thumbnailUrl || '',
-                bannerUrl: event.bannerUrl || '',
-                eventDate: localDate,
-                eventTime: event.eventTime || '',
-                location: event.location || '',
-                locationType: event.locationType || 'physical',
-                address: event.address || {
-                    street: '',
-                    city: '',
-                    state: '',
-                    zipCode: '',
-                    country: ''
-                },
-                onlineMeetingLink: event.onlineMeetingLink || '',
-                category: event.category || 'Meditation',
-                tags: event.tags || [],
-                isPaid: event.isPaid || false,
-                price: event.price || 0,
-                currency: event.currency || 'INR',
-                earlyBirdPrice: event.earlyBirdPrice || 0,
-                maxAttendees: event.maxAttendees,
-                registrationRequired: event.registrationRequired || false,
-                organizer: event.organizer || '',
-                requirements: event.requirements || [],
-                whatToBring: event.whatToBring || [],
-                additionalInfo: event.additionalInfo || '',
-                metaTitle: event.metaTitle || '',
-                metaDescription: event.metaDescription || ''
-            });
-        } else {
-            // Reset form for new event
-            setFormData({
-                title: '',
-                description: '',
-                shortDescription: '',
-                icon: 'calendar',
-                color: '#8B5CF6',
-                emoji: '📅',
-                thumbnailUrl: '',
-                bannerUrl: '',
-                eventDate: '',
-                eventTime: '',
-                location: '',
-                locationType: 'physical',
-                address: {
-                    street: '',
-                    city: '',
-                    state: '',
-                    zipCode: '',
-                    country: ''
-                },
-                onlineMeetingLink: '',
-                category: 'Meditation',
-                tags: [],
-                isPaid: false,
-                price: 0,
-                currency: 'INR',
-                earlyBirdPrice: 0,
-                maxAttendees: undefined,
-                registrationRequired: false,
-                organizer: '',
-                requirements: [],
-                whatToBring: [],
-                additionalInfo: '',
-                metaTitle: '',
-                metaDescription: ''
-            });
+                setFormData({
+                    title: event.title || '',
+                    description: event.description || '',
+                    shortDescription: event.shortDescription || '',
+                    icon: event.icon || 'calendar',
+                    color: event.color || '#8B5CF6',
+                    emoji: event.emoji || '📅',
+                    thumbnailUrl: event.thumbnailUrl || '',
+                    bannerUrl: event.bannerUrl || '',
+                    eventDate: localDate,
+                    eventTime: event.eventTime || '',
+                    location: event.location || '',
+                    locationType: event.locationType || 'physical',
+                    address: event.address || {
+                        street: '',
+                        city: '',
+                        state: '',
+                        zipCode: '',
+                        country: ''
+                    },
+                    onlineMeetingLink: event.onlineMeetingLink || '',
+                    category: event.category || '',
+                    tags: event.tags || [],
+                    isPaid: event.isPaid || false,
+                    price: event.price || 0,
+                    currency: event.currency || 'INR',
+                    earlyBirdPrice: event.earlyBirdPrice || 0,
+                    maxAttendees: event.maxAttendees,
+                    registrationRequired: event.registrationRequired || false,
+                    organizer: event.organizer || '',
+                    requirements: event.requirements || [],
+                    whatToBring: event.whatToBring || [],
+                    additionalInfo: event.additionalInfo || '',
+                    metaTitle: event.metaTitle || '',
+                    metaDescription: event.metaDescription || ''
+                });
+            } else {
+                // Reset form for new event
+                setFormData({
+                    title: '',
+                    description: '',
+                    shortDescription: '',
+                    icon: 'calendar',
+                    color: '#8B5CF6',
+                    emoji: '📅',
+                    thumbnailUrl: '',
+                    bannerUrl: '',
+                    eventDate: '',
+                    eventTime: '',
+                    location: '',
+                    locationType: 'physical',
+                    address: {
+                        street: '',
+                        city: '',
+                        state: '',
+                        zipCode: '',
+                        country: ''
+                    },
+                    onlineMeetingLink: '',
+                    category: '',
+                    tags: [],
+                    isPaid: false,
+                    price: 0,
+                    currency: 'INR',
+                    earlyBirdPrice: 0,
+                    maxAttendees: undefined,
+                    registrationRequired: false,
+                    organizer: '',
+                    requirements: [],
+                    whatToBring: [],
+                    additionalInfo: '',
+                    metaTitle: '',
+                    metaDescription: ''
+                });
+            }
+            setTagInput('');
+            setRequirementInput('');
+            setBringInput('');
         }
-    }, [event]);
+    }, [isOpen, event]);
 
     const addTag = () => {
         if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
@@ -503,22 +508,14 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Category *
                                     </label>
-                                    <select
+                                    <input
+                                        type="text"
                                         required
                                         value={formData.category}
                                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                                    >
-                                        <option value="Meditation">Meditation</option>
-                                        <option value="Discourse">Discourse</option>
-                                        <option value="Wellness">Wellness</option>
-                                        <option value="Devotional">Devotional</option>
-                                        <option value="Festival">Festival</option>
-                                        <option value="Workshop">Workshop</option>
-                                        <option value="Healing">Healing</option>
-                                        <option value="Yoga">Yoga</option>
-                                        <option value="Other">Other</option>
-                                    </select>
+                                        placeholder="Enter event category (e.g. Workshop, Retreat)"
+                                    />
                                 </div>
 
                                 <div className="md:col-span-2">

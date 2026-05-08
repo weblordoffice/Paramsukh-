@@ -201,9 +201,9 @@ export const removeProfilePhoto = async (req, res) => {
 export const updatePreferences = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { theme, notifications } = req.body;
+    const { theme, notifications, emailNotifications, autoPlay, dataSaver } = req.body;
 
-    const updateData = { preferences: {} };
+    const updateData = {};
 
     if (theme !== undefined) {
       if (!['light', 'dark', 'system'].includes(theme)) {
@@ -217,6 +217,18 @@ export const updatePreferences = async (req, res) => {
 
     if (notifications !== undefined) {
       updateData['preferences.notifications'] = !!notifications;
+    }
+    
+    if (emailNotifications !== undefined) {
+      updateData['preferences.emailNotifications'] = !!emailNotifications;
+    }
+    
+    if (autoPlay !== undefined) {
+      updateData['preferences.autoPlay'] = !!autoPlay;
+    }
+    
+    if (dataSaver !== undefined) {
+      updateData['preferences.dataSaver'] = !!dataSaver;
     }
 
     const user = await User.findByIdAndUpdate(

@@ -828,7 +828,13 @@ export default function MembershipPlansPage() {
 
             {formErrors.planVariants && <p className="text-xs text-red-600">{formErrors.planVariants}</p>}
 
-            <div className="space-y-3">
+            <div
+              className="space-y-3 transition-opacity duration-200"
+              style={{
+                opacity: form.planVariantsEnabled ? 1 : 0.5,
+                pointerEvents: form.planVariantsEnabled ? 'auto' : 'none',
+              }}
+            >
               {form.planVariants.map((variant, index) => (
                 <div key={variant._id || `${variant.slug || "variant"}-${index}`} className="rounded-lg border border-gray-200 p-3 space-y-3">
                   <div className="flex items-center justify-between gap-3">

@@ -166,17 +166,17 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
                 ...formData.businessHours,
                 [day]: { ...formData.businessHours[day], isActive: !formData.businessHours[day].isActive }
             }
-        });
-    };
-
+        });  
+    };        
+        
     const updateTime = (day: keyof BusinessHours, field: 'start' | 'end', value: string) => {
         setFormData({
             ...formData,
             businessHours: {
                 ...formData.businessHours,
                 [day]: { ...formData.businessHours[day], [field]: value }
-            }
-        });
+            }     
+        });    
     };
 
     const handleSubmit = async (e: React.FormEvent) => {

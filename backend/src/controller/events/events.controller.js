@@ -144,17 +144,19 @@ export const getAllEvents = async (req, res) => {
     // Build query
     const query = { isActive: true };
 
-    // Filter by status
-    if (status) {
-      query.status = status;
-    }
+    // Filter by upcoming/past/status
+    const isUpcoming = upcoming === 'true' || status === 'upcoming';
+    const isPast = past === 'true' || status === 'past';
+    const now = new Date();
 
-    // Filter by upcoming/past
-    if (upcoming === 'true') {
-      query.status = 'upcoming';
-    }
-    if (past === 'true') {
-      query.status = 'past';
+    if (isUpcoming) {
+      query.status = { $ne: 'cancelled' };
+      query.startTime = { $gte: now };
+    } else if (isPast) {
+      query.status = { $ne: 'cancelled' };
+      query.startTime = { $lt: now };
+    } else if (status) {
+      query.status = status;
     }
 
     // Filter by category
@@ -477,7 +479,7 @@ export const getUpcomingEvents = async (req, res) => {
 
     const query = { 
       isActive: true,
-      status: 'upcoming',
+      status: { $ne: 'cancelled' },
       startTime: { $gte: new Date() }
     };
 
@@ -517,7 +519,8 @@ export const getPastEvents = async (req, res) => {
 
     const query = { 
       isActive: true,
-      status: 'past'
+      status: { $ne: 'cancelled' },
+      startTime: { $lt: new Date() }
     };
 
     if (category) {
@@ -675,7 +678,7 @@ export const addEventImages = async (req, res) => {
 export const addEventVideo = async (req, res) => {
   try {
     const { id } = req.params;
-    const { url, title, description, thumbnailUrl } = req.body;
+    const { url, title, description, thumbnailUrl, type } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -695,7 +698,8 @@ export const addEventVideo = async (req, res) => {
       id,
       { 
         $push: { 
-          youtubeVideos: {
+          videos: {
+            type: type || 'youtube',
             url,
             title: title || '',
             description: description || '',

@@ -43,6 +43,8 @@ const notificationSchema = new mongoose.Schema({
       // Podcast notifications
       'podcast',
       'podcast_episode',
+      // Support notifications
+      'support_reply',
       // System notifications
       'system',
       'general'
@@ -65,7 +67,7 @@ const notificationSchema = new mongoose.Schema({
   },
   relatedType: {
     type: String,
-    enum: ['course', 'event', 'post', 'booking', 'enrollment', 'comment', 'membership']
+    enum: ['course', 'event', 'post', 'booking', 'enrollment', 'comment', 'membership', 'support']
   },
   // Notification metadata
   actionUrl: {

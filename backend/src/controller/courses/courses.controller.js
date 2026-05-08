@@ -6,6 +6,36 @@ import mongoose from 'mongoose';
 const normalizePlanIdentifier = (value) => String(value || '').trim();
 const normalizeText = (value) => String(value || '').trim();
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const resolveAdminApiKey = () => process.env.ADMIN_API_KEY || 'dev-admin-key-123';
+const isAdminRequest = (req) => String(req.headers['x-admin-api-key'] || '') === resolveAdminApiKey();
+const slugify = (value) =>
+    normalizeText(value)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+        .slice(0, 80);
+
+const resolveUniqueSlug = async (baseSlug, excludeId = null) => {
+    const safeBase = slugify(baseSlug) || `course-${Date.now()}`;
+    let candidate = safeBase;
+    let attempt = 1;
+
+    // Keep trying until we find an unused slug.
+    // For updates, ignore the current course ID.
+    while (true) {
+        const existing = await Course.findOne({
+            slug: candidate,
+            ...(excludeId ? { _id: { $ne: excludeId } } : {})
+        })
+            .select('_id')
+            .lean();
+
+        if (!existing) return candidate;
+
+        attempt += 1;
+        candidate = `${safeBase}-${attempt}`;
+    }
+};
 
 const isObjectIdLike = (value) => {
     const normalized = normalizePlanIdentifier(value);
@@ -79,6 +109,7 @@ export const createCourse = async (req, res) => {
 
         const normalizedTitle = normalizeText(title);
         const normalizedCategory = normalizeText(category).toLowerCase();
+        const slug = await resolveUniqueSlug(`${normalizedTitle}-${normalizedCategory}`);
         const existingCourse = await Course.findOne({
             title: { $regex: `^${escapeRegex(normalizedTitle)}$`, $options: 'i' },
             category: normalizedCategory,
@@ -118,6 +149,7 @@ export const createCourse = async (req, res) => {
             category: normalizedCategory,
             tags,
             status,
+            slug,
             includedInPlans: planSlugs
         });
 
@@ -197,6 +229,7 @@ export const updateCourse = async (req, res) => {
 
         const normalizedTitle = normalizeText(title);
         const normalizedCategory = normalizeText(category).toLowerCase();
+        const slug = await resolveUniqueSlug(`${normalizedTitle}-${normalizedCategory}`, id);
         const duplicateCourse = await Course.findOne({
             _id: { $ne: id },
             title: { $regex: `^${escapeRegex(normalizedTitle)}$`, $options: 'i' },
@@ -240,6 +273,7 @@ export const updateCourse = async (req, res) => {
             duration: normalizeText(duration),
             category: normalizedCategory,
             tags,
+            slug,
             status,
             ...(planSlugs !== null ? { includedInPlans: planSlugs } : {})
         };
@@ -274,7 +308,8 @@ export const updateCourse = async (req, res) => {
 
 export const getAllCourses = async (req, res) => {
     try {
-        const courses = await Course.find()
+        const query = isAdminRequest(req) ? {} : { status: 'published' };
+        const courses = await Course.find(query)
             .select('title description thumbnailUrl bannerUrl color icon duration category tags status totalVideos totalPdfs enrollmentCount completionCount averageRating reviewCount includedInPlans createdAt')
             .sort({ createdAt: -1 });
 
@@ -310,12 +345,20 @@ export const getCourseById = async (req, res) => {
                 message: "Course ID is required"
             })
         }
-        const course = await Course.findById(id).populate('assignments');
+        const course = await Course.findById(id)
+            .populate('assignments')
+            .populate({ path: 'videos.assignments', model: 'Assignment' });
         if (!course) {
             return res.status(404).json({
                 success: false,
                 message: "Course not found"
             })
+        }
+        if (!isAdminRequest(req) && course.status !== 'published') {
+            return res.status(404).json({
+                success: false,
+                message: "Course not found"
+            });
         }
         return res.status(200).json({
             success: true,
@@ -341,12 +384,20 @@ export const getCourseBySlug = async (req, res) => {
                 message: "Course slug is required"
             })
         }
-        const course = await Course.findOne({ slug });
+        const course = await Course.findOne({ slug })
+            .populate('assignments')
+            .populate({ path: 'videos.assignments', model: 'Assignment' });
         if (!course) {
             return res.status(404).json({
                 success: false,
                 message: "Course not found"
             })
+        }
+        if (!isAdminRequest(req) && course.status !== 'published') {
+            return res.status(404).json({
+                success: false,
+                message: "Course not found"
+            });
         }
         return res.status(200).json({
             success: true,

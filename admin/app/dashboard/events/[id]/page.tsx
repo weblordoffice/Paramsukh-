@@ -24,7 +24,7 @@ interface Event {
     currentAttendees: number;
     maxAttendees?: number;
     images: any[];
-    youtubeVideos: any[];
+    videos: any[];
 }
 
 type TabType = 'photos' | 'videos' | 'registrations';
@@ -94,7 +94,7 @@ export default function EventDetailsPage() {
 
     const tabs = [
         { id: 'photos' as TabType, label: 'Photos', icon: ImageIcon, count: event.images?.length || 0 },
-        { id: 'videos' as TabType, label: 'Videos', icon: Video, count: event.youtubeVideos?.length || 0 },
+        { id: 'videos' as TabType, label: 'Videos', icon: Video, count: event.videos?.length || 0 },
         { id: 'registrations' as TabType, label: 'Registrations', icon: Users, count: event.currentAttendees || 0 },
     ];
 
@@ -193,7 +193,7 @@ export default function EventDetailsPage() {
                         <PhotosTab eventId={eventId} photos={event.images || []} onUpdate={refreshEvent} />
                     )}
                     {activeTab === 'videos' && (
-                        <VideosTab eventId={eventId} videos={event.youtubeVideos || []} onUpdate={refreshEvent} />
+                        <VideosTab eventId={eventId} videos={event.videos || []} onUpdate={refreshEvent} />
                     )}
                     {activeTab === 'registrations' && (
                         <RegistrationsTab eventId={eventId} />

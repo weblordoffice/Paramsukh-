@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,14 +6,28 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 
 import { getInitials } from '../utils/userUtils';
+import { hasActiveMembership } from '../utils/membership';
 
 export default function ProfileMenuScreen() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user: authUser, logout, fetchCurrentUser } = useAuthStore();
+  const [user, setUser] = useState(authUser);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      const result = await fetchCurrentUser();
+      if (result.success && result.user) {
+        setUser(result.user);
+      }
+    };
+    loadUser();
+  }, []);
 
   const getUserInitial = () => {
     return getInitials(user?.displayName);
   };
+
+  const isPremiumMember = hasActiveMembership(user);
 
   const menuItems = [
     {
@@ -40,6 +54,14 @@ export default function ProfileMenuScreen() {
       color: '#F59E0B',
       route: '/(home)/settings',
     },
+    ...(isPremiumMember ? [{
+      id: 'downloads',
+      title: 'Downloaded Videos',
+      description: 'Watch saved premium videos offline',
+      icon: 'download-outline',
+      color: '#2563EB',
+      route: '/(home)/downloads',
+    }] : []),
     {
       id: 'help-support',
       title: 'Help & Support',

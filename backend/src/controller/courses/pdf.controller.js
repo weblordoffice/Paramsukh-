@@ -60,7 +60,7 @@ export const getCoursePdfs = async(req ,res) =>{
                 message:"course Id is required"
             })
         }
-        const course  = await Course.findById(courseId).select('pdf');
+        const course  = await Course.findById(courseId).select('pdfs');
         if(!course || !course.pdfs || course.pdfs.length === 0){
             return res.status(404).json({
                 success: false,
@@ -101,7 +101,7 @@ export const getPdfById = async(req , res) =>{
 
         const pdf  = course.pdfs.id(pdfId);
         if(!pdf){
-            return res.status(401).json({
+            return res.status(404).json({
                 success:false,
                 message:"pdf not found"
             })

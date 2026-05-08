@@ -13,7 +13,6 @@ export default function SignInScreen() {
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const [generatedOTP, setGeneratedOTP] = useState<string | null>(null);
 
   const handleSendOTP = async () => {
     if (!phone || phone.length < 10) {
@@ -21,7 +20,11 @@ export default function SignInScreen() {
       return;
     }
 
-    const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
+    // Clean phone number - remove any existing +91 or spaces
+    let formattedPhone = phone.replace(/[\s+]/g, '');
+    if (!formattedPhone.startsWith('+91')) {
+      formattedPhone = `+91${formattedPhone}`;
+    }
 
     const result = await sendOTP(formattedPhone);
 
@@ -46,14 +49,8 @@ export default function SignInScreen() {
       }
 
       setOtpSent(true);
-      if (result.otp) {
-        setGeneratedOTP(result.otp);
-      }
+      Alert.alert('OTP Sent', 'Check your phone for the verification code.');
       startResendTimer();
-      const alertMsg = result.otp
-        ? `${result.message || 'OTP sent.'}\n\nYour OTP: ${result.otp}`
-        : (result.message || 'OTP sent to your phone number');
-      Alert.alert('Success', alertMsg);
     } else {
       Alert.alert('Error', result.message || 'Failed to send OTP');
     }
@@ -65,7 +62,11 @@ export default function SignInScreen() {
       return;
     }
 
-    const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
+    // Clean phone number - remove any existing +91 or spaces
+    let formattedPhone = phone.replace(/[\s+]/g, '');
+    if (!formattedPhone.startsWith('+91')) {
+      formattedPhone = `+91${formattedPhone}`;
+    }
 
     // For signin, we don't need name and email
     const result = await verifyOTP(formattedPhone, otp);
@@ -201,28 +202,6 @@ export default function SignInScreen() {
               </TouchableOpacity>
 
               <View className="flex-row items-center justify-between mb-5">
-                <TouchableOpacity onPress={() => {
-                  setOtpSent(false);
-                  setOtp('');
-                  setGeneratedOTP(null);
-                }}>
-                  <Text className="text-purple-600 font-medium">← Change Number</Text>
-                </TouchableOpacity>
-
-                {otpSent ? (
-                  <View style={{ marginVertical: 10, padding: 12, backgroundColor: generatedOTP ? '#DCFCE7' : '#FEF3C7', borderRadius: 8 }}>
-                    {generatedOTP ? (
-                      <Text style={{ color: '#166534', textAlign: 'center', fontSize: 16 }}>
-                        Your OTP: <Text style={{ fontWeight: 'bold', fontSize: 20 }}>{generatedOTP}</Text>
-                      </Text>
-                    ) : (
-                      <Text style={{ color: '#92400E', textAlign: 'center', fontSize: 14 }}>
-                        OTP not in response. Check backend sends otp in /auth/send-otp.
-                      </Text>
-                    )}
-                  </View>
-                ) : null}
-
                 {resendTimer > 0 ? (
                   <Text className="text-gray-500">Resend in {resendTimer}s</Text>
                 ) : (

@@ -55,6 +55,10 @@ router.get('/past', getPastEvents);
 // GET /api/events/slug/:slug
 router.get('/slug/:slug', getEventBySlug);
 
+// Get user's event registrations (must be before /:id)
+// GET /api/events/my-registrations
+router.get('/my-registrations', protectedRoutes, getMyRegistrations);
+
 // Get event by ID
 // GET /api/events/:id
 router.get('/:id', getEventById);
@@ -86,10 +90,6 @@ router.post('/:id/videos', adminAuth, addEventVideo);
 // ========================================
 // Event Registration Routes (Protected)
 // ========================================
-
-// Get user's event registrations
-// GET /api/events/my-registrations
-router.get('/my-registrations', protectedRoutes, getMyRegistrations);
 
 // Create Razorpay order for paid event (books spot, then user pays)
 // POST /api/events/:eventId/register/order

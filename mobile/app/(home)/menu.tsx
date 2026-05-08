@@ -234,15 +234,7 @@ export default function HomeTab() {
               iconBg="rgba(92, 74, 66, 0.08)"
               onPress={() => router.push('/(home)/podcasts')}
             />
-            <View style={styles.divider} />
-            <QuickAccessItem
-              icon="trophy"
-              title="Rewards"
-              description="Bonus points & special gifts"
-              iconBg="rgba(241, 132, 45, 0.15)"
-              iconColor="#F1842D"
-              onPress={() => router.push('/rewards')}
-            />
+            
           </View>
         </View>
       </ScrollView>

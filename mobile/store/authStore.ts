@@ -12,6 +12,7 @@ import {
   isBiometricAvailable,
   authenticateWithBiometrics
 } from '../utils/biometricAuth';
+import { useMembershipStore } from './membershipStore';
 
 interface User {
   _id: string;
@@ -45,9 +46,6 @@ interface AuthState {
   disableBiometric: () => Promise<void>;
 }
 
-// TEMPORARY: Mock user for development (bypass authentication)
-
-
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
@@ -79,10 +77,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false, error: response.data.message });
       return { success: false, message: response.data.message };
     } catch (error: any) {
-      console.error('Google Sign In Error:', error);
-      if (__DEV__) {
-        console.error('Google Sign In Error:', error);
-      }
       const msg = error.response?.data?.message || 'Sign in failed';
       set({ isLoading: false, error: msg });
       return { success: false, message: msg };
@@ -108,8 +102,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         otp
       };
     } catch (error: any) {
-      console.error('Send OTP Error:', error?.message, 'URL:', `${API_URL}/auth/send-otp`);
-
       let msg = 'Failed to send OTP. Please try again.';
 
       if (error.response) {
@@ -169,10 +161,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false, error: response.data.message });
       return { success: false, message: response.data.message };
     } catch (error: any) {
-      if (__DEV__) {
-        console.error('Verify OTP Error:', error);
-      }
-      
       let msg = 'Verification failed. Please try again.';
       
       if (error.response) {
@@ -198,16 +186,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     const token = await getTokenSecurely();
-    
-    // Call backend logout endpoint - must succeed before clearing local data
-    await axios.post(`${API_URL}/auth/logout`, {}, {
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined
-    });
-    
-    // Only clear local storage if backend logout succeeded
-    await clearSecureTokens();
-    await AsyncStorage.removeItem('user');
-    set({ user: null, token: null, refreshToken: null });
+
+    try {
+      if (token) {
+        await axios.post(`${API_URL}/auth/logout`, {}, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+    } finally {
+      // Always clear local auth state so stale sessions cannot survive a failed logout call.
+      await clearSecureTokens();
+      await AsyncStorage.multiRemove(['user', 'assessment_completed']);
+      set({ user: null, token: null, refreshToken: null });
+      
+      // Clear membership cache on logout
+      useMembershipStore.getState().clearMembership();
+    }
   },
 
   logoutWithBiometric: async () => {
@@ -238,19 +232,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const userStr = await AsyncStorage.getItem('user');
       const token = await getTokenSecurely();
       const refreshToken = await getRefreshTokenSecurely();
-      
-      if (userStr) {
-        set({ 
-          user: JSON.parse(userStr), 
-          token, 
+      const biometricEnabled = await isBiometricAvailable();
+
+      if (userStr && !token) {
+        // A cached user without a token is a broken session; clear it instead of treating it as logged in.
+        await clearSecureTokens();
+        await AsyncStorage.multiRemove(['user', 'assessment_completed']);
+        set({ user: null, token: null, refreshToken: null, biometricEnabled });
+        return;
+      }
+
+      if (userStr && token) {
+        set({
+          user: JSON.parse(userStr),
+          token,
           refreshToken,
-          biometricEnabled: await isBiometricAvailable()
+          biometricEnabled
         });
+        return;
       }
+
+      set({ user: null, token: null, refreshToken: null, biometricEnabled });
     } catch (error) {
-      if (__DEV__) {
-        console.error('Error loading user:', error);
-      }
     }
   },
 
@@ -292,8 +295,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await clearSecureTokens();
         await AsyncStorage.multiRemove(['user', 'assessment_completed']);
         set({ user: null, token: null, refreshToken: null });
-      } else if (__DEV__) {
-        console.error('Error fetching current user:', error);
       }
       
       return { success: false };
@@ -319,10 +320,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           await storeRefreshTokenSecurely(newRefreshToken);
         }
         set({ token, refreshToken: newRefreshToken || refreshToken, isLoading: false });
-      }      } catch (error) {
-        if (__DEV__) {
-          console.error('Token refresh failed:', error);
-        }
+      }
+    } catch (error) {
         // On refresh failure, logout user
         await get().logout();
         set({ isLoading: false });

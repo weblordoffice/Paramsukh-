@@ -43,7 +43,6 @@ export const useDonationStore = create<DonationState>((set) => ({
                 set({ donations: response.data.data, isLoading: false });
             }
         } catch (error) {
-            console.error('Fetch Donations Error:', error);
             set({ isLoading: false });
         }
     },
@@ -63,7 +62,6 @@ export const useDonationStore = create<DonationState>((set) => ({
             }
             return { success: false, message: 'Failed to record donation' };
         } catch (error: any) {
-            console.error('Record Donation Error:', error);
             return {
                 success: false,
                 message: error.response?.data?.message || 'Failed to record donation'

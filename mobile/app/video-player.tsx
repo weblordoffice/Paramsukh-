@@ -7,13 +7,17 @@ import {
   ActivityIndicator,
   StyleSheet,
   StatusBar,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
+import { WebView } from 'react-native-webview';
 import { useCourseStore, Assignment } from '../store/courseStore';
 import { useAuthStore } from '../store/authStore';
+import { useOfflineVideoStore } from '../store/offlineVideoStore';
+import { hasActiveMembership } from '../utils/membership';
 
 const { width } = Dimensions.get('window');
 
@@ -23,6 +27,7 @@ function isDirectVideoUrl(url: string): boolean {
   const u = url.toLowerCase();
   return (
     u.includes('cloudinary.com') ||
+    u.startsWith('file://') ||
     u.includes('.mp4') ||
     u.includes('.m3u8') ||
     u.includes('.webm') ||
@@ -30,11 +35,26 @@ function isDirectVideoUrl(url: string): boolean {
   );
 }
 
+function getYouTubeId(url: string): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+}
+
 export default function VideoPlayerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { markVideoComplete, currentCourse } = useCourseStore();
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
+  const {
+    hydrate,
+    getDownload,
+    downloadVideo,
+    removeDownload,
+    progressByVideoId,
+    activeDownloads,
+  } = useOfflineVideoStore();
 
   const courseTitle = (params.courseTitle as string) || 'Course';
   const courseColor = (params.courseColor as string) || '#8B5CF6';
@@ -48,7 +68,16 @@ export default function VideoPlayerScreen() {
   const video = currentCourse?.videos?.find(v => v._id === videoId);
   const assignments = video?.assignments || [];
 
-  const useNativePlayer = videoUrl && isDirectVideoUrl(videoUrl);
+  const ytId = getYouTubeId(videoUrl);
+  const isYouTube = !!ytId;
+  const useNativePlayer = !isYouTube && videoUrl && isDirectVideoUrl(videoUrl);
+  const localDownload = getDownload(videoId);
+  const effectiveVideoUrl = localDownload?.localUri || videoUrl;
+  const isOfflinePlayback = !!localDownload?.localUri && effectiveVideoUrl === localDownload.localUri;
+  const canDownloadOffline = !!videoId && !!courseId && !!videoUrl && isDirectVideoUrl(videoUrl);
+  const isPremiumMember = hasActiveMembership(user);
+  const downloadProgress = progressByVideoId[videoId] || 0;
+  const downloadInProgress = !!activeDownloads[videoId];
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,12 +85,16 @@ export default function VideoPlayerScreen() {
 
   // expo-video player (only created when needed)
   const player = useVideoPlayer(
-    useNativePlayer ? { uri: videoUrl } : null,
+    useNativePlayer ? { uri: effectiveVideoUrl } : null,
     (p) => {
       p.loop = false;
       p.play();
     }
   );
+
+  React.useEffect(() => {
+    hydrate();
+  }, [hydrate]);
 
   const markComplete = useCallback(async () => {
     if (!token || !courseId || !videoId || marked) return;
@@ -86,6 +119,52 @@ export default function VideoPlayerScreen() {
     });
   };
 
+  const handleDownloadPress = async () => {
+    if (!isPremiumMember) {
+      Alert.alert(
+        'Premium Members Only',
+        'Offline downloads are available only for users with an active membership.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'View Membership', onPress: () => router.push('/(home)/my-membership') }
+        ]
+      );
+      return;
+    }
+
+    if (!canDownloadOffline) {
+      Alert.alert('Unavailable', 'This video source cannot be downloaded for offline viewing.');
+      return;
+    }
+
+    const result = await downloadVideo({
+      videoId,
+      courseId,
+      courseTitle,
+      courseColor,
+      videoTitle,
+      videoDuration,
+      remoteUrl: videoUrl,
+    });
+
+    if (!result.success) {
+      Alert.alert('Download Failed', result.message || 'Could not download this video.');
+      return;
+    }
+
+    Alert.alert('Downloaded', 'This video is now available inside the app for offline viewing.');
+  };
+
+  const handleRemoveDownload = async () => {
+    const ok = await removeDownload(videoId);
+    if (!ok) {
+      Alert.alert('Error', 'Failed to remove downloaded video.');
+      return;
+    }
+
+    Alert.alert('Removed', 'Downloaded video removed from this device.');
+  };
+
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
@@ -103,7 +182,21 @@ export default function VideoPlayerScreen() {
 
       {/* ── Video area ── */}
       <View style={styles.videoArea}>
-        {useNativePlayer ? (
+        {isYouTube ? (
+          <View style={styles.videoBox}>
+            <WebView
+              style={styles.videoView}
+              source={{ uri: `https://www.youtube.com/embed/${ytId}?playsinline=1` }}
+              allowsFullscreenVideo
+              javaScriptEnabled
+              scrollEnabled={false}
+              onLoad={() => {
+                setLoading(false);
+                markComplete();
+              }}
+            />
+          </View>
+        ) : useNativePlayer ? (
           <View style={styles.videoBox}>
             <VideoView
               player={player}
@@ -116,7 +209,7 @@ export default function VideoPlayerScreen() {
               }}
             />
             {loading && (
-              <View style={styles.videoOverlay}>
+            <View style={styles.videoOverlay}>
                 <ActivityIndicator size="large" color="#FFFFFF" />
               </View>
             )}
@@ -161,10 +254,54 @@ export default function VideoPlayerScreen() {
           <View style={styles.infoMetaItem}>
             <Ionicons name="videocam-outline" size={15} color="#9CA3AF" />
             <Text style={styles.infoMetaText}>
-              {useNativePlayer ? 'In-app player' : 'External link'}
+              {isOfflinePlayback ? 'Offline in app' : isYouTube ? 'YouTube' : useNativePlayer ? 'In-app player' : 'External link'}
             </Text>
           </View>
         </View>
+
+        {canDownloadOffline ? (
+          <View style={styles.downloadSection}>
+            {localDownload ? (
+              <TouchableOpacity
+                style={styles.removeDownloadBtn}
+                onPress={handleRemoveDownload}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                <Text style={styles.removeDownloadText}>Remove Download</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[
+                  styles.downloadBtn,
+                  (!isPremiumMember || downloadInProgress) && styles.downloadBtnDisabled,
+                ]}
+                onPress={handleDownloadPress}
+                activeOpacity={0.85}
+                disabled={!isPremiumMember || downloadInProgress}
+              >
+                {downloadInProgress ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Ionicons name="download-outline" size={18} color="#FFFFFF" />
+                )}
+                <Text style={styles.downloadBtnText}>
+                  {downloadInProgress
+                    ? `Downloading ${Math.round(downloadProgress * 100)}%`
+                    : isPremiumMember
+                      ? 'Download for Offline'
+                      : 'Premium Download'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <Text style={styles.downloadHint}>
+              {isPremiumMember
+                ? 'Saved inside the app only. Downloaded videos will not appear in your phone gallery.'
+                : 'Offline download is available only for users with an active membership.'}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {/* ── Linked Assignments ── */}
@@ -353,6 +490,50 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: '#374151',
     marginHorizontal: 10,
+  },
+  downloadSection: {
+    marginTop: 18,
+  },
+  downloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#2563EB',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  downloadBtnDisabled: {
+    backgroundColor: '#64748B',
+  },
+  downloadBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  removeDownloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  removeDownloadText: {
+    color: '#DC2626',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  downloadHint: {
+    marginTop: 10,
+    color: '#94A3B8',
+    fontSize: 12,
+    lineHeight: 18,
   },
 
   /* Assignments */

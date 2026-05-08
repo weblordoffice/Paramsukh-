@@ -68,7 +68,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         set({ notifications: [], isLoading: false });
       }
     } catch (error: unknown) {
-      console.error('Fetch Notifications Error:', error);
       set({
         notifications: [],
         isLoading: false,
@@ -91,7 +90,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         return count;
       }
     } catch (e) {
-      console.error('Fetch unread count error:', e);
     }
     return get().unreadCount;
   },
@@ -114,7 +112,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         return true;
       }
     } catch (e) {
-      console.error('Mark as read error:', e);
     }
     return false;
   },
@@ -135,7 +132,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         return true;
       }
     } catch (e) {
-      console.error('Mark all as read error:', e);
     }
     return false;
   },
@@ -157,7 +153,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         return true;
       }
     } catch (e) {
-      console.error('Delete notification error:', e);
     }
     return false;
   },
@@ -167,7 +162,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     // This ensures token is updated when user logs in on a new device or after token refresh
     const token = useAuthStore.getState().token;
     if (!token || !expoPushToken) {
-      console.warn('⚠️ Cannot register device token: missing auth token or expo push token');
       return false;
     }
 
@@ -179,11 +173,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
       );
       if (response.data?.success) {
         set({ deviceTokenRegistered: true });
-        console.log('✅ Device token registered successfully');
         return true;
       }
     } catch (e: any) {
-      console.error('❌ Register device token error:', e.response?.data || e.message);
     }
     return false;
   },

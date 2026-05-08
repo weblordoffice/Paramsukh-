@@ -3,8 +3,6 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-nati
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
-// Removed dummy product data
-
 import { useProductStore } from '../store/productStore';
 
 

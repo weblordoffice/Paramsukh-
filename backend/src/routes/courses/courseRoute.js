@@ -31,8 +31,8 @@ router.post('/create', adminAuth, createCourse);
 router.delete('/delete/:id', adminAuth, deleteCourse);
 router.put('/update/:id', adminAuth, updateCourse);
 router.get('/all', getAllCourses);
+router.get('/slug/:slug', getCourseBySlug);
 router.get('/:id', getCourseById);
-router.get('/:slug', getCourseBySlug);
 
 
 router.post('/:courseId/videos', adminAuth, addVideoToCourse);

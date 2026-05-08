@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, Linking, TextInput } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, Linking, TextInput, Animated, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import Header from '../components/Header';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEventStore } from '../store/eventStore';
 import { useAuthStore } from '../store/authStore';
 
 export default function EventDetailScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
   const eventId = (params.eventId as string) || (params.id as string) || '';
   const openRegister = params.openRegister as string | undefined;
@@ -22,12 +23,15 @@ export default function EventDetailScreen() {
     createEventPaymentLink,
     confirmEventPaymentByLink,
     cancelEventRegistration,
-    isLoading
+    isLoading,
+    isCheckingRegistration
   } = useEventStore();
 
   const { user } = useAuthStore();
   const [processing, setProcessing] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -40,6 +44,16 @@ export default function EventDetailScreen() {
       checkRegistrationStatus(eventId);
     }
   }, [eventId, checkRegistrationStatus, fetchEventDetails]);
+
+  useEffect(() => {
+    if (!isLoading && currentEvent) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isLoading, currentEvent]);
 
   useEffect(() => {
     if (openRegister === '1') {
@@ -57,7 +71,7 @@ export default function EventDetailScreen() {
     }
   }, [user]);
 
-  const event = currentEvent;
+  const event = currentEvent?._id === eventId ? currentEvent : null;
   const eventColor = event?.color || '#8B5CF6';
 
   const priceValue = currentEventMeta?.currentPrice ?? event?.price ?? 0;
@@ -70,8 +84,10 @@ export default function EventDetailScreen() {
   const formattedDate = useMemo(() => {
     if (!event?.eventDate) return '';
     try {
-      return new Date(event.eventDate).toLocaleDateString('en-US', {
-        month: 'short',
+      const date = new Date(event.eventDate);
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
         day: 'numeric',
         year: 'numeric'
       });
@@ -118,7 +134,7 @@ export default function EventDetailScreen() {
           `Please complete payment of Rs. ${result.paymentAmount ?? priceValue}.`
         );
       } else {
-        Alert.alert('Registered', 'You are registered for this event.');
+        Alert.alert('Registered Successfully', 'You are now registered for this event.');
       }
     } else {
       Alert.alert('Registration Failed', result.message || 'Please try again.');
@@ -139,24 +155,24 @@ export default function EventDetailScreen() {
         setProcessing(false);
         return;
       }
-      await WebBrowser.openBrowserAsync(linkResult.url, {
+      
+      const browserResult = await WebBrowser.openBrowserAsync(linkResult.url, {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-        enableBarCollapsing: true,
-        showTitle: true
       });
+
       if (linkResult.paymentLinkId) {
         const confirmResult = await confirmEventPaymentByLink(eventId, linkResult.paymentLinkId);
         setProcessing(false);
         setShowRegisterForm(false);
         if (confirmResult.success) {
-          await checkRegistrationStatus(eventId);
           Alert.alert(
-            'Registered',
-            'You are registered for this event. This purchase is non-refundable.',
-            [{ text: 'OK' }]
+            'Registration Confirmed',
+            'You are registered for this event. You can find your ticket in the events list.',
+            [{ text: 'Great!' }]
           );
         } else {
-          Alert.alert('Payment', confirmResult.message || 'If you paid, registration will update shortly.');
+          // If browser closed but payment check failed, it might be because they didn't pay
+          // We don't necessarily show an error unless we are sure.
         }
       } else setProcessing(false);
     } catch (err: any) {
@@ -171,15 +187,16 @@ export default function EventDetailScreen() {
       'Cancel Registration',
       'Are you sure you want to cancel your registration?',
       [
-        { text: 'No' },
+        { text: 'Keep it', style: 'cancel' },
         {
-          text: 'Yes',
+          text: 'Yes, Cancel',
+          style: 'destructive',
           onPress: async () => {
             setProcessing(true);
             const ok = await cancelEventRegistration(eventId);
             setProcessing(false);
             if (ok) {
-              Alert.alert('Cancelled', 'Your registration has been cancelled.');
+              Alert.alert('Cancelled', 'Your registration has been successfully cancelled.');
             } else {
               Alert.alert('Failed', 'Unable to cancel registration. Please try again.');
             }
@@ -191,307 +208,383 @@ export default function EventDetailScreen() {
 
   if (isLoading || !event) {
     return (
-      <View className="flex-1 bg-gray-50">
-        <Header />
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={eventColor} />
-        </View>
+      <View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={eventColor} />
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-gray-50">
-      <Header />
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Banner */}
-        {event.bannerUrl ? (
-          <Image source={{ uri: event.bannerUrl }} className="w-full h-48" resizeMode="cover" />
-        ) : (
-          <View className="w-full h-36" style={{ backgroundColor: eventColor }} />
-        )}
+    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 100 }}
+      >
+        {/* Banner with Floating Back Button */}
+        <View style={{ position: 'relative' }}>
+          {event.bannerUrl ? (
+            <Image 
+              source={{ uri: event.bannerUrl }} 
+              style={{ width: '100%', height: 280 }} 
+              resizeMode="cover" 
+            />
+          ) : (
+            <View style={{ width: '100%', height: 180, backgroundColor: eventColor }} />
+          )}
+          
+          {/* Back Button */}
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              top: insets.top + 10,
+              left: 20,
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              backgroundColor: 'rgba(0,0,0,0.3)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 10
+            }}
+            onPress={() => router.back()}
+          >
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
 
-        {/* Header */}
-        <View className="px-4 -mt-6">
-          <View className="bg-white rounded-2xl p-4 shadow-sm">
-            <View className="flex-row items-center gap-3">
-              <View className="w-12 h-12 rounded-xl items-center justify-center" style={{ backgroundColor: eventColor + '20' }}>
-                <Text className="text-2xl">{event.emoji || '📅'}</Text>
-              </View>
-              <View className="flex-1">
-                <Text className="text-xl font-bold text-gray-900">{event.title}</Text>
-                <Text className="text-xs text-gray-400 font-medium">{event.category}</Text>
-              </View>
-              <View className="px-2.5 py-1 rounded-full" style={{ backgroundColor: eventColor + '20' }}>
-                <Text className="text-xs font-semibold" style={{ color: eventColor }}>{event.status || 'upcoming'}</Text>
-              </View>
-            </View>
-
-            <View className="mt-3 gap-2">
-              <View className="flex-row items-center gap-2">
-                <Ionicons name="calendar-outline" size={16} color="#6B7280" />
-                <Text className="text-sm text-gray-600">{formattedDate}</Text>
-                <Text className="text-sm text-gray-400">-</Text>
-                <Ionicons name="time-outline" size={16} color="#6B7280" />
-                <Text className="text-sm text-gray-600">{event.eventTime}</Text>
-              </View>
-              <View className="flex-row items-center gap-2">
-                <Ionicons name="location-outline" size={16} color="#6B7280" />
-                <Text className="text-sm text-gray-600">{event.location}</Text>
-              </View>
-            </View>
-          </View>
+          {/* Gradient Overlay for Title if no banner */}
+          {!event.bannerUrl && (
+            <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, backgroundColor: 'rgba(0,0,0,0.1)' }} />
+          )}
         </View>
 
-        {/* Info Cards */}
-        <View className="px-4 mt-4">
-          <View className="flex-row" style={{ gap: 12 }}>
-            <View className="flex-1 bg-white rounded-xl p-3 border border-gray-100">
-              <Text className="text-xs text-gray-400">Price</Text>
-              <Text className="text-lg font-bold text-gray-900">
-                {event.isPaid ? `Rs. ${priceValue}` : 'Free'}
+        <Animated.View style={{ padding: 24, opacity: fadeAnim }}>
+          {/* Title and Category */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <View style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, backgroundColor: eventColor + '15' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: eventColor, textTransform: 'uppercase' }}>
+                    {event.category}
+                  </Text>
+                </View>
+                <View style={{ width: 8 }} />
+                <View style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, backgroundColor: '#F3F4F6' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#4B5563', textTransform: 'uppercase' }}>
+                    {event.status === 'cancelled' 
+                      ? 'Cancelled' 
+                      : (event.startTime && new Date() > new Date(event.startTime) ? 'Past' : 'Upcoming')}
+                  </Text>
+                </View>
+              </View>
+              <Text style={{ fontSize: 28, fontWeight: '800', color: '#111827', lineHeight: 34 }}>
+                {event.title}
               </Text>
             </View>
-            <View className="flex-1 bg-white rounded-xl p-3 border border-gray-100">
-              <Text className="text-xs text-gray-400">Attendees</Text>
-              <Text className="text-lg font-bold text-gray-900">
-                {event.currentAttendees}
-                {event.maxAttendees ? ` / ${event.maxAttendees}` : ''}
-              </Text>
-              {spotsLeft !== null && (
-                <Text className="text-xs text-gray-500">{spotsLeft} spots left</Text>
-              )}
+            <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: eventColor + '10', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 32 }}>{event.emoji || '📅'}</Text>
             </View>
           </View>
-        </View>
 
-        {/* Description */}
-        <View className="px-4 mt-4">
-          <View className="bg-white rounded-xl p-4 border border-gray-100">
-            <Text className="text-base font-semibold text-gray-900 mb-2">About</Text>
-            <Text className="text-sm text-gray-600">
-              {event.description || event.shortDescription || 'No description provided.'}
+          {/* Quick Info Grid */}
+          <View style={{ flexDirection: 'row', marginTop: 24, gap: 12 }}>
+            <View style={{ flex: 1, backgroundColor: '#F9FAFB', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#F3F4F6' }}>
+              <Ionicons name="calendar" size={20} color={eventColor} />
+              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8, fontWeight: '600' }}>DATE</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937', marginTop: 2 }}>
+                {formattedDate.split(',')[1]?.trim() || formattedDate}
+              </Text>
+            </View>
+            <View style={{ flex: 1, backgroundColor: '#F9FAFB', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#F3F4F6' }}>
+              <Ionicons name="time" size={20} color={eventColor} />
+              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8, fontWeight: '600' }}>TIME</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937', marginTop: 2 }}>
+                {event.eventTime}
+              </Text>
+            </View>
+          </View>
+
+          <View style={{ flexDirection: 'row', marginTop: 12, gap: 12 }}>
+            <View style={{ flex: 1, backgroundColor: '#F9FAFB', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#F3F4F6' }}>
+              <Ionicons name="location" size={20} color={eventColor} />
+              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8, fontWeight: '600' }}>LOCATION</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937', marginTop: 2 }} numberOfLines={1}>
+                {event.location}
+              </Text>
+            </View>
+            <View style={{ flex: 1, backgroundColor: '#F9FAFB', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#F3F4F6' }}>
+              <Ionicons name="people" size={20} color={eventColor} />
+              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8, fontWeight: '600' }}>SPOTS</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937', marginTop: 2 }}>
+                {spotsLeft !== null ? `${spotsLeft} Left` : 'Unlimited'}
+              </Text>
+            </View>
+          </View>
+
+          {/* Description Section */}
+          <View style={{ marginTop: 32 }}>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 12 }}>About the Event</Text>
+            <Text style={{ fontSize: 16, color: '#4B5563', lineHeight: 24 }}>
+              {event.description || event.shortDescription || 'No detailed description available for this event.'}
             </Text>
           </View>
-        </View>
 
-        {/* Additional Info */}
-        {(event.requirements?.length || event.whatToBring?.length || event.additionalInfo) && (
-          <View className="px-4 mt-4">
-            <View className="bg-white rounded-xl p-4 border border-gray-100">
-              <Text className="text-base font-semibold text-gray-900 mb-2">Additional Info</Text>
-              {event.requirements?.length ? (
-                <Text className="text-sm text-gray-600 mb-2">
-                  Requirements: {event.requirements.join(', ')}
-                </Text>
-              ) : null}
-              {event.whatToBring?.length ? (
-                <Text className="text-sm text-gray-600 mb-2">
-                  What to bring: {event.whatToBring.join(', ')}
-                </Text>
-              ) : null}
-              {event.additionalInfo ? (
-                <Text className="text-sm text-gray-600">{event.additionalInfo}</Text>
-              ) : null}
+          {/* Requirements & Info */}
+          {(event.requirements?.length > 0 || event.whatToBring?.length > 0 || event.additionalInfo) && (
+            <View style={{ marginTop: 32, backgroundColor: '#F9FAFB', borderRadius: 24, padding: 24 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 16 }}>Important Information</Text>
+              
+              {event.requirements?.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 6 }}>Requirements</Text>
+                  {event.requirements.map((item: string, idx: number) => (
+                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: eventColor, marginRight: 10 }} />
+                      <Text style={{ fontSize: 15, color: '#4B5563' }}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {event.whatToBring?.length > 0 && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 6 }}>What to Bring</Text>
+                  {event.whatToBring.map((item: string, idx: number) => (
+                    <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                      <Ionicons name="add-circle" size={14} color={eventColor} style={{ marginRight: 6 }} />
+                      <Text style={{ fontSize: 15, color: '#4B5563' }}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {event.additionalInfo && (
+                <View>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 6 }}>Notes</Text>
+                  <Text style={{ fontSize: 15, color: '#4B5563' }}>{event.additionalInfo}</Text>
+                </View>
+              )}
             </View>
-          </View>
-        )}
+          )}
 
-        {/* Online Meeting Link */}
-        {(event.locationType === 'online' || event.locationType === 'hybrid') && event.onlineMeetingLink ? (
-          <View className="px-4 mt-4">
-            <TouchableOpacity
-              className="bg-white rounded-xl p-4 border border-gray-100 flex-row items-center justify-between"
+          {/* Online Link */}
+          {(event.locationType === 'online' || event.locationType === 'hybrid') && event.onlineMeetingLink && (
+            <TouchableOpacity 
+              style={{ 
+                marginTop: 32, 
+                backgroundColor: '#EFF6FF', 
+                borderRadius: 20, 
+                padding: 20, 
+                flexDirection: 'row', 
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: '#DBEAFE'
+              }}
               onPress={() => Linking.openURL(event.onlineMeetingLink as string)}
             >
-              <View className="flex-row items-center gap-2">
-                <Ionicons name="videocam-outline" size={18} color={eventColor} />
-                <Text className="text-sm font-semibold text-gray-900">Join Online Meeting</Text>
+              <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+                <Ionicons name="videocam" size={24} color="#FFFFFF" />
               </View>
-              <Ionicons name="open-outline" size={18} color="#6B7280" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: '#1E40AF' }}>Join Online Meeting</Text>
+                <Text style={{ fontSize: 14, color: '#3B82F6' }}>Link is active for registered users</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#3B82F6" />
             </TouchableOpacity>
-          </View>
-        ) : null}
+          )}
 
-        {/* Media Links */}
-        {(event.hasRecording || event.imageCount > 0) && (
-          <View className="px-4 mt-4">
-            <View className="bg-white rounded-xl p-4 border border-gray-100">
-              <Text className="text-base font-semibold text-gray-900 mb-3">Event Media</Text>
-              <View className="flex-row" style={{ gap: 10 }}>
-                {event.hasRecording && (
-                  <TouchableOpacity
-                    className="flex-1 flex-row items-center justify-center gap-2 py-2 rounded-lg"
-                    style={{ backgroundColor: eventColor + '15' }}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/event-videos',
-                        params: {
-                          eventId: event._id,
-                          eventTitle: event.title,
-                          eventColor: event.color,
-                          eventEmoji: event.emoji
-                        }
-                      })
-                    }
-                  >
-                    <Ionicons name="play-circle" size={18} color={eventColor} />
-                    <Text className="text-sm font-semibold" style={{ color: eventColor }}>Videos</Text>
-                  </TouchableOpacity>
-                )}
-                {event.imageCount > 0 && (
-                  <TouchableOpacity
-                    className="flex-1 flex-row items-center justify-center gap-2 py-2 rounded-lg"
-                    style={{ backgroundColor: eventColor + '15' }}
-                    onPress={() =>
-                      router.push({
-                        pathname: '/event-photos',
-                        params: {
-                          eventId: event._id,
-                          eventTitle: event.title,
-                          eventColor: event.color,
-                          eventEmoji: event.emoji,
-                          imageCount: event.imageCount.toString()
-                        }
-                      })
-                    }
-                  >
-                    <Ionicons name="images" size={18} color={eventColor} />
-                    <Text className="text-sm font-semibold" style={{ color: eventColor }}>Photos</Text>
-                  </TouchableOpacity>
-                )}
+          {/* Organizer */}
+          {event.organizer && (
+            <View style={{ marginTop: 32, borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 24 }}>
+              <Text style={{ fontSize: 14, color: '#6B7280', fontWeight: '600' }}>ORGANIZER</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
+                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="business" size={24} color="#9CA3AF" />
+                </View>
+                <View style={{ marginLeft: 12 }}>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: '#1F2937' }}>{event.organizer}</Text>
+                  <Text style={{ fontSize: 14, color: '#6B7280' }}>Event Host</Text>
+                </View>
               </View>
             </View>
-          </View>
-        )}
-
-        {/* Registration */}
-        <View className="px-4 mt-4 mb-6">
-          <View className="bg-white rounded-2xl p-4 border border-gray-100">
-            <Text className="text-base font-semibold text-gray-900 mb-2">Registration</Text>
-            {isRegistered ? (
-              <View className="flex-row items-center gap-2 mb-3">
-                <Ionicons name="checkmark-circle" size={18} color="#10B981" />
-                <Text className="text-sm text-gray-700">You are registered for this event.</Text>
-              </View>
-            ) : (
-              <Text className="text-sm text-gray-600 mb-3">
-                {canRegister ? 'Reserve your spot now.' : 'Registration is not available for this event.'}
-              </Text>
-            )}
-
-            {isRegistered ? (
-              <TouchableOpacity
-                className="w-full py-3 rounded-lg items-center"
-                style={{ backgroundColor: '#EF4444' }}
-                disabled={processing}
-                onPress={handleCancel}
-              >
-                <Text className="text-white font-semibold">
-                  {processing ? 'Cancelling...' : 'Cancel Registration'}
-                </Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                className="w-full py-3 rounded-lg items-center"
-                style={{ backgroundColor: canRegister ? eventColor : '#9CA3AF' }}
-                disabled={!canRegister || processing}
-                onPress={() => setShowRegisterForm(true)}
-              >
-                <Text className="text-white font-semibold">
-                  {processing
-                    ? 'Registering...'
-                    : canRegister
-                      ? event.isPaid
-                        ? `Register - Rs. ${priceValue}`
-                        : 'Register for Free'
-                      : 'Registration Closed'}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
+          )}
+        </Animated.View>
       </ScrollView>
 
-      {/* Register Modal */}
+      {/* Bottom Registration Action Bar */}
+      <View 
+        style={{ 
+          position: 'absolute', 
+          bottom: 0, 
+          left: 0, 
+          right: 0, 
+          backgroundColor: '#FFFFFF', 
+          paddingHorizontal: 24, 
+          paddingTop: 16, 
+          paddingBottom: Math.max(insets.bottom, 16),
+          borderTopWidth: 1,
+          borderTopColor: '#F3F4F6',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.05,
+          shadowRadius: 10,
+          elevation: 20
+        }}
+      >
+        <View>
+          <Text style={{ fontSize: 14, color: '#6B7280', fontWeight: '600' }}>PRICING</Text>
+          <Text style={{ fontSize: 24, fontWeight: '800', color: '#111827' }}>
+            {event.isPaid ? `Rs. ${priceValue}` : 'Free'}
+          </Text>
+        </View>
+
+        {isCheckingRegistration ? (
+          <View style={{ width: 160, height: 56, borderRadius: 16, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator size="small" color={eventColor} />
+          </View>
+        ) : event.hasAttended ? (
+          <View style={{ 
+            backgroundColor: '#3B82F6', 
+            paddingHorizontal: 32, 
+            height: 56, 
+            borderRadius: 16, 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            flexDirection: 'row'
+          }}>
+            <Ionicons name="star" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Attended</Text>
+          </View>
+        ) : isRegistered ? (
+          <TouchableOpacity
+            style={{ 
+              backgroundColor: '#EF4444', 
+              paddingHorizontal: 24, 
+              height: 56, 
+              borderRadius: 16, 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              flexDirection: 'row'
+            }}
+            onPress={handleCancel}
+            disabled={processing}
+          >
+            {processing ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Ionicons name="close-circle" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Cancel</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={{ 
+              backgroundColor: canRegister ? eventColor : '#9CA3AF', 
+              paddingHorizontal: 32, 
+              height: 56, 
+              borderRadius: 16, 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              shadowColor: eventColor,
+              shadowOffset: { width: 0, height: 8 },
+              shadowOpacity: 0.3,
+              shadowRadius: 12,
+              elevation: 8
+            }}
+            disabled={!canRegister || processing}
+            onPress={() => setShowRegisterForm(true)}
+          >
+            {processing ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>
+                {canRegister ? 'Register Now' : 'Closed'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Register Form Modal */}
       {showRegisterForm && (
-        <View className="absolute inset-0 bg-black/50 items-center justify-center p-4">
-          <View className="bg-white w-full max-w-lg rounded-2xl p-4">
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-lg font-semibold text-gray-900">Register for Event</Text>
-              <TouchableOpacity onPress={() => setShowRegisterForm(false)}>
-                <Ionicons name="close" size={22} color="#6B7280" />
+        <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
+          <View style={{ backgroundColor: '#FFFFFF', width: '100%', maxWidth: 450, borderRadius: 32, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.2, shadowRadius: 40, elevation: 25 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+              <View>
+                <Text style={{ fontSize: 22, fontWeight: '800', color: '#111827' }}>Registration</Text>
+                <Text style={{ fontSize: 14, color: '#6B7280', marginTop: 2 }}>Confirm your details</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowRegisterForm(false)} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="close" size={20} color="#6B7280" />
               </TouchableOpacity>
             </View>
 
-            <View className="gap-3">
+            <View style={{ gap: 20 }}>
               <View>
-                <Text className="text-xs text-gray-500 mb-1">Full Name</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 8, marginLeft: 4 }}>Full Name</Text>
                 <TextInput
                   value={form.name}
                   onChangeText={(text) => setForm({ ...form, name: text })}
-                  placeholder="Your name"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                  placeholder="Enter your name"
+                  style={{ width: '100%', height: 56, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6', borderRadius: 16, paddingHorizontal: 16, fontSize: 16, color: '#111827' }}
                 />
               </View>
               <View>
-                <Text className="text-xs text-gray-500 mb-1">Email</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 8, marginLeft: 4 }}>Email Address</Text>
                 <TextInput
                   value={form.email}
                   onChangeText={(text) => setForm({ ...form, email: text })}
                   placeholder="you@example.com"
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                  style={{ width: '100%', height: 56, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6', borderRadius: 16, paddingHorizontal: 16, fontSize: 16, color: '#111827' }}
                 />
               </View>
               <View>
-                <Text className="text-xs text-gray-500 mb-1">Phone</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 8, marginLeft: 4 }}>Phone Number</Text>
                 <TextInput
                   value={form.phone}
                   onChangeText={(text) => setForm({ ...form, phone: text })}
-                  placeholder="Phone number"
+                  placeholder="Your mobile number"
                   keyboardType="phone-pad"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg"
+                  style={{ width: '100%', height: 56, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6', borderRadius: 16, paddingHorizontal: 16, fontSize: 16, color: '#111827' }}
                 />
               </View>
             </View>
 
-            <View className="mt-4">
+            <View style={{ mt: 24, marginTop: 32 }}>
               {event.isPaid ? (
                 <>
-                  <Text className="text-xs text-amber-600 text-center mb-2">
-                    This purchase is non-refundable.
-                  </Text>
+                  <View style={{ backgroundColor: '#FFFBEB', padding: 12, borderRadius: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="information-circle" size={18} color="#D97706" style={{ marginRight: 8 }} />
+                    <Text style={{ fontSize: 12, color: '#B45309', fontWeight: '600' }}>
+                      Tickets are non-refundable once purchased.
+                    </Text>
+                  </View>
                   <TouchableOpacity
-                    className="w-full py-3 rounded-lg items-center"
-                    style={{ backgroundColor: eventColor }}
+                    style={{ backgroundColor: eventColor, height: 60, borderRadius: 18, alignItems: 'center', justifyContent: 'center', shadowColor: eventColor, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 10 }}
                     disabled={processing}
                     onPress={handlePaidEventPayment}
                   >
-                    <Text className="text-white font-semibold">
+                    <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800' }}>
                       {processing ? 'Processing...' : `Pay Rs. ${priceValue}`}
                     </Text>
                   </TouchableOpacity>
                 </>
               ) : (
                 <TouchableOpacity
-                  className="w-full py-3 rounded-lg items-center"
-                  style={{ backgroundColor: eventColor }}
+                  style={{ backgroundColor: eventColor, height: 60, borderRadius: 18, alignItems: 'center', justifyContent: 'center', shadowColor: eventColor, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 15, elevation: 10 }}
                   disabled={processing}
                   onPress={() => submitRegistration(false)}
                 >
-                  <Text className="text-white font-semibold">
-                    {processing ? 'Registering...' : 'Register'}
+                  <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800' }}>
+                    {processing ? 'Processing...' : 'Confirm Registration'}
                   </Text>
                 </TouchableOpacity>
-              )}
-
-              {!event.isPaid && (
-                <Text className="text-xs text-gray-500 text-center mt-2">
-                  Free event. No payment required.
-                </Text>
               )}
             </View>
           </View>

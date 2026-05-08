@@ -27,26 +27,23 @@ export default function Home() {
         const currentUser = useAuthStore.getState().user;
         const currentToken = useAuthStore.getState().token;
 
-        // If no user, redirect to signin
-        if (!currentUser) {
+        // A session is only valid when we have both cached user data and a token.
+        if (!currentUser || !currentToken) {
           setHasChecked(true);
           router.replace('/signin');
           return;
         }
 
-        // If we have a token, fetch fresh user data from server
-        if (currentToken) {
-          const fetchOk = await fetchCurrentUser();
-          if (!isMounted) return;
-          // If /auth/me failed (401/400/403), we cleared user in store - go to signin
-          if (!fetchOk && !useAuthStore.getState().user) {
-            setHasChecked(true);
-            router.replace('/signin');
-            return;
-          }
-          await new Promise(resolve => setTimeout(resolve, 50));
-          if (!isMounted) return;
+        const fetchOk = await fetchCurrentUser();
+        if (!isMounted) return;
+        // If /auth/me failed (401/400/403), we cleared user in store - go to signin
+        if (!fetchOk && !useAuthStore.getState().user) {
+          setHasChecked(true);
+          router.replace('/signin');
+          return;
         }
+        await new Promise(resolve => setTimeout(resolve, 50));
+        if (!isMounted) return;
 
         // Check if assessment is completed
         const assessmentCompleted = await AsyncStorage.getItem('assessment_completed');
@@ -61,8 +58,7 @@ export default function Home() {
         }
       } catch (error: any) {
         // Only log unexpected errors (not auth failures)
-        if (error.response?.status !== 401 && __DEV__) {
-          console.error('Error checking auth/assessment:', error);
+        if (error.response?.status !== 401 && false) {
         }
         if (isMounted) {
           setHasChecked(true);
@@ -102,7 +98,6 @@ export default function Home() {
   // Return null while redirecting
   return null;
 }
-
 
 
 

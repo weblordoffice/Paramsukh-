@@ -60,12 +60,10 @@ export const useShopStore = create<ShopState>((set) => ({
 
                 set({ shops: formattedShops, isLoading: false });
             } else {
-                console.log('Fetch shops response:', response.data);
                 set({ shops: [], isLoading: false, error: null });
             }
         } catch (error: any) {
             // Don't show error to user, show empty list
-            console.error('Fetch Shops Error:', error);
             set({ shops: [], isLoading: false, error: null });
         }
     }

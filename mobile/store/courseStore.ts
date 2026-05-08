@@ -124,16 +124,15 @@ export const useCourseStore = create<CourseState>((set) => ({
             const response = await axios.get(`${API_URL}/courses/all`, { headers });
 
             if (response.data && response.data.success) {
-                set({ courses: response.data.courses || [], isLoading: false });
+                const publishedCourses = (response.data.courses || []).filter(
+                    (course: Course) => course?.status === 'published'
+                );
+                set({ courses: publishedCourses, isLoading: false });
             } else {
-                console.log('Fetch courses response:', response.data);
                 set({ courses: [], isLoading: false });
             }
         } catch (error: any) {
             // Silently fail - don't show errors to user if courses aren't available
-            if (__DEV__) {
-                console.log('Courses not available:', error.response?.status || 'Network error');
-            }
             set({ isLoading: false, courses: [], error: null });
         }
     },
@@ -151,7 +150,6 @@ export const useCourseStore = create<CourseState>((set) => ({
                 set({ isLoading: false, error: response.data.message });
             }
         } catch (error: any) {
-            console.error('Fetch Course Detail Error:', error);
             set({ isLoading: false, error: error.message || 'Failed to fetch course details' });
         }
     },
@@ -162,10 +160,13 @@ export const useCourseStore = create<CourseState>((set) => ({
             const token = useAuthStore.getState().token;
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-            // Assuming endpoint might support slug or using search. 
-            // Implement if needed.
-            set({ isLoading: false });
-        } catch (error) {
+            const response = await axios.get(`${API_URL}/courses/slug/${slug}`, { headers });
+            if (response.data.success) {
+                set({ currentCourse: response.data.course, isLoading: false });
+            } else {
+                set({ isLoading: false, error: response.data.message || 'Failed to fetch course' });
+            }
+        } catch (error: any) {
             set({ isLoading: false, error: 'Failed to fetch course' });
         }
     },
@@ -183,11 +184,6 @@ export const useCourseStore = create<CourseState>((set) => ({
             }
         } catch (error: any) {
             // 404 = user is not enrolled yet — this is expected, not a real error
-            if (error?.response?.status !== 404) {
-                if (__DEV__) {
-                    console.log('Progress not available:', error?.response?.status || 'Network error');
-                }
-            }
         }
     },
 
@@ -206,9 +202,6 @@ export const useCourseStore = create<CourseState>((set) => ({
             return false;
         } catch (error: any) {
             // 404 = user not enrolled — expected, don't log as error
-            if (error?.response?.status !== 404 && __DEV__) {
-                console.log('Mark video complete failed:', error?.response?.status || 'Network error');
-            }
             return false;
         }
     },
@@ -227,10 +220,10 @@ export const useCourseStore = create<CourseState>((set) => ({
             }
             return false;
         } catch (error: any) {
-            console.error('Mark PDF Complete Error:', error);
             return false;
         }
     },
 
     clearCurrentCourse: () => set({ currentCourse: null, enrollmentProgress: null })
 }));
+

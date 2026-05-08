@@ -26,7 +26,6 @@ export const isBiometricAvailable = async (): Promise<boolean> => {
     const enrolled = await LocalAuthentication.isEnrolledAsync();
     return enrolled;
   } catch (error) {
-    console.error('Biometric availability check failed:', error);
     return false;
   }
 };
@@ -39,7 +38,6 @@ export const getAuthenticationTypes = async (): Promise<LocalAuthentication.Auth
     const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
     return types;
   } catch (error) {
-    console.error('Failed to get auth types:', error);
     return [];
   }
 };
@@ -57,7 +55,6 @@ export const enableBiometricAuth = async (): Promise<boolean> => {
     await AsyncStorage.setItem(BIOMETRIC_KEY, 'true');
     return true;
   } catch (error) {
-    console.error('Failed to enable biometric auth:', error);
     return false;
   }
 };
@@ -69,7 +66,6 @@ export const disableBiometricAuth = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(BIOMETRIC_KEY);
   } catch (error) {
-    console.error('Failed to disable biometric auth:', error);
   }
 };
 
@@ -113,8 +109,6 @@ export const authenticateWithBiometrics = async (
 
     return false;
   } catch (error) {
-    console.error('Biometric authentication failed:', error);
-    
     // Provide haptic feedback on failure
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     return false;
@@ -128,7 +122,6 @@ export const storeTokenSecurely = async (token: string): Promise<void> => {
   try {
     await SecureStore.setItemAsync(SECURE_TOKEN_KEY, token);
   } catch (error) {
-    console.error('Failed to store token securely:', error);
     // Fallback to AsyncStorage
     await AsyncStorage.setItem('token', token);
   }
@@ -141,7 +134,6 @@ export const storeRefreshTokenSecurely = async (token: string): Promise<void> =>
   try {
     await SecureStore.setItemAsync(SECURE_REFRESH_KEY, token);
   } catch (error) {
-    console.error('Failed to store refresh token securely:', error);
     // Fallback to AsyncStorage
     await AsyncStorage.setItem('refreshToken', token);
   }
@@ -155,7 +147,6 @@ export const getTokenSecurely = async (): Promise<string | null> => {
     const token = await SecureStore.getItemAsync(SECURE_TOKEN_KEY);
     return token;
   } catch (error) {
-    console.error('Failed to get token from secure storage:', error);
     // Fallback to AsyncStorage
     return await AsyncStorage.getItem('token');
   }
@@ -169,7 +160,6 @@ export const getRefreshTokenSecurely = async (): Promise<string | null> => {
     const token = await SecureStore.getItemAsync(SECURE_REFRESH_KEY);
     return token;
   } catch (error) {
-    console.error('Failed to get refresh token from secure storage:', error);
     // Fallback to AsyncStorage
     return await AsyncStorage.getItem('refreshToken');
   }
@@ -183,7 +173,6 @@ export const clearSecureTokens = async (): Promise<void> => {
     await SecureStore.deleteItemAsync(SECURE_TOKEN_KEY);
     await SecureStore.deleteItemAsync(SECURE_REFRESH_KEY);
   } catch (error) {
-    console.error('Failed to clear secure tokens:', error);
     // Fallback to AsyncStorage
     await AsyncStorage.multiRemove(['token', 'refreshToken']);
   }

@@ -10,9 +10,10 @@ interface LiveSession {
     title: string;
     scheduledAt: string;
     meetingLink: string;
-    duration?: number;
+    durationInMinutes?: number;
+    meetingPlatform?: 'zoom' | 'google-meet' | 'teams' | 'other';
     description?: string;
-    status?: 'scheduled' | 'live' | 'completed' | 'cancelled';
+    status?: 'scheduled' | 'completed' | 'cancelled';
 }
 
 interface LiveSessionsTabProps {
@@ -28,7 +29,8 @@ export default function LiveSessionsTab({ courseId, sessions, onUpdate }: LiveSe
         title: '',
         scheduledAt: '',
         meetingLink: '',
-        duration: 60,
+        durationInMinutes: 60,
+        meetingPlatform: 'other' as NonNullable<LiveSession['meetingPlatform']>,
         description: '',
         status: 'scheduled' as LiveSession['status'],
     });
@@ -50,7 +52,8 @@ export default function LiveSessionsTab({ courseId, sessions, onUpdate }: LiveSe
                 title: session.title,
                 scheduledAt: localDateTime,
                 meetingLink: session.meetingLink,
-                duration: session.duration || 60,
+                durationInMinutes: session.durationInMinutes || 60,
+                meetingPlatform: session.meetingPlatform || 'other',
                 description: session.description || '',
                 status: session.status || 'scheduled',
             });
@@ -60,7 +63,8 @@ export default function LiveSessionsTab({ courseId, sessions, onUpdate }: LiveSe
                 title: '',
                 scheduledAt: '',
                 meetingLink: '',
-                duration: 60,
+                durationInMinutes: 60,
+                meetingPlatform: 'other',
                 description: '',
                 status: 'scheduled',
             });
@@ -75,7 +79,8 @@ export default function LiveSessionsTab({ courseId, sessions, onUpdate }: LiveSe
             title: '',
             scheduledAt: '',
             meetingLink: '',
-            duration: 60,
+            durationInMinutes: 60,
+            meetingPlatform: 'other',
             description: '',
             status: 'scheduled',
         });
@@ -143,8 +148,6 @@ export default function LiveSessionsTab({ courseId, sessions, onUpdate }: LiveSe
 
     const getStatusColor = (status?: string) => {
         switch (status) {
-            case 'live':
-                return 'bg-green-100 text-green-700';
             case 'completed':
                 return 'bg-gray-100 text-gray-700';
             case 'cancelled':
@@ -224,10 +227,10 @@ export default function LiveSessionsTab({ courseId, sessions, onUpdate }: LiveSe
                                                 <Clock className="w-4 h-4" />
                                                 <span>{formatTime(session.scheduledAt)}</span>
                                             </div>
-                                            {session.duration && (
+                                            {session.durationInMinutes && (
                                                 <div className="flex items-center gap-2">
                                                     <Video className="w-4 h-4" />
-                                                    <span>{session.duration} mins</span>
+                                                    <span>{session.durationInMinutes} mins</span>
                                                 </div>
                                             )}
                                         </div>
@@ -337,11 +340,27 @@ export default function LiveSessionsTab({ courseId, sessions, onUpdate }: LiveSe
                                         type="number"
                                         min="15"
                                         step="15"
-                                        value={formData.duration}
-                                        onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) || 60 })}
+                                        value={formData.durationInMinutes}
+                                        onChange={(e) => setFormData({ ...formData, durationInMinutes: parseInt(e.target.value) || 60 })}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                         placeholder="60"
                                     />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Meeting Platform
+                                    </label>
+                                    <select
+                                        value={formData.meetingPlatform}
+                                        onChange={(e) => setFormData({ ...formData, meetingPlatform: e.target.value as NonNullable<LiveSession['meetingPlatform']> })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="other">Other</option>
+                                        <option value="zoom">Zoom</option>
+                                        <option value="google-meet">Google Meet</option>
+                                        <option value="teams">Microsoft Teams</option>
+                                    </select>
                                 </div>
 
                                 <div>
@@ -354,7 +373,6 @@ export default function LiveSessionsTab({ courseId, sessions, onUpdate }: LiveSe
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     >
                                         <option value="scheduled">Scheduled</option>
-                                        <option value="live">Live</option>
                                         <option value="completed">Completed</option>
                                         <option value="cancelled">Cancelled</option>
                                     </select>

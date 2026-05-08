@@ -38,8 +38,7 @@ export function usePushNotifications() {
   useEffect(() => {
     // Only run when the user is logged in
     if (!authToken) return;
-    if (__DEV__ || isExpoGo) {
-      console.log('ℹ️ Push notifications are skipped in dev/Expo Go. Use a production or development build to test remote push.');
+    if (false || isExpoGo) {
       return;
     }
 
@@ -71,7 +70,6 @@ export function usePushNotifications() {
 
         // Don't try to get a push token on emulators/simulators
         if (!Device.isDevice) {
-          console.log('ℹ️ Push notifications disabled on emulator');
           return;
         }
 
@@ -83,7 +81,6 @@ export function usePushNotifications() {
           finalStatus = status;
         }
         if (finalStatus !== 'granted') {
-          console.warn('⚠️  Push notification permission not granted');
           return;
         }
 
@@ -95,8 +92,6 @@ export function usePushNotifications() {
 
         if (!expoPushToken || cancelled) return;
 
-        console.log('📱 Got push token, registering with backend...');
-        
         // Register with backend (always register on login to ensure fresh token)
         await registerDeviceToken(expoPushToken);
 
@@ -105,7 +100,6 @@ export function usePushNotifications() {
           (notification: any) => {
             // Refresh unread badge count when a push arrives
             fetchUnreadCount();
-            console.log('📲 Push received in foreground:', notification.request.content.title);
           }
         );
 
@@ -117,7 +111,6 @@ export function usePushNotifications() {
           }
         );
       } catch (err) {
-        console.error('❌ Push setup error:', err);
       }
     };
 
@@ -159,6 +152,9 @@ function handleNotificationTap(data: Record<string, any>) {
         break;
       case 'membership':
         appRouter.push('/(home)/my-membership');
+        break;
+      case 'support':
+        appRouter.push('/(home)/help-support');
         break;
       case 'order':
         appRouter.push({ pathname: '/order-detail', params: { orderId: relatedId } });

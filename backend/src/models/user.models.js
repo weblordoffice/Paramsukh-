@@ -122,6 +122,18 @@ const userSchema = new mongoose.Schema({
     notifications: {
       type: Boolean,
       default: true
+    },
+    emailNotifications: {
+      type: Boolean,
+      default: false
+    },
+    autoPlay: {
+      type: Boolean,
+      default: true
+    },
+    dataSaver: {
+      type: Boolean,
+      default: false
     }
   },
 
@@ -151,21 +163,7 @@ const userSchema = new mongoose.Schema({
     default: 0
   },
 
-  // Gamification
-  gamification: {
-    totalPoints: {
-      type: Number,
-      default: 0
-    },
-    currentLevel: {
-      type: String,
-      default: 'Beginner'
-    },
-    badges: [{
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Reward'
-    }]
-  }
+  
 }, {
   timestamps: true
 });

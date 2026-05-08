@@ -1,5 +1,20 @@
 import { Course } from '../../models/course.models.js';
 
+const ALLOWED_MEETING_PLATFORMS = new Set(['zoom', 'google-meet', 'teams', 'other']);
+const ALLOWED_SESSION_STATUSES = new Set(['scheduled', 'completed', 'cancelled']);
+
+const toPositiveInteger = (value, fallback = 0) => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.round(n);
+};
+
+const normalizeMeetingPlatform = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (ALLOWED_MEETING_PLATFORMS.has(normalized)) return normalized;
+  return 'other';
+};
+
 /**
  * Add live session to course
  * POST /api/courses/:courseId/livesessions
@@ -12,16 +27,24 @@ export const addLiveSessionToCourse = async (req, res) => {
       description, 
       scheduledAt, 
       durationInMinutes, 
+      duration,
       meetingPlatform, 
       meetingLink,
-      resources 
+      resources,
+      status
     } = req.body;
 
+    const resolvedDurationInMinutes = toPositiveInteger(durationInMinutes ?? duration, 0);
+    const resolvedMeetingPlatform = normalizeMeetingPlatform(meetingPlatform);
+    const resolvedStatus = ALLOWED_SESSION_STATUSES.has(String(status || '').trim().toLowerCase())
+      ? String(status).trim().toLowerCase()
+      : 'scheduled';
+
     // Validate required fields
-    if (!title || !scheduledAt || !durationInMinutes || !meetingPlatform || !meetingLink) {
+    if (!title || !scheduledAt || !resolvedDurationInMinutes || !meetingLink) {
       return res.status(400).json({
         success: false,
-        message: "Required fields: title, scheduledAt, durationInMinutes, meetingPlatform, meetingLink"
+        message: "Required fields: title, scheduledAt, durationInMinutes (or duration), meetingLink"
       });
     }
 
@@ -39,11 +62,11 @@ export const addLiveSessionToCourse = async (req, res) => {
       title,
       description,
       scheduledAt: new Date(scheduledAt),
-      durationInMinutes,
-      meetingPlatform,
+      durationInMinutes: resolvedDurationInMinutes,
+      meetingPlatform: resolvedMeetingPlatform,
       meetingLink,
       resources: resources || [],
-      status: 'scheduled'
+      status: resolvedStatus
     };
 
     // Add to course
@@ -184,7 +207,19 @@ export const getLiveSessionById = async (req, res) => {
 export const updateLiveSession = async (req, res) => {
   try {
     const { courseId, liveSessionId } = req.params;
-    const updateData = req.body;
+    const updateData = { ...req.body };
+    if (updateData.durationInMinutes === undefined && updateData.duration !== undefined) {
+      updateData.durationInMinutes = updateData.duration;
+    }
+    if (updateData.meetingPlatform !== undefined) {
+      updateData.meetingPlatform = normalizeMeetingPlatform(updateData.meetingPlatform);
+    }
+    if (updateData.status !== undefined) {
+      const normalizedStatus = String(updateData.status).trim().toLowerCase();
+      updateData.status = ALLOWED_SESSION_STATUSES.has(normalizedStatus)
+        ? normalizedStatus
+        : 'scheduled';
+    }
 
     const course = await Course.findById(courseId);
     if (!course) {
@@ -212,6 +247,8 @@ export const updateLiveSession = async (req, res) => {
       if (updateData[field] !== undefined) {
         if (field === 'scheduledAt') {
           liveSession[field] = new Date(updateData[field]);
+        } else if (field === 'durationInMinutes') {
+          liveSession[field] = toPositiveInteger(updateData[field], liveSession.durationInMinutes || 60);
         } else {
           liveSession[field] = updateData[field];
         }

@@ -91,6 +91,13 @@ export default function AssessmentScreen() {
   };
 
   const handleSubmit = async () => {
+    // Validate age first
+    const ageValue = parseInt(textInputs.age);
+    if (isNaN(ageValue) || ageValue < 1 || ageValue > 150) {
+      Alert.alert('Invalid Age', 'Please enter a valid age between 1 and 150.');
+      return;
+    }
+
     // Check if all fields are filled
     const answeredCount = Object.keys(answers).length;
     const filledTextInputs = Object.values(textInputs).filter(val => val.trim() !== '').length;
@@ -160,7 +167,6 @@ export default function AssessmentScreen() {
         throw new Error(response.data.message || 'Failed to submit assessment');
       }
     } catch (error: any) {
-      console.error('Error submitting assessment:', error);
       const errorMsg = error.response?.data?.message || error.message || 'Failed to submit assessment. Please try again.';
       Alert.alert('Error', errorMsg);
       setIsSubmitting(false);

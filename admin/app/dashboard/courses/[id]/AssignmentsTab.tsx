@@ -108,10 +108,10 @@ export default function AssignmentsTab({ courseId, assignments, onUpdate }: Assi
         setSubmitting(true);
         try {
             if (editingAssignment) {
-                await apiClient.put(`/courses/${courseId}/assignments/${editingAssignment._id}`, formData);
+                await apiClient.put(`/api/courses/${courseId}/assignments/${editingAssignment._id}`, formData);
                 toast.success('Assignment updated');
             } else {
-                await apiClient.post(`/courses/${courseId}/assignments`, { ...formData, isStandalone: true });
+                await apiClient.post(`/api/courses/${courseId}/assignments`, { ...formData, isStandalone: true });
                 toast.success('Assignment added');
             }
             onUpdate();
@@ -126,7 +126,7 @@ export default function AssignmentsTab({ courseId, assignments, onUpdate }: Assi
     const handleDelete = async (id: string) => {
         if (!confirm('Are you sure you want to delete this assignment?')) return;
         try {
-            await apiClient.delete(`/courses/${courseId}/assignments/${id}`);
+            await apiClient.delete(`/api/courses/${courseId}/assignments/${id}`);
             toast.success('Assignment deleted');
             onUpdate();
         } catch (error) {

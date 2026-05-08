@@ -104,18 +104,6 @@ function isCourseAccessible(
   
   const accessible = normalizedCoursePlans.some((plan) => normalizedUserPlans.includes(plan));
   
-  // Debug logging
-  if (__DEV__) {
-    console.log('🔓 Course Access Check:', {
-      coursePlans: includedInPlans,
-      userPlans,
-      isActive,
-      normalizedUserPlans,
-      normalizedCoursePlans,
-      accessible
-    });
-  }
-  
   return accessible;
 }
 
@@ -186,10 +174,6 @@ export default function CoursesScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchCurrentSubscription();
-      // Debug: Log subscription status
-      if (__DEV__) {
-        console.log('📊 Courses screen focused - fetching latest subscription');
-      }
     }, [fetchCurrentSubscription])
   );
 
@@ -205,16 +189,6 @@ export default function CoursesScreen() {
 
     return Array.from(new Set(plans));
   }, [currentSubscription?.effectivePlans, userPlan]);
-
-  // Debug: Log subscription and plan info
-  if (__DEV__) {
-    console.log('📋 Current Subscription:', {
-      plan: userPlan,
-      status: currentSubscription?.status,
-      isActive,
-      effectivePlans
-    });
-  }
 
   const handleCardPress = (module: Course, locked: boolean) => {
     if (locked) {

@@ -56,7 +56,6 @@ export default function DonationsScreen() {
       }
     } catch (err) {
       Alert.alert('Error', 'Failed to open payment app');
-      console.error('UPI Error:', err);
     }
   };
 

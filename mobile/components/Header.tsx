@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, TouchableOpacity, Platform, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useSegments } from 'expo-router';
+import { useFocusEffect, useRouter, useSegments } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
+import { useNotificationStore } from '../store/notificationStore';
 import { getInitials } from '../utils/userUtils';
 import * as Haptics from 'expo-haptics';
 
@@ -13,7 +14,8 @@ interface HeaderProps {
 export default function Header({ useSafeArea = false }: HeaderProps) {
   const router = useRouter();
   const segments = useSegments();
-  const { user } = useAuthStore();
+  const { user, token } = useAuthStore();
+  const { unreadCount, fetchUnreadCount } = useNotificationStore();
   
   // Get the current tab name from segments
   const currentTab = segments[segments.length - 1];
@@ -53,6 +55,15 @@ export default function Header({ useSafeArea = false }: HeaderProps) {
     router.push('/(home)/notifications');
   };
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!token) return;
+      fetchUnreadCount();
+    }, [token, fetchUnreadCount])
+  );
+
+  const badgeCount = unreadCount > 99 ? '99+' : String(unreadCount);
+
   return (
     <View style={[styles.container, { paddingTop: Platform.OS === 'ios' ? (useSafeArea ? 10 : 50) : (useSafeArea ? 16 : 40) }]}>
       <View style={styles.content}>
@@ -68,9 +79,11 @@ export default function Header({ useSafeArea = false }: HeaderProps) {
           >
             <View style={styles.notificationContainer}>
               <Ionicons name="notifications-outline" size={24} color="#374151" />
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>3</Text>
-              </View>
+              {unreadCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{badgeCount}</Text>
+                </View>
+              )}
             </View>
           </TouchableOpacity>
                                    

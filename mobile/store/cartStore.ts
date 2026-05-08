@@ -83,7 +83,6 @@ export const useCartStore = create<CartState>((set, get) => ({
                 set({ isLoading: false, error: 'Failed to load cart' });
             }
         } catch (error: any) {
-            console.error('Fetch Cart Error:', error);
             set({ isLoading: false, error: 'Failed to load cart' });
         }
     },
@@ -106,7 +105,6 @@ export const useCartStore = create<CartState>((set, get) => ({
             }
             return false;
         } catch (error: any) {
-            console.error('Add to Cart Error:', error);
             set({ isLoading: false, error: error.response?.data?.message || 'Failed to add item' });
             return false;
         }
@@ -129,7 +127,6 @@ export const useCartStore = create<CartState>((set, get) => ({
                 set({ cart: response.data.data.cart, isLoading: false });
             }
         } catch (error: any) {
-            console.error('Update Cart Item Error:', error);
             set({ isLoading: false, error: error.response?.data?.message || 'Failed to update item' });
         }
     },
@@ -148,7 +145,6 @@ export const useCartStore = create<CartState>((set, get) => ({
                 set({ cart: response.data.data.cart, isLoading: false });
             }
         } catch (error: any) {
-            console.error('Remove from Cart Error:', error);
             set({ isLoading: false, error: 'Failed to remove item' });
         }
     },
@@ -169,7 +165,6 @@ export const useCartStore = create<CartState>((set, get) => ({
                 await get().fetchCart();
             }
         } catch (error: any) {
-            console.error('Clear Cart Error:', error);
             set({ isLoading: false, error: 'Failed to clear cart' });
         }
     },
@@ -192,7 +187,6 @@ export const useCartStore = create<CartState>((set, get) => ({
             }
             return false;
         } catch (error: any) {
-            console.error('Apply Coupon Error:', error);
             set({ isLoading: false, error: error.response?.data?.message || 'Invalid coupon' });
             return false;
         }
@@ -212,7 +206,6 @@ export const useCartStore = create<CartState>((set, get) => ({
                 set({ cart: response.data.data.cart, isLoading: false });
             }
         } catch (error: any) {
-            console.error('Remove Coupon Error:', error);
             set({ isLoading: false, error: 'Failed to remove coupon' });
         }
     },

@@ -62,7 +62,6 @@ export default function BookCounselingScreen() {
           const slots = await checkAvailability(selectedDate, id as string);
           setAvailableSlots(slots);
         } catch (error) {
-          console.error("Error fetching slots:", error);
         } finally {
           setFetchingSlots(false);
         }

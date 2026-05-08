@@ -39,6 +39,7 @@ interface MembershipState {
     fetchCurrentSubscription: () => Promise<void>;
     purchaseMembership: (planId: string, paymentId: string) => Promise<boolean>;
     clearError: () => void;
+    clearMembership: () => void;
 }
 
 export const useMembershipStore = create<MembershipState>((set) => ({
@@ -65,18 +66,11 @@ export const useMembershipStore = create<MembershipState>((set) => ({
                     isLoading: false
                 });
             } else {
-                console.log('Fetch subscription response:', response.data);
                 // Maybe no subscription yet, so null is valid
                 set({ isLoading: false, currentSubscription: null, error: null });
             }
         } catch (error: any) {
             // Silently handle subscription fetch errors - don't show to user
-            if (__DEV__) {
-                console.log('❌ Could not load subscription details');
-                console.log('❌ Error:', error?.message);
-                console.log('❌ Response:', error?.response?.data);
-                console.log('❌ Status:', error?.response?.status);
-            }
             // Don't logout or show errors - user might be on free tier or offline
             set({
                 isLoading: false,
@@ -112,10 +106,6 @@ export const useMembershipStore = create<MembershipState>((set) => ({
                 return false;
             }
         } catch (error: any) {
-            if (__DEV__) {
-                console.error('Purchase Error:', error);
-            }
-            
             let userMessage = 'Unable to complete purchase. Please try again.';
             
             if (error.response?.status === 401) {
@@ -135,5 +125,12 @@ export const useMembershipStore = create<MembershipState>((set) => ({
         }
     },
 
-    clearError: () => set({ error: null })
+    clearError: () => set({ error: null }),
+
+    clearMembership: () => set({
+        currentSubscription: null,
+        isLoading: false,
+        error: null,
+        isPurchasing: false
+    })
 }));

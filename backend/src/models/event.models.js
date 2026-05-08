@@ -93,9 +93,9 @@ const eventSchema = new mongoose.Schema({
   // Category & Type
   category: {
     type: String,
-    enum: ['Meditation', 'Discourse', 'Wellness', 'Devotional', 'Festival', 'Workshop', 'Healing', 'Yoga', 'Other'],
     required: true,
-    index: true 
+    index: true,
+    trim: true
   },
   tags: [{
     type: String,
@@ -176,7 +176,12 @@ const eventSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  youtubeVideos: [{
+  videos: [{
+    type: {
+      type: String,
+      enum: ['youtube', 'local'],
+      default: 'youtube'
+    },
     url: {
       type: String,
       required: true
@@ -324,6 +329,11 @@ eventSchema.methods.canRegister = function() {
   if (!this.isActive || this.status === 'cancelled' || this.status === 'past') {
     return false;
   }    
+  
+  // Explicitly check if event is in the past
+  if (this.startTime && new Date() > this.startTime) {
+    return false;
+  }
   
   if (this.isFull()) {
     return false;   

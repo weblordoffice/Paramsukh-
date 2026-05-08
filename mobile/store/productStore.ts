@@ -71,7 +71,6 @@ export const useProductStore = create<ProductState>((set) => ({
                 set({ isLoading: false, error: 'Product not found' });
             }
         } catch (error: any) {
-            console.error('Fetch Product Error:', error);
             set({ isLoading: false, error: 'Failed to fetch product' });
         }
     },
@@ -109,11 +108,9 @@ export const useProductStore = create<ProductState>((set) => ({
 
                 set({ products: formattedProducts, isLoading: false });
             } else {
-                console.log('Fetch all products response:', response.data);
                 set({ products: [], isLoading: false, error: null });
             }
         } catch (error: any) {
-            console.error('Fetch All Products Error:', error);
             set({ products: [], isLoading: false, error: null });
         }
     },
@@ -141,12 +138,10 @@ export const useProductStore = create<ProductState>((set) => ({
 
                 set({ products: formattedProducts, isLoading: false });
             } else {
-                console.log('Fetch products response:', response.data);
                 set({ products: [], isLoading: false, error: null });
             }
         } catch (error: any) {
-            // Fallback for demo if API fails or returns 404
-            console.error('Fetch Products Error:', error);
+            // Keep the list empty when products cannot be loaded.
             set({ products: [], isLoading: false, error: null });
         }
     },
@@ -170,7 +165,6 @@ export const useProductStore = create<ProductState>((set) => ({
                 set({ currentShop: formattedShop, isLoading: false });
             }
         } catch (error) {
-            console.error("Fetch Shop Details Error: ", error);
             set({ isLoading: false, error: "Failed to load shop details" });
         }
     }

@@ -72,7 +72,6 @@ export const useCounselingStore = create<CounselingState>((set) => ({
                 set({ counselingTypes: [], isLoading: false });
             }
         } catch (error: any) {
-            console.error('Fetch Counseling Types Error:', error);
             set({ isLoading: false, error: 'Failed to load counseling types' });
         }
     },
@@ -86,7 +85,6 @@ export const useCounselingStore = create<CounselingState>((set) => ({
             set({ isLoading: false });
             return response.data?.data?.availableSlots || [];
         } catch (error: any) {
-            console.error('Check Availability Error:', error);
             set({ isLoading: false, error: 'Failed to check availability' });
             return [];
         }
@@ -105,7 +103,6 @@ export const useCounselingStore = create<CounselingState>((set) => ({
             }
             return { success: false, message: response.data.message || 'Booking failed' };
         } catch (error: any) {
-            console.error('Book Session Error:', error);
             const msg = error.response?.data?.message || 'Booking failed';
             set({ isLoading: false, error: msg });
             return { success: false, message: msg };
@@ -207,7 +204,6 @@ export const useCounselingStore = create<CounselingState>((set) => ({
 
             return response.data?.data?.bookings || [];
         } catch (error: any) {
-            console.error('Fetch My Bookings Error:', error);
             return [];
         }
     }

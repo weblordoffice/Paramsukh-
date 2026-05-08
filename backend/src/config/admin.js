@@ -128,7 +128,7 @@ export const setupAdmin = () => {
           navigation: { name: 'Events', icon: 'Calendar' },
           properties: {
             images: { isVisible: { list: false, edit: true, show: true } },
-            youtubeVideos: { isVisible: { list: false, edit: true, show: true } },
+            videos: { isVisible: { list: false, edit: true, show: true } },
             reminderSent: { isVisible: false },
             reminderSentAt: { isVisible: false },
             currentAttendees: { isVisible: { list: true, edit: false, show: true } }

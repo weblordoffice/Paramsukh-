@@ -75,7 +75,6 @@ export const useOrderStore = create<OrderState>((set) => ({
                 set({ orders: response.data.data.orders, isLoading: false });
             }
         } catch (error: any) {
-            console.error('Fetch Orders Error:', error);
             set({ isLoading: false, error: 'Failed to load orders' });
         }
     },
@@ -102,7 +101,6 @@ export const useOrderStore = create<OrderState>((set) => ({
             }
             return { success: false, message: 'Failed to create order' };
         } catch (error: any) {
-            console.error('Create Order Error:', error);
             set({ isLoading: false, error: error.response?.data?.message || 'Order creation failed' });
             return { success: false, message: error.response?.data?.message || 'Order failed' };
         }
@@ -126,7 +124,6 @@ export const useOrderStore = create<OrderState>((set) => ({
             }
             return { success: false, message: 'Payment verification failed' };
         } catch (error: any) {
-            console.error('Verify Payment Error:', error);
             set({ isLoading: false, error: 'Payment verification failed' });
             return { success: false, message: error.response?.data?.message || 'Verification failed' };
         }
@@ -182,7 +179,6 @@ export const useOrderStore = create<OrderState>((set) => ({
                 set({ currentOrder: response.data.data.order, isLoading: false });
             }
         } catch (error: any) {
-            console.error('Fetch Order Detail Error:', error);
             set({ isLoading: false, error: 'Failed to load order details' });
         }
     },
@@ -208,7 +204,6 @@ export const useOrderStore = create<OrderState>((set) => ({
                 }));
             }
         } catch (error: any) {
-            console.error('Cancel Order Error:', error);
             set({ isLoading: false, error: 'Failed to cancel order' });
         }
     }

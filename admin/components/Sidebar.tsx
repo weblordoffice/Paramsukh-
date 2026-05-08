@@ -11,10 +11,11 @@ import {
     ClipboardList,
     Home,
     Crown,
-    X,
     Mic,
     Settings,
-    BarChart3
+    BarChart3,
+    Headphones,
+    X
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -50,6 +51,7 @@ const menuItems: MenuItem[] = [
     { icon: ClipboardList, label: 'Bookings', href: '/dashboard/bookings', permission: 'manage_content' },
     { icon: MessageSquare, label: 'Community', href: '/dashboard/community', permission: 'manage_community' },
     { icon: MessageSquare, label: 'Counseling', href: '/dashboard/counseling', permission: 'manage_content' },
+    { icon: Headphones, label: 'Support', href: '/dashboard/support', permission: 'manage_content' },
     { icon: Bell, label: 'Notifications', href: '/dashboard/notifications', permission: 'manage_content' },
     { icon: Settings, label: 'Settings', href: '/dashboard/settings', superAdminOnly: true },
 ];
