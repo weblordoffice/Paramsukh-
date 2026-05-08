@@ -55,23 +55,50 @@ export const sendOTP = async (phone) => {
 
     try {
       if (!isTestMode) {
+        // ── DLT-approved template (templateId: 1707177796052193562) ──
+        // "Your OTP for PARAM is {#var#}. Do Not Share it"
+        // {#var#} is replaced with the actual OTP value at runtime.
         const message = `Your OTP for PARAM is ${otp}. Do Not Share it`;
-        const smsUrl =
-          `${OTP_SMS_BASE_URL}` +
-          `?apikey=${encodeURIComponent(OTP_SMS_API_KEY)}` +
-          `&type=TEXT` +
-          `&sender=${encodeURIComponent(OTP_SMS_SENDER)}` +
-          `&entityId=${encodeURIComponent(OTP_SMS_ENTITY_ID)}` +
-          `&templateId=${encodeURIComponent(OTP_SMS_TEMPLATE_ID)}` +
-          `&mobile=${encodeURIComponent(cleanPhone)}` +
-          `&message=${encodeURIComponent(message)}`;
 
-        console.log('[OTP SMS] Generated URL:', smsUrl);
+        // ── Uncomment the line below to test with a hardcoded OTP for DLT verification ──
+        // const message = 'Your OTP for PARAM is 123456. Do Not Share it';
+
+        const params = new URLSearchParams();
+        params.append('apikey', OTP_SMS_API_KEY);
+        params.append('type', 'TEXT');
+        params.append('sender', OTP_SMS_SENDER);
+        params.append('entityId', OTP_SMS_ENTITY_ID);
+        params.append('templateId', OTP_SMS_TEMPLATE_ID);
+        params.append('mobile', cleanPhone);
+        params.append('message', message);
+
+        const smsUrl = `${OTP_SMS_BASE_URL}?${params.toString()}`;
+
+        // ── Debug: log everything for troubleshooting ──
+        console.log('[OTP SMS] ── Request Debug ──');
+        console.log('[OTP SMS] Message (raw)    :', message);
+        console.log('[OTP SMS] Message (encoded):', encodeURIComponent(message));
+        console.log('[OTP SMS] Mobile           :', cleanPhone);
+        console.log('[OTP SMS] Final URL        :', smsUrl);
+
+        // Compare with the known working dashboard URL format
+        const dashboardRef =
+          `${OTP_SMS_BASE_URL}` +
+          `?apikey=${OTP_SMS_API_KEY}` +
+          `&type=TEXT` +
+          `&sender=${OTP_SMS_SENDER}` +
+          `&entityId=${OTP_SMS_ENTITY_ID}` +
+          `&templateId=${OTP_SMS_TEMPLATE_ID}` +
+          `&mobile=${cleanPhone}` +
+          `&message=${encodeURIComponent(`Your OTP for PARAM is {#var#}. Do Not Share it`)}`;
+        console.log('[OTP SMS] Dashboard ref URL:', dashboardRef);
+        console.log('[OTP SMS] URLs match (ignoring OTP value):', smsUrl.replace(otp, '{#var#}') === dashboardRef);
 
         const response = await axios.get(smsUrl);
         const responseText = String(response.data ?? '').trim();
 
         console.log('[OTP SMS] Provider response:', responseText);
+        console.log('[OTP SMS] ── End Debug ──');
 
         const isSuccess = responseText.toUpperCase().includes('SUCCESS');
 
