@@ -9,6 +9,11 @@ const OTP_SMS_SENDER = process.env.OTP_SMS_SENDER || 'NamJin';
 const OTP_SMS_ENTITY_ID = process.env.OTP_SMS_ENTITY_ID || '1201159239283403256';
 const OTP_SMS_TEMPLATE_ID = process.env.OTP_SMS_TEMPLATE_ID || '1707177796052193562';
 
+// ── TEMPORARY: Play Store review bypass credentials ──
+// Remove these after Play Store review is approved.
+const PLAYSTORE_REVIEW_MOBILE = process.env.PLAYSTORE_REVIEW_MOBILE || '9999999999';
+const PLAYSTORE_REVIEW_OTP = process.env.PLAYSTORE_REVIEW_OTP || '123456';
+
 /**
  * Generate a random 6-digit OTP
  */
@@ -42,6 +47,16 @@ export const sendOTP = async (phone) => {
 
     if (cleanPhone.length !== 10) {
       throw new Error('Invalid phone number. Must be 10 digits.');
+    }
+
+    // ── TEMPORARY: Play Store review bypass ──
+    // Skip SMS for the reviewer's fixed number. Remove after approval.
+    if (cleanPhone === PLAYSTORE_REVIEW_MOBILE) {
+      console.log('[PLAYSTORE REVIEW LOGIN] OTP bypass used — skipping SMS for review number');
+      return {
+        success: true,
+        message: 'OTP generated and sent successfully'
+      };
     }
 
     const otp = generateOTP();
@@ -143,6 +158,16 @@ export const sendOTP = async (phone) => {
 export const verifyOTP = async (phone, otp) => {
   try {
     const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '');
+
+    // ── TEMPORARY: Play Store review bypass ──
+    // Accept the fixed OTP for the reviewer's number. Remove after approval.
+    if (cleanPhone === PLAYSTORE_REVIEW_MOBILE && otp.toString() === PLAYSTORE_REVIEW_OTP) {
+      console.log('[PLAYSTORE REVIEW LOGIN] OTP bypass used — verification granted for review number');
+      return {
+        success: true,
+        message: 'OTP verified successfully'
+      };
+    }
 
     const stored = otpStore.get(cleanPhone);
 
