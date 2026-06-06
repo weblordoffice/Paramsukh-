@@ -3,6 +3,7 @@
 A comprehensive mobile and web platform for spiritual courses, community engagement, events, and guided meditation.
 
 ## 📁 Project Structure
+send to the weblord office
 
 ```
 paramsukh/
