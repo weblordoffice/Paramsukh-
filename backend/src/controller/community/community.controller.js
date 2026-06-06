@@ -1,4 +1,4 @@
-import { GroupMember, Post, Comment } from '../../models/community.models.js';
+import { Group, GroupMember, Post, Comment } from '../../models/community.models.js';
 import { evaluateCommunityAccess } from '../../services/entitlement.service.js';
 import { syncUserCommunityMembershipsByPlan } from '../../services/planUpgrade.service.js';
 
@@ -37,7 +37,7 @@ export const checkCommunityAccess = async (req, res) => {
 };
 
 /**
- * Get user's groups (based on enrolled courses)
+ * Get user's groups (based on enrolled courses) - returns hierarchical plan -> subgroup tree
  * GET /api/community/my-groups
  */
 export const getMyGroups = async (req, res) => {
@@ -79,6 +79,7 @@ export const getMyGroups = async (req, res) => {
     // Get user's group memberships
     const memberships = await loadMemberships();
 
+    // Build flat group list
     const groups = memberships
       .filter((membership) => Boolean(membership.groupId))
       .map((m) => {
@@ -104,15 +105,58 @@ export const getMyGroups = async (req, res) => {
           groupType: group.groupType || 'course',
           planSlug: planSlug || null,
           category: category || null,
+          parentGroupId: group.parentGroupId ? String(group.parentGroupId) : null,
           course: group.courseId || fallbackCourse,
           joinedAt: m.joinedAt,
           role: m.role,
         };
       });
 
+    // Build hierarchical plan -> subgroup tree
+    const planGroupMap = new Map(); // planGroupId -> { ...planGroup, subgroups: [] }
+    const categoryGroups = [];
+    const otherGroups = [];
+
+    groups.forEach((group) => {
+      if (group.groupType === 'plan') {
+        planGroupMap.set(String(group._id), {
+          ...group,
+          subgroups: [],
+        });
+      } else if (group.groupType === 'category') {
+        categoryGroups.push(group);
+      } else {
+        otherGroups.push(group);
+      }
+    });
+
+    // Nest category subgroups under their parent plan group
+    categoryGroups.forEach((subgroup) => {
+      if (subgroup.parentGroupId && planGroupMap.has(subgroup.parentGroupId)) {
+        planGroupMap.get(subgroup.parentGroupId).subgroups.push(subgroup);
+      } else {
+        // Orphan category group (no parent) — try to find by planSlug
+        let placed = false;
+        for (const [, planGroup] of planGroupMap) {
+          if (planGroup.planSlug && planGroup.planSlug === subgroup.planSlug) {
+            planGroup.subgroups.push(subgroup);
+            placed = true;
+            break;
+          }
+        }
+        if (!placed) {
+          otherGroups.push(subgroup);
+        }
+      }
+    });
+
+    const planGroups = Array.from(planGroupMap.values());
+
     return res.status(200).json({
       success: true,
-      groups,
+      planGroups,
+      groups, // backward-compatible flat list
+      otherGroups, // course-based groups not part of plan hierarchy
       totalGroups: groups.length
     });
 
@@ -127,7 +171,7 @@ export const getMyGroups = async (req, res) => {
 };
 
 /**
- * Get posts from a specific group
+ * Get posts from a specific group (or combined feed for plan-level groups)
  * GET /api/community/groups/:groupId/posts
  */
 export const getGroupPosts = async (req, res) => {
@@ -156,14 +200,30 @@ export const getGroupPosts = async (req, res) => {
       });
     }
 
+    // Determine which group IDs to query posts from
+    // If this is a plan-level parent group, get posts from all child subgroups too
+    const group = await Group.findById(groupId).select('groupType').lean();
+    let queryGroupIds = [groupId];
+
+    if (group && group.groupType === 'plan') {
+      const childGroups = await Group.find({ parentGroupId: groupId, isActive: true })
+        .select('_id')
+        .lean();
+      const childIds = childGroups.map((g) => g._id);
+      queryGroupIds = [groupId, ...childIds];
+    }
+
+    // Build post query - use $in for combined feeds
+    const postQuery = { groupId: { $in: queryGroupIds }, isActive: true };
+
     // Get posts
-    const posts = await Post.find({ groupId, isActive: true })
+    const posts = await Post.find(postQuery)
       .populate('userId', 'displayName photoURL subscriptionPlan')
       .sort({ isPinned: -1, createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
-    const totalPosts = await Post.countDocuments({ groupId, isActive: true });
+    const totalPosts = await Post.countDocuments(postQuery);
 
     // Check if current user liked each post
     const postsWithUserLike = posts.map(post => {
@@ -183,6 +243,7 @@ export const getGroupPosts = async (req, res) => {
           subscriptionPlan: post.userId.subscriptionPlan
         },
         tags: post.tags,
+        groupId: post.groupId, // Include so client knows which subgroup the post belongs to
         createdAt: post.createdAt,
         updatedAt: post.updatedAt
       };
@@ -191,6 +252,7 @@ export const getGroupPosts = async (req, res) => {
     return res.status(200).json({
       success: true,
       posts: postsWithUserLike,
+      isCombinedFeed: queryGroupIds.length > 1,
       pagination: {
         currentPage: page,
         totalPages: Math.ceil(totalPosts / limit),

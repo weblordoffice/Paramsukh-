@@ -8,11 +8,53 @@ import {
   Image,
   ActivityIndicator,
   StatusBar,
+  Platform,
+  Alert,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useCourseStore, Video, Assignment } from '../store/courseStore';
+import * as WebBrowser from 'expo-web-browser';
+import { LinearGradient } from 'expo-linear-gradient';
+import AmbientGlow from '../components/AmbientGlow';
+import { useCourseStore, Video, Assignment, Pdf } from '../store/courseStore';
 import { useAuthStore } from '../store/authStore';
+
+function LessonCard({ children, onPress, style, isLocked, ...props }: any) {
+  const scale = React.useRef(new Animated.Value(1)).current;
+
+  const handlePressIn = () => {
+    if (isLocked) return;
+    Animated.spring(scale, {
+      toValue: 0.96,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    if (isLocked) return;
+    Animated.spring(scale, {
+      toValue: 1,
+      friction: 8,
+      tension: 45,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <TouchableOpacity
+      activeOpacity={isLocked ? 0.95 : 0.8}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      onPress={onPress}
+      {...props}
+    >
+      <Animated.View style={[{ transform: [{ scale }] }, style]}>
+        {children}
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
 
 export default function CourseDetailScreen() {
   const router = useRouter();
@@ -37,9 +79,17 @@ export default function CourseDetailScreen() {
     }
   }, [courseId, token, fetchCourseById, fetchEnrollmentProgress]);
 
-  const videos: Video[] = currentCourse?.videos || [];
+  const videos: Video[] = [...(currentCourse?.videos || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
+  const totalPdfs = currentCourse?.pdfs?.length || 0;
   const completedVideos = enrollmentProgress?.completedVideos?.length || 0;
-  const progressPct = videos.length > 0 ? Math.round((completedVideos / videos.length) * 100) : 0;
+  const completedPdfs = enrollmentProgress?.completedPdfs?.length || 0;
+  
+  // Use backend progress percentage, falling back to calculation
+  const progressPct = enrollmentProgress?.progress !== undefined 
+    ? enrollmentProgress.progress 
+    : (videos.length + totalPdfs > 0 
+        ? Math.round(((completedVideos + completedPdfs) / (videos.length + totalPdfs)) * 100) 
+        : 0);
 
   const handleVideoPress = (video: Video) => {
     router.push({
@@ -67,9 +117,36 @@ export default function CourseDetailScreen() {
     });
   };
 
+  const handlePdfPress = async (pdf: Pdf) => {
+    let url = pdf.pdfUrl || '';
+    if (!url) return;
+    try {
+      if (Platform.OS === 'android') {
+        const isLocal = url.includes('localhost') || url.includes('127.0.0.1') || url.includes('10.0.2.2') || url.includes('192.168.');
+        if (!isLocal) {
+          url = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(url)}`;
+        }
+      }
+
+      await WebBrowser.openBrowserAsync(url, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        enableBarCollapsing: true,
+        showTitle: true,
+      });
+      // Mark as completed
+      if (token && courseId) {
+        await useCourseStore.getState().markPdfComplete(courseId, pdf._id);
+        // Refresh progress
+        fetchEnrollmentProgress(courseId);
+      }
+    } catch (e) {
+      console.error('Error opening PDF:', e);
+    }
+  };
+
   return (
-    <View style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
+    <AmbientGlow style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {/* ── Back button ── */}
       <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
@@ -84,39 +161,43 @@ export default function CourseDetailScreen() {
       ) : (
         <ScrollView showsVerticalScrollIndicator={false}>
 
-          {/* ── Hero Banner ── */}
-          <View style={styles.hero}>
+          {/* Header Spacer to push intro below back button */}
+          <View style={styles.headerSpacer} />
+
+          {/* ── Calm Course Intro Section ── */}
+          <View style={styles.introSection}>
             {currentCourse?.thumbnailUrl ? (
               <Image
                 source={{ uri: currentCourse.thumbnailUrl }}
-                style={styles.heroBg}
+                style={styles.courseThumb}
                 resizeMode="cover"
               />
             ) : (
-              <View style={[styles.heroBg, { backgroundColor: courseColor + '40' }]} />
+              <View style={[styles.courseThumb, { backgroundColor: courseColor + '22', alignItems: 'center', justifyContent: 'center' }]}>
+                <Ionicons name="book" size={48} color={courseColor} />
+              </View>
             )}
-            {/* Gradient-like scrim */}
-            <View style={styles.heroScrim} />
 
-            {/* Category badge */}
             {currentCourse?.category && (
-              <View style={[styles.heroBadge, { borderColor: courseColor }]}>
-                <Ionicons name="shield-checkmark" size={11} color={courseColor} />
-                <Text style={[styles.heroBadgeText, { color: courseColor }]}>
+              <View style={[styles.categoryBadge, { borderColor: courseColor + '33', backgroundColor: courseColor + '10' }]}>
+                <Ionicons name="sparkles-outline" size={11} color={courseColor} />
+                <Text style={[styles.categoryBadgeText, { color: courseColor }]}>
                   {currentCourse.category.toUpperCase()}
                 </Text>
               </View>
             )}
 
-            {/* Title block */}
-            <View style={styles.heroContent}>
-              <Text style={styles.heroTitle}>{courseTitle}</Text>
-              <View style={styles.heroMeta}>
-                <Ionicons name="time-outline" size={14} color="rgba(255,255,255,0.75)" />
-                <Text style={styles.heroMetaText}>{courseDuration}</Text>
-                <View style={styles.heroDot} />
-                <Ionicons name="play-circle-outline" size={14} color="rgba(255,255,255,0.75)" />
-                <Text style={styles.heroMetaText}>{videos.length} videos</Text>
+            <Text style={styles.courseTitleHeader}>{courseTitle}</Text>
+            
+            <View style={styles.courseMetaRow}>
+              <View style={styles.metaItem}>
+                <Ionicons name="time-outline" size={14} color="#94A3B8" />
+                <Text style={styles.metaText}>{courseDuration}</Text>
+              </View>
+              <View style={styles.metaDivider} />
+              <View style={styles.metaItem}>
+                <Ionicons name="play-circle-outline" size={14} color="#94A3B8" />
+                <Text style={styles.metaText}>{videos.length} lessons</Text>
               </View>
             </View>
           </View>
@@ -134,7 +215,7 @@ export default function CourseDetailScreen() {
                 />
               </View>
               <Text style={styles.progressSub}>
-                {completedVideos} of {videos.length} videos completed
+                {completedVideos} of {videos.length} videos {totalPdfs > 0 ? `& ${completedPdfs} of ${totalPdfs} PDFs ` : ''}completed
               </Text>
             </View>
           )}
@@ -162,23 +243,40 @@ export default function CourseDetailScreen() {
             ) : (
               videos.map((video, idx) => {
                 const isCompleted = enrollmentProgress?.completedVideos?.includes(video._id);
+                const isLocked = currentCourse?.strictVideoOrder && idx > 0 && !enrollmentProgress?.completedVideos?.includes(videos[idx - 1]._id);
                 return (
-                  <TouchableOpacity
+                  <LessonCard
                     key={video._id}
-                    style={styles.videoRow}
-                    onPress={() => handleVideoPress(video)}
-                    activeOpacity={0.75}
+                    style={[styles.videoRow, isLocked && { opacity: 0.55 }]}
+                    isLocked={isLocked}
+                    onPress={() => {
+                      if (isLocked) {
+                        Alert.alert(
+                          'Lesson Locked',
+                          'Please watch and complete the previous video lessons in order to unlock this one.',
+                          [{ text: 'OK' }]
+                        );
+                      } else {
+                        handleVideoPress(video);
+                      }
+                    }}
                   >
-                    {/* Thumb placeholder — numbered play icon */}
+                    {/* Thumb placeholder — numbered play icon or lock */}
                     <View style={styles.videoThumbWrap}>
-                      <View style={[styles.videoThumbPlaceholder, { backgroundColor: courseColor + '22' }]}>
-                        <Text style={[styles.videoThumbNum, { color: courseColor }]}>
-                          {String(idx + 1).padStart(2, '0')}
-                        </Text>
-                        <Ionicons name="play-circle" size={22} color={courseColor} style={{ marginTop: 2 }} />
+                      <View style={[styles.videoThumbPlaceholder, { backgroundColor: isLocked ? 'rgba(51, 65, 85, 0.3)' : courseColor + '22' }]}>
+                        {isLocked ? (
+                          <Ionicons name="lock-closed" size={20} color="#64748B" />
+                        ) : (
+                          <>
+                            <Text style={[styles.videoThumbNum, { color: courseColor }]}>
+                              {String(idx + 1).padStart(2, '0')}
+                            </Text>
+                            <Ionicons name="play-circle" size={20} color={courseColor} style={{ marginTop: 2 }} />
+                          </>
+                        )}
                       </View>
                       {/* Duration pill */}
-                      {video.duration ? (
+                      {video.duration && !isLocked ? (
                         <View style={styles.durationPill}>
                           <Text style={styles.durationText}>{video.duration}</Text>
                         </View>
@@ -198,15 +296,17 @@ export default function CourseDetailScreen() {
                       ) : null}
                     </View>
 
-                    {/* Completed checkmark */}
+                    {/* Completed checkmark or lock */}
                     {isCompleted ? (
                       <View style={[styles.completedBadge, { backgroundColor: '#10B981' }]}>
                         <Ionicons name="checkmark" size={14} color="#FFF" />
                       </View>
+                    ) : isLocked ? (
+                      <Ionicons name="lock-closed-outline" size={18} color="#475569" />
                     ) : (
                       <Ionicons name="chevron-forward" size={18} color="#475569" />
                     )}
-                  </TouchableOpacity>
+                  </LessonCard>
                 );
               })
             )}
@@ -221,15 +321,14 @@ export default function CourseDetailScreen() {
               </Text>
 
               {currentCourse.assignments.map((assignment, idx) => (
-                <TouchableOpacity
+                <LessonCard
                   key={assignment._id}
                   style={styles.videoRow}
                   onPress={() => handleAssignmentPress(assignment)}
-                  activeOpacity={0.75}
                 >
                   <View style={styles.videoThumbWrap}>
-                    <View style={[styles.videoThumbPlaceholder, { backgroundColor: '#8B5CF622' }]}>
-                      <Ionicons name="help-circle-outline" size={28} color="#8B5CF6" />
+                    <View style={[styles.videoThumbPlaceholder, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>
+                      <Ionicons name="help-circle-outline" size={24} color="#8B5CF6" />
                     </View>
                   </View>
 
@@ -244,22 +343,71 @@ export default function CourseDetailScreen() {
                   </View>
 
                   <Ionicons name="chevron-forward" size={18} color="#475569" />
-                </TouchableOpacity>
+                </LessonCard>
               ))}
+            </View>
+          )}
+
+          {/* ── PDF Resources List ── */}
+          {currentCourse?.pdfs && currentCourse.pdfs.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Study Materials & PDFs
+                <Text style={styles.sectionCount}>  {currentCourse.pdfs.length}</Text>
+              </Text>
+
+              {currentCourse.pdfs.map((pdf, idx) => {
+                const isCompleted = enrollmentProgress?.completedPdfs?.includes(pdf._id);
+                return (
+                  <LessonCard
+                    key={pdf._id}
+                    style={styles.videoRow}
+                    onPress={() => handlePdfPress(pdf)}
+                  >
+                    <View style={styles.videoThumbWrap}>
+                      {pdf.thumbnailUrl ? (
+                        <Image source={{ uri: pdf.thumbnailUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.videoThumbPlaceholder, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
+                          <Ionicons name="document-text-outline" size={24} color="#10B981" />
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.videoInfo}>
+                      <Text style={[styles.videoIndex, { color: '#10B981' }]}>Document {idx + 1}</Text>
+                      <Text style={styles.videoTitle} numberOfLines={2}>
+                        {pdf.title}
+                      </Text>
+                      <Text style={styles.videoDesc} numberOfLines={1}>
+                        {pdf.fileSize ? `${pdf.fileSize} • ` : ''}{pdf.description || 'Downloadable PDF resource'}
+                      </Text>
+                    </View>
+
+                    {isCompleted ? (
+                      <View style={[styles.completedBadge, { backgroundColor: '#10B981' }]}>
+                        <Ionicons name="checkmark" size={14} color="#FFF" />
+                      </View>
+                    ) : (
+                      <Ionicons name="chevron-forward" size={18} color="#475569" />
+                    )}
+                  </LessonCard>
+                );
+              })}
             </View>
           )}
 
           <View style={{ height: 60 }} />
         </ScrollView>
       )}
-    </View>
+    </AmbientGlow>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#0F172A',
+    backgroundColor: 'transparent',
   },
 
   /* ── Back btn ── */
@@ -268,12 +416,18 @@ const styles = StyleSheet.create({
     top: 48,
     left: 16,
     zIndex: 20,
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(15,23,42,0.65)',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
 
   /* ── Loading ── */
@@ -288,97 +442,105 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 
-  /* ── Hero ── */
-  hero: {
-    width: '100%',
-    height: 240,
-    position: 'relative',
-    justifyContent: 'flex-end',
+  /* ── Calm Course Intro Section ── */
+  headerSpacer: {
+    height: 104,
   },
-  heroBg: {
-    ...StyleSheet.absoluteFillObject,
+  introSection: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 16,
   },
-  heroScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(15,23,42,0.62)',
+  courseThumb: {
+    width: 140,
+    height: 140,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
   },
-  heroBadge: {
-    position: 'absolute',
-    top: 56,
-    right: 16,
+  categoryBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
     borderRadius: 20,
-    borderWidth: 1.5,
-    backgroundColor: 'rgba(15,23,42,0.5)',
+    borderWidth: 1,
+    marginBottom: 12,
   },
-  heroBadgeText: {
+  categoryBadgeText: {
     fontSize: 10,
     fontWeight: '700',
     letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
-  heroContent: {
-    padding: 20,
-    paddingBottom: 22,
-  },
-  heroTitle: {
-    fontSize: 22,
+  courseTitleHeader: {
+    fontSize: 26,
     fontWeight: '800',
     color: '#F8FAFC',
-    marginBottom: 8,
-    lineHeight: 28,
+    textAlign: 'center',
+    lineHeight: 32,
+    marginBottom: 12,
+    letterSpacing: 0.3,
   },
-  heroMeta: {
+  courseMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 12,
   },
-  heroMetaText: {
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  metaText: {
     fontSize: 13,
-    color: 'rgba(255,255,255,0.75)',
-    fontWeight: '500',
+    color: '#94A3B8',
+    fontWeight: '600',
   },
-  heroDot: {
-    width: 3,
-    height: 3,
+  metaDivider: {
+    width: 4,
+    height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.4)',
-    marginHorizontal: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
 
   /* ── Progress card ── */
   progressCard: {
     marginHorizontal: 16,
-    marginTop: 16,
-    backgroundColor: '#1E293B',
-    borderRadius: 16,
-    padding: 16,
+    marginTop: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 20,
+    padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   progressLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#CBD5E1',
+    letterSpacing: 0.2,
   },
   progressPct: {
     fontSize: 14,
     fontWeight: '800',
   },
   progressTrack: {
-    height: 6,
-    backgroundColor: 'rgba(148,163,184,0.2)',
+    height: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 4,
     overflow: 'hidden',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   progressFill: {
     height: '100%',
@@ -386,24 +548,25 @@ const styles = StyleSheet.create({
   },
   progressSub: {
     fontSize: 12,
-    color: '#64748B',
-    fontWeight: '500',
+    color: '#94A3B8',
+    fontWeight: '600',
   },
 
   /* ── Sections ── */
   section: {
-    marginTop: 24,
+    marginTop: 26,
     marginHorizontal: 16,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#F1F5F9',
-    marginBottom: 14,
+    color: '#F8FAFC',
+    marginBottom: 16,
+    letterSpacing: 0.2,
   },
   sectionCount: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#64748B',
   },
   descText: {
@@ -419,7 +582,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   emptyText: {
-    color: '#475569',
+    color: '#64748B',
     fontSize: 14,
   },
 
@@ -427,19 +590,19 @@ const styles = StyleSheet.create({
   videoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
-    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 16,
     marginBottom: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(148,163,184,0.1)',
-    padding: 10,
-    gap: 12,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    padding: 12,
+    gap: 14,
   },
   videoThumbWrap: {
     width: 80,
     height: 68,
-    borderRadius: 10,
+    borderRadius: 12,
     overflow: 'hidden',
     position: 'relative',
     flexShrink: 0,
@@ -452,7 +615,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   videoThumbNum: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
@@ -460,22 +623,22 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 4,
     right: 4,
-    backgroundColor: 'rgba(0,0,0,0.72)',
-    paddingHorizontal: 5,
+    backgroundColor: 'rgba(8, 12, 22, 0.8)',
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 5,
+    borderRadius: 4,
   },
   durationText: {
     fontSize: 10,
-    color: '#FFF',
-    fontWeight: '600',
+    color: '#F8FAFC',
+    fontWeight: '700',
   },
   videoInfo: {
     flex: 1,
   },
   videoIndex: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#64748B',
     marginBottom: 4,
     textTransform: 'uppercase',
@@ -483,7 +646,7 @@ const styles = StyleSheet.create({
   },
   videoTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#E2E8F0',
     lineHeight: 19,
   },

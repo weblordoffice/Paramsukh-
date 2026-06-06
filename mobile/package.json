@@ -1,9 +1,10 @@
 {
   "name": "param",
   "main": "expo-router/entry",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "scripts": {
     "start": "expo start",
+    "postinstall": "node ./scripts/patch-metro-inline-plugin.js",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -34,6 +35,7 @@
     "expo-haptics": "~15.0.8",
     "expo-image": "~3.0.11",
     "expo-image-picker": "~17.0.8",
+    "expo-linear-gradient": "^56.0.4",
     "expo-linking": "~8.0.11",
     "expo-local-authentication": "~17.0.8",
     "expo-notifications": "^0.32.16",

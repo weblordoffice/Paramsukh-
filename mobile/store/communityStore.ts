@@ -34,6 +34,10 @@ export interface Group {
     description?: string;
     memberCount: number;
     coverImage?: string;
+    groupType: 'plan' | 'category' | 'course';
+    planSlug?: string;
+    category?: string;
+    parentGroupId?: string | null;
     course: {
         _id: string;
         title: string;
@@ -42,6 +46,22 @@ export interface Group {
     } | string;
     joinedAt: string;
     role: 'member' | 'moderator' | 'admin';
+}
+
+export interface PlanGroup {
+    _id: string;
+    name: string;
+    description?: string;
+    memberCount: number;
+    groupType: 'plan';
+    planSlug: string;
+    category?: string | null;
+    parentGroupId?: string | null;
+    coverImage?: string;
+    course?: any;
+    joinedAt: string;
+    role: 'member' | 'moderator' | 'admin';
+    subgroups: Group[];
 }
 
 export interface Comment {
@@ -57,8 +77,9 @@ export interface Comment {
 interface CommunityState {
     posts: Post[];
     groups: Group[];
+    planGroups: PlanGroup[];
     currentGroup: Group | null;
-    comments: { [postId: string]: Comment[] }; // Store comments by postId
+    comments: { [postId: string]: Comment[] };
     isLoading: boolean;
     error: string | null;
     communityAccessDenied: boolean;
@@ -77,8 +98,9 @@ interface CommunityState {
 export const useCommunityStore = create<CommunityState>((set, get) => ({
     posts: [],
     groups: [],
+    planGroups: [],
     currentGroup: null,
-    comments: {}, // Initialize comments object
+    comments: {},
     isLoading: false,
     error: null,
     communityAccessDenied: false,
@@ -88,7 +110,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         try {
             const token = useAuthStore.getState().token;
             if (!token) {
-                set({ groups: [], isLoading: false });
+                set({ groups: [], planGroups: [], isLoading: false });
                 return;
             }
 
@@ -99,25 +121,27 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             if (response.data && response.data.success) {
                 set({
                     groups: response.data.groups || [],
+                    planGroups: response.data.planGroups || [],
                     isLoading: false,
                     communityAccessDenied: false,
                     error: null
                 });
             } else {
-                set({ groups: [], isLoading: false, error: null });
+                set({ groups: [], planGroups: [], isLoading: false, error: null });
             }
         } catch (error: any) {
             // Handle 403 - user doesn't have community access
             if (error.response?.status === 403) {
                 set({ 
                     groups: [], 
+                    planGroups: [],
                     isLoading: false, 
                     error: null,
                     communityAccessDenied: true 
                 });
             } else {
                 // Don't show error to user for other cases, show empty list (user might be offline)
-                set({ groups: [], isLoading: false, error: null });
+                set({ groups: [], planGroups: [], isLoading: false, error: null });
             }
         }
     },
@@ -126,9 +150,6 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             const token = useAuthStore.getState().token;
-            // Public posts might be allowed, but usually not for closed groups.
-            // We'll send token if available.
-
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
             const response = await axios.get(`${API_URL}/community/groups/${groupId}/posts`, {
@@ -136,7 +157,6 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 headers
             });
             if (response.data.success) {
-                // If page 1, replace posts. If > 1, append (for pagination logic if implemented)
                 const newPosts = response.data.posts;
                 set(state => ({
                     posts: page === 1 ? newPosts : [...state.posts, ...newPosts],

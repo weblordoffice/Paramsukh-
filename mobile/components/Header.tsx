@@ -78,7 +78,7 @@ export default function Header({ useSafeArea = false }: HeaderProps) {
             activeOpacity={0.7}
           >
             <View style={styles.notificationContainer}>
-              <Ionicons name="notifications-outline" size={24} color="#374151" />
+              <Ionicons name="notifications-outline" size={24} color="#F8FAFC" />
               {unreadCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{badgeCount}</Text>
@@ -104,16 +104,11 @@ export default function Header({ useSafeArea = false }: HeaderProps) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
     paddingHorizontal: 20,
     paddingBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
   },
   content: {
     flexDirection: 'row',
@@ -122,8 +117,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#1F2937',
+    fontWeight: '800',
+    color: '#F8FAFC',
     letterSpacing: 0.5,
   },
   actions: {
@@ -139,24 +134,24 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   badge: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: '#EAB308',
+    backgroundColor: '#8B5CF6',
     borderRadius: 10,
     minWidth: 18,
     height: 18,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
-    shadowColor: '#EAB308',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 8,
@@ -165,18 +160,18 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#0F172A',
+    color: '#F8FAFC',
   },
   profileContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    backgroundColor: 'rgba(139, 92, 246, 0.15)',
     borderWidth: 2,
-    borderColor: '#3B82F6',
+    borderColor: '#8B5CF6',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#3B82F6',
+    shadowColor: '#8B5CF6',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
@@ -185,6 +180,6 @@ const styles = StyleSheet.create({
   profileInitial: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#3B82F6',
+    color: '#F8FAFC',
   },
 });

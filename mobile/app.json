@@ -2,7 +2,7 @@
   "expo": {
     "name": "param",
     "slug": "param",
-    "version": "1.0.0",
+    "version": "1.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "param",
@@ -11,8 +11,8 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.paramsukh.app",
-      "versionCode": 1,
+      "package": "com.paramsukh.gurukool",
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

@@ -4,8 +4,14 @@ import mongoose from "mongoose";
 const groupSchema = new mongoose.Schema({
   groupType: {
     type: String,
-    enum: ['course', 'category'],
+    enum: ['course', 'category', 'plan'],
     default: 'course',
+    index: true,
+  },
+  parentGroupId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Group',
+    default: null,
     index: true,
   },
   category: {
@@ -191,6 +197,17 @@ groupSchema.index(
     },
   }
 ); // Prevent duplicate plan-category groups
+groupSchema.index(
+  { groupType: 1, planSlug: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      groupType: 'plan',
+      planSlug: { $type: 'string' },
+    },
+  }
+); // Prevent duplicate plan-level parent groups
+groupSchema.index({ parentGroupId: 1 }); // Efficient child lookups
 groupMemberSchema.index({ groupId: 1, userId: 1 }, { unique: true });
 groupMemberSchema.index({ userId: 1 });
 postSchema.index({ groupId: 1, createdAt: -1 });

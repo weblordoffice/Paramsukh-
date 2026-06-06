@@ -38,11 +38,15 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
     const [uploadingFile, setUploadingFile] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploadingThumb, setUploadingThumb] = useState(false);
+    const [selectedThumb, setSelectedThumb] = useState<File | null>(null);
+    const thumbInputRef = useRef<HTMLInputElement>(null);
 
     const pdfUrl = (p: PDF) => p.url ?? p.pdfUrl ?? '';
 
     const openModal = (pdf?: PDF) => {
         setSelectedFile(null);
+        setSelectedThumb(null);
         if (pdf) {
             setEditingPDF(pdf);
             setFormData({
@@ -69,6 +73,7 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
         setIsModalOpen(false);
         setEditingPDF(null);
         setSelectedFile(null);
+        setSelectedThumb(null);
         setFormData({
             title: '',
             url: '',
@@ -77,6 +82,7 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
             fileSize: '',
         });
         if (fileInputRef.current) fileInputRef.current.value = '';
+        if (thumbInputRef.current) thumbInputRef.current.value = '';
     };
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -98,8 +104,15 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
             const res = await apiClient.post('/api/upload/pdf', form);
             const url = res.data?.data?.url;
             if (url) {
-                setFormData((prev) => ({ ...prev, url }));
-                toast.success('PDF uploaded. Add title and save.');
+                // Calculate file size string
+                let sizeStr = '';
+                if (file.size >= 1024 * 1024) {
+                    sizeStr = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+                } else {
+                    sizeStr = `${(file.size / 1024).toFixed(2)} KB`;
+                }
+                setFormData((prev) => ({ ...prev, url, fileSize: sizeStr }));
+                toast.success('PDF uploaded and size detected.');
             } else {
                 toast.error('Upload failed');
             }
@@ -107,6 +120,38 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
             toast.error(err.response?.data?.message || 'Failed to upload PDF');
         } finally {
             setUploadingFile(false);
+            e.target.value = '';
+        }
+    };
+
+    const handleThumbSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!file.type.startsWith('image/')) {
+            toast.error('Please select an image file');
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            toast.error('Thumbnail image must be under 5MB');
+            return;
+        }
+        setSelectedThumb(file);
+        setUploadingThumb(true);
+        try {
+            const form = new FormData();
+            form.append('image', file);
+            const res = await apiClient.post('/api/upload/image', form);
+            const url = res.data?.data?.url;
+            if (url) {
+                setFormData((prev) => ({ ...prev, thumbnailUrl: url }));
+                toast.success('Thumbnail uploaded successfully');
+            } else {
+                toast.error('Thumbnail upload failed');
+            }
+        } catch (err: any) {
+            toast.error(err.response?.data?.message || 'Failed to upload thumbnail');
+        } finally {
+            setUploadingThumb(false);
             e.target.value = '';
         }
     };
@@ -126,6 +171,7 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
                     pdfUrl,
                     description: formData.description?.trim() || '',
                     thumbnailUrl: formData.thumbnailUrl?.trim() || '',
+                    fileSize: formData.fileSize?.trim() || '',
                 });
                 toast.success('PDF updated successfully');
             } else {
@@ -134,6 +180,7 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
                     pdfUrl,
                     description: formData.description?.trim() || '',
                     thumbnailUrl: formData.thumbnailUrl?.trim() || '',
+                    fileSize: formData.fileSize?.trim() || '',
                     order: pdfs.length,
                     isFree: false,
                 });
@@ -354,11 +401,41 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
                                         type="url"
                                         value={formData.thumbnailUrl}
                                         onChange={(e) => setFormData({ ...formData, thumbnailUrl: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mb-2"
                                         placeholder="https://..."
                                     />
+                                    <input
+                                        ref={thumbInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleThumbSelect}
+                                        className="hidden"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => thumbInputRef.current?.click()}
+                                        disabled={uploadingThumb}
+                                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-gray-600 text-sm"
+                                    >
+                                        {uploadingThumb ? (
+                                            <>
+                                                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                                                <span>Uploading Thumbnail...</span>
+                                            </>
+                                        ) : selectedThumb || formData.thumbnailUrl ? (
+                                            <>
+                                                <Upload className="w-4 h-4 text-green-600" />
+                                                <span>{selectedThumb ? selectedThumb.name : 'Thumbnail URL set'}</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Upload className="w-4 h-4" />
+                                                <span>Upload Thumbnail from Computer</span>
+                                            </>
+                                        )}
+                                    </button>
                                     <p className="text-xs text-gray-500 mt-1">
-                                        Optional preview image for the PDF
+                                        Optional preview image for the PDF (URL or local upload)
                                     </p>
                                 </div>
 

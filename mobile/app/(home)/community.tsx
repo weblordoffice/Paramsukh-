@@ -24,7 +24,7 @@ import { useNotificationStore } from '@/store/notificationStore';
 import AssessmentModal from '@/components/AssessmentModal';
 import CommentsModal from '@/components/CommentsModal';
 import * as ImagePicker from 'expo-image-picker';
-import { useCommunityStore, Group } from '@/store/communityStore';
+import { useCommunityStore, Group, PlanGroup } from '@/store/communityStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.75;
@@ -38,6 +38,7 @@ export default function CommunityScreen() {
   const {
     posts,
     groups,
+    planGroups,
     isLoading: isStoreLoading,
     fetchMyGroups,
     fetchGroupPosts,
@@ -61,6 +62,7 @@ export default function CommunityScreen() {
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [createPostTags, setCreatePostTags] = useState<string[]>([]);
+  const [expandedPlanGroups, setExpandedPlanGroups] = useState<Set<string>>(new Set());
   const sidebarAnimation = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
 
   // Get user's initials
@@ -125,12 +127,20 @@ export default function CommunityScreen() {
     }, [token, fetchUnreadCount])
   );
 
-  // When groups are loaded, auto-select first group for now (or 'All' if backend supports global feed)
+  // When groups are loaded, auto-select first plan group (combined feed) or first subgroup
   useEffect(() => {
-    if (groups.length > 0 && !activeGroup) {
-      setActiveGroup(groups[0]);
+    if (!activeGroup) {
+      if (planGroups.length > 0) {
+        // Auto-select the first plan group (shows combined feed)
+        const firstPlan = planGroups[0];
+        setActiveGroup(firstPlan as any as Group);
+        // Auto-expand first plan group in sidebar
+        setExpandedPlanGroups(new Set([firstPlan._id]));
+      } else if (groups.length > 0) {
+        setActiveGroup(groups[0]);
+      }
     }
-  }, [groups, activeGroup]);
+  }, [planGroups, groups, activeGroup]);
 
   // When active group changes, fetch its posts
   useEffect(() => {
@@ -381,7 +391,114 @@ export default function CommunityScreen() {
           </TouchableOpacity>
 
           <View style={styles.sidebarSection}>
-            <Text style={styles.sidebarSectionTitle}>Sections</Text>
+            <Text style={styles.sidebarSectionTitle}>Communities</Text>
+
+            {/* Render hierarchical plan -> subgroup tree */}
+            {planGroups.length > 0 ? (
+              planGroups.map((pg: PlanGroup) => {
+                const isExpanded = expandedPlanGroups.has(pg._id);
+                const isPlanActive = activeGroup?._id === pg._id;
+                return (
+                  <View key={pg._id}>
+                    {/* Plan parent header */}
+                    <TouchableOpacity
+                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20 }}
+                      onPress={() => {
+                        // Toggle expand/collapse
+                        setExpandedPlanGroups(prev => {
+                          const next = new Set(prev);
+                          if (next.has(pg._id)) {
+                            next.delete(pg._id);
+                          } else {
+                            next.add(pg._id);
+                          }
+                          return next;
+                        });
+                      }}
+                    >
+                      <Ionicons
+                        name={isExpanded ? 'chevron-down' : 'chevron-forward'}
+                        size={16}
+                        color="#8C7B73"
+                        style={{ marginRight: 8 }}
+                      />
+                      <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(241, 132, 45, 0.15)', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+                        <Ionicons name="shield-outline" size={14} color="#F1842D" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 15, fontWeight: '700', color: isPlanActive ? '#F1842D' : '#2C2420' }} numberOfLines={1}>
+                          {pg.name}
+                        </Text>
+                        <Text style={{ fontSize: 11, color: '#8C7B73', fontWeight: '500', marginTop: 1 }}>
+                          {pg.memberCount} members · {pg.subgroups.length} sub-groups
+                        </Text>
+                      </View>
+                      {/* Tap plan name to view combined feed */}
+                      <TouchableOpacity
+                        onPress={() => {
+                          setActiveGroup(pg as any as Group);
+                          setCurrentView('feed');
+                          setShowSidebar(false);
+                        }}
+                        style={{ padding: 6 }}
+                      >
+                        <Ionicons name="grid-outline" size={18} color={isPlanActive ? '#F1842D' : '#8C7B73'} />
+                      </TouchableOpacity>
+                    </TouchableOpacity>
+
+                    {/* Subgroups (visible when expanded) */}
+                    {isExpanded && pg.subgroups.length > 0 && (
+                      <View style={{ marginLeft: 52, paddingBottom: 4 }}>
+                        {pg.subgroups.map((sub: Group) => {
+                          const isSubActive = activeGroup?._id === sub._id;
+                          return (
+                            <TouchableOpacity
+                              key={sub._id}
+                              style={{ paddingVertical: 10, flexDirection: 'row', alignItems: 'center' }}
+                              onPress={() => {
+                                setActiveGroup(sub);
+                                setCurrentView('feed');
+                                setShowSidebar(false);
+                              }}
+                            >
+                              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isSubActive ? '#F1842D' : 'rgba(92, 74, 66, 0.15)', marginRight: 10 }} />
+                              <Text style={{ fontSize: 14, color: isSubActive ? '#F1842D' : '#5C4A42', fontWeight: isSubActive ? '600' : '500', flex: 1 }} numberOfLines={1}>
+                                {sub.category ? sub.category.charAt(0).toUpperCase() + sub.category.slice(1) : sub.name}
+                              </Text>
+                              <Text style={{ fontSize: 11, color: '#8C7B73', marginLeft: 8 }}>
+                                {sub.memberCount}
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+                  </View>
+                );
+              })
+            ) : (
+              // Fallback: flat group list for backward compat
+              groups.length > 0 && (
+                <View style={{ marginLeft: 20, marginTop: 8 }}>
+                  {groups.map(g => (
+                    <TouchableOpacity
+                      key={g._id}
+                      style={{ paddingVertical: 10, flexDirection: 'row', alignItems: 'center' }}
+                      onPress={() => {
+                        setActiveGroup(g);
+                        setCurrentView('feed');
+                        setShowSidebar(false);
+                      }}
+                    >
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: activeGroup?._id === g._id ? '#F1842D' : 'rgba(92, 74, 66, 0.12)', marginRight: 12 }} />
+                      <Text style={{ fontSize: 14, color: activeGroup?._id === g._id ? '#2C2420' : '#5C4A42', fontWeight: activeGroup?._id === g._id ? '600' : '500' }} numberOfLines={1}>
+                        {g.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )
+            )}
 
             <TouchableOpacity
               style={[
@@ -401,31 +518,9 @@ export default function CommunityScreen() {
                   currentView === 'groups' && styles.sidebarItemTextActive,
                 ]}
               >
-                Groups
+                All Groups
               </Text>
             </TouchableOpacity>
-
-            {/* Render Actual Groups List in Sidebar if expanded or separate section */}
-            {groups.length > 0 && (
-              <View style={{ marginLeft: 20, marginTop: 8 }}>
-                {groups.map(g => (
-                  <TouchableOpacity
-                    key={g._id}
-                    style={{ paddingVertical: 10, flexDirection: 'row', alignItems: 'center' }}
-                    onPress={() => {
-                      setActiveGroup(g);
-                      setCurrentView('feed');
-                      setShowSidebar(false);
-                    }}
-                  >
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: activeGroup?._id === g._id ? '#F1842D' : 'rgba(92, 74, 66, 0.12)', marginRight: 12 }} />
-                    <Text style={{ fontSize: 14, color: activeGroup?._id === g._id ? '#2C2420' : '#5C4A42', fontWeight: activeGroup?._id === g._id ? '600' : '500' }} numberOfLines={1}>
-                      {g.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
 
             <TouchableOpacity
               style={[
@@ -634,8 +729,8 @@ export default function CommunityScreen() {
           <ScrollView showsVerticalScrollIndicator={false}>
             {currentView === 'groups' && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Groups</Text>
-                {groups.length === 0 ? (
+                <Text style={styles.sectionTitle}>My Communities</Text>
+                {planGroups.length === 0 && groups.length === 0 ? (
                   <View style={styles.emptyState}>
                     <Ionicons name="lock-closed-outline" size={64} color="#9CA3AF" />
                     <Text style={styles.emptyStateText}>
@@ -647,7 +742,65 @@ export default function CommunityScreen() {
                         : 'Join courses to be added to their community groups.'}
                     </Text>
                   </View>
+                ) : planGroups.length > 0 ? (
+                  planGroups.map((pg: PlanGroup) => (
+                    <View key={pg._id} style={{ marginBottom: 20 }}>
+                      {/* Plan parent card */}
+                      <TouchableOpacity
+                        style={[styles.groupCard, { borderLeftWidth: 4, borderLeftColor: '#F1842D' }]}
+                        onPress={() => {
+                          setActiveGroup(pg as any as Group);
+                          setCurrentView('feed');
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20 }}>
+                          <View style={{ width: 50, height: 50, borderRadius: 14, backgroundColor: 'rgba(241, 132, 45, 0.12)', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+                            <Ionicons name="shield" size={24} color="#F1842D" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 17, fontWeight: '700', color: '#2C2420' }}>{pg.name}</Text>
+                            <Text style={{ fontSize: 13, color: '#5C4A42', fontWeight: '500', marginTop: 2 }}>
+                              {pg.memberCount} members · Combined feed
+                            </Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={20} color="#8C7B73" />
+                        </View>
+                      </TouchableOpacity>
+
+                      {/* Subgroup cards */}
+                      {pg.subgroups.length > 0 && (
+                        <View style={{ marginLeft: 24, borderLeftWidth: 2, borderLeftColor: 'rgba(241, 132, 45, 0.2)', paddingLeft: 16, marginTop: 4 }}>
+                          {pg.subgroups.map((sub: Group) => (
+                            <TouchableOpacity
+                              key={sub._id}
+                              style={[styles.groupCard, { marginBottom: 10 }]}
+                              onPress={() => {
+                                setActiveGroup(sub);
+                                setCurrentView('feed');
+                              }}
+                            >
+                              <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
+                                <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(92, 74, 66, 0.06)', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
+                                  <Ionicons name="pricetag-outline" size={18} color="#5C4A42" />
+                                </View>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={{ fontSize: 15, fontWeight: '600', color: '#2C2420' }}>
+                                    {sub.category ? sub.category.charAt(0).toUpperCase() + sub.category.slice(1) : sub.name}
+                                  </Text>
+                                  <Text style={{ fontSize: 12, color: '#8C7B73', fontWeight: '500', marginTop: 1 }}>
+                                    {sub.memberCount} members
+                                  </Text>
+                                </View>
+                                <Ionicons name="chevron-forward" size={18} color="#8C7B73" />
+                              </View>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  ))
                 ) : (
+                  // Fallback: flat group list
                   groups.map(g => (
                     <TouchableOpacity
                       key={g._id}

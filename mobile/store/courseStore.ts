@@ -41,6 +41,7 @@ export interface Pdf {
     thumbnailUrl?: string;
     order: number;
     isFree: boolean;
+    fileSize?: string;
 }
 
 export interface LiveSession {
@@ -68,6 +69,7 @@ export interface Course {
     tags: string[];
     status: 'draft' | 'published' | 'archived';
     includedInPlans: string[];
+    strictVideoOrder?: boolean;
 
     // Content Statistics
     totalVideos: number;
@@ -226,4 +228,3 @@ export const useCourseStore = create<CourseState>((set) => ({
 
     clearCurrentCourse: () => set({ currentCourse: null, enrollmentProgress: null })
 }));
-

@@ -11,7 +11,7 @@ export const addPdfToCourse = async(req ,res) =>{
                 message:"course Id is required"
             });
         }
-        const { title, description, pdfUrl, thumbnailUrl, order, isFree } = req.body;
+        const { title, description, pdfUrl, thumbnailUrl, order, isFree, fileSize } = req.body;
         if (!title || !pdfUrl) {
             return res.status(400).json({
                 success: false,
@@ -33,7 +33,8 @@ export const addPdfToCourse = async(req ,res) =>{
             pdfUrl,
             thumbnailUrl: thumbnailUrl || '',
             order: nextOrder,
-            isFree: isFree ?? false
+            isFree: isFree ?? false,
+            fileSize: fileSize || ''
         });
         await course.save();
         return res.status(201).json({
@@ -160,6 +161,7 @@ export const updatePdf = async(req , res) =>{
         if(updateData.thumbnailUrl !== undefined) pdf.thumbnailUrl = updateData.thumbnailUrl;
         if(updateData.order !== undefined) pdf.order = updateData.order;
         if(updateData.isFree !== undefined) pdf.isFree = updateData.isFree;
+        if(updateData.fileSize !== undefined) pdf.fileSize = updateData.fileSize;
         await course.save();
         return res.status(200).json({
             success: true,
@@ -213,4 +215,4 @@ export const deletePdf = async(req , res) =>{
             error: error.message
         });
     }
-}           
+}

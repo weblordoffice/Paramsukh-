@@ -46,8 +46,6 @@ interface MembershipPlan {
     };
   };
   access?: {
-    includedCategories?: string[];
-    includedSubcategories?: string[];
     inheritedPlanIds?: string[];
     accessMode?: AccessMode;
     communityAccess?: boolean;
@@ -71,8 +69,6 @@ interface PlanFormState {
   validityDays: number;
   amount: number;
   currency: string;
-  includedCategoriesText: string;
-  includedSubcategoriesText: string;
   accessMode: AccessMode;
   inheritedPlanIds: string[];
   communityAccess: boolean;
@@ -104,8 +100,6 @@ const DEFAULT_FORM: PlanFormState = {
   validityDays: 365,
   amount: 0,
   currency: "INR",
-  includedCategoriesText: "",
-  includedSubcategoriesText: "",
   accessMode: "entitlement_only",
   inheritedPlanIds: [],
   communityAccess: false,
@@ -125,17 +119,6 @@ const toSlug = (value: string) => {
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
-};
-
-const parseListInput = (value: string) => {
-  return Array.from(
-    new Set(
-      String(value || "")
-        .split(",")
-        .map((item) => item.trim().toLowerCase())
-        .filter(Boolean)
-    )
-  );
 };
 
 const createDefaultVariant = (displayOrder = 0): PlanVariant => ({
@@ -251,8 +234,6 @@ export default function MembershipPlansPage() {
       validityDays: selectedPlan.validityDays ?? 365,
       amount: selectedPlan.pricing?.oneTime?.amount ?? 0,
       currency: selectedPlan.pricing?.oneTime?.currency || "INR",
-      includedCategoriesText: (selectedPlan.access?.includedCategories || []).join(", "),
-      includedSubcategoriesText: (selectedPlan.access?.includedSubcategories || []).join(", "),
       accessMode: selectedPlan.access?.accessMode || "entitlement_only",
       inheritedPlanIds: (selectedPlan.access?.inheritedPlanIds || []).map((id) => String(id)),
       communityAccess: !!selectedPlan.access?.communityAccess,
@@ -412,8 +393,6 @@ export default function MembershipPlansPage() {
   const buildPayload = () => {
     const slug = toSlug(form.slug || form.title);
     const inheritedPlanIds = (form.inheritedPlanIds || []).filter(Boolean);
-    const includedCategories = parseListInput(form.includedCategoriesText);
-    const includedSubcategories = parseListInput(form.includedSubcategoriesText);
     const variantsPayload = (form.planVariants || []).map((variant, index) => ({
       title: variant.title.trim(),
       slug: toSlug(variant.slug || variant.title),
@@ -452,8 +431,6 @@ export default function MembershipPlansPage() {
         },
       },
       access: {
-        includedCategories,
-        includedSubcategories,
         inheritedPlanIds,
         includedCourseIds: [],
         limits: {
@@ -956,29 +933,6 @@ export default function MembershipPlansPage() {
                   <option value="auto_enroll">Auto enroll</option>
                   <option value="hybrid">Hybrid</option>
                 </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Included Categories</label>
-                <input
-                  value={form.includedCategoriesText}
-                  onChange={(event) => updateField("includedCategoriesText", event.target.value)}
-                  placeholder="yoga, mindfulness, nutrition"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-                <p className="text-xs text-gray-500 mt-1">Comma-separated list</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Included Subcategories</label>
-                <input
-                  value={form.includedSubcategoriesText}
-                  onChange={(event) => updateField("includedSubcategoriesText", event.target.value)}
-                  placeholder="beginner-yoga, stress-relief"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-                <p className="text-xs text-gray-500 mt-1">Comma-separated list</p>
               </div>
             </div>
 

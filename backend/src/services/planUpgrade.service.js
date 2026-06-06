@@ -2,7 +2,9 @@ import mongoose from 'mongoose';
 import { User } from '../models/user.models.js';
 import { Group, GroupMember } from '../models/community.models.js';
 import { Enrollment } from '../models/enrollment.models.js';
-import { normalizePlanSlug } from './membershipPlan.service.js';
+import { Course } from '../models/course.models.js';
+import { CoursePlan } from '../models/coursePlan.models.js';
+import { normalizePlanSlug, resolveMembershipPlanInheritanceBySlug } from './membershipPlan.service.js';
 
 const CATEGORY_LABELS = {
   physical: 'Physical',
@@ -69,7 +71,66 @@ const resolveUserEnrolledCategories = async (userId) => {
   return Array.from(categories);
 };
 
-const ensurePlanCategoryGroups = async ({ planSlug, categories = [] }) => {
+const resolvePlanCommunityCategories = async (planSlug) => {
+  const normalizedPlan = normalizePlanSlug(planSlug);
+  if (!normalizedPlan || normalizedPlan === 'free') {
+    return [];
+  }
+
+  try {
+    const inheritance = await resolveMembershipPlanInheritanceBySlug(normalizedPlan);
+    const categories = new Set();
+
+    const planIds = inheritance.planIds.length > 0 ? inheritance.planIds : [];
+    const planSlugs = inheritance.planSlugs.length > 0 ? inheritance.planSlugs : [normalizedPlan];
+
+    // Prefer the normalized junction table, but also fall back to the legacy
+    // course.includedInPlans field so older plans still sync correctly.
+    const legacyCourses = await Course.find({
+      status: 'published',
+      includedInPlans: { $in: planSlugs },
+    })
+      .select('category')
+      .lean();
+
+    legacyCourses.forEach((course) => {
+      const normalizedCategory = normalizeCategory(course?.category);
+      if (normalizedCategory) {
+        categories.add(normalizedCategory);
+      }
+    });
+
+    if (planIds.length === 0) {
+      return Array.from(categories);
+    }
+
+    const coursePlanLinks = await CoursePlan.find({ planId: { $in: planIds } })
+      .select('courseId')
+      .lean();
+
+    const courseIds = coursePlanLinks.map((link) => String(link.courseId)).filter(Boolean);
+    if (courseIds.length === 0) {
+      return [];
+    }
+
+    const courses = await Course.find({ _id: { $in: courseIds }, status: 'published' })
+      .select('category')
+      .lean();
+
+    courses.forEach((course) => {
+      const normalizedCategory = normalizeCategory(course?.category);
+      if (normalizedCategory) {
+        categories.add(normalizedCategory);
+      }
+    });
+
+    return Array.from(categories);
+  } catch (error) {
+    return [];
+  }
+};
+
+const ensurePlanCategoryGroups = async ({ planSlug, categories = [], parentGroupId = null }) => {
   const normalizedPlan = normalizePlanSlug(planSlug);
   if (!normalizedPlan || normalizedPlan === 'free' || !categories.length) {
     return [];
@@ -90,11 +151,13 @@ const ensurePlanCategoryGroups = async ({ planSlug, categories = [] }) => {
               name: `${planLabel} - ${formatCategoryLabel(category)} Community`,
               description: `${planLabel} members enrolled in ${formatCategoryLabel(category)} courses`,
               memberCount: 0,
+              parentGroupId: parentGroupId || null,
             },
             $set: {
               isActive: true,
               name: `${planLabel} - ${formatCategoryLabel(category)} Community`,
               description: `${planLabel} members enrolled in ${formatCategoryLabel(category)} courses`,
+              parentGroupId: parentGroupId || null,
             },
           },
           upsert: true,
@@ -109,8 +172,52 @@ const ensurePlanCategoryGroups = async ({ planSlug, categories = [] }) => {
   }
 
   return Group.find({ groupType: 'category', planSlug: normalizedPlan, category: { $in: categories } })
-    .select('_id planSlug category name memberCount')
+    .select('_id planSlug category name memberCount parentGroupId')
     .lean();
+};
+
+/**
+ * Ensure a plan-level parent group exists for the given plan slug.
+ * Returns the group document (created or existing).
+ */
+const ensurePlanParentGroup = async (planSlug) => {
+  const normalizedPlan = normalizePlanSlug(planSlug);
+  if (!normalizedPlan || normalizedPlan === 'free') {
+    return null;
+  }
+
+  const planLabel = formatPlanLabel(normalizedPlan);
+  const filter = { groupType: 'plan', planSlug: normalizedPlan };
+
+  try {
+    const group = await Group.findOneAndUpdate(
+      filter,
+      {
+        $setOnInsert: {
+          groupType: 'plan',
+          planSlug: normalizedPlan,
+          category: null,
+          parentGroupId: null,
+          name: `${planLabel} Community`,
+          description: `Community for ${planLabel} plan members`,
+          memberCount: 0,
+        },
+        $set: {
+          isActive: true,
+          name: `${planLabel} Community`,
+          description: `Community for ${planLabel} plan members`,
+        },
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    return group;
+  } catch (error) {
+    if (isDuplicateKeyError(error)) {
+      // Race condition: another request created it first — just fetch it
+      return Group.findOne(filter).lean();
+    }
+    throw error;
+  }
 };
 
 const refreshGroupMemberCounts = async (groupIds = []) => {
@@ -143,10 +250,54 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
   const normalizedPlan = normalizePlanSlug(planSlug || 'free');
   const shouldSyncActivePlan = membershipActive && normalizedPlan && normalizedPlan !== 'free';
 
-  // New architecture: groups are plan-specific and only for categories user is enrolled in.
-  const categories = shouldSyncActivePlan ? await resolveUserEnrolledCategories(normalizedUserId) : [];
-  const groups = await ensurePlanCategoryGroups({ planSlug: normalizedPlan, categories });
-  const targetGroupIds = groups.map((group) => String(group._id));
+  // Resolve plan inheritance: e.g., Gold inherits Silver
+  let allPlanSlugs = [normalizedPlan];
+  if (shouldSyncActivePlan) {
+    try {
+      const inheritance = await resolveMembershipPlanInheritanceBySlug(normalizedPlan);
+      if (inheritance.planSlugs.length > 0) {
+        allPlanSlugs = inheritance.planSlugs;
+      }
+    } catch (err) {
+      console.error(`⚠️ Failed to resolve plan inheritance for ${normalizedPlan}:`, err.message);
+    }
+  }
+
+  // Get user's enrolled categories and any categories directly configured on the plan.
+  const enrolledCategories = shouldSyncActivePlan ? await resolveUserEnrolledCategories(normalizedUserId) : [];
+  const planCategories = shouldSyncActivePlan ? await resolvePlanCommunityCategories(normalizedPlan) : [];
+  const categories = Array.from(new Set([...enrolledCategories, ...planCategories]));
+
+  // For each plan slug (including inherited), ensure parent group + category subgroups
+  const allParentGroups = [];
+  const allCategoryGroups = [];
+
+  if (shouldSyncActivePlan) {
+    for (const slug of allPlanSlugs) {
+      const normalized = normalizePlanSlug(slug);
+      if (!normalized || normalized === 'free') continue;
+
+      // 1. Ensure plan-level parent group
+      const parentGroup = await ensurePlanParentGroup(normalized);
+      if (parentGroup) {
+        allParentGroups.push(parentGroup);
+
+        // 2. Ensure category subgroups under this parent
+        const subgroups = await ensurePlanCategoryGroups({
+          planSlug: normalized,
+          categories,
+          parentGroupId: parentGroup._id,
+        });
+        allCategoryGroups.push(...subgroups);
+      }
+    }
+  }
+
+  // Build the full list of target group IDs (parents + subgroups)
+  const targetGroupIds = [
+    ...allParentGroups.map((g) => String(g._id)),
+    ...allCategoryGroups.map((g) => String(g._id)),
+  ];
   const targetGroupIdSet = new Set(targetGroupIds);
 
   const existingMembershipsInTarget = targetGroupIds.length
@@ -155,7 +306,8 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
         .lean()
     : [];
 
-  const activeCategoryMemberships = await GroupMember.aggregate([
+  // Find all current active plan+category memberships to detect ones that need deactivation
+  const activePlanCategoryMemberships = await GroupMember.aggregate([
     { $match: { userId: normalizedUserId, isActive: true } },
     {
       $lookup: {
@@ -168,8 +320,10 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
     { $unwind: '$group' },
     {
       $match: {
-        'group.groupType': 'category',
-        'group.planSlug': { $type: 'string' },
+        $or: [
+          { 'group.groupType': 'category', 'group.planSlug': { $type: 'string' } },
+          { 'group.groupType': 'plan', 'group.planSlug': { $type: 'string' } },
+        ],
       },
     },
     { $project: { _id: 1, groupId: 1 } },
@@ -197,7 +351,7 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
     }
   });
 
-  const deactivateMembershipIds = activeCategoryMemberships
+  const deactivateMembershipIds = activePlanCategoryMemberships
     .filter((membership) => !targetGroupIdSet.has(String(membership.groupId)))
     .map((membership) => membership._id);
 
@@ -227,7 +381,7 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
 
   const touchedGroupIds = [
     ...targetGroupIds,
-    ...activeCategoryMemberships
+    ...activePlanCategoryMemberships
       .filter((membership) => !targetGroupIdSet.has(String(membership.groupId)))
       .map((membership) => String(membership.groupId)),
   ];
@@ -237,8 +391,11 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
   return {
     success: true,
     planSlug: normalizedPlan,
+    allPlanSlugs,
     categories,
-    groupsEnsured: groups.length,
+    parentGroupsEnsured: allParentGroups.length,
+    categoryGroupsEnsured: allCategoryGroups.length,
+    groupsEnsured: allParentGroups.length + allCategoryGroups.length,
     createdMemberships: createMembershipDocs.length,
     reactivatedMemberships: reactivateMembershipIds.length,
     deactivatedMemberships: deactivateMembershipIds.length,

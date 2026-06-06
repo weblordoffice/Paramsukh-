@@ -1,6 +1,6 @@
 import { User } from '../models/user.models.js';
 import { UserMembership } from '../models/userMembership.models.js';
-import { resolveMembershipPlanInheritanceFromPlan, normalizePlanSlug } from './membershipPlan.service.js';
+import { resolveMembershipPlanInheritanceFromPlan, resolveMembershipPlanInheritanceBySlug, normalizePlanSlug } from './membershipPlan.service.js';
 
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
@@ -45,6 +45,38 @@ export const getUserEntitlementContext = async (userId) => {
       communityAccess,
       isPaid: normalize(plan.slug) !== 'free',
     };
+  }
+
+  // Fallback: some legacy users may have `subscriptionPlan` on the User
+  // document but no `UserMembership` entry. Use that as a best-effort
+  // entitlement source so active plan holders are recognized.
+  if (!activeMembership && user?.subscriptionPlan && user?.subscriptionStatus === 'active') {
+    const userPlanSlug = normalizePlanSlug(user.subscriptionPlan || '');
+    if (userPlanSlug && userPlanSlug !== 'free') {
+      try {
+        const inheritance = await resolveMembershipPlanInheritanceBySlug(userPlanSlug);
+        const resolvedPlans = inheritance.plans.length > 0 ? inheritance.plans : [];
+        const planSlugs = inheritance.planSlugs.length > 0 ? inheritance.planSlugs : [userPlanSlug];
+        let communityAccess = false;
+
+        resolvedPlans.forEach((resolved) => {
+          if (resolved.access?.communityAccess) communityAccess = true;
+        });
+
+        return {
+          source: 'fallback_user_field',
+          user,
+          planId: null,
+          planSlug: userPlanSlug,
+          planSlugs,
+          accessMode: 'entitlement_only',
+          communityAccess,
+          isPaid: true,
+        };
+      } catch (err) {
+        // ignore and continue to default fallback below
+      }
+    }
   }
 
   return {
@@ -136,8 +168,17 @@ export const evaluateCommunityAccess = async (userId) => {
 
   if (entitlement.source === 'dynamic') {
     return {
-      hasAccess: !!entitlement.communityAccess,
-      reason: entitlement.communityAccess ? 'allowed' : 'plan_restriction',
+      hasAccess: true,
+      reason: 'allowed',
+      plan: entitlement.planSlug,
+      status: entitlement.user.subscriptionStatus,
+    };
+  }
+
+  if (entitlement.source === 'fallback_user_field') {
+    return {
+      hasAccess: true,
+      reason: 'allowed',
       plan: entitlement.planSlug,
       status: entitlement.user.subscriptionStatus,
     };

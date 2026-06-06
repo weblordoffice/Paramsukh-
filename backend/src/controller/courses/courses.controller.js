@@ -97,7 +97,7 @@ const syncCoursePlans = async (courseId, newPlanIds) => {
 
 export const createCourse = async (req, res) => {
     try {
-        const { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status, includedInPlans } = req.body;
+        const { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status, includedInPlans, strictVideoOrder } = req.body;
 
         // validate the request body
         if (!title || !description || !color || !icon || !thumbnailUrl || !bannerUrl || !duration || !category || !tags || !status) {
@@ -150,7 +150,8 @@ export const createCourse = async (req, res) => {
             tags,
             status,
             slug,
-            includedInPlans: planSlugs
+            includedInPlans: planSlugs,
+            strictVideoOrder: strictVideoOrder === true || strictVideoOrder === 'true'
         });
 
         // Sync junction table
@@ -219,7 +220,7 @@ export const updateCourse = async (req, res) => {
                 message: "Course ID is required"
             })
         }
-        const { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status, includedInPlans } = req.body;
+        const { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status, includedInPlans, strictVideoOrder } = req.body;
         if (!title || !description || !color || !icon || !thumbnailUrl || !bannerUrl || !duration || !category || !tags || !status) {
             return res.status(400).json({
                 success: false,
@@ -275,6 +276,7 @@ export const updateCourse = async (req, res) => {
             tags,
             slug,
             status,
+            strictVideoOrder: strictVideoOrder === true || strictVideoOrder === 'true',
             ...(planSlugs !== null ? { includedInPlans: planSlugs } : {})
         };
 

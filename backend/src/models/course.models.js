@@ -119,6 +119,10 @@ const pdfSchema = new mongoose.Schema({
   isFree: {
     type: Boolean,
     default: false
+  },
+  fileSize: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true
@@ -212,6 +216,10 @@ const courseSchema = new mongoose.Schema({
   duration: {
     type: String, // e.g., "6 weeks", "8 weeks"
     required: true
+  },
+  strictVideoOrder: {
+    type: Boolean,
+    default: false
   },
   videos: [videoSchema],
   totalVideos: {

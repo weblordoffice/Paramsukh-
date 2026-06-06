@@ -101,9 +101,9 @@ function isCourseAccessible(
   // Check if user's plan is in the required list
   const normalizedUserPlans = userPlans.map((plan) => canonicalizePlanTag(plan, planAliases));
   const normalizedCoursePlans = includedInPlans.map((plan) => canonicalizePlanTag(plan, planAliases));
-  
+
   const accessible = normalizedCoursePlans.some((plan) => normalizedUserPlans.includes(plan));
-  
+
   return accessible;
 }
 
@@ -219,7 +219,7 @@ export default function CoursesScreen() {
   return (
     <View style={styles.container}>
       <Header />
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: bottomTabHeight }}
         refreshControl={
@@ -277,7 +277,7 @@ export default function CoursesScreen() {
                         <Ionicons name="book" size={48} color="#FFFFFF" />
                       </View>
                     )}
-                    
+
                     {/* Category Badge */}
                     {categoryConfig && (
                       <View style={[styles.categoryBadge, { backgroundColor: categoryConfig.bg }]}>

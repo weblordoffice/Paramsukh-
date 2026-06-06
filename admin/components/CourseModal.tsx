@@ -26,6 +26,7 @@ interface Course {
     tags: string[];
     status: string;
     includedInPlans?: string[];
+    strictVideoOrder?: boolean;
 }
 
 
@@ -48,7 +49,8 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
         category: '', // Added category
         tags: [],
         status: 'draft',
-        includedInPlans: []
+        includedInPlans: [],
+        strictVideoOrder: false
     });
     const [tagsInput, setTagsInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -79,7 +81,8 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
             setFormData({
                 ...course,
                 category: (course as any).category || '',
-                includedInPlans: (course as any).includedInPlans || []
+                includedInPlans: (course as any).includedInPlans || [],
+                strictVideoOrder: (course as any).strictVideoOrder || false
             });
             setTagsInput(course.tags ? course.tags.join(', ') : '');
         } else {
@@ -94,7 +97,8 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                 category: '',
                 tags: [],
                 status: 'draft',
-                includedInPlans: []
+                includedInPlans: [],
+                strictVideoOrder: false
             });
             setTagsInput('');
         }
@@ -353,6 +357,21 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                 <option value="archived">Archived</option>
                             </select>
                         </div>
+                    </div>
+
+                    {/* Strict Video Order */}
+                    <div className="flex items-center space-x-2 py-1">
+                        <input
+                            type="checkbox"
+                            id="strictVideoOrder"
+                            name="strictVideoOrder"
+                            checked={formData.strictVideoOrder || false}
+                            onChange={(e) => setFormData((prev: any) => ({ ...prev, strictVideoOrder: e.target.checked }))}
+                            className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                        />
+                        <label htmlFor="strictVideoOrder" className="text-sm font-medium text-secondary cursor-pointer select-none">
+                            Enforce Strict Video Order (users must watch videos in order)
+                        </label>
                     </div>
 
                     {/* Membership Access */}

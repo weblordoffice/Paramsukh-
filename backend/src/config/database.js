@@ -1,6 +1,8 @@
-import mongoose from 'mongoose';
+import mongoose from 'mongoose';  
 import dotenv from 'dotenv';
-dotenv.config();
+import dns from 'node:dns'; 
+dotenv.config();  
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
