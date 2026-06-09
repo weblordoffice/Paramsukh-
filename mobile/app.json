@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "param",
-    "slug": "param",
-    "version": "1.0.3",
+    "name": "Paramsukh Online Gurukul",
+    "slug": "paramsukh-online-gurukul",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "param",
+    "scheme": "paramsukh",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "package": "com.paramsukh.gurukool",
-      "versionCode": 4,
+      "package": "com.paramsukh.onlinegurukul",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -58,9 +58,10 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "b6377463-45af-4c15-b761-627f43d190c8"
+        "projectId": "97449424-f4d1-490f-a8d8-30ceb8a9f75e"
       },
       "apiUrl": "https://api.getbill.in"
-    }
+    },
+    "owner": "neerajkk01"
   }
 }

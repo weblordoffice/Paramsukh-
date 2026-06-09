@@ -24,7 +24,7 @@ Log out and log in again after adding docker group.
 sudo mkdir -p /var/www
 sudo chown -R $USER:$USER /var/www
 cd /var/www
-git clone https://github.com/neerajk001/paramsukh.git saas-native
+git clone https://github.com/weblordoffice/Paramsukh-.git saas-native
 cd /var/www/saas-native
 ```
 
@@ -87,7 +87,6 @@ Your repository secrets should include:
 - VPS_PROJECT_PATH
 - GHCR_USERNAME
 - GHCR_TOKEN
-- EXPO_TOKEN
 
 Set VPS_PROJECT_PATH to:
 
@@ -100,11 +99,11 @@ Set VPS_PROJECT_PATH to:
 Set mobile API URL in app config:
 - mobile/app.json -> expo.extra.apiUrl = https://api.your-domain.com
 
-Then build via workflow tag:
+Then build manually via EAS CLI:
 
 ```bash
-git tag mobile-v1.0.0
-git push origin mobile-v1.0.0
+cd mobile
+eas build --platform android --profile production
 ```
 
 ## 9) Rotate exposed credentials
