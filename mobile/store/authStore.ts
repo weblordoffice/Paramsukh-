@@ -34,7 +34,7 @@ interface AuthState {
   biometricEnabled: boolean;
 
   googleSignIn: (idToken: string) => Promise<{ success: boolean; message?: string }>;
-  sendOTP: (phone: string) => Promise<{ success: boolean; message?: string; isNewUser?: boolean }>;
+  sendOTP: (phone: string, purpose?: 'signin' | 'signup') => Promise<{ success: boolean; message?: string; isNewUser?: boolean }>;
   verifyOTP: (phone: string, code: string, name?: string, email?: string) => Promise<{ success: boolean; message?: string; isNewUser?: boolean }>;
   logout: () => Promise<void>;
   logoutWithBiometric: () => Promise<{ success: boolean; message?: string }>;
@@ -83,12 +83,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  sendOTP: async (phone: string) => {
+  sendOTP: async (phone: string, purpose?: 'signin' | 'signup') => {
     set({ isLoading: true, error: null });
     try {
       const response = await axios.post(
         `${API_URL}/auth/send-otp`,
-        { phone },
+        { phone, purpose },
         { timeout: 15000 }
       );
 
@@ -101,14 +101,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       };
     } catch (error: any) {
       let msg = 'Failed to send OTP. Please try again.';
+      let isNewUser: boolean | undefined;
 
       if (error.response) {
+        const data = error.response.data;
+        isNewUser = data?.isNewUser;
+
         if (error.response.status === 429) {
-          msg = error.response.data?.message || 'Too many OTP requests. Please wait 10 minutes and try again.';
+          msg = data?.message || 'Too many OTP requests. Please wait 10 minutes and try again.';
+        } else if (error.response.status === 404) {
+          msg = data?.message || 'Account not found. Please sign up first.';
+        } else if (error.response.status === 409) {
+          msg = data?.message || 'Account already exists. Please sign in instead.';
         } else if (error.response.status === 400) {
-          msg = error.response.data?.message || 'Invalid phone number. Use 10 digits (e.g. 9876543210).';
+          msg = data?.message || 'Invalid phone number. Use 10 digits (e.g. 9876543210).';
         } else {
-          msg = error.response.data?.message || `Server error (${error.response.status}). Please try again.`;
+          msg = data?.message || `Server error (${error.response.status}). Please try again.`;
         }
       } else if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
         msg = `Request timed out. Trying: ${API_URL}`;
@@ -117,7 +125,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       set({ isLoading: false, error: msg });
-      return { success: false, message: msg };
+      return { success: false, message: msg, isNewUser };
     } finally {
       set({ isLoading: false });
     }

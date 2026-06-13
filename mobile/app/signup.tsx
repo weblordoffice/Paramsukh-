@@ -34,10 +34,14 @@ export default function SignUpScreen() {
 
     const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
 
-    const result = await sendOTP(formattedPhone);
+    const result = await sendOTP(formattedPhone, 'signup');
 
     if (result.success) {
-      // Check if user already exists
+      setOtpSent(true);
+      startResendTimer();
+      Alert.alert('Success', result.message || 'OTP sent to your phone number');
+    } else {
+      // Check if user already exists - redirect to signin
       if (result.isNewUser === false) {
         Alert.alert(
           'Account Exists',
@@ -49,14 +53,9 @@ export default function SignUpScreen() {
             }
           ]
         );
-        return;
+      } else {
+        Alert.alert('Error', result.message || 'Failed to send OTP');
       }
-
-      setOtpSent(true);
-      startResendTimer();
-      Alert.alert('Success', result.message || 'OTP sent to your phone number');
-    } else {
-      Alert.alert('Error', result.message || 'Failed to send OTP');
     }
   };
 

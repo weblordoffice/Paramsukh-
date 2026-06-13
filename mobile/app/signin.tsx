@@ -26,10 +26,14 @@ export default function SignInScreen() {
       formattedPhone = `+91${formattedPhone}`;
     }
 
-    const result = await sendOTP(formattedPhone);
+    const result = await sendOTP(formattedPhone, 'signin');
 
     if (result.success) {
-      // Check if user is new - redirect to signup
+      setOtpSent(true);
+      Alert.alert('OTP Sent', 'Check your phone for the verification code.');
+      startResendTimer();
+    } else {
+      // Check if user doesn't exist - redirect to signup
       if (result.isNewUser === true) {
         Alert.alert(
           'Account Not Found',
@@ -45,14 +49,9 @@ export default function SignInScreen() {
             }
           ]
         );
-        return;
+      } else {
+        Alert.alert('Error', result.message || 'Failed to send OTP');
       }
-
-      setOtpSent(true);
-      Alert.alert('OTP Sent', 'Check your phone for the verification code.');
-      startResendTimer();
-    } else {
-      Alert.alert('Error', result.message || 'Failed to send OTP');
     }
   };
 
