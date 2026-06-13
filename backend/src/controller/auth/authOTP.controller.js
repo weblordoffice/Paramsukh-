@@ -11,7 +11,7 @@ import { sendWelcomeEmail } from "../../services/emailService.js";
  */
 export const sendOTPController = async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, purpose } = req.body;
 
     if (!phone || !/^(\+91)?[6-9]\d{9}$/.test(phone.replace(/\s/g, ''))) {
       return res.status(400).json({
@@ -25,6 +25,24 @@ export const sendOTPController = async (req, res) => {
 
     const existingUser = await User.findOne({ phone: formattedPhone });
     const isNewUser = !existingUser;
+
+    // For signin: user must already exist before we send an OTP
+    if (purpose === 'signin' && isNewUser) {
+      return res.status(404).json({
+        success: false,
+        isNewUser: true,
+        message: "Account not found. Please sign up first."
+      });
+    }
+
+    // For signup: user must NOT already exist
+    if (purpose === 'signup' && !isNewUser) {
+      return res.status(409).json({
+        success: false,
+        isNewUser: false,
+        message: "Account already exists. Please sign in instead."
+      });
+    }
 
     const result = await sendOTP(cleanPhone);
 
