@@ -134,7 +134,7 @@ export default function CheckoutScreen() {
           <View style={styles.emptyCart}>
             <Ionicons name="cart-outline" size={64} color="#D1D5DB" />
             <Text style={styles.emptyCartText}>Your cart is empty</Text>
-            <TouchableOpacity style={styles.shopButton} onPress={() => router.replace('/(home)/shop')}>
+            <TouchableOpacity style={styles.shopButton} onPress={() => router.replace('/shops')}>
               <Text style={styles.shopButtonText}>Continue Shopping</Text>
             </TouchableOpacity>
           </View>
