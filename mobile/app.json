@@ -15,7 +15,7 @@
       "package": "com.paramsukh.onlinegurukul",
       "versionCode": 2,
       "adaptiveIcon": {
-        "backgroundColor": "#FFFFFF",
+        "backgroundColor": "#A070B0",
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       }
     },

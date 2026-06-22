@@ -35,7 +35,7 @@ export default function BookCounselingScreen() {
   const [fetchingSlots, setFetchingSlots] = useState(false);
   const [processing, setProcessing] = useState(false);
 
-  const backTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const backTimerRef = useRef<any>(null);
 
   // Redirect to Calendly if service uses it
   React.useEffect(() => {

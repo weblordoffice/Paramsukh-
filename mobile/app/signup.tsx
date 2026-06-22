@@ -20,7 +20,7 @@ export default function SignUpScreen() {
   const [otp, setOtp] = useState('');  
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
-  const resendIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const resendIntervalRef = useRef<any>(null);
 
   useEffect(() => {
     return () => {

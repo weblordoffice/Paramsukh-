@@ -16,7 +16,7 @@ export default function HomeLayout() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
 
-  const timersRef = useRef<NodeJS.Timeout[]>([]);
+  const timersRef = useRef<any[]>([]);
 
   useEffect(() => {
     return () => {
