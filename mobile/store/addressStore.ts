@@ -100,6 +100,8 @@ export const useAddressStore = create<AddressState>((set) => ({
         try {
             const response = await apiClient.delete(`${API_URL}/addresses/${id}`);
             if (response.data?.success) {
+                set((state) => ({
+                    addresses: state.addresses.filter((a) => a._id !== id),
                     isLoading: false,
                 }));
                 return true;
