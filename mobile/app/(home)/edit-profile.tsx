@@ -71,7 +71,7 @@ export default function EditProfileScreen() {
       if (response.data.success) {
         await fetchCurrentUser();
         Alert.alert('Success', 'Profile updated successfully', [
-          { text: 'OK', onPress: () => router.back() }
+          { text: 'OK', onPress: () => { if (router.canGoBack()) router.back(); } }
         ]);
       }
     } catch (error: any) {

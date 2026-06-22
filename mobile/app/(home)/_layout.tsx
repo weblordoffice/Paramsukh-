@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
 import { Platform, View, TouchableOpacity, Modal, ScrollView, Text, StyleSheet } from 'react-native';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +15,15 @@ export default function HomeLayout() {
   const [menuModalVisible, setMenuModalVisible] = useState(false);
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
+  const timersRef = useRef<NodeJS.Timeout[]>([]);
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
+    };
+  }, []);
 
 
 
@@ -186,9 +195,9 @@ export default function HomeLayout() {
                   onPress={() => {
                     setMenuModalVisible(false);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setTimeout(() => {
+                    timersRef.current.push(setTimeout(() => {
                       router.push('/shops');
-                    }, 300);
+                    }, 300));
                   }}
                 >
                   <View style={styles.menuItemContent}>
@@ -203,9 +212,9 @@ export default function HomeLayout() {
                   onPress={() => {
                     setMenuModalVisible(false);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setTimeout(() => {
+                    timersRef.current.push(setTimeout(() => {
                       router.push('/donations');
-                    }, 300);
+                    }, 300));
                   }}
                 >
                   <View style={styles.menuItemContent}>
@@ -220,10 +229,10 @@ export default function HomeLayout() {
                   onPress={() => {
                     setMenuModalVisible(false);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setTimeout(() => {
+                    timersRef.current.push(setTimeout(() => {
                       // @ts-ignore - Route will be available after restart
                       router.push('/(home)/podcasts');
-                    }, 300);
+                    }, 300));
                   }}
                 >
                   <View style={styles.menuItemContent}>

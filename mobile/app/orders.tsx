@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -7,9 +7,14 @@ import { useOrderStore } from '../store/orderStore';
 export default function OrderHistoryScreen() {
     const router = useRouter();
     const { orders, fetchMyOrders, isLoading } = useOrderStore();
+    const isMountedRef = useRef(true);
 
     useEffect(() => {
+        isMountedRef.current = true;
         fetchMyOrders();
+        return () => {
+            isMountedRef.current = false;
+        };
     }, [fetchMyOrders]);
 
     const renderOrderItem = ({ item }: { item: any }) => (
@@ -53,7 +58,7 @@ export default function OrderHistoryScreen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
                     <Ionicons name="arrow-back" size={24} color="#111827" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Orders</Text>

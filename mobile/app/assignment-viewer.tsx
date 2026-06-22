@@ -32,7 +32,7 @@ export default function AssignmentViewerScreen() {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>Assignment not found</Text>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.backButton}>
           <Text style={styles.backButtonText}>Go Back</Text>
         </TouchableOpacity>
       </View>
@@ -54,7 +54,7 @@ export default function AssignmentViewerScreen() {
       
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.closeBtn}>
           <Ionicons name="close" size={28} color="#1E293B" />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
@@ -156,7 +156,7 @@ export default function AssignmentViewerScreen() {
         })}
 
         <TouchableOpacity 
-          onPress={() => router.back()} 
+          onPress={() => { if (router.canGoBack()) router.back(); }} 
           style={[styles.finishBtn, { backgroundColor: courseColor }]}
         >
           <Text style={styles.finishBtnText}>Finish Practice</Text>

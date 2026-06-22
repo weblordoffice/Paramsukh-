@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import { Platform } from 'react-native';
+import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
-import { useAuthStore } from './authStore';
 
 export interface NotificationItem {
   _id: string;
@@ -40,24 +40,16 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   deviceTokenRegistered: false,
 
   fetchNotifications: async (params = {}) => {
-    const token = useAuthStore.getState().token;
-    if (!token) {
-      set({ notifications: [], isLoading: false });
-      return;
-    }
-
     set({ isLoading: true, error: null });
     try {
       const { page = 1, limit = 50, unreadOnly = false } = params;
       const query = new URLSearchParams({ page: String(page), limit: String(limit) });
       if (unreadOnly) query.set('unreadOnly', 'true');
 
-      const response = await axios.get(`${API_URL}/notifications?${query.toString()}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await apiClient.get(`${API_URL}/notifications?${query.toString()}`);
 
-      if (response.data.success && response.data.data) {
-        const { notifications, unreadCount } = response.data.data;
+      if (response.data?.success && response.data?.data) {
+        const { notifications, unreadCount } = response.data?.data || {};
         set({
           notifications: notifications || [],
           unreadCount: unreadCount ?? 0,
@@ -77,15 +69,10 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   fetchUnreadCount: async () => {
-    const token = useAuthStore.getState().token;
-    if (!token) return 0;
-
     try {
-      const response = await axios.get(`${API_URL}/notifications/unread-count`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.data.success && response.data.data?.unreadCount !== undefined) {
-        const count = response.data.data.unreadCount;
+      const response = await apiClient.get(`${API_URL}/notifications/unread-count`);
+      if (response.data?.success && response.data?.data?.unreadCount !== undefined) {
+        const count = response.data?.data?.unreadCount;
         set({ unreadCount: count });
         return count;
       }
@@ -95,14 +82,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   markAsRead: async (id: string) => {
-    const token = useAuthStore.getState().token;
-    if (!token) return false;
-
     try {
-      const response = await axios.patch(`${API_URL}/notifications/${id}/read`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.data.success) {
+      const response = await apiClient.patch(`${API_URL}/notifications/${id}/read`);
+      if (response.data?.success) {
         set((state) => ({
           notifications: state.notifications.map((n) =>
             n._id === id ? { ...n, isRead: true } : n
@@ -117,14 +99,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   markAllAsRead: async () => {
-    const token = useAuthStore.getState().token;
-    if (!token) return false;
-
     try {
-      const response = await axios.patch(`${API_URL}/notifications/read-all`, {}, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.data.success) {
+      const response = await apiClient.patch(`${API_URL}/notifications/read-all`);
+      if (response.data?.success) {
         set((state) => ({
           notifications: state.notifications.map((n) => ({ ...n, isRead: true })),
           unreadCount: 0,
@@ -137,14 +114,9 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   deleteNotification: async (id: string) => {
-    const token = useAuthStore.getState().token;
-    if (!token) return false;
-
     try {
-      const response = await axios.delete(`${API_URL}/notifications/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (response.data.success) {
+      const response = await apiClient.delete(`${API_URL}/notifications/${id}`);
+      if (response.data?.success) {
         const notif = get().notifications.find((n) => n._id === id);
         set((state) => ({
           notifications: state.notifications.filter((n) => n._id !== id),
@@ -158,18 +130,14 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   registerDeviceToken: async (expoPushToken: string) => {
-    // Always register on login (don't skip even if already registered this session)
-    // This ensures token is updated when user logs in on a new device or after token refresh
-    const token = useAuthStore.getState().token;
-    if (!token || !expoPushToken) {
+    if (!expoPushToken) {
       return false;
     }
 
     try {
-      const response = await axios.post(
+      const response = await apiClient.post(
         `${API_URL}/notifications/device-token`,
-        { token: expoPushToken, platform: 'android' },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { token: expoPushToken, platform: Platform.OS },
       );
       if (response.data?.success) {
         set({ deviceTokenRegistered: true });

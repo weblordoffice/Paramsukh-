@@ -149,7 +149,7 @@ export default function CourseDetailScreen() {
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {/* ── Back button ── */}
-      <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+      <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
         <Ionicons name="chevron-back" size={22} color="#F8FAFC" />
       </TouchableOpacity>
 

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -79,6 +79,7 @@ export default function VideoPlayerScreen() {
   const downloadProgress = progressByVideoId[videoId] || 0;
   const downloadInProgress = !!activeDownloads[videoId];
 
+  const isMountedRef = useRef(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [marked, setMarked] = useState(false);
@@ -93,7 +94,11 @@ export default function VideoPlayerScreen() {
   );
 
   React.useEffect(() => {
+    isMountedRef.current = true;
     hydrate();
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [hydrate]);
 
   const markComplete = useCallback(async () => {
@@ -171,7 +176,7 @@ export default function VideoPlayerScreen() {
 
       {/* ── Header ── */}
       <View style={[styles.header, { backgroundColor: courseColor }]}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
           <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
         </TouchableOpacity>
         <View style={styles.headerText}>

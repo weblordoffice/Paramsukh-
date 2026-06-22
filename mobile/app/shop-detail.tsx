@@ -47,7 +47,7 @@ export default function ShopDetailScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => { if (router.canGoBack()) router.back(); }}
         >
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>

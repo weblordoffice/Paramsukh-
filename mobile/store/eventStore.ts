@@ -1,8 +1,6 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
-import { useAuthStore } from './authStore';
-
 export interface EventPhoto {
     id: string;
     url: string;
@@ -126,25 +124,21 @@ export const useEventStore = create<EventState>((set, get) => ({
         try {
             // Use the convenience endpoints from the backend
             const endpoint = tab === 'upcoming' ? `${API_URL}/events/upcoming` : `${API_URL}/events/past`;
-            const response = await axios.get(endpoint);
+            const response = await apiClient.get(endpoint);
 
             if (response.data && response.data.success) {
-                let mappedEvents = response.data.events.map((e: any) => ({
+                let mappedEvents = (response.data?.events || []).map((e: any) => ({
                     ...e,
                     attendees: e.currentAttendees || 0,
                     id: e._id
                 }));
 
                 // Fetch user registrations to sync state globally
-                const token = useAuthStore.getState().token;
-                if (token) {
-                    try {
-                        const regResponse = await axios.get(`${API_URL}/events/my-registrations?${tab}=true`, {
-                            headers: { Authorization: `Bearer ${token}` }
-                        });
+                try {
+                        const regResponse = await apiClient.get(`${API_URL}/events/my-registrations?${tab}=true`);
                         if (regResponse.data?.success) {
                             const registeredEventsMap = new Map();
-                            regResponse.data.registrations.forEach((r: any) => {
+                            regResponse.data?.registrations.forEach((r: any) => {
                                 const eId = r.eventId?._id || r.eventId;
                                 registeredEventsMap.set(eId, r);
                             });
@@ -159,7 +153,6 @@ export const useEventStore = create<EventState>((set, get) => ({
                         }
                     } catch (regError) {
                     }
-                }
 
                 set({ events: mappedEvents, isLoading: false });
             } else {
@@ -174,13 +167,13 @@ export const useEventStore = create<EventState>((set, get) => ({
     fetchEventDetails: async (eventId: string) => {
         set({ isLoading: true, error: null });
         try {
-            const response = await axios.get(`${API_URL}/events/${eventId}`);
-            if (response.data.success) {
-                const event = response.data.event;
-                const meta = response.data.meta || null;
+            const response = await apiClient.get(`${API_URL}/events/${eventId}`);
+            if (response.data?.success) {
+                const event = response.data?.event;
+                const meta = response.data?.meta || null;
 
                 // Map images to EventPhoto interface
-                const photos: EventPhoto[] = (event.images || []).map((img: any, index: number) => ({
+                const photos: EventPhoto[] = (event?.images || []).map((img: any, index: number) => ({
                     id: img._id || `img-${index}`,
                     url: img.url,
                     thumbnailUrl: img.url,
@@ -188,7 +181,7 @@ export const useEventStore = create<EventState>((set, get) => ({
                 }));
 
                 // Map videos to EventVideo interface
-                const videos: EventVideo[] = (event.videos || []).map((vid: any, index: number) => ({
+                const videos: EventVideo[] = (event?.videos || []).map((vid: any, index: number) => ({
                     id: vid._id || `vid-${index}`,
                     url: vid.url,
                     title: vid.title,
@@ -230,15 +223,9 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     registerForEvent: async (eventId: string, payload = {}) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) {
-                return { success: false, message: 'Please sign in to register for events.' };
-            }
-
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/events/${eventId}/register`,
-                payload,
-                { headers: { Authorization: `Bearer ${token}` } }
+                payload
             );
 
             if (response.data?.success) {
@@ -264,9 +251,9 @@ export const useEventStore = create<EventState>((set, get) => ({
 
                 return {
                     success: true,
-                    message: response.data.message,
-                    paymentRequired: response.data.paymentRequired,
-                    paymentAmount: response.data.paymentAmount
+                    message: response.data?.message,
+                    paymentRequired: response.data?.paymentRequired,
+                    paymentAmount: response.data?.paymentAmount
                 };
             }
 
@@ -281,15 +268,12 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     createEventOrder: async (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string }) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return { success: false, message: 'Please sign in to register.' };
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/events/${eventId}/register/order`,
-                payload,
-                { headers: { Authorization: `Bearer ${token}` } }
+                payload
             );
             if (response.data?.success && response.data?.data)
-                return { success: true, data: response.data.data, message: response.data.message };
+                return { success: true, data: response.data?.data, message: response.data?.message };
             return { success: false, message: response.data?.message || 'Failed to create order' };
         } catch (error: any) {
             return { success: false, message: error.response?.data?.message || 'Failed to create order' };
@@ -298,12 +282,9 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     confirmEventPayment: async (eventId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return { success: false, message: 'Please sign in.' };
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/events/${eventId}/register/confirm`,
-                paymentData,
-                { headers: { Authorization: `Bearer ${token}` } }
+                paymentData
             );
             if (response.data?.success) {
                 set((state) => ({
@@ -312,7 +293,7 @@ export const useEventStore = create<EventState>((set, get) => ({
                         ? { ...state.currentEvent, isRegistered: true, currentAttendees: (state.currentEvent.currentAttendees || 0) + 1 }
                         : state.currentEvent
                 }));
-                return { success: true, message: response.data.message };
+                return { success: true, message: response.data?.message };
             }
             return { success: false, message: response.data?.message || 'Payment confirmation failed' };
         } catch (error: any) {
@@ -322,19 +303,16 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     createEventPaymentLink: async (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string }) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return { success: false, message: 'Please sign in to register.' };
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/events/${eventId}/register/link`,
-                payload,
-                { headers: { Authorization: `Bearer ${token}` } }
+                payload
             );
             if (response.data?.success && response.data?.data)
                 return {
                     success: true,
-                    url: response.data.data.url,
-                    paymentLinkId: response.data.data.paymentLinkId,
-                    registrationId: response.data.data.registrationId,
+                    url: response.data?.data?.url,
+                    paymentLinkId: response.data?.data?.paymentLinkId,
+                    registrationId: response.data?.data?.registrationId,
                 };
             return { success: false, message: response.data?.message || 'Failed to create payment link' };
         } catch (error: any) {
@@ -344,12 +322,9 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     confirmEventPaymentByLink: async (eventId: string, paymentLinkId: string) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return { success: false, message: 'Please sign in.' };
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/events/${eventId}/register/confirm-link`,
-                { paymentLinkId },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { paymentLinkId }
             );
             if (response.data?.success) {
                 set((state) => ({
@@ -358,7 +333,7 @@ export const useEventStore = create<EventState>((set, get) => ({
                         ? { ...state.currentEvent, isRegistered: true, currentAttendees: (state.currentEvent.currentAttendees || 0) + 1 }
                         : state.currentEvent
                 }));
-                return { success: true, message: response.data.message };
+                return { success: true, message: response.data?.message };
             }
             return { success: false, message: response.data?.message || 'Payment confirmation failed' };
         } catch (error: any) {
@@ -368,12 +343,7 @@ export const useEventStore = create<EventState>((set, get) => ({
 
     cancelEventRegistration: async (eventId: string) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return false;
-
-            const response = await axios.delete(`${API_URL}/events/${eventId}/register`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await apiClient.delete(`${API_URL}/events/${eventId}/register`);
 
             if (response.data?.success) {
                 set((state) => ({
@@ -406,15 +376,7 @@ export const useEventStore = create<EventState>((set, get) => ({
     checkRegistrationStatus: async (eventId: string) => {
         set({ isCheckingRegistration: true });
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) {
-                set({ isCheckingRegistration: false });
-                return false;
-            }
-
-            const response = await axios.get(`${API_URL}/events/${eventId}/registration-status`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await apiClient.get(`${API_URL}/events/${eventId}/registration-status`);
 
             const isRegistered = !!response.data?.isRegistered;
             const regData = response.data?.registration;

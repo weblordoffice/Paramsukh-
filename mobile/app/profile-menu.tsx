@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,15 +12,21 @@ export default function ProfileMenuScreen() {
   const router = useRouter();
   const { user: authUser, logout, fetchCurrentUser } = useAuthStore();
   const [user, setUser] = useState(authUser);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     const loadUser = async () => {
       const result = await fetchCurrentUser();
+      if (!isMountedRef.current) return;
       if (result.success && result.user) {
         setUser(result.user);
       }
     };
     loadUser();
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   const getUserInitial = () => {
@@ -113,7 +119,7 @@ export default function ProfileMenuScreen() {
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
-        <TouchableOpacity onPress={() => router.back()} className="w-10">
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} className="w-10">
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>
         <Text className="text-xl font-bold text-gray-900">Profile</Text>

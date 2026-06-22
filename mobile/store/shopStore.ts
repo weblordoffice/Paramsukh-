@@ -45,7 +45,7 @@ export const useShopStore = create<ShopState>((set) => ({
 
             if (response.data && response.data.success) {
                 // Transform backend data to match UI expectations where necessary
-                const backendShops = response.data.data.shops || [];
+                const backendShops = response.data?.data?.shops || [];
 
                 // Map backend shop structure to what the UI expects (if different)
                 const formattedShops = backendShops.map((shop: any) => ({

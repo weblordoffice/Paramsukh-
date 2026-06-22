@@ -1,7 +1,14 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
 import { useAuthStore } from '../store/authStore';
+
+function formatPhone(phone: string) {
+  const digits = phone.replace(/\D/g, '');
+  const normalized = digits.startsWith('91') && digits.length > 10 ? digits.slice(2) : digits;
+  return `+91${normalized.slice(-10)}`;
+}
 
 export default function SignInScreen() {
   const router = useRouter();
@@ -13,6 +20,15 @@ export default function SignInScreen() {
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+  const resendIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (resendIntervalRef.current) {
+        clearInterval(resendIntervalRef.current);
+      }
+    };
+  }, []);
 
   const handleSendOTP = async () => {
     if (!phone || phone.length < 10) {
@@ -20,11 +36,7 @@ export default function SignInScreen() {
       return;
     }
 
-    // Clean phone number - remove any existing +91 or spaces
-    let formattedPhone = phone.replace(/[\s+]/g, '');
-    if (!formattedPhone.startsWith('+91')) {
-      formattedPhone = `+91${formattedPhone}`;
-    }
+    const formattedPhone = formatPhone(phone);
 
     const result = await sendOTP(formattedPhone, 'signin');
 
@@ -61,11 +73,7 @@ export default function SignInScreen() {
       return;
     }
 
-    // Clean phone number - remove any existing +91 or spaces
-    let formattedPhone = phone.replace(/[\s+]/g, '');
-    if (!formattedPhone.startsWith('+91')) {
-      formattedPhone = `+91${formattedPhone}`;
-    }
+    const formattedPhone = formatPhone(phone);
 
     // For signin, we don't need name and email
     const result = await verifyOTP(formattedPhone, otp);
@@ -80,10 +88,12 @@ export default function SignInScreen() {
 
   const startResendTimer = () => {
     setResendTimer(60);
-    const interval = setInterval(() => {
+    if (resendIntervalRef.current) clearInterval(resendIntervalRef.current);
+    resendIntervalRef.current = setInterval(() => {
       setResendTimer((prev) => {
         if (prev <= 1) {
-          clearInterval(interval);
+          clearInterval(resendIntervalRef.current!);
+          resendIntervalRef.current = null;
           return 0;
         }
         return prev - 1;
@@ -213,7 +223,16 @@ export default function SignInScreen() {
           )}
         </View>
         <Text className="text-gray-500 text-xs text-center px-8 pb-8">
-          By continuing, you agree to our Terms & Privacy Policy
+          By continuing, you agree to our{' '}
+          <Text
+            className="text-purple-600 underline"
+            onPress={() => {
+              const url = Constants.expoConfig?.extra?.privacyPolicyUrl;
+              if (url) Linking.openURL(url);
+            }}
+          >
+            Terms & Privacy Policy
+          </Text>
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>

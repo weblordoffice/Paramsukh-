@@ -67,20 +67,16 @@ apiClient.interceptors.response.use(
           refreshToken,
         });
 
-        if (response.data.success) {
-          const { token, refreshToken: newRefreshToken } = response.data;
+        if (response.data?.success) {
+          const { token, refreshToken: newRefreshToken } = response.data || {};
           
-          await storeTokenSecurely(token);
+          if (token) {
+            await storeTokenSecurely(token);
+          }
           if (newRefreshToken) {
             await storeRefreshTokenSecurely(newRefreshToken);
           }
-          
-          // Also store in AsyncStorage for backward compatibility
-          await AsyncStorage.setItem('token', token);
-          if (newRefreshToken) {
-            await AsyncStorage.setItem('refreshToken', newRefreshToken);
-          }
-          
+
           processQueue(null, token);
           
           originalRequest.headers.Authorization = `Bearer ${token}`;

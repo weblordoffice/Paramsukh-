@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,   
   Text,
@@ -25,22 +25,28 @@ export default function MyProgressScreen() {
     eventsAttended: 0,
     loginCount: 0
   });
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     const fetchStats = async () => {
       try {
         const response = await axios.get(`${API_URL}/user/stats`, {
           headers: token ? { Authorization: `Bearer ${token}` } : undefined
         });
+        if (!isMountedRef.current) return;
         if (response.data.success && response.data.stats) {
           setStats(response.data.stats);
         }
       } catch (error) {
       } finally {
-        setLoading(false);
+        if (isMountedRef.current) setLoading(false);
       }
     };
     fetchStats();
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [token]);
 
   const displayStats = [      

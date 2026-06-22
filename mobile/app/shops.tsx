@@ -61,7 +61,7 @@ export default function ShopsScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => { if (router.canGoBack()) router.back(); }}
         >
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>
@@ -138,7 +138,7 @@ export default function ShopsScreen() {
               {products.map(product => {
                 const isExternal = (product.productType === 'amazon' || product.productType === 'external') && product.externalLink;
                 const handleCardPress = () => {
-                  if (isExternal && product.externalLink) Linking.openURL(product.externalLink!);
+                  if (isExternal && product.externalLink) Linking.openURL(product.externalLink).catch(() => {});
                   else router.push({ pathname: '/product-detail', params: { productId: product.id } });
                 };
                 return (
@@ -178,7 +178,7 @@ export default function ShopsScreen() {
                     {isExternal ? (
                       <TouchableOpacity
                         style={[styles.addButton, styles.amazonButton, { backgroundColor: '#3B82F6' }]}
-                        onPress={(e) => { e.stopPropagation(); if (product.externalLink) Linking.openURL(product.externalLink); }}
+                        onPress={(e) => { e.stopPropagation(); if (product.externalLink) Linking.openURL(product.externalLink).catch(() => {}); }}
                       >
                         <Text style={styles.addButtonText}>View Site</Text>
                       </TouchableOpacity>

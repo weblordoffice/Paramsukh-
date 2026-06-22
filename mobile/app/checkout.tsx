@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -14,6 +14,8 @@ export default function CheckoutScreen() {
     const { cart, clearCart } = useCartStore();
     const { createOrder, createOrderPaymentLink, confirmOrderPaymentLink, isLoading: isOrderLoading } = useOrderStore();
     const { addresses, fetchAddresses, addAddress, isLoading: isAddressLoading } = useAddressStore();
+
+    const isMountedRef = useRef(true);
 
     const [paymentMethod, setPaymentMethod] = useState('cod');
     const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
@@ -32,10 +34,15 @@ export default function CheckoutScreen() {
     });
 
     useEffect(() => {
+        isMountedRef.current = true;
         fetchAddresses();
+        return () => {
+            isMountedRef.current = false;
+        };
     }, [fetchAddresses]);
 
     useEffect(() => {
+        if (!isMountedRef.current) return;
         if (addresses.length > 0 && !selectedAddressId) {
             const defaultAddr = addresses.find(a => a.isDefault) || addresses[0];
             setSelectedAddressId(defaultAddr._id);
@@ -114,14 +121,33 @@ export default function CheckoutScreen() {
         }
     };
 
-    if (!cart) return null;
+    if (!cart) {
+      return (
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
+              <Ionicons name="arrow-back" size={24} color="#111827" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Checkout</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <View style={styles.emptyCart}>
+            <Ionicons name="cart-outline" size={64} color="#D1D5DB" />
+            <Text style={styles.emptyCartText}>Your cart is empty</Text>
+            <TouchableOpacity style={styles.shopButton} onPress={() => router.replace('/(home)/shop')}>
+              <Text style={styles.shopButtonText}>Continue Shopping</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
 
     const selectedAddress = addresses.find(a => a._id === selectedAddressId);
 
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
                     <Ionicons name="arrow-back" size={24} color="#111827" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Checkout</Text>
@@ -581,9 +607,32 @@ const styles = StyleSheet.create({
     disabledButton: {
         opacity: 0.6,
     },
-    placeOrderText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '700',
-    },
+  placeOrderText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptyCart: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyCartText: {
+    fontSize: 16,
+    color: '#6B7280',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  shopButton: {
+    backgroundColor: '#111827',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  shopButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,6 +35,8 @@ export default function BookCounselingScreen() {
   const [fetchingSlots, setFetchingSlots] = useState(false);
   const [processing, setProcessing] = useState(false);
 
+  const backTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Redirect to Calendly if service uses it
   React.useEffect(() => {
     if (usesCalendly === 'true' && calendlyUri) {
@@ -44,10 +46,13 @@ export default function BookCounselingScreen() {
         showTitle: true,
       });
       // Go back after opening Calendly
-      setTimeout(() => {
-        router.back();
+      backTimerRef.current = setTimeout(() => {
+        if (router.canGoBack()) router.back();
       }, 1000);
     }
+    return () => {
+      if (backTimerRef.current) clearTimeout(backTimerRef.current);
+    };
   }, []);
 
   // Effect: Fetch availability when date changes
@@ -176,7 +181,7 @@ export default function BookCounselingScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FDF8F3' }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', borderRadius: 20 }}>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', borderRadius: 20 }}>
           <Ionicons name="arrow-back" size={20} color="#2C2420" />
         </TouchableOpacity>
         <Text style={{ fontSize: 18, fontWeight: '700', color: '#2C2420' }}>Book Session</Text>
