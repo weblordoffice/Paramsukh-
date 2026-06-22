@@ -1,8 +1,6 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
-import { useAuthStore } from './authStore';
-
 interface CounselorType {
     id: string; // Map from _id
     _id?: string;
@@ -50,9 +48,9 @@ export const useCounselingStore = create<CounselingState>((set) => ({
     fetchCounselingTypes: async () => {
         set({ isLoading: true, error: null });
         try {
-            const response = await axios.get(`${API_URL}/counseling/services`);
+            const response = await apiClient.get(`${API_URL}/counseling/services`);
             if (response.data && response.data.success) {
-                const types = response.data.data.services.map((s: any) => ({
+                const types = response.data?.data?.services?.map((s: any) => ({
                     id: s._id,
                     _id: s._id,
                     title: s.title,
@@ -66,7 +64,7 @@ export const useCounselingStore = create<CounselingState>((set) => ({
                     isFree: s.isFree,
                     calendlyEventUri: s.calendlyIntegration?.isEnabled ? s.calendlyIntegration.eventUri : null,
                     usesCalendly: s.calendlyIntegration?.isEnabled || false
-                }));
+                })) ?? [];
                 set({ counselingTypes: types, isLoading: false });
             } else {
                 set({ counselingTypes: [], isLoading: false });
@@ -79,7 +77,7 @@ export const useCounselingStore = create<CounselingState>((set) => ({
     checkAvailability: async (date: string, counselorType: string) => {
         set({ isLoading: true, error: null });
         try {
-            const response = await axios.get(`${API_URL}/counseling/availability`, {
+            const response = await apiClient.get(`${API_URL}/counseling/availability`, {
                 params: { date, counselorType }
             });
             set({ isLoading: false });
@@ -93,15 +91,13 @@ export const useCounselingStore = create<CounselingState>((set) => ({
     bookSession: async (bookingData: any) => {
         set({ isLoading: true, error: null });
         try {
-            const token = useAuthStore.getState().token;
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
-            const response = await axios.post(`${API_URL}/counseling/book`, bookingData, { headers });
+            const response = await apiClient.post(`${API_URL}/counseling/book`, bookingData);
             set({ isLoading: false });
-            if (response.data.success) {
-                const bookingId = response.data.data?.booking?._id;
+            if (response.data?.success) {
+                const bookingId = response.data?.data?.booking?._id;
                 return { success: true, message: 'Booking confirmed', bookingId };
             }
-            return { success: false, message: response.data.message || 'Booking failed' };
+            return { success: false, message: response.data?.message || 'Booking failed' };
         } catch (error: any) {
             const msg = error.response?.data?.message || 'Booking failed';
             set({ isLoading: false, error: msg });
@@ -111,15 +107,12 @@ export const useCounselingStore = create<CounselingState>((set) => ({
 
     createBookingOrder: async (bookingId: string, amount: number) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return { success: false, message: 'Please sign in to pay.' };
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/payments/create-booking-order`,
-                { bookingId, amount },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { bookingId, amount }
             );
             if (response.data?.success && response.data?.data) {
-                const d = response.data.data;
+                const d = response.data?.data;
                 return {
                     success: true,
                     data: {
@@ -140,18 +133,15 @@ export const useCounselingStore = create<CounselingState>((set) => ({
 
     createBookingPaymentLink: async (bookingId: string) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return { success: false, message: 'Please sign in to pay.' };
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/payments/booking-link`,
-                { bookingId },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { bookingId }
             );
             if (response.data?.success && response.data?.data) {
                 return {
                     success: true,
-                    url: response.data.data.url,
-                    paymentLinkId: response.data.data.paymentLinkId
+                    url: response.data?.data?.url,
+                    paymentLinkId: response.data?.data?.paymentLinkId
                 };
             }
             return { success: false, message: response.data?.message || 'Failed to create payment link' };
@@ -162,14 +152,11 @@ export const useCounselingStore = create<CounselingState>((set) => ({
 
     confirmBookingPaymentLink: async (paymentLinkId: string, bookingId: string) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return { success: false, message: 'Please sign in.' };
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/payments/booking-link/confirm`,
-                { paymentLinkId, bookingId },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { paymentLinkId, bookingId }
             );
-            if (response.data?.success) return { success: true, message: response.data.message };
+            if (response.data?.success) return { success: true, message: response.data?.message };
             return { success: false, message: response.data?.message || 'Payment confirmation failed' };
         } catch (error: any) {
             return { success: false, message: error.response?.data?.message || 'Payment confirmation failed' };
@@ -178,14 +165,11 @@ export const useCounselingStore = create<CounselingState>((set) => ({
 
     verifyCounselingPayment: async (bookingId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return { success: false, message: 'Please sign in.' };
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/counseling/${bookingId}/payment`,
-                paymentData,
-                { headers: { Authorization: `Bearer ${token}` } }
+                paymentData
             );
-            if (response.data?.success) return { success: true, message: response.data.message };
+            if (response.data?.success) return { success: true, message: response.data?.message };
             return { success: false, message: response.data?.message || 'Payment verification failed' };
         } catch (error: any) {
             return { success: false, message: error.response?.data?.message || 'Payment verification failed' };
@@ -194,11 +178,7 @@ export const useCounselingStore = create<CounselingState>((set) => ({
 
     fetchMyBookings: async (status?: string) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return [];
-
-            const response = await axios.get(`${API_URL}/counseling/my-bookings`, {
-                headers: { Authorization: `Bearer ${token}` },
+            const response = await apiClient.get(`${API_URL}/counseling/my-bookings`, {
                 params: status ? { status } : {}
             });
 

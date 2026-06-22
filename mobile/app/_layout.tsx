@@ -4,6 +4,7 @@ import { usePushNotifications } from '../hooks/usePushNotifications';
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../store/authStore';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 /**
  * Renders AFTER splash is done. Returns the Stack navigator directly
@@ -26,20 +27,29 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, token } = useAuthStore();
   const segments = useSegments();
   const router = useRouter();
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // Avoid redirecting if the app is still mounting or there are no segments yet
     if (!segments || !segments.length) return;
 
     const isAuthRoute = segments[0] === 'signin' || segments[0] === 'signup';
     
     if (!user || !token) {
-      // User is not logged in
       if (!isAuthRoute) {
         router.replace('/signin');
+        return;
       }
     }
+    setIsChecking(false);
   }, [user, token, segments, router]);
+
+  if (isChecking) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+        <ActivityIndicator size="large" color="#F1842D" />
+      </View>
+    );
+  }
 
   return <>{children}</>;
 }
@@ -47,15 +57,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 // Expo Router already provides the top-level NavigationContainer.
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
-  const { loadUser } = useAuthStore();
 
   useEffect(() => {
     async function initAuth() {
-      await loadUser();
+      await useAuthStore.getState().loadUser();
       setIsReady(true);
     }
     initAuth();
-  }, [loadUser]);
+  }, []);
 
   if (!isReady) {
     return (
@@ -67,7 +76,9 @@ export default function RootLayout() {
 
   return (
     <AuthGuard>
-      <RootNavigator />
+      <ErrorBoundary>
+        <RootNavigator />
+      </ErrorBoundary>
     </AuthGuard>
   );
 }

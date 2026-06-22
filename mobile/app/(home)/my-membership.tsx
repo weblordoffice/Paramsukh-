@@ -216,7 +216,7 @@ export default function MyMembershipScreen() {
 
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
                     <Ionicons name="chevron-back" size={22} color="#1F2937" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Membership</Text>

@@ -1,4 +1,4 @@
-import React, { useState , useEffect } from 'react';
+import React, { useState , useEffect, useRef } from 'react';
 import { ScrollView, Text, TouchableOpacity, View , ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,14 +25,23 @@ export default function CounselingScreen() {
 
   const { counselingTypes, fetchCounselingTypes, fetchMyBookings, isLoading } = useCounselingStore();
 
+  const isMountedRef = useRef(true);
+
   useEffect(() => {
+    isMountedRef.current = true;
     fetchCounselingTypes();
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [fetchCounselingTypes]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     const loadConfirmedBooking = async () => {
       setIsBookingLoading(true);
       const bookings = await fetchMyBookings('confirmed');
+
+      if (!isMountedRef.current) return;
 
       if (!bookings.length) {
         setConfirmedBooking(null);
@@ -48,11 +57,15 @@ export default function CounselingScreen() {
         .sort((a: ConfirmedBookingSummary, b: ConfirmedBookingSummary) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
 
       const selected = upcoming[0] || bookings[0];
+      if (!isMountedRef.current) return;
       setConfirmedBooking(selected as ConfirmedBookingSummary);
       setIsBookingLoading(false);
     };
 
     loadConfirmedBooking();
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [fetchMyBookings]);
 
   const handleContinue = () => {
@@ -77,7 +90,7 @@ export default function CounselingScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FDF8F3' }}>
       {/* Premium Header */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-white shadow-sm z-10">
-        <TouchableOpacity onPress={() => router.back()} className="w-10 h-10 items-center justify-center bg-gray-50 rounded-full">
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} className="w-10 h-10 items-center justify-center bg-gray-50 rounded-full">
           <Ionicons name="arrow-back" size={20} color="#2C2420" />
         </TouchableOpacity>
         <Text className="text-lg font-bold text-[#2C2420]">Counseling Services</Text>

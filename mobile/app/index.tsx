@@ -1,90 +1,80 @@
 // app/index.tsx - Home screen (expo-router) - Redirects based on auth state and assessment
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
                             
 export default function Home() {
   const router = useRouter();
-  const { loadUser, fetchCurrentUser } = useAuthStore();
   const [hasChecked, setHasChecked] = useState(false);
+  const hasCheckedRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
 
     const checkAuthAndAssessment = async () => {
       try {
-        // First, try to load user from storage (fast initial load)
-        await loadUser();
+        await useAuthStore.getState().loadUser();
 
-        // Small delay to ensure state is updated
         await new Promise(resolve => setTimeout(resolve, 100));
 
         if (!isMounted) return;
 
-        // Get the current user state after loading
         const currentUser = useAuthStore.getState().user;
         const currentToken = useAuthStore.getState().token;
 
-        // A session is only valid when we have both cached user data and a token.
         if (!currentUser || !currentToken) {
           setHasChecked(true);
+          hasCheckedRef.current = true;
           router.replace('/signin');
           return;
         }
 
-        const fetchOk = await fetchCurrentUser();
+        const fetchOk = await useAuthStore.getState().fetchCurrentUser();
         if (!isMounted) return;
-        // If /auth/me failed (401/400/403), we cleared user in store - go to signin
+
         if (!fetchOk && !useAuthStore.getState().user) {
           setHasChecked(true);
+          hasCheckedRef.current = true;
           router.replace('/signin');
           return;
         }
-        await new Promise(resolve => setTimeout(resolve, 50));
+
+        const assessmentCompleted = await AsyncStorage.getItem('assessment_completed');
         if (!isMounted) return;
 
-        // Check if assessment is completed
-        const assessmentCompleted = await AsyncStorage.getItem('assessment_completed');
-        
-        if (!isMounted) return;
-        
         setHasChecked(true);
+        hasCheckedRef.current = true;
         if (assessmentCompleted === 'true') {
           router.replace('/(home)/menu');
         } else {
           router.replace('/assessment');
         }
       } catch (error: any) {
-        // Only log unexpected errors (not auth failures)
-        if (error.response?.status !== 401 && false) {
-        }
         if (isMounted) {
           setHasChecked(true);
+          hasCheckedRef.current = true;
           router.replace('/signin');
         }
       }
     };
 
-    // Timeout fallback - if still loading after 5s, redirect to signin (avoids stuck spinner)
     const timeoutId = setTimeout(() => {
-      if (!hasChecked && isMounted) {
+      if (!hasCheckedRef.current && isMounted) {
         setHasChecked(true);
+        hasCheckedRef.current = true;
         router.replace('/signin');
       }
     }, 5000);
 
-    // Only run once on mount
-    if (!hasChecked) {
-      checkAuthAndAssessment();
-    }
+    checkAuthAndAssessment();
 
     return () => {
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [router, hasChecked, loadUser, fetchCurrentUser]);
+  }, []);
 
   // Show loading screen while checking
   if (!hasChecked) {

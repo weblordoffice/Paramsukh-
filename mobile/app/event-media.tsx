@@ -77,7 +77,7 @@ export default function EventMediaScreen() {
       >
         <TouchableOpacity
           className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3"
-          onPress={() => router.back()}
+          onPress={() => { if (router.canGoBack()) router.back(); }}
         >
           <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>

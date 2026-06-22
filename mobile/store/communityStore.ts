@@ -1,8 +1,6 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
-import { useAuthStore } from './authStore';
-
 export interface Author {
     _id: string;
     displayName: string;
@@ -108,20 +106,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     fetchMyGroups: async () => {
         set({ isLoading: true, error: null });
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) {
-                set({ groups: [], planGroups: [], isLoading: false });
-                return;
-            }
-
-            const response = await axios.get(`${API_URL}/community/my-groups`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await apiClient.get(`${API_URL}/community/my-groups`);
 
             if (response.data && response.data.success) {
                 set({
-                    groups: response.data.groups || [],
-                    planGroups: response.data.planGroups || [],
+                    groups: response.data?.groups || [],
+                    planGroups: response.data?.planGroups || [],
                     isLoading: false,
                     communityAccessDenied: false,
                     error: null
@@ -149,15 +139,11 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     fetchGroupPosts: async (groupId: string, page = 1) => {
         set({ isLoading: true, error: null });
         try {
-            const token = useAuthStore.getState().token;
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-            const response = await axios.get(`${API_URL}/community/groups/${groupId}/posts`, {
-                params: { page },
-                headers
+            const response = await apiClient.get(`${API_URL}/community/groups/${groupId}/posts`, {
+                params: { page }
             });
-            if (response.data.success) {
-                const newPosts = response.data.posts;
+            if (response.data?.success) {
+                const newPosts = response.data?.posts;
                 set(state => ({
                     posts: page === 1 ? newPosts : [...state.posts, ...newPosts],
                     isLoading: false
@@ -191,20 +177,16 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         const endpoint = type === 'image' ? '/upload/image?folder=community' : '/upload/video?folder=community_videos';
 
         try {
-            const token = useAuthStore.getState().token;
             const headers: any = {
                 'Content-Type': 'multipart/form-data',
             };
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
 
-            const response = await axios.post(`${API_URL}${endpoint}`, formData, {
+            const response = await apiClient.post(`${API_URL}${endpoint}`, formData, {
                 headers
             });
 
-            if (response.data.success) {
-                return response.data.data.url;
+            if (response.data?.success) {
+                return response.data?.data?.url;
             }
             return null;
         } catch (error: any) {
@@ -215,22 +197,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     createPost: async (groupId: string, content: string, images?: string[], tags?: string[]) => {
         set({ isLoading: true, error: null });
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) {
-                set({ isLoading: false, error: 'You must be logged in to post' });
-                return false;
-            }
-
-            const response = await axios.post(`${API_URL}/community/groups/${groupId}/posts`, {
+            const response = await apiClient.post(`${API_URL}/community/groups/${groupId}/posts`, {
                 content,
                 images,
                 tags
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
 
-            if (response.data.success) {
-                const newPost = response.data.post;
+            if (response.data?.success) {
+                const newPost = response.data?.post;
                 // Optimistically add to top of feed
                 set(state => ({
                     posts: [newPost, ...state.posts],
@@ -268,12 +242,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         }));
 
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) throw new Error("No token");
-
-            await axios.post(`${API_URL}/community/posts/${postId}/like`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await apiClient.post(`${API_URL}/community/posts/${postId}/like`);
             // Backend handles actual logic
         } catch (error) {
             // Revert changes on error
@@ -300,12 +269,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         }));
 
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) throw new Error("No token");
-
-            await axios.delete(`${API_URL}/community/posts/${postId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await apiClient.delete(`${API_URL}/community/posts/${postId}`);
         } catch (error) {
             // Revert
             set({ posts: previousPosts });
@@ -314,17 +278,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
     fetchPostComments: async (postId: string) => {
         try {
-            const token = useAuthStore.getState().token;
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-            const response = await axios.get(`${API_URL}/community/posts/${postId}/comments`, {
-                headers
-            });
-            if (response.data.success) {
+            const response = await apiClient.get(`${API_URL}/community/posts/${postId}/comments`);
+            if (response.data?.success) {
                 set(state => ({
                     comments: {
                         ...state.comments,
-                        [postId]: response.data.comments
+                        [postId]: response.data?.comments
                     }
                 }));
             }
@@ -334,18 +293,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
     addComment: async (postId: string, content: string) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return false;
-
-            const response = await axios.post(`${API_URL}/community/posts/${postId}/comments`, {
+            const response = await apiClient.post(`${API_URL}/community/posts/${postId}/comments`, {
                 content
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
 
-            if (response.data.success) {
+            if (response.data?.success) {
                 // Add new comment to the list
-                const newComment = response.data.comment;
+                const newComment = response.data?.comment;
                 set(state => ({
                     comments: {
                         ...state.comments,
@@ -366,12 +320,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
 
     toggleCommentLike: async (commentId: string, postId: string) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return;
-
-            await axios.post(`${API_URL}/community/comments/${commentId}/like`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await apiClient.post(`${API_URL}/community/comments/${commentId}/like`);
 
             // Update comment like status
             set(state => ({

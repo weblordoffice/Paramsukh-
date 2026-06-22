@@ -1,8 +1,6 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
-import { useAuthStore } from './authStore';
-
 export interface Order {
     _id: string;
     orderNumber: string;
@@ -63,16 +61,11 @@ export const useOrderStore = create<OrderState>((set) => ({
     error: null,
 
     fetchMyOrders: async () => {
-        const token = useAuthStore.getState().token;
-        if (!token) return;
-
         set({ isLoading: true, error: null });
         try {
-            const response = await axios.get(`${API_URL}/orders/my-orders`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (response.data.success) {
-                set({ orders: response.data.data.orders, isLoading: false });
+            const response = await apiClient.get(`${API_URL}/orders/my-orders`);
+            if (response.data?.success) {
+                set({ orders: response.data?.data?.orders ?? [], isLoading: false });
             }
         } catch (error: any) {
             set({ isLoading: false, error: 'Failed to load orders' });
@@ -80,23 +73,19 @@ export const useOrderStore = create<OrderState>((set) => ({
     },
 
     createOrder: async (orderData) => {
-        const token = useAuthStore.getState().token;
-        if (!token) return { success: false, message: 'Please login' };
-
         set({ isLoading: true, error: null });
         try {
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/orders/create`,
-                orderData,
-                { headers: { Authorization: `Bearer ${token}` } }
+                orderData
             );
 
-            if (response.data.success) {
+            if (response.data?.success) {
                 set({ isLoading: false });
                 return {
                     success: true,
-                    orderId: response.data.data.order._id,
-                    razorpay: response.data.data.razorpay // Return razorpay details if present
+                    orderId: response.data?.data?.order?._id || '',
+                    razorpay: response.data?.data?.razorpay // Return razorpay details if present
                 };
             }
             return { success: false, message: 'Failed to create order' };
@@ -107,18 +96,14 @@ export const useOrderStore = create<OrderState>((set) => ({
     },
 
     verifyPayment: async (paymentData) => {
-        const token = useAuthStore.getState().token;
-        if (!token) return { success: false, message: 'Please login' };
-
         set({ isLoading: true });
         try {
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/orders/verify-payment`,
-                paymentData,
-                { headers: { Authorization: `Bearer ${token}` } }
+                paymentData
             );
 
-            if (response.data.success) {
+            if (response.data?.success) {
                 set({ isLoading: false });
                 return { success: true };
             }
@@ -130,19 +115,15 @@ export const useOrderStore = create<OrderState>((set) => ({
     },
 
     createOrderPaymentLink: async (orderId: string) => {
-        const token = useAuthStore.getState().token;
-        if (!token) return { success: false, message: 'Please login' };
         try {
-            const response = await axios.post(
-                `${API_URL}/orders/${orderId}/payment-link`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
+            const response = await apiClient.post(
+                `${API_URL}/orders/${orderId}/payment-link`
             );
             if (response.data?.success && response.data?.data)
                 return {
                     success: true,
-                    url: response.data.data.url,
-                    paymentLinkId: response.data.data.paymentLinkId
+                    url: response.data?.data?.url,
+                    paymentLinkId: response.data?.data?.paymentLinkId
                 };
             return { success: false, message: response.data?.message || 'Failed to create payment link' };
         } catch (error: any) {
@@ -151,15 +132,12 @@ export const useOrderStore = create<OrderState>((set) => ({
     },
 
     confirmOrderPaymentLink: async (orderId: string, paymentLinkId: string) => {
-        const token = useAuthStore.getState().token;
-        if (!token) return { success: false, message: 'Please login' };
         try {
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/orders/confirm-payment-link`,
-                { orderId, paymentLinkId },
-                { headers: { Authorization: `Bearer ${token}` } }
+                { orderId, paymentLinkId }
             );
-            if (response.data?.success) return { success: true, message: response.data.message };
+            if (response.data?.success) return { success: true, message: response.data?.message };
             return { success: false, message: response.data?.message || 'Payment confirmation failed' };
         } catch (error: any) {
             return { success: false, message: error.response?.data?.message || 'Payment confirmation failed' };
@@ -167,16 +145,11 @@ export const useOrderStore = create<OrderState>((set) => ({
     },
 
     fetchOrderDetails: async (orderId: string) => {
-        const token = useAuthStore.getState().token;
-        if (!token) return;
-
         set({ isLoading: true, error: null });
         try {
-            const response = await axios.get(`${API_URL}/orders/${orderId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (response.data.success) {
-                set({ currentOrder: response.data.data.order, isLoading: false });
+            const response = await apiClient.get(`${API_URL}/orders/${orderId}`);
+            if (response.data?.success) {
+                set({ currentOrder: response.data?.data?.order, isLoading: false });
             }
         } catch (error: any) {
             set({ isLoading: false, error: 'Failed to load order details' });
@@ -184,19 +157,13 @@ export const useOrderStore = create<OrderState>((set) => ({
     },
 
     cancelOrder: async (orderId: string) => {
-        const token = useAuthStore.getState().token;
-        if (!token) return;
-
         set({ isLoading: true });
         try {
-            const response = await axios.patch(
-                `${API_URL}/orders/${orderId}/cancel`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
+            const response = await apiClient.patch(
+                `${API_URL}/orders/${orderId}/cancel`
             );
 
-            if (response.data.success) {
-                // Update local state if needed
+            if (response.data?.success) {
                 set((state) => ({
                     orders: state.orders.map(o => o._id === orderId ? { ...o, status: 'cancelled' } : o),
                     currentOrder: state.currentOrder?._id === orderId ? { ...state.currentOrder, status: 'cancelled' } : state.currentOrder,

@@ -59,10 +59,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const response = await axios.post(`${API_URL}/auth/google`, { idToken });
 
-      if (response.data.success) {
-        const user = response.data.user;
-        const token = response.data.token;
-        const refreshToken = response.data.refreshToken;
+      if (response.data?.success) {
+        const user = response.data?.user;
+        const token = response.data?.token;
+        const refreshToken = response.data?.refreshToken;
         
         await AsyncStorage.setItem('user', JSON.stringify(user));
         await storeTokenSecurely(token);
@@ -74,8 +74,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { success: true };
       }
 
-      set({ isLoading: false, error: response.data.message });
-      return { success: false, message: response.data.message };
+      set({ isLoading: false, error: response.data?.message });
+      return { success: false, message: response.data?.message };
     } catch (error: any) {
       const msg = error.response?.data?.message || 'Sign in failed';
       set({ isLoading: false, error: msg });
@@ -141,11 +141,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         email
       });
 
-      if (response.data.success) {
-        const user = response.data.user;
-        const token = response.data.token;
-        const refreshToken = response.data.refreshToken;
-        const isNewUser = response.data.isNewUser;
+      if (response.data?.success) {
+        const user = response.data?.user;
+        const token = response.data?.token;
+        const refreshToken = response.data?.refreshToken;
+        const isNewUser = response.data?.isNewUser;
         
         await AsyncStorage.setItem('user', JSON.stringify(user));
         await storeTokenSecurely(token);
@@ -164,8 +164,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { success: true, isNewUser };
       }
 
-      set({ isLoading: false, error: response.data.message });
-      return { success: false, message: response.data.message };
+      set({ isLoading: false, error: response.data?.message });
+      return { success: false, message: response.data?.message };
     } catch (error: any) {
       let msg = 'Verification failed. Please try again.';
       
@@ -202,7 +202,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } finally {
       // Always clear local auth state so stale sessions cannot survive a failed logout call.
       await clearSecureTokens();
-      await AsyncStorage.multiRemove(['user', 'assessment_completed']);
+      await AsyncStorage.multiRemove(['token', 'refreshToken', 'user', 'assessment_completed']);
       set({ user: null, token: null, refreshToken: null });
       
       // Clear membership cache on logout
@@ -243,7 +243,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (userStr && !token) {
         // A cached user without a token is a broken session; clear it instead of treating it as logged in.
         await clearSecureTokens();
-        await AsyncStorage.multiRemove(['user', 'assessment_completed']);
+        await AsyncStorage.multiRemove(['token', 'refreshToken', 'user', 'assessment_completed']);
         set({ user: null, token: null, refreshToken: null, biometricEnabled });
         return;
       }
@@ -260,6 +260,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ user: null, token: null, refreshToken: null, biometricEnabled });
     } catch (error) {
+      set({ user: null, token: null, refreshToken: null, biometricEnabled: false });
     }
   },
 
@@ -276,8 +277,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       });
 
-      if (response.data.success) {
-        const user = response.data.user;
+      if (response.data?.success) {
+        const user = response.data?.user;
         
         // Update AsyncStorage with fresh user data
         await AsyncStorage.setItem('user', JSON.stringify(user));
@@ -319,9 +320,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         refreshToken
       });
 
-      if (response.data.success) {
-        const { token, refreshToken: newRefreshToken } = response.data;
-        await storeTokenSecurely(token);
+      if (response.data?.success) {
+        const { token, refreshToken: newRefreshToken } = response.data || {};
+        if (token) {
+          await storeTokenSecurely(token);
+        }
         if (newRefreshToken) {
           await storeRefreshTokenSecurely(newRefreshToken);
         }

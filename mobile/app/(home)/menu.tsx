@@ -113,7 +113,7 @@ export default function HomeTab() {
 
   const handleWatchIntro = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Linking.openURL('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    Linking.openURL('https://www.youtube.com/@paramsukh').catch(() => {});
   };
 
   return (

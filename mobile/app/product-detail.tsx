@@ -38,7 +38,7 @@ export default function ProductDetailScreen() {
 
     const isExternal = (currentProduct.productType === 'amazon' || currentProduct.productType === 'external') && currentProduct.externalLink;
     const handleOpenExternalLink = () => {
-        if (currentProduct.externalLink) Linking.openURL(currentProduct.externalLink);
+        if (currentProduct.externalLink) Linking.openURL(currentProduct.externalLink).catch(() => {});
     };
 
     const images = (currentProduct.images && currentProduct.images.length > 0)
@@ -50,7 +50,7 @@ export default function ProductDetailScreen() {
         <View style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
                     <Ionicons name="arrow-back" size={24} color="#111827" />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.cartButton} onPress={() => router.push('/cart')}>

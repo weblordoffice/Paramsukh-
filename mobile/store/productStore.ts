@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
 
 interface Product {
@@ -44,9 +44,9 @@ export const useProductStore = create<ProductState>((set) => ({
     fetchProductById: async (productId) => {
         set({ isLoading: true, error: null, currentProduct: null });
         try {
-            const response = await axios.get(`${API_URL}/products/${productId}`);
+            const response = await apiClient.get(`${API_URL}/products/${productId}`);
             if (response.data && response.data.success) {
-                const p = response.data.data.product;
+                const p = response.data?.data?.product;
                 const formattedProduct = {
                     id: p._id,
                     _id: p._id,
@@ -85,10 +85,10 @@ export const useProductStore = create<ProductState>((set) => ({
             // Remove leading & if exists (though axios params usually handle this, manual string allows control)
             // Better to use axios params object or simple template literal if confident
 
-            const response = await axios.get(`${API_URL}/products?limit=50${queryString}`);
+            const response = await apiClient.get(`${API_URL}/products?limit=50${queryString}`);
 
             if (response.data && response.data.success) {
-                const backendProducts = response.data.data.products || [];
+                const backendProducts = response.data?.data?.products || [];
 
                 const formattedProducts = backendProducts.map((p: any) => ({
                     id: p._id,
@@ -118,10 +118,10 @@ export const useProductStore = create<ProductState>((set) => ({
     fetchProductsByShop: async (shopId) => {
         set({ isLoading: true, error: null });
         try {
-            const response = await axios.get(`${API_URL}/shops/${shopId}/products`);
+            const response = await apiClient.get(`${API_URL}/shops/${shopId}/products`);
 
             if (response.data && response.data.success) {
-                const backendProducts = response.data.data.products || [];
+                const backendProducts = response.data?.data?.products || [];
 
                 const formattedProducts = backendProducts.map((p: any) => ({
                     id: p._id,
@@ -149,9 +149,9 @@ export const useProductStore = create<ProductState>((set) => ({
     fetchShopDetails: async (shopId) => {
         set({ isLoading: true, error: null });
         try {
-            const response = await axios.get(`${API_URL}/shops/${shopId}`);
-            if (response.data.success) {
-                const shop = response.data.data.shop;
+            const response = await apiClient.get(`${API_URL}/shops/${shopId}`);
+            if (response.data?.success) {
+                const shop = response.data?.data?.shop;
                 // Format if necessary
                 const formattedShop = {
                     ...shop,

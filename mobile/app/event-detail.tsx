@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, Linking, TextInput, Animated, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -28,6 +28,7 @@ export default function EventDetailScreen() {
   } = useEventStore();
 
   const { user } = useAuthStore();
+  const isMountedRef = useRef(true);
   const [processing, setProcessing] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -39,13 +40,18 @@ export default function EventDetailScreen() {
   });
 
   useEffect(() => {
+    isMountedRef.current = true;
     if (eventId) {
       fetchEventDetails(eventId);
       checkRegistrationStatus(eventId);
     }
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [eventId, checkRegistrationStatus, fetchEventDetails]);
 
   useEffect(() => {
+    if (!isMountedRef.current) return;
     if (!isLoading && currentEvent) {
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -56,12 +62,14 @@ export default function EventDetailScreen() {
   }, [isLoading, currentEvent]);
 
   useEffect(() => {
+    if (!isMountedRef.current) return;
     if (openRegister === '1') {
       setShowRegisterForm(true);
     }
   }, [openRegister]);
 
   useEffect(() => {
+    if (!isMountedRef.current) return;
     if (user) {
       setForm({
         name: user.displayName || '',
@@ -246,7 +254,7 @@ export default function EventDetailScreen() {
               justifyContent: 'center',
               zIndex: 10
             }}
-            onPress={() => router.back()}
+            onPress={() => { if (router.canGoBack()) router.back(); }}
           >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
@@ -379,7 +387,7 @@ export default function EventDetailScreen() {
                 borderWidth: 1,
                 borderColor: '#DBEAFE'
               }}
-              onPress={() => Linking.openURL(event.onlineMeetingLink as string)}
+              onPress={() => { if (event.onlineMeetingLink) Linking.openURL(event.onlineMeetingLink).catch(() => {}); }}
             >
               <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
                 <Ionicons name="videocam" size={24} color="#FFFFFF" />

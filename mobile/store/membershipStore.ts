@@ -62,7 +62,7 @@ export const useMembershipStore = create<MembershipState>((set) => ({
 
             if (response.data && response.data.success) {
                 set({
-                    currentSubscription: response.data.subscription,
+                    currentSubscription: response.data?.subscription,
                     isLoading: false
                 });
             } else {
@@ -94,15 +94,15 @@ export const useMembershipStore = create<MembershipState>((set) => ({
                 paymentId
             });
 
-            if (response.data.success) {
+            if (response.data?.success) {
                 // Update current subscription
                 set({
-                    currentSubscription: response.data.subscription,
+                    currentSubscription: response.data?.subscription,
                     isPurchasing: false
                 });
                 return true;
             } else {
-                set({ isPurchasing: false, error: response.data.message });
+                set({ isPurchasing: false, error: response.data?.message });
                 return false;
             }
         } catch (error: any) {

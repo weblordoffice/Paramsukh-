@@ -1,8 +1,6 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
-import { useAuthStore } from './authStore';
-
 export interface Question {
     _id: string;
     questionText: string;
@@ -119,14 +117,10 @@ export const useCourseStore = create<CourseState>((set) => ({
     fetchCourses: async () => {
         set({ isLoading: true, error: null });
         try {
-            const token = useAuthStore.getState().token;
-            // Optionally include token if available, but don't fail if not
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-            const response = await axios.get(`${API_URL}/courses/all`, { headers });
+            const response = await apiClient.get(`${API_URL}/courses/all`);
 
             if (response.data && response.data.success) {
-                const publishedCourses = (response.data.courses || []).filter(
+                const publishedCourses = (response.data?.courses || []).filter(
                     (course: Course) => course?.status === 'published'
                 );
                 set({ courses: publishedCourses, isLoading: false });
@@ -142,14 +136,11 @@ export const useCourseStore = create<CourseState>((set) => ({
     fetchCourseById: async (id: string) => {
         set({ isLoading: true, error: null });
         try {
-            const token = useAuthStore.getState().token;
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-            const response = await axios.get(`${API_URL}/courses/${id}`, { headers });
-            if (response.data.success) {
-                set({ currentCourse: response.data.course, isLoading: false });
+            const response = await apiClient.get(`${API_URL}/courses/${id}`);
+            if (response.data?.success) {
+                set({ currentCourse: response.data?.course, isLoading: false });
             } else {
-                set({ isLoading: false, error: response.data.message });
+                set({ isLoading: false, error: response.data?.message });
             }
         } catch (error: any) {
             set({ isLoading: false, error: error.message || 'Failed to fetch course details' });
@@ -159,14 +150,11 @@ export const useCourseStore = create<CourseState>((set) => ({
     fetchCourseBySlug: async (slug: string) => {
         set({ isLoading: true, error: null });
         try {
-            const token = useAuthStore.getState().token;
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
-
-            const response = await axios.get(`${API_URL}/courses/slug/${slug}`, { headers });
-            if (response.data.success) {
-                set({ currentCourse: response.data.course, isLoading: false });
+            const response = await apiClient.get(`${API_URL}/courses/slug/${slug}`);
+            if (response.data?.success) {
+                set({ currentCourse: response.data?.course, isLoading: false });
             } else {
-                set({ isLoading: false, error: response.data.message || 'Failed to fetch course' });
+                set({ isLoading: false, error: response.data?.message || 'Failed to fetch course' });
             }
         } catch (error: any) {
             set({ isLoading: false, error: 'Failed to fetch course' });
@@ -175,14 +163,9 @@ export const useCourseStore = create<CourseState>((set) => ({
 
     fetchEnrollmentProgress: async (courseId: string) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return;
-
-            const response = await axios.get(`${API_URL}/courses/${courseId}/progress`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (response.data.success) {
-                set({ enrollmentProgress: response.data.data });
+            const response = await apiClient.get(`${API_URL}/courses/${courseId}/progress`);
+            if (response.data?.success) {
+                set({ enrollmentProgress: response.data?.data });
             }
         } catch (error: any) {
             // 404 = user is not enrolled yet — this is expected, not a real error
@@ -191,14 +174,9 @@ export const useCourseStore = create<CourseState>((set) => ({
 
     markVideoComplete: async (courseId: string, videoId: string) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return false;
-
-            const response = await axios.post(`${API_URL}/courses/${courseId}/progress/video/${videoId}`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (response.data.success) {
-                set({ enrollmentProgress: response.data.data });
+            const response = await apiClient.post(`${API_URL}/courses/${courseId}/progress/video/${videoId}`);
+            if (response.data?.success) {
+                set({ enrollmentProgress: response.data?.data });
                 return true;
             }
             return false;
@@ -210,14 +188,9 @@ export const useCourseStore = create<CourseState>((set) => ({
 
     markPdfComplete: async (courseId: string, pdfId: string) => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return false;
-
-            const response = await axios.post(`${API_URL}/courses/${courseId}/progress/pdf/${pdfId}`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (response.data.success) {
-                set({ enrollmentProgress: response.data.data });
+            const response = await apiClient.post(`${API_URL}/courses/${courseId}/progress/pdf/${pdfId}`);
+            if (response.data?.success) {
+                set({ enrollmentProgress: response.data?.data });
                 return true;
             }
             return false;

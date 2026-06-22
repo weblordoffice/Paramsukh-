@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,12 +10,14 @@ import {
   Platform,
   TextInput,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Picker } from '@react-native-picker/picker';
 import { Country, State } from 'country-state-city';
+import Constants from 'expo-constants';
 
 import apiClient from '../utils/apiClient';
 
@@ -36,7 +38,14 @@ export default function AssessmentScreen() {
     { id: 'occupation', label: 'Occupation', placeholder: 'Enter your occupation', keyboardType: 'default' as const, required: true },
   ];
 
-  const countries = useMemo(() => Country.getAllCountries(), []);
+  const [countries, setCountries] = useState<ReturnType<typeof Country.getAllCountries>>([]);
+  const [countriesLoading, setCountriesLoading] = useState(true);
+
+  useEffect(() => {
+    setCountries(Country.getAllCountries());
+    setCountriesLoading(false);
+  }, []);
+
   const states = useMemo(
     () => (selectedCountryCode ? State.getStatesOfCountry(selectedCountryCode) : []),
     [selectedCountryCode]
@@ -218,6 +227,31 @@ export default function AssessmentScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Health Data Consent Banner */}
+          <View style={styles.consentBanner}>
+            <View style={styles.consentBannerContent}>
+              <Ionicons name="shield-checkmark" size={20} color="#2563EB" style={{ marginRight: 8 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.consentBannerTitle}>Health Data Collection Notice</Text>
+                <Text style={styles.consentBannerText}>
+                  This assessment collects health-related information including physical conditions, mental health
+                  status, and personal data to personalize your experience. By proceeding, you consent to this data
+                  collection as described in our{' '}
+                  <Text
+                    style={styles.consentBannerLink}
+                    onPress={() => {
+                      const url = Constants.expoConfig?.extra?.privacyPolicyUrl;
+                      if (url) Linking.openURL(url);
+                    }}
+                  >
+                    Privacy Policy
+                  </Text>
+                  .
+                </Text>
+              </View>
+            </View>
+          </View>
+
           {/* Text Input Fields */}
           {textFields.map((field) => (
             <View key={field.id} style={styles.inputBlock}>
@@ -247,8 +281,9 @@ export default function AssessmentScreen() {
                 selectedValue={selectedCountryCode}
                 onValueChange={(value) => handleCountryChange(String(value))}
                 style={styles.picker}
+                enabled={!countriesLoading}
               >
-                <Picker.Item label="Select your country" value="" />
+                <Picker.Item label={countriesLoading ? 'Loading countries...' : 'Select your country'} value="" />
                 {countries.map((country) => (
                   <Picker.Item key={country.isoCode} label={country.name} value={country.isoCode} />
                 ))}
@@ -418,6 +453,34 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 40,
+  },
+  consentBanner: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+  },
+  consentBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  consentBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E40AF',
+    marginBottom: 4,
+  },
+  consentBannerText: {
+    fontSize: 13,
+    color: '#374151',
+    lineHeight: 18,
+  },
+  consentBannerLink: {
+    color: '#2563EB',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   inputBlock: {
     marginBottom: 24,

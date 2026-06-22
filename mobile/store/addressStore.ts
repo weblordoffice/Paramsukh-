@@ -1,8 +1,6 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
-import { useAuthStore } from './authStore';
-
 interface Address {
     _id: string;
     type: string; // 'Home', 'Work', etc.
@@ -36,16 +34,11 @@ export const useAddressStore = create<AddressState>((set) => ({
     error: null,
 
     fetchAddresses: async () => {
-        const token = useAuthStore.getState().token;
-        if (!token) return;
-
         set({ isLoading: true, error: null });
         try {
-            const response = await axios.get(`${API_URL}/addresses`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            if (response.data.success) {
-                set({ addresses: response.data.data.addresses, isLoading: false });
+            const response = await apiClient.get(`${API_URL}/addresses`);
+            if (response.data?.success) {
+                set({ addresses: response.data?.data?.addresses ?? [], isLoading: false });
             } else {
                 set({ isLoading: false, error: 'Failed to fetch addresses' });
             }
@@ -55,19 +48,15 @@ export const useAddressStore = create<AddressState>((set) => ({
     },
 
     addAddress: async (addressData) => {
-        const token = useAuthStore.getState().token;
-        if (!token) return null;
-
         set({ isLoading: true, error: null });
         try {
-            const response = await axios.post(
+            const response = await apiClient.post(
                 `${API_URL}/addresses/add`,
-                addressData,
-                { headers: { Authorization: `Bearer ${token}` } }
+                addressData
             );
 
-            if (response.data.success) {
-                const newAddress = response.data.data.address;
+            if (response.data?.success) {
+                const newAddress = response.data?.data?.address;
                 set((state) => ({
                     addresses: [newAddress, ...state.addresses],
                     isLoading: false
@@ -82,12 +71,44 @@ export const useAddressStore = create<AddressState>((set) => ({
     },
 
     updateAddress: async (id, addressData) => {
-        // Implementation for update if needed later
-        return true;
+        set({ isLoading: true, error: null });
+        try {
+            const response = await apiClient.patch(
+                `${API_URL}/addresses/${id}`,
+                addressData
+            );
+            if (response.data?.success) {
+                const updated = response.data?.data?.address;
+                set((state) => ({
+                    addresses: state.addresses.map((a) =>
+                        a._id === id ? { ...a, ...updated } : a
+                    ),
+                    isLoading: false,
+                }));
+                return true;
+            }
+            set({ isLoading: false, error: response.data?.message || 'Failed to update address' });
+            return false;
+        } catch (error: any) {
+            set({ isLoading: false, error: error.response?.data?.message || 'Failed to update address' });
+            return false;
+        }
     },
 
     deleteAddress: async (id) => {
-        // Implementation for delete if needed later
-        return true;
+        set({ isLoading: true, error: null });
+        try {
+            const response = await apiClient.delete(`${API_URL}/addresses/${id}`);
+            if (response.data?.success) {
+                    isLoading: false,
+                }));
+                return true;
+            }
+            set({ isLoading: false, error: response.data?.message || 'Failed to delete address' });
+            return false;
+        } catch (error: any) {
+            set({ isLoading: false, error: error.response?.data?.message || 'Failed to delete address' });
+            return false;
+        }
     }
 }));

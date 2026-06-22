@@ -31,6 +31,8 @@ const YOUTUBE_ERROR_CHECK_SCRIPT = `
     if (window.__ytErrorProbeInstalled) return;
     window.__ytErrorProbeInstalled = true;
 
+    var __timers = [];
+
     function postError(code) {
       try {
         window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'YOUTUBE_ERROR', code: code }));
@@ -58,9 +60,16 @@ const YOUTUBE_ERROR_CHECK_SCRIPT = `
       } catch (e) {}
     }
 
-    setTimeout(check, 1000);
-    setTimeout(check, 2500);
-    setTimeout(check, 5000);
+    function clearTimers() {
+      __timers.forEach(function(t) { clearTimeout(t); });
+      __timers = [];
+    }
+
+    __timers.push(setTimeout(check, 1000));
+    __timers.push(setTimeout(check, 2500));
+    __timers.push(setTimeout(check, 5000));
+
+    window.__ytClearTimers = clearTimers;
   })();
   true;
 `;
@@ -131,6 +140,8 @@ export default function PodcastsScreen() {
   const [youtubePlaybackBlocked, setYoutubePlaybackBlocked] = useState(false);
 
   const videoRef = useRef<Video>(null);
+  const webViewRef = useRef<WebView>(null);
+  const timersRef = useRef<NodeJS.Timeout[]>([]);
 
   const categories = ['All', 'Meditation', 'Discourse', 'Scripture', 'Mindfulness', 'Mantra', 'Other'];
 
@@ -178,6 +189,13 @@ export default function PodcastsScreen() {
     setYoutubeMode('embed');
     setYoutubePlaybackBlocked(false);
   }, [currentPodcast?._id]);
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach(clearTimeout);
+      timersRef.current = [];
+    };
+  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -359,7 +377,7 @@ export default function PodcastsScreen() {
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
-        <TouchableOpacity className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" onPress={() => router.back()}>
+        <TouchableOpacity className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" onPress={() => { if (router.canGoBack()) router.back(); }}>
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>
         <Text className="text-xl font-bold text-gray-900">Podcasts</Text>

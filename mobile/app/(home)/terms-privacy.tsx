@@ -8,6 +8,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import Constants from 'expo-constants';
+import { Linking } from 'react-native';
 
 export default function TermsPrivacyScreen() {
   const router = useRouter();
@@ -136,6 +138,19 @@ export default function TermsPrivacyScreen() {
             </Text>
           </View>
         )}
+
+        <TouchableOpacity
+          className="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-4 flex-row items-center justify-center"
+          onPress={() => {
+            const url = Constants.expoConfig?.extra?.privacyPolicyUrl;
+            if (url) Linking.openURL(url).catch(() => {});
+          }}
+        >
+          <Ionicons name="open-outline" size={18} color="#2563EB" />
+          <Text className="text-blue-600 font-semibold text-[15px] ml-2">
+            View Full {activeTab === 'terms' ? 'Terms of Service' : 'Privacy Policy'} Online
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );

@@ -26,7 +26,7 @@ export default function OrderDetailScreen() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
                     <Ionicons name="arrow-back" size={24} color="#111827" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Order Details</Text>

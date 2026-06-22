@@ -1,8 +1,6 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
-import { useAuthStore } from './authStore';
-
 export interface Donation {
     _id: string;
     amount: number;
@@ -31,16 +29,11 @@ export const useDonationStore = create<DonationState>((set) => ({
 
     fetchMyDonations: async () => {
         try {
-            const token = useAuthStore.getState().token;
-            if (!token) return;
-
             set({ isLoading: true });
-            const response = await axios.get(`${API_URL}/auth/donations/my-history`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await apiClient.get(`${API_URL}/auth/donations/my-history`);
 
-            if (response.data.success) {
-                set({ donations: response.data.data, isLoading: false });
+            if (response.data?.success) {
+                set({ donations: response.data?.data ?? [], isLoading: false });
             }
         } catch (error) {
             set({ isLoading: false });
@@ -49,15 +42,9 @@ export const useDonationStore = create<DonationState>((set) => ({
 
     recordDonation: async (data) => {
         try {
-            const token = useAuthStore.getState().token;
-            // Allow anonymous donation if we support it later, but for now require token
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const response = await apiClient.post(`${API_URL}/auth/donations/record`, data);
 
-            const response = await axios.post(`${API_URL}/auth/donations/record`, data, {
-                headers
-            });
-
-            if (response.data.success) {
+            if (response.data?.success) {
                 return { success: true, message: 'Thank you for your donation!' };
             }
             return { success: false, message: 'Failed to record donation' };

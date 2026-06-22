@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios from 'axios';
+import Constants from 'expo-constants';
+import apiClient from '../../utils/apiClient';
 import { API_URL } from '../../config/api';
 import { useAuthStore } from '../../store/authStore';
 
@@ -36,30 +37,32 @@ const defaultSettings: UserSettings = {
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { fetchCurrentUser } = useAuthStore();
   const [settings, setSettings] = useState<UserSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
+    isMountedRef.current = true;
     loadSettings();
+    return () => {
+      isMountedRef.current = false;
+    };
   }, []);
 
   const loadSettings = async () => {
     try {
       // Load from AsyncStorage first
       const stored = await AsyncStorage.getItem(SETTINGS_STORAGE_KEY);
+      if (!isMountedRef.current) return;
       if (stored) {
         setSettings({ ...defaultSettings, ...JSON.parse(stored) });
       }
 
       // Then try to fetch from API
-      const token = await useAuthStore.getState().token;
-      if (token) {
-        const response = await axios.get(`${API_URL}/user/profile`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (response.data.success && response.data.user?.preferences) {
+      const response = await apiClient.get(`${API_URL}/user/profile`);
+      if (!isMountedRef.current) return;
+      if (response.data?.success && response.data?.user?.preferences) {
           const apiPrefs = response.data.user.preferences;
           const loadedSettings = {
             pushNotifications: apiPrefs.notifications ?? defaultSettings.pushNotifications,
@@ -74,7 +77,7 @@ export default function SettingsScreen() {
       }
     } catch (error) {
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) setLoading(false);
     }
   };
 
@@ -85,20 +88,16 @@ export default function SettingsScreen() {
       await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(newSettings));
 
       // Sync to API
-      const token = await useAuthStore.getState().token;
-      if (token) {
-        await axios.put(
-          `${API_URL}/user/preferences`,
-          {
-            theme: newSettings.darkMode ? 'dark' : 'light',
-            notifications: newSettings.pushNotifications,
-            emailNotifications: newSettings.emailNotifications,
-            autoPlay: newSettings.autoPlay,
-            dataSaver: newSettings.dataSaver,
-          },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-      }
+      await apiClient.put(
+        `${API_URL}/user/preferences`,
+        {
+          theme: newSettings.darkMode ? 'dark' : 'light',
+          notifications: newSettings.pushNotifications,
+          emailNotifications: newSettings.emailNotifications,
+          autoPlay: newSettings.autoPlay,
+          dataSaver: newSettings.dataSaver,
+        },
+      );
     } catch (error) {
       // Silently fail - local storage already saved
     } finally {
@@ -115,14 +114,42 @@ export default function SettingsScreen() {
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
-      'Are you sure you want to delete your account? This action cannot be undone.',
+      'Are you sure you want to delete your account? This will permanently remove all your data including subscriptions, orders, and progress. This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete',
+          text: 'Delete Permanently',
           style: 'destructive',
-          onPress: () => {
-            Alert.alert('Account Deletion', 'Please contact support to delete your account.');
+          onPress: async () => {
+            try {
+              const response = await apiClient.delete(`${API_URL}/user/delete-account`);
+              if (response.data?.success) {
+                await useAuthStore.getState().logout();
+                router.replace('/signin');
+              } else {
+                Alert.alert('Error', response.data?.message || 'Failed to delete account');
+              }
+            } catch (error: any) {
+              Alert.alert('Error', error.response?.data?.message || 'Failed to delete account. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            await useAuthStore.getState().logout();
+            router.replace('/signin');
           },
         },
       ]
@@ -130,7 +157,7 @@ export default function SettingsScreen() {
   };
 
   const navigateBack = () => {
-    router.back();
+    if (router.canGoBack()) router.back();
   };
 
   if (loading) {
@@ -296,7 +323,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FEF2F2', padding: 16, borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#FECACA' }}
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 8, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
             onPress={handleDeleteAccount}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
@@ -305,6 +332,31 @@ export default function SettingsScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#EF4444" />
           </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 8, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
+            onPress={handleLogout}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Ionicons name="log-out-outline" size={24} color="#EF4444" />
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#EF4444', marginLeft: 12 }}>Logout</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
+
+        {/* App Info */}
+        <View style={{ marginBottom: 24 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 12 }}>About</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Ionicons name="information-circle-outline" size={24} color="#3B82F6" />
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827', marginLeft: 12 }}>App Version</Text>
+            </View>
+            <Text style={{ fontSize: 14, color: '#6B7280' }}>
+              {Constants.expoConfig?.version ?? '1.0.0'} ({Constants.expoConfig?.android?.versionCode ?? '1'})
+            </Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>

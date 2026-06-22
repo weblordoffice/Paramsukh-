@@ -86,7 +86,7 @@ export function usePushNotifications() {
 
         // Get the Expo push token — projectId ties the token to this specific app
         const tokenData = await Notifications.getExpoPushTokenAsync({
-          projectId: 'b6377463-45af-4c15-b761-627f43d190c8', // from app.json extra.eas.projectId
+          projectId: Constants.expoConfig?.extra?.eas?.projectId,
         });
         const expoPushToken = tokenData?.data;
 
