@@ -74,8 +74,6 @@ export default function SettingsScreen() {
           setSettings(loadedSettings);
           await AsyncStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(loadedSettings));
         }
-      }
-    } catch (error) {
     } finally {
       if (isMountedRef.current) setLoading(false);
     }
