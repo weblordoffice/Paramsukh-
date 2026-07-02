@@ -31,16 +31,6 @@ export default function Home() {
           return;
         }
 
-        const fetchOk = await useAuthStore.getState().fetchCurrentUser();
-        if (!isMounted) return;
-
-        if (!fetchOk && !useAuthStore.getState().user) {
-          setHasChecked(true);
-          hasCheckedRef.current = true;
-          router.replace('/signin');
-          return;
-        }
-
         const assessmentCompleted = await AsyncStorage.getItem('assessment_completed');
         if (!isMounted) return;
 
