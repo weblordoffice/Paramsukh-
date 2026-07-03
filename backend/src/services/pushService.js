@@ -83,7 +83,8 @@ function buildMessage(expoPushToken, { title, body, data = {}, sound = 'default'
     data,
     sound,
     badge,
-    channelId: 'default', // Android notification channel
+    priority: 'high',        // Required for Android lock-screen / Doze-mode delivery
+    channelId: 'default',    // Android notification channel
   };
 }
 
