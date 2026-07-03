@@ -140,7 +140,7 @@ export default function HomeTab() {
               </View>
               <View style={styles.heroTextContainer}>
                 <Text style={styles.heroGreeting}>Welcome to</Text>
-                <Text style={styles.heroTitle}>ParamSukh Gurukool</Text>
+                <Text style={styles.heroTitle}>ParamSukh Gurukul</Text>
               </View>
             </View>
             

@@ -27,10 +27,7 @@ import { useNotificationStore } from '../store/notificationStore';
 export function usePushNotifications() {
   const { token: authToken } = useAuthStore();
   const { registerDeviceToken, fetchUnreadCount } = useNotificationStore();
-  const executionEnvironment = (Constants as any).executionEnvironment;
-  const isExpoGo =
-    Constants.appOwnership === 'expo' ||
-    executionEnvironment === 'storeClient';
+  const isExpoGo = Constants.appOwnership === 'expo';
 
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
@@ -38,7 +35,7 @@ export function usePushNotifications() {
   useEffect(() => {
     // Only run when the user is logged in
     if (!authToken) return;
-    if (false || isExpoGo) {
+    if (isExpoGo) {
       return;
     }
 
@@ -85,8 +82,11 @@ export function usePushNotifications() {
         }
 
         // Get the Expo push token — projectId ties the token to this specific app
+        const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+        if (!projectId) return;
+
         const tokenData = await Notifications.getExpoPushTokenAsync({
-          projectId: Constants.expoConfig?.extra?.eas?.projectId,
+          projectId,
         });
         const expoPushToken = tokenData?.data;
 
