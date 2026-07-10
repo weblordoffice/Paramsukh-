@@ -1,14 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import toast from 'react-hot-toast';
 import { Lock } from 'lucide-react';
+import { useAuthStore } from '@/lib/store/authStore';
+import axios from 'axios';
+import { API_BASE_URL } from '@/lib/api/config';
 
 export default function LoginClient() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState('admin@paramsukh.com');
+  const [password, setPassword] = useState('password123');
 
   useEffect(() => {
     const error = searchParams.get('error');
@@ -29,6 +35,40 @@ export default function LoginClient() {
     }
   };
 
+  const handleCredentialsSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/admin/login`, {
+        email,
+        password,
+      });
+
+      if (response.data.success) {
+        const { token, admin, refreshToken, expiresIn } = response.data;
+        const expiryTime = Date.now() + (expiresIn || 24 * 60 * 60 * 1000);
+        
+        useAuthStore.setState({
+          isAuthenticated: true,
+          user: admin,
+          token,
+          refreshToken: refreshToken || null,
+          tokenExpiry: expiryTime,
+        });
+        
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        toast.success('Signed in successfully!');
+        router.push('/dashboard');
+      } else {
+        toast.error(response.data?.message || 'Invalid credentials');
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Connection to backend failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-secondary via-secondary-light to-accent p-4">
       <div className="w-full max-w-md">
@@ -38,16 +78,16 @@ export default function LoginClient() {
               <Lock className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-3xl font-bold text-secondary">ParamSukh Admin</h1>
-            <p className="text-accent">Sign in with your Google account</p>
+            <p className="text-accent text-sm">Sign in to manage the platform</p>
           </div>
 
           <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-800 font-semibold py-3 px-4 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-300 hover:border-gray-400 hover:bg-gray-50 text-gray-800 font-semibold py-2.5 px-4 rounded-lg transition duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
           >
-            <svg className="w-6 h-6" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path
                 fill="#4285F4"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -68,9 +108,44 @@ export default function LoginClient() {
             {loading ? <span>Redirecting to Google...</span> : <span>Sign in with Google</span>}
           </button>
 
-          <p className="text-center text-sm text-gray-500">
-            Only accounts added by a super admin can sign in. Use the same Google email that was
-            added in Settings.
+          <div className="flex items-center my-4">
+            <div className="flex-1 h-px bg-gray-200" />
+            <span className="px-3 text-xs text-gray-400 font-bold uppercase">or dev credentials</span>
+            <div className="flex-1 h-px bg-gray-200" />
+          </div>
+
+          <form onSubmit={handleCredentialsSignIn} className="space-y-4 text-left">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email Address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-secondary focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-secondary focus:outline-none focus:border-primary"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-2.5 px-4 rounded-lg text-sm transition duration-200 disabled:opacity-50"
+            >
+              {loading ? 'Signing in...' : 'Sign in as Super Admin'}
+            </button>
+          </form>
+
+          <p className="text-center text-xs text-gray-500 leading-normal">
+            For local development, use the pre-filled credentials. Google authentication is recommended for staging/production deployments.
           </p>
         </div>
       </div>

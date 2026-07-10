@@ -156,6 +156,12 @@ const commentSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  parentCommentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Comment',
+    default: null,
+    index: true
+  },
   content: {
     type: String,
     required: true,
@@ -173,6 +179,10 @@ const commentSchema = new mongoose.Schema({
     }
   }],
   likeCount: {
+    type: Number,
+    default: 0
+  },
+  replyCount: {
     type: Number,
     default: 0
   },
@@ -213,6 +223,7 @@ groupMemberSchema.index({ userId: 1 });
 postSchema.index({ groupId: 1, createdAt: -1 });
 postSchema.index({ userId: 1 });
 commentSchema.index({ postId: 1, createdAt: -1 });
+commentSchema.index({ parentCommentId: 1, createdAt: 1 });
 
 export const Group = mongoose.model("Group", groupSchema);
 export const GroupMember = mongoose.model("GroupMember", groupMemberSchema);
