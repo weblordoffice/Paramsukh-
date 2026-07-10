@@ -12,7 +12,8 @@ import {
   getCourseProgress,
   updateVideoPosition,
   checkEnrollmentStatus,
-  getContinueLearning
+  getContinueLearning,
+  markCourseComplete
 } from '../../controller/enrollment/enrollment.controller.js';
 import {
   getEnrollmentStats,
@@ -70,6 +71,9 @@ router.post('/course/:courseId/video/:videoId/complete', markVideoComplete);
 
 // Mark PDF as complete
 router.post('/course/:courseId/pdf/:pdfId/complete', markPdfComplete);
+
+// Mark entire course as complete
+router.post('/course/:courseId/complete', markCourseComplete);
 
 // Unenroll from course
 router.delete('/course/:courseId', unenrollFromCourse);

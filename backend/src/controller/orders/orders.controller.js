@@ -283,6 +283,14 @@ export const getMyOrders = async (req, res) => {
   }
 };
 
+// Helper to query order by either ObjectId or orderNumber to prevent CastError
+const getOrderQuery = (id, userId) => {
+  const isObjectId = /^[0-9a-fA-F]{24}$/.test(id);
+  const query = isObjectId ? { _id: id } : { orderNumber: id };
+  query.user = userId;
+  return Order.findOne(query);
+};
+
 // @desc    Get order details
 // @route   GET /api/orders/:id
 // @access  Private
@@ -291,7 +299,7 @@ export const getOrderDetails = async (req, res) => {
     const userId = req.user._id;
     const { id } = req.params;
 
-    const order = await Order.findOne({ _id: id, user: userId })
+    const order = await getOrderQuery(id, userId)
       .populate('items.product', 'name images')
       .populate('items.shop', 'name slug phone email');
 
@@ -325,7 +333,7 @@ export const cancelOrder = async (req, res) => {
     const { id } = req.params;
     const { reason, comment } = req.body;
 
-    const order = await Order.findOne({ _id: id, user: userId });
+    const order = await getOrderQuery(id, userId);
 
     if (!order) {
       return res.status(404).json({
@@ -393,7 +401,7 @@ export const requestReturn = async (req, res) => {
     const { id } = req.params;
     const { reason, comment, images } = req.body;
 
-    const order = await Order.findOne({ _id: id, user: userId });
+    const order = await getOrderQuery(id, userId);
 
     if (!order) {
       return res.status(404).json({
@@ -460,7 +468,7 @@ export const trackOrder = async (req, res) => {
     const userId = req.user._id;
     const { id } = req.params;
 
-    const order = await Order.findOne({ _id: id, user: userId })
+    const order = await getOrderQuery(id, userId)
       .select('orderNumber status statusHistory tracking estimatedDelivery');
 
     if (!order) {
@@ -492,7 +500,7 @@ export const getInvoice = async (req, res) => {
     const userId = req.user._id;
     const { id } = req.params;
 
-    const order = await Order.findOne({ _id: id, user: userId })
+    const order = await getOrderQuery(id, userId)
       .populate('items.product', 'name')
       .populate('items.shop', 'name address gstNumber');
 
@@ -617,10 +625,11 @@ export const createOrderPaymentLink = async (req, res) => {
     }
     const amount = order.pricing?.total ?? 0;
     if (amount <= 0) return res.status(400).json({ success: false, message: 'Invalid order total' });
+    const rawContact = order.deliveryAddress?.phone || req.user?.phone;
     const customer = {
       name: req.user?.displayName || req.user?.name || order.deliveryAddress?.fullName || 'Customer',
       email: req.user?.email || undefined,
-      contact: order.deliveryAddress?.phone || req.user?.phone ? String(req.user.phone).replace('+91', '').trim() : undefined,
+      contact: rawContact ? String(rawContact).replace('+91', '').trim() : undefined,
     };
     const link = await createRazorpayPaymentLink({
       amount,

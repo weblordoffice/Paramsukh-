@@ -279,6 +279,10 @@ export const validateCreateComment = [
     .trim()
     .isLength({ min: 1, max: 2000 })
     .withMessage('Comment must be between 1 and 2000 characters'),
+  body('parentCommentId')
+    .optional({ nullable: true, checkFalsy: true })
+    .isMongoId()
+    .withMessage('Parent comment id must be a valid comment id'),
   handleValidationErrors
 ];
 
