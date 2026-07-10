@@ -1,5 +1,14 @@
 # Dependencies
 /node_modules
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
 
 # Production
 /dist
@@ -46,6 +55,13 @@ backup-*
 !ADMIN_*.md
 !CI_CD_*.md
 !VPS_*.md
+!ai-service/*.md
+ai-service/AGENTS.md
+ai-service/ai-implementation.md
 
 # Other
 nul
+
+# AI Service Tools Documentation and Flows
+ai-service/tools_implemented/
+ai-service/tools-implemnation-flow/

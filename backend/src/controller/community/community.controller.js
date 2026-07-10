@@ -430,8 +430,11 @@ export const getPostComments = async (req, res) => {
       const userLiked = comment.likes.some(like => like.userId.toString() === userId.toString());
       return {
         _id: comment._id,
+        postId: comment.postId,
+        parentCommentId: comment.parentCommentId || null,
         content: comment.content,
         likeCount: comment.likeCount,
+        replyCount: comment.replyCount || 0,
         userLiked,
         author: {
           _id: comment.userId._id,
@@ -467,7 +470,7 @@ export const addComment = async (req, res) => {
   try {
     const userId = req.user._id;
     const { postId } = req.params;
-    const { content } = req.body;
+    const { content, parentCommentId } = req.body;
 
     if (!content || content.trim().length === 0) {
       return res.status(400).json({
@@ -493,15 +496,33 @@ export const addComment = async (req, res) => {
       });
     }
 
+    let parentComment = null;
+    if (parentCommentId) {
+      parentComment = await Comment.findOne({ _id: parentCommentId, postId, isActive: true })
+        .populate('userId', 'displayName photoURL subscriptionPlan');
+      if (!parentComment) {
+        return res.status(404).json({
+          success: false,
+          message: "The comment you want to reply to was not found"
+        });
+      }
+    }
+
     const comment = await Comment.create({
       postId,
       userId,
+      parentCommentId: parentComment ? parentComment._id : null,
       content: content.trim()
     });
 
     // Update post comment count
     post.commentCount += 1;
     await post.save();
+
+    if (parentComment) {
+      parentComment.replyCount = (parentComment.replyCount || 0) + 1;
+      await parentComment.save();
+    }
 
     const populatedComment = await Comment.findById(comment._id)
       .populate('userId', 'displayName photoURL subscriptionPlan');
@@ -511,14 +532,27 @@ export const addComment = async (req, res) => {
       message: "Comment added successfully",
       comment: {
         _id: populatedComment._id,
+        postId: populatedComment.postId,
+        parentCommentId: populatedComment.parentCommentId || null,
         content: populatedComment.content,
         likeCount: populatedComment.likeCount,
+        replyCount: populatedComment.replyCount || 0,
         author: {
           _id: populatedComment.userId._id,
           displayName: populatedComment.userId.displayName,
           photoURL: populatedComment.userId.photoURL,
           subscriptionPlan: populatedComment.userId.subscriptionPlan
         },
+        parentComment: parentComment ? {
+          _id: parentComment._id,
+          content: parentComment.content,
+          author: {
+            _id: parentComment.userId?._id,
+            displayName: parentComment.userId?.displayName,
+            photoURL: parentComment.userId?.photoURL,
+            subscriptionPlan: parentComment.userId?.subscriptionPlan
+          }
+        } : null,
         createdAt: populatedComment.createdAt
       }
     });

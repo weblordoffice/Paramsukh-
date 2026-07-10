@@ -24,6 +24,7 @@ import membershipPlanRoutes from './routes/membership/membershipPlanRoute.js';
 import uploadRoutes from './routes/upload/uploadRoute.js';
 import podcastRoutes from './routes/podcast/podcastRoute.js';
 import adminRoutes from './routes/admin/adminRoute.js';
+import chatRoutes from './routes/chat/chatRoute.js';
 
 import donationsRoutes from './routes/donations/donationsRoute.js';
 import supportRoutes from './routes/support/supportRoute.js';
@@ -66,11 +67,22 @@ const corsOptions = {
     // allow non-browser clients (curl, server-to-server) with no Origin header
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
+    
+    // Allow local development origins dynamically in development
+    if (process.env.NODE_ENV === 'development') {
+      const isLocal = origin.startsWith('http://localhost:') || 
+                      origin.startsWith('http://127.0.0.1:') ||
+                      origin.startsWith('http://192.168.') ||
+                      origin.startsWith('http://10.') ||
+                      origin.startsWith('http://172.');
+      if (isLocal) return callback(null, true);
+    }
+    
     return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-API-Key'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-API-Key', 'Cache-Control', 'Pragma', 'Last-Event-ID', 'X-Requested-With', 'Accept', 'Origin'],
 };
 
 app.use(helmet());
@@ -102,6 +114,7 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/membership-plans', membershipPlanRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/podcasts', podcastRoutes);
+app.use('/api/chat', chatRoutes);
 
 app.use('/api/donations', donationsRoutes);
 app.use('/api/support', supportRoutes);

@@ -360,9 +360,9 @@ eventSchema.methods.updateAttendeeCount = async function() {
   try {
     // Import EventRegistration dynamically to avoid circular dependency
     const { EventRegistration } = await import('./eventRegistration.models.js');
-    const count = await EventRegistration.countDocuments({ 
+    const count = await EventRegistration.countDocuments({
       eventId: this._id,
-      status: 'confirmed'
+      status: { $in: ['confirmed', 'attended'] }
     });
     this.currentAttendees = count;
     // Note: Don't call this.save() here to avoid triggering pre-save hook again
