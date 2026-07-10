@@ -15,7 +15,7 @@ import {
   toggleCommentLike,
   deletePost
 } from '../../controller/community/community.controller.js';
-import { getAllPosts, deletePostAdmin, togglePinPost } from '../../controller/community/admin.community.controller.js';
+import { getAllPosts, deletePostAdmin, togglePinPost, createPostAdmin, getAdminGroups } from '../../controller/community/admin.community.controller.js';
 import { runScheduledCleanup } from '../../controller/community/communityCleanup.controller.js';
 
 const router = express.Router();
@@ -24,6 +24,8 @@ const router = express.Router();
 router.get('/all', adminAuth, getAllPosts);
 router.delete('/posts/:postId/admin', adminAuth, deletePostAdmin);
 router.patch('/posts/:postId/pin', adminAuth, togglePinPost);
+router.post('/admin/posts', adminAuth, createPostAdmin);
+router.get('/admin/groups', adminAuth, getAdminGroups);
 router.get('/admin/cleanup-expired', adminAuth, runScheduledCleanup);  // Scheduled cleanup endpoint
 
 // All other community routes require authentication

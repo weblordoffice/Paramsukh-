@@ -145,13 +145,7 @@ const ensurePlanCategoryGroups = async ({ planSlug, categories = [], parentGroup
           filter: { groupType: 'category', planSlug: normalizedPlan, category },
           update: {
             $setOnInsert: {
-              groupType: 'category',
-              planSlug: normalizedPlan,
-              category,
-              name: `${planLabel} - ${formatCategoryLabel(category)} Community`,
-              description: `${planLabel} members enrolled in ${formatCategoryLabel(category)} courses`,
               memberCount: 0,
-              parentGroupId: parentGroupId || null,
             },
             $set: {
               isActive: true,
@@ -194,12 +188,8 @@ const ensurePlanParentGroup = async (planSlug) => {
       filter,
       {
         $setOnInsert: {
-          groupType: 'plan',
-          planSlug: normalizedPlan,
           category: null,
           parentGroupId: null,
-          name: `${planLabel} Community`,
-          description: `Community for ${planLabel} plan members`,
           memberCount: 0,
         },
         $set: {

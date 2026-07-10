@@ -1,4 +1,4 @@
-import { Post, Comment } from '../../models/community.models.js';
+import { Post, Comment, Group } from '../../models/community.models.js';
 
 // @desc    Get all community posts (Admin only)
 // @route   GET /api/community/all
@@ -112,6 +112,88 @@ export const togglePinPost = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to toggle pin status',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Create a community post (Admin only)
+// @route   POST /api/community/admin/posts
+// @access  Admin
+export const createPostAdmin = async (req, res) => {
+    try {
+        const { content, groupId, images, tags } = req.body;
+
+        if (!content || content.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Post content is required'
+            });
+        }
+
+        if (!groupId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Group ID is required'
+            });
+        }
+
+        const group = await Group.findById(groupId);
+        if (!group) {
+            return res.status(404).json({
+                success: false,
+                message: 'Group not found'
+            });
+        }
+
+        const post = await Post.create({
+            userId: req.admin._id,
+            groupId,
+            content: content.trim(),
+            images: images || [],
+            tags: tags || []
+        });
+
+        const populatedPost = await Post.findById(post._id)
+            .populate('userId', 'displayName email photoURL')
+            .populate('groupId', 'name');
+
+        console.log(`📝 Admin ${req.admin._id} created post in group ${groupId}`);
+
+        res.status(201).json({
+            success: true,
+            message: 'Post created successfully',
+            data: populatedPost
+        });
+    } catch (error) {
+        console.error('Admin Create Post Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create post',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get all groups (Admin only)
+// @route   GET /api/community/admin/groups
+// @access  Admin
+export const getAdminGroups = async (req, res) => {
+    try {
+        const groups = await Group.find({ isActive: true })
+            .select('name groupType description memberCount')
+            .sort({ name: 1 })
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            data: groups
+        });
+    } catch (error) {
+        console.error('Get Admin Groups Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve groups',
             error: error.message
         });
     }
