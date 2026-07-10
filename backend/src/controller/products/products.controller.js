@@ -2,6 +2,7 @@ import Product from '../../models/product.models.js';
 import Shop from '../../models/shop.models.js';
 import Review from '../../models/review.models.js';
 import Category from '../../models/category.models.js';
+import mongoose from 'mongoose';
 
 // @desc    Create product
 // @route   POST /api/products/create
@@ -83,7 +84,23 @@ export const getAllProducts = async (req, res) => {
     const query = { isActive: true };
 
     // Filters
-    if (category) query.category = category;
+    if (category) {
+      if (mongoose.Types.ObjectId.isValid(category)) {
+        query.category = category;
+      } else {
+        const foundCategory = await Category.findOne({
+          $or: [
+            { name: { $regex: new RegExp('^' + category + '$', 'i') } },
+            { slug: category.toLowerCase() }
+          ]
+        });
+        if (foundCategory) {
+          query.category = foundCategory._id;
+        } else {
+          query.category = new mongoose.Types.ObjectId();
+        }
+      }
+    }
     if (shop) query.shop = shop;
     if (featured === 'true') query.isFeatured = true;
     if (inStock === 'true') query.isOutOfStock = false;

@@ -21,6 +21,11 @@ import {
 } from '../../controller/admin/support.controller.js';
 import { protectAdmin, restrictTo } from '../../middleware/authAdmin.js';
 import { authLimiter } from '../../middleware/rateLimiter.js';
+import {
+    getUserConversations,
+    getConversationMessages,
+    getUserMemory
+} from '../../controller/admin/adminChat.controller.js';
 
 const router = express.Router();
 
@@ -35,6 +40,11 @@ router.use(protectAdmin);
 
 router.get('/me', getAdminMe);
 router.get('/analytics/basic', getBasicAnalytics);
+
+// User AI Chat History & Memory logs (all admin roles can view)
+router.get('/chat/users/:userId/conversations', getUserConversations);
+router.get('/chat/conversations/:conversationId/messages', getConversationMessages);
+router.get('/chat/users/:userId/memory', getUserMemory);
 
 // Support tickets (all admin roles)
 router.get('/support/stats', getSupportStats);

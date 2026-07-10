@@ -1,0 +1,160 @@
+[
+  {
+    "id": "support_reset_password",
+    "category": "support",
+    "message": "How do I reset my password?",
+    "auth_required": false,
+    "expected_tools_any": ["search_support_content"],
+    "forbidden_tools": ["get_support_messages"],
+    "screen_label": "Help & Support",
+    "notes": "FAQ-style support question should use grounded support knowledge, not personal ticket history."
+  },
+  {
+    "id": "support_contact_whatsapp",
+    "category": "support",
+    "message": "What is the support WhatsApp number?",
+    "auth_required": false,
+    "expected_tools_any": ["search_support_content"],
+    "forbidden_tools": ["get_support_messages"],
+    "screen_label": "Help & Support",
+    "notes": "Contact lookup should use the support content retrieval tool."
+  },
+  {
+    "id": "support_ticket_status",
+    "category": "support",
+    "message": "Show my support requests.",
+    "auth_required": true,
+    "expected_tools_any": ["get_support_messages"],
+    "forbidden_tools": ["search_support_content"],
+    "screen_label": "Help & Support",
+    "notes": "Personal support history should use the authenticated support-messages tool."
+  },
+  {
+    "id": "recommend_beginner_meditation",
+    "category": "recommendations",
+    "message": "Suggest beginner meditation courses for me.",
+    "auth_required": true,
+    "expected_tools_any": ["recommend_courses"],
+    "forbidden_tools": [],
+    "screen_label": "Courses",
+    "notes": "Recommendation intent should prefer the richer recommendation tool over plain search."
+  },
+  {
+    "id": "recommend_membership_aware",
+    "category": "recommendations",
+    "message": "Which course should I start with based on my plan?",
+    "auth_required": true,
+    "expected_tools_any": ["recommend_courses", "get_my_subscription"],
+    "forbidden_tools": [],
+    "screen_label": "My Membership",
+    "notes": "The assistant may need both recommendation and subscription context."
+  },
+  {
+    "id": "search_raw_courses",
+    "category": "courses",
+    "message": "Show me courses about healing.",
+    "auth_required": false,
+    "expected_tools_any": ["search_courses"],
+    "forbidden_tools": [],
+    "screen_label": "Courses",
+    "notes": "Broad catalog discovery can use the simpler search tool."
+  },
+  {
+    "id": "continue_learning",
+    "category": "enrollments",
+    "message": "What should I continue learning next?",
+    "auth_required": true,
+    "expected_tools_any": ["get_continue_learning"],
+    "forbidden_tools": [],
+    "screen_label": "My Progress",
+    "notes": "Should use the continue-learning tool rather than generic enrollments."
+  },
+  {
+    "id": "show_my_enrollments",
+    "category": "enrollments",
+    "message": "Show my enrolled courses.",
+    "auth_required": true,
+    "expected_tools_any": ["get_my_enrollments"],
+    "forbidden_tools": [],
+    "screen_label": "My Progress",
+    "notes": "The assistant should fetch the user's course list."
+  },
+  {
+    "id": "course_progress_detail",
+    "category": "enrollments",
+    "message": "How far am I in my current course?",
+    "auth_required": true,
+    "expected_tools_any": ["get_continue_learning", "get_course_progress"],
+    "forbidden_tools": [],
+    "screen_label": "My Progress",
+    "notes": "A strong answer usually needs current-course discovery plus detailed progress."
+  },
+  {
+    "id": "membership_plans_public",
+    "category": "memberships",
+    "message": "What membership plans are available?",
+    "auth_required": false,
+    "expected_tools_any": ["get_membership_plans"],
+    "forbidden_tools": ["get_my_subscription"],
+    "screen_label": "Membership",
+    "notes": "Public plan discovery should not require user-specific subscription lookup."
+  },
+  {
+    "id": "my_membership_status",
+    "category": "memberships",
+    "message": "What is my current subscription status?",
+    "auth_required": true,
+    "expected_tools_any": ["get_my_subscription"],
+    "forbidden_tools": [],
+    "screen_label": "My Membership",
+    "notes": "Should use the authenticated subscription tool."
+  },
+  {
+    "id": "upcoming_events",
+    "category": "events",
+    "message": "Are there any upcoming spiritual events?",
+    "auth_required": false,
+    "expected_tools_any": ["search_events"],
+    "forbidden_tools": ["get_my_event_registrations"],
+    "screen_label": "Events",
+    "notes": "Public event discovery should use event search."
+  },
+  {
+    "id": "my_event_registrations",
+    "category": "events",
+    "message": "Which events have I registered for?",
+    "auth_required": true,
+    "expected_tools_any": ["get_my_event_registrations"],
+    "forbidden_tools": ["search_events"],
+    "screen_label": "Events",
+    "notes": "Personal registration history should use the authenticated event registration tool."
+  },
+  {
+    "id": "podcast_search",
+    "category": "podcasts",
+    "message": "Recommend some spiritual podcasts.",
+    "auth_required": false,
+    "expected_tools_any": ["search_podcasts"],
+    "forbidden_tools": [],
+    "screen_label": "Podcasts",
+    "notes": "Podcast discovery should use the podcast search tool."
+  },
+  {
+    "id": "greeting_direct_answer",
+    "category": "direct_answer",
+    "message": "Hi",
+    "auth_required": false,
+    "expected_tools_any": [],
+    "forbidden_tools": [
+      "search_support_content",
+      "search_courses",
+      "recommend_courses",
+      "get_my_enrollments",
+      "get_membership_plans",
+      "search_events",
+      "search_podcasts"
+    ],
+    "screen_label": "Home",
+    "notes": "Greeting should be handled without tool usage."
+  }
+]

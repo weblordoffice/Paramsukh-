@@ -3,6 +3,7 @@ import crypto from 'crypto';
 
 // Test mode flag - set to true to use without real Razorpay keys
 const TEST_MODE = !process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID === 'test';
+export const isRazorpayTestMode = TEST_MODE;
 
 let razorpayInstance = null;
 

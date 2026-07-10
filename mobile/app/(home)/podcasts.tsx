@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
 import { Video, ResizeMode } from 'expo-av';
@@ -125,6 +125,7 @@ interface Podcast {
 
 export default function PodcastsScreen() {
   const router = useRouter();
+  const { podcastId } = useLocalSearchParams<{ podcastId?: string }>();
   const { user, token } = useAuthStore();
   const [podcasts, setPodcasts] = useState<Podcast[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,6 +184,15 @@ export default function PodcastsScreen() {
   useEffect(() => {
     fetchPodcasts();
   }, [fetchPodcasts]);
+
+  useEffect(() => {
+    if (podcastId && podcasts.length > 0) {
+      const match = podcasts.find((p) => p._id === podcastId);
+      if (match) {
+        void handlePlayPodcast(match);
+      }
+    }
+  }, [podcastId, podcasts]);
 
   useEffect(() => {
     if (!currentPodcast) return;

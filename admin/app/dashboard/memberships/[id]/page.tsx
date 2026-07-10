@@ -3,13 +3,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowLeft, Crown, User, BookOpen, CreditCard, Activity } from "lucide-react";
+import { ArrowLeft, Crown, User, BookOpen, CreditCard, Activity, Cpu } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import toast from "react-hot-toast";
 import SubscriptionTab from "./SubscriptionTab";
 import EnrollmentsTab from "./EnrollmentsTab";
 import PaymentsTab from "./PaymentsTab";
 import ActivityTab from "./ActivityTab";
+import AIChatTab from "./AIChatTab";
 
 interface User {
   _id: string;
@@ -43,7 +44,7 @@ export default function MembershipDetailsPage() {
 
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"subscription" | "enrollments" | "payments" | "activity">("subscription");
+  const [activeTab, setActiveTab] = useState<"subscription" | "enrollments" | "payments" | "activity" | "aichat">("subscription");
   const [planLookup, setPlanLookup] = useState<Record<string, PlanInfo>>({
     free: { slug: 'free', title: 'Free' },
   });
@@ -289,6 +290,17 @@ export default function MembershipDetailsPage() {
               <Activity className="w-4 h-4" />
               Activity
             </button>
+            <button
+              onClick={() => setActiveTab("aichat")}
+              className={`flex items-center gap-2 px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === "aichat"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              <Cpu className="w-4 h-4" />
+              AI History
+            </button>
           </nav>
         </div>
 
@@ -308,6 +320,7 @@ export default function MembershipDetailsPage() {
             />
           )}
           {activeTab === "activity" && <ActivityTab userId={userId} />}
+          {activeTab === "aichat" && <AIChatTab userId={userId} />}
         </div>
       </div>
     </div>

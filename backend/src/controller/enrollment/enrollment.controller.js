@@ -631,3 +631,76 @@ export const getContinueLearning = async (req, res) => {
   }
 };
 
+/**
+ * Mark an entire course as complete
+ * POST /api/enrollments/course/:courseId/complete
+ */
+export const markCourseComplete = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { courseId } = req.params;
+
+    const enrollment = await Enrollment.findOne({ userId, courseId });
+    if (!enrollment) {
+      return res.status(404).json({
+        success: false,
+        message: "Enrollment not found. Please enroll in this course first."
+      });
+    }
+
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.status(404).json({
+        success: false,
+        message: "Course not found"
+      });
+    }
+
+    // Mark all videos as complete
+    if (Array.isArray(course.videos)) {
+      course.videos.forEach(video => {
+        if (!enrollment.completedVideos.includes(video._id)) {
+          enrollment.completedVideos.push(video._id);
+        }
+      });
+    }
+
+    // Mark all PDFs as complete
+    if (Array.isArray(course.pdfs)) {
+      course.pdfs.forEach(pdf => {
+        if (!enrollment.completedPdfs.includes(pdf._id)) {
+          enrollment.completedPdfs.push(pdf._id);
+        }
+      });
+    }
+
+    enrollment.progress = 100;
+    enrollment.isCompleted = true;
+    enrollment.completedAt = new Date();
+    await enrollment.save();
+
+    // Increment course completion count
+    course.completionCount = (course.completionCount || 0) + 1;
+    await course.save();
+
+    console.log(`✅ Course ${courseId} marked complete for user ${userId}.`);
+
+    return res.status(200).json({
+      success: true,
+      message: "Course marked as completed successfully",
+      progress: enrollment.progress,
+      isCompleted: enrollment.isCompleted,
+      completedVideosCount: enrollment.completedVideos.length,
+      completedPdfsCount: enrollment.completedPdfs.length
+    });
+
+  } catch (error) {
+    console.error("❌ Error marking course complete:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
