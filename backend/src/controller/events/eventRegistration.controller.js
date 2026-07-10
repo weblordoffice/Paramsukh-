@@ -1,8 +1,60 @@
 import { EventRegistration } from '../../models/eventRegistration.models.js';
 import { Event } from '../../models/event.models.js';
 import { User } from '../../models/user.models.js';
-import { createRazorpayOrder, createRazorpayPaymentLink, verifyRazorpaySignature, fetchPaymentDetails, fetchPaymentLink } from '../../services/razorpayService.js';
+import { createRazorpayOrder, createRazorpayPaymentLink, verifyRazorpaySignature, fetchPaymentDetails, fetchPaymentLink, isRazorpayTestMode } from '../../services/razorpayService.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
+
+const syncEventAttendeeCount = async (eventOrId) => {
+  const event = typeof eventOrId?.updateAttendeeCount === 'function'
+    ? eventOrId
+    : await Event.findById(eventOrId);
+
+  if (!event) {
+    return null;
+  }
+
+  await event.updateAttendeeCount();
+  await event.save();
+  return event;
+};
+
+const buildEventSummary = (event) => ({
+  _id: event?._id,
+  title: event?.title,
+  eventDate: event?.eventDate,
+  eventTime: event?.eventTime,
+  location: event?.location,
+});
+
+const applyRegistrationState = ({
+  registration,
+  currentPrice,
+  participantName,
+  participantEmail,
+  participantPhone,
+  notes,
+  isSimulatedPayment = false,
+  paymentId = null,
+}) => {
+  const paid = currentPrice > 0;
+  const paymentComplete = paid ? Boolean(isSimulatedPayment) : true;
+
+  registration.participantName = participantName;
+  registration.participantEmail = participantEmail;
+  registration.participantPhone = participantPhone;
+  if (notes !== undefined) {
+    registration.notes = notes;
+  }
+  registration.paymentAmount = currentPrice;
+  registration.checkedIn = false;
+  registration.checkedInAt = null;
+  registration.status = paymentComplete ? 'confirmed' : 'pending';
+  registration.paymentStatus = paymentComplete ? 'completed' : (paid ? 'pending' : 'completed');
+  registration.paymentId = paymentComplete ? (paymentId || registration.paymentId || null) : null;
+  registration.paidAt = paymentComplete ? new Date() : null;
+
+  return registration;
+};
 
 /**
  * Register user for an event
@@ -35,19 +87,8 @@ export const registerForEvent = async (req, res) => {
       });
     }
 
-    // Check if already registered
-    const existingRegistration = await EventRegistration.findOne({
-      userId,
-      eventId,
-      status: { $ne: 'cancelled' }
-    });
-
-    if (existingRegistration) {
-      return res.status(400).json({
-        success: false,
-        message: "You are already registered for this event"
-      });
-    }
+    // Check existing registration history for this user + event.
+    const existingRegistration = await EventRegistration.findOne({ userId, eventId });
 
     // Get current price
     const currentPrice = event.getCurrentPrice();
@@ -58,34 +99,43 @@ export const registerForEvent = async (req, res) => {
 
     const allowSimulatedPayment = process.env.NODE_ENV !== 'production';
     const isSimulatedPayment = Boolean(simulatePayment) && allowSimulatedPayment && currentPrice > 0;
-    const finalPaymentStatus = currentPrice > 0
-      ? (isSimulatedPayment ? 'completed' : 'pending')
-      : 'completed';
-    const finalStatus = currentPrice > 0
-      ? (isSimulatedPayment ? 'confirmed' : 'pending')
-      : 'confirmed';
     const finalPaymentId = isSimulatedPayment ? (paymentId || `sim_${Date.now()}`) : null;
     const paidAt = isSimulatedPayment ? new Date() : null;
 
-    // Create registration
-    const registration = await EventRegistration.create({
-      userId,
-      eventId,
+    let registration = existingRegistration;
+
+    if (registration && ['confirmed', 'attended'].includes(registration.status)) {
+      await syncEventAttendeeCount(event);
+      return res.status(200).json({
+        success: true,
+        message: currentPrice > 0 && registration.paymentStatus !== 'completed'
+          ? "Your registration already exists and payment is still pending."
+          : "You are already registered for this event",
+        registration,
+        event: buildEventSummary(event),
+        paymentRequired: currentPrice > 0 && registration.paymentStatus !== 'completed',
+        paymentAmount: currentPrice
+      });
+    }
+
+    if (!registration) {
+      registration = new EventRegistration({ userId, eventId });
+    }
+
+    applyRegistrationState({
+      registration,
+      currentPrice,
       participantName,
       participantEmail,
       participantPhone,
       notes,
-      paymentAmount: currentPrice,
-      paymentStatus: finalPaymentStatus,
+      isSimulatedPayment,
       paymentId: finalPaymentId,
-      paidAt,
-      status: finalStatus
     });
+    registration.paidAt = paidAt;
 
-    // Update event attendee count
-    await event.updateAttendeeCount();
-    event.currentAttendees += 1;
-    await event.save();
+    await registration.save();
+    await syncEventAttendeeCount(event);
 
     console.log(`✅ User ${userId} registered for event: ${event.title}`);
 
@@ -112,13 +162,7 @@ export const registerForEvent = async (req, res) => {
       success: true,
       message: responseMessage,
       registration,
-      event: {
-        _id: event._id,
-        title: event.title,
-        eventDate: event.eventDate,
-        eventTime: event.eventTime,
-        location: event.location
-      },
+      event: buildEventSummary(event),
       paymentRequired,
       paymentAmount: currentPrice
     });
@@ -151,11 +195,7 @@ export const cancelRegistration = async (req, res) => {
     const { eventId } = req.params;
     const userId = req.user._id;
 
-    const registration = await EventRegistration.findOne({
-      userId,
-      eventId,
-      status: { $ne: 'cancelled' }
-    });
+    const registration = await EventRegistration.findOne({ userId, eventId });
 
     if (!registration) {
       return res.status(404).json({
@@ -164,16 +204,27 @@ export const cancelRegistration = async (req, res) => {
       });
     }
 
+    if (registration.status === 'cancelled') {
+      await syncEventAttendeeCount(eventId);
+      return res.status(200).json({
+        success: true,
+        message: "Registration is already cancelled",
+        registration
+      });
+    }
+
     // Cancel registration
     registration.status = 'cancelled';
+    registration.checkedIn = false;
+    registration.checkedInAt = null;
+    if (registration.paymentStatus === 'pending') {
+      registration.paymentStatus = 'failed';
+      registration.paymentId = null;
+      registration.paidAt = null;
+    }
     await registration.save();
 
-    // Update event attendee count
-    const event = await Event.findById(eventId);
-    if (event) {
-      event.currentAttendees = Math.max(0, event.currentAttendees - 1);
-      await event.save();
-    }
+    await syncEventAttendeeCount(eventId);
 
     console.log(`✅ Registration cancelled for event: ${eventId}`);
 
@@ -206,6 +257,8 @@ export const getMyRegistrations = async (req, res) => {
 
     if (status) {
       query.status = status;
+    } else {
+      query.status = { $ne: 'cancelled' };
     }
 
     let registrations = await EventRegistration.find(query)
@@ -353,6 +406,7 @@ export const checkInUser = async (req, res) => {
 
     registration.markAttended();
     await registration.save();
+    await syncEventAttendeeCount(eventId);
 
     return res.status(200).json({
       success: true,
@@ -442,12 +496,8 @@ export const createEventRegistrationOrder = async (req, res) => {
       });
     }
 
-    const existing = await EventRegistration.findOne({
-      userId,
-      eventId,
-      status: { $ne: 'cancelled' }
-    });
-    if (existing && existing.status === 'confirmed') {
+    const existing = await EventRegistration.findOne({ userId, eventId });
+    if (existing && ['confirmed', 'attended'].includes(existing.status)) {
       return res.status(400).json({
         success: false,
         message: "You are already registered for this event"
@@ -468,25 +518,22 @@ export const createEventRegistrationOrder = async (req, res) => {
 
     let registration = existing;
     if (!registration) {
-      registration = await EventRegistration.create({
-        userId,
-        eventId,
-        participantName,
-        participantEmail,
-        participantPhone,
-        notes,
-        paymentAmount: currentPrice,
-        paymentStatus: 'pending',
-        status: 'pending'
-      });
-    } else {
-      registration.participantName = participantName;
-      registration.participantEmail = participantEmail;
-      registration.participantPhone = participantPhone;
-      if (notes !== undefined) registration.notes = notes;
-      registration.paymentAmount = currentPrice;
-      await registration.save();
+      registration = new EventRegistration({ userId, eventId });
     }
+    applyRegistrationState({
+      registration,
+      currentPrice,
+      participantName,
+      participantEmail,
+      participantPhone,
+      notes,
+      isSimulatedPayment: false,
+    });
+    registration.status = 'pending';
+    registration.paymentStatus = 'pending';
+    registration.paymentId = null;
+    registration.paidAt = null;
+    await registration.save();
 
     const order = await createRazorpayOrder({
       amount: currentPrice,
@@ -551,15 +598,31 @@ export const confirmEventPayment = async (req, res) => {
       });
     }
 
-    const registration = await EventRegistration.findOne({
-      userId,
-      eventId,
-      status: 'pending'
-    });
+    let registration = await EventRegistration.findOne({ userId, eventId });
     if (!registration) {
       return res.status(404).json({
         success: false,
         message: "No pending registration found. Please register and pay again."
+      });
+    }
+
+    if (registration.status === 'confirmed' && registration.paymentStatus === 'completed') {
+      await syncEventAttendeeCount(eventId);
+      return res.status(200).json({
+        success: true,
+        message: "Payment was already confirmed. You are registered for this event.",
+        registration: {
+          _id: registration._id,
+          status: registration.status,
+          paymentStatus: registration.paymentStatus
+        }
+      });
+    }
+
+    if (registration.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: "This registration is not waiting for payment confirmation anymore."
       });
     }
 
@@ -595,11 +658,7 @@ export const confirmEventPayment = async (req, res) => {
       await user.save();
     }
 
-    const EventModel = await Event.findById(eventId);
-    if (EventModel && typeof EventModel.updateAttendeeCount === 'function') {
-      await EventModel.updateAttendeeCount();
-      await EventModel.save();
-    }
+    await syncEventAttendeeCount(eventId);
 
     return res.status(200).json({
       success: true,
@@ -636,8 +695,10 @@ export const createEventRegistrationLink = async (req, res) => {
     const currentPrice = event.getCurrentPrice?.() ?? event.price ?? 0;
     if (currentPrice <= 0) return res.status(400).json({ success: false, message: "Use free registration for this event" });
 
-    let registration = await EventRegistration.findOne({ userId, eventId, status: { $ne: 'cancelled' } });
-    if (registration?.status === 'confirmed') return res.status(400).json({ success: false, message: "Already registered" });
+    let registration = await EventRegistration.findOne({ userId, eventId });
+    if (registration && ['confirmed', 'attended'].includes(registration.status)) {
+      return res.status(400).json({ success: false, message: "Already registered" });
+    }
 
     const user = await User.findById(userId).select('displayName name email phone');
     const participantName = name || user?.displayName || user?.name || '';
@@ -645,25 +706,22 @@ export const createEventRegistrationLink = async (req, res) => {
     const participantPhone = phone || user?.phone || '';
 
     if (!registration) {
-      registration = await EventRegistration.create({
-        userId,
-        eventId,
-        participantName,
-        participantEmail,
-        participantPhone,
-        notes,
-        paymentAmount: currentPrice,
-        paymentStatus: 'pending',
-        status: 'pending'
-      });
-    } else {
-      registration.participantName = participantName;
-      registration.participantEmail = participantEmail;
-      registration.participantPhone = participantPhone;
-      if (notes !== undefined) registration.notes = notes;
-      registration.paymentAmount = currentPrice;
-      await registration.save();
+      registration = new EventRegistration({ userId, eventId });
     }
+    applyRegistrationState({
+      registration,
+      currentPrice,
+      participantName,
+      participantEmail,
+      participantPhone,
+      notes,
+      isSimulatedPayment: false,
+    });
+    registration.status = 'pending';
+    registration.paymentStatus = 'pending';
+    registration.paymentId = null;
+    registration.paidAt = null;
+    await registration.save();
 
     const customer = {
       name: participantName || 'Participant',
@@ -689,6 +747,9 @@ export const createEventRegistrationLink = async (req, res) => {
         url: link.short_url,
         paymentLinkId: link.id,
         registrationId: registration._id.toString(),
+        isTestMode: isRazorpayTestMode,
+        paymentAmount: currentPrice,
+        event: buildEventSummary(event),
       },
     });
   } catch (error) {
@@ -708,6 +769,31 @@ export const confirmEventPaymentByLink = async (req, res) => {
     const { paymentLinkId } = req.body;
     if (!paymentLinkId) return res.status(400).json({ success: false, message: "paymentLinkId required" });
 
+    if (isRazorpayTestMode) {
+      const registration = await EventRegistration.findOne({
+        userId,
+        eventId,
+        status: 'pending',
+      }).sort({ updatedAt: -1 });
+
+      if (!registration) {
+        return res.status(404).json({ success: false, message: "Pending registration not found" });
+      }
+
+      registration.paymentStatus = 'completed';
+      registration.paymentId = `pay_test_${Date.now()}`;
+      registration.paidAt = new Date();
+      registration.status = 'confirmed';
+      await registration.save();
+      await syncEventAttendeeCount(eventId);
+
+      return res.status(200).json({
+        success: true,
+        message: "Test payment confirmed. You are registered for this event.",
+        data: { registration: { _id: registration._id, status: registration.status, paymentStatus: registration.paymentStatus } },
+      });
+    }
+
     const link = await fetchPaymentLink(paymentLinkId);
     const status = String(link?.status || '').toLowerCase();
     const notes = link?.notes || {};
@@ -722,6 +808,15 @@ export const confirmEventPaymentByLink = async (req, res) => {
     if (!registrationId) return res.status(400).json({ success: false, message: "Invalid payment link" });
     const registration = await EventRegistration.findOne({ _id: registrationId, userId, eventId });
     if (!registration) return res.status(404).json({ success: false, message: "Registration not found" });
+
+    if (registration.status === 'confirmed' && registration.paymentStatus === 'completed') {
+      await syncEventAttendeeCount(eventId);
+      return res.status(200).json({
+        success: true,
+        message: "Payment was already confirmed. You are registered for this event.",
+        data: { registration: { _id: registration._id, status: registration.status, paymentStatus: registration.paymentStatus } },
+      });
+    }
 
     const paymentsRaw = link?.payments;
     const firstPayment = Array.isArray(paymentsRaw) ? paymentsRaw[0] : paymentsRaw;
@@ -746,10 +841,7 @@ export const confirmEventPaymentByLink = async (req, res) => {
       });
       await user.save();
     }
-    if (event && typeof event.updateAttendeeCount === 'function') {
-      await event.updateAttendeeCount();
-      await event.save();
-    }
+    await syncEventAttendeeCount(eventId);
 
     // Notify user on confirmed paid registration via link
     const paidEvent = await Event.findById(eventId).select('title emoji eventDate');
