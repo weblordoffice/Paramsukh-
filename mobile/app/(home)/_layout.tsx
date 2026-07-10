@@ -160,6 +160,12 @@ export default function HomeLayout() {
             href: null, // Hide from tabs navigation
           }}
         />
+        <Tabs.Screen
+          name="ai-chat"
+          options={{
+            href: null, // Hide from tabs navigation
+          }}
+        />
       </Tabs>
 
       {/* Menu Bottom Sheet Modal */}

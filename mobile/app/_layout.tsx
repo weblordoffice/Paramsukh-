@@ -1,10 +1,18 @@
-import { Stack } from 'expo-router';
+import { Stack, usePathname, useRouter } from 'expo-router';
 import './global.css';
 import { usePushNotifications } from '../hooks/usePushNotifications';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../store/authStore';
+import { ErrorBoundary } from '../components/ErrorBoundary';
+import AIAssistantWidget from '../components/AIAssistantWidget';
 
+/**
+ * Renders AFTER splash is done. Returns the Stack navigator directly
+ * (no Fragment wrapper - Expo Router requires a single navigator root).
+ * usePushNotifications runs safely here because the navigation tree
+ * is already established by Expo Router above this component.
+ */
 function RootNavigator() {
   usePushNotifications();
   return (
@@ -17,15 +25,39 @@ function RootNavigator() {
 }
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const [isChecking, setIsChecking] = useState(true);
-  const { token } = useAuthStore();
+  const { user, token } = useAuthStore();
+  const pathname = usePathname();
+  const router = useRouter();
+  const [hasRedirected, setHasRedirected] = useState(false);
+  const isAuthRoute = useMemo(
+    () => pathname === '/signin' || pathname === '/signup',
+    [pathname]
+  );
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsChecking(false), 300);
-    return () => clearTimeout(timer);
-  }, [token]);
+    if (!user || !token) {
+      if (!isAuthRoute) {
+        router.replace('/signin');
+        setHasRedirected(true);
+        return;
+      }
+    }
+    setHasRedirected(false);
+  }, [user, token, isAuthRoute, router]);
 
-  if (isChecking) {
+  if (!user || !token) {
+    if (isAuthRoute) {
+      return <>{children}</>;
+    }
+
+    if (hasRedirected) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+          <ActivityIndicator size="large" color="#F1842D" />
+        </View>
+      );
+    }
+
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
         <ActivityIndicator size="large" color="#F1842D" />
@@ -36,6 +68,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// Expo Router already provides the top-level NavigationContainer.
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
 
@@ -57,7 +90,12 @@ export default function RootLayout() {
 
   return (
     <AuthGuard>
-      <RootNavigator />
+      <View style={{ flex: 1 }}>
+        <ErrorBoundary>
+          <RootNavigator />
+        </ErrorBoundary>
+        <AIAssistantWidget />
+      </View>
     </AuthGuard>
   );
 }
