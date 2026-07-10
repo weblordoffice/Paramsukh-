@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { Search, MessageSquare, Heart, MessageCircle, Trash2, Pin } from 'lucide-react';
+import { Search, MessageSquare, Heart, MessageCircle, Trash2, Pin, Plus } from 'lucide-react';
+import CreatePostModal from './CreatePostModal';
 
 interface Post {
     _id: string;
@@ -20,6 +21,7 @@ export default function CommunityPage() {
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showCreateModal, setShowCreateModal] = useState(false);
 
     useEffect(() => {
         fetchPosts();
@@ -89,6 +91,13 @@ export default function CommunityPage() {
                     <h1 className="text-3xl font-bold text-secondary">Community Management</h1>
                     <p className="text-accent mt-1">Manage posts, comments, and groups</p>
                 </div>
+                <button
+                    onClick={() => setShowCreateModal(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition font-medium"
+                >
+                    <Plus className="w-5 h-5" />
+                    Create Post
+                </button>
             </div>
 
             <div className="bg-white rounded-xl p-4 shadow-md">
@@ -161,6 +170,12 @@ export default function CommunityPage() {
                     ))
                 )}
             </div>
+
+            <CreatePostModal
+                isOpen={showCreateModal}
+                onClose={() => setShowCreateModal(false)}
+                onSuccess={fetchPosts}
+            />
         </div>
     );
 }

@@ -78,7 +78,7 @@ export default function Header({ useSafeArea = false }: HeaderProps) {
             activeOpacity={0.7}
           >
             <View style={styles.notificationContainer}>
-              <Ionicons name="notifications-outline" size={24} color="#F8FAFC" />
+              <Ionicons name="notifications-outline" size={24} color="#2C2420" />
               {unreadCount > 0 && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>{badgeCount}</Text>
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   container: {
     backgroundColor: 'transparent',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    borderBottomColor: 'rgba(44, 36, 32, 0.06)',
     paddingHorizontal: 20,
     paddingBottom: 16,
   },
@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: '#2C2420',
     letterSpacing: 0.5,
   },
   actions: {
@@ -134,52 +134,47 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(44, 36, 32, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(44, 36, 32, 0.1)',
   },
   badge: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: '#8B5CF6',
+    backgroundColor: '#F1842D',
     borderRadius: 10,
     minWidth: 18,
     height: 18,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
-    shadowColor: '#8B5CF6',
+    shadowColor: '#F1842D',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
   },
   badgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: '#FFFFFF',
   },
   profileContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(139, 92, 246, 0.15)',
-    borderWidth: 2,
-    borderColor: '#8B5CF6',
+    backgroundColor: 'rgba(241, 132, 45, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(241, 132, 45, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#8B5CF6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 6,
   },
   profileInitial: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: '#F1842D',
   },
 });

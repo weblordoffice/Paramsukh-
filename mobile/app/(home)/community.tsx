@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@/store/authStore';
@@ -28,6 +29,19 @@ import { useCommunityStore, Group, PlanGroup } from '@/store/communityStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.75;
+
+const getCategoryIcon = (category: string | undefined): keyof typeof Ionicons.glyphMap => {
+  const norm = String(category || '').trim().toLowerCase();
+  switch (norm) {
+    case 'physical': return 'barbell-outline';
+    case 'mental': return 'brain-outline';
+    case 'financial': return 'cash-outline';
+    case 'relationship': return 'heart-outline';
+    case 'spiritual': return 'sparkles-outline';
+    case 'general': return 'layers-outline';
+    default: return 'chatbubble-ellipses-outline';
+  }
+};
 
 type ViewType = 'feed' | 'groups' | 'message';
 
@@ -398,13 +412,21 @@ export default function CommunityScreen() {
               planGroups.map((pg: PlanGroup) => {
                 const isExpanded = expandedPlanGroups.has(pg._id);
                 const isPlanActive = activeGroup?._id === pg._id;
+
                 return (
                   <View key={pg._id}>
                     {/* Plan parent header */}
                     <TouchableOpacity
-                      style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 20 }}
+                      style={[
+                        styles.planGroupHeader,
+                        isPlanActive && styles.planGroupHeaderActive
+                      ]}
                       onPress={() => {
-                        // Toggle expand/collapse
+                        // 1. Select as active group (view combined feed)
+                        setActiveGroup(pg as any as Group);
+                        setCurrentView('feed');
+                        
+                        // 2. Toggle expand/collapse
                         setExpandedPlanGroups(prev => {
                           const next = new Set(prev);
                           if (next.has(pg._id)) {
@@ -414,7 +436,11 @@ export default function CommunityScreen() {
                           }
                           return next;
                         });
+                        
+                        // 3. Play Haptic
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                       }}
+                      activeOpacity={0.8}
                     >
                       <Ionicons
                         name={isExpanded ? 'chevron-down' : 'chevron-forward'}
@@ -422,50 +448,69 @@ export default function CommunityScreen() {
                         color="#8C7B73"
                         style={{ marginRight: 8 }}
                       />
-                      <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: 'rgba(241, 132, 45, 0.15)', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
-                        <Ionicons name="shield-outline" size={14} color="#F1842D" />
+                      <View style={[
+                        styles.planGroupIconContainer,
+                        isPlanActive && styles.planGroupIconContainerActive
+                      ]}>
+                        <Ionicons 
+                          name="shield-outline" 
+                          size={14} 
+                          color={isPlanActive ? '#FFFFFF' : '#F1842D'} 
+                        />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 15, fontWeight: '700', color: isPlanActive ? '#F1842D' : '#2C2420' }} numberOfLines={1}>
+                        <Text style={[
+                          styles.planGroupName,
+                          isPlanActive && styles.planGroupNameActive
+                        ]} numberOfLines={1}>
                           {pg.name}
                         </Text>
-                        <Text style={{ fontSize: 11, color: '#8C7B73', fontWeight: '500', marginTop: 1 }}>
+                        <Text style={styles.planGroupMeta}>
                           {pg.memberCount} members · {pg.subgroups.length} sub-groups
                         </Text>
                       </View>
-                      {/* Tap plan name to view combined feed */}
-                      <TouchableOpacity
-                        onPress={() => {
-                          setActiveGroup(pg as any as Group);
-                          setCurrentView('feed');
-                          setShowSidebar(false);
-                        }}
-                        style={{ padding: 6 }}
-                      >
-                        <Ionicons name="grid-outline" size={18} color={isPlanActive ? '#F1842D' : '#8C7B73'} />
-                      </TouchableOpacity>
                     </TouchableOpacity>
 
                     {/* Subgroups (visible when expanded) */}
                     {isExpanded && pg.subgroups.length > 0 && (
-                      <View style={{ marginLeft: 52, paddingBottom: 4 }}>
+                      <View style={styles.subgroupsContainer}>
                         {pg.subgroups.map((sub: Group) => {
                           const isSubActive = activeGroup?._id === sub._id;
                           return (
                             <TouchableOpacity
                               key={sub._id}
-                              style={{ paddingVertical: 10, flexDirection: 'row', alignItems: 'center' }}
+                              style={[
+                                styles.subgroupItem,
+                                isSubActive && styles.subgroupItemActive
+                              ]}
                               onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                                 setActiveGroup(sub);
                                 setCurrentView('feed');
                                 setShowSidebar(false);
                               }}
+                              activeOpacity={0.7}
                             >
-                              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isSubActive ? '#F1842D' : 'rgba(92, 74, 66, 0.15)', marginRight: 10 }} />
-                              <Text style={{ fontSize: 14, color: isSubActive ? '#F1842D' : '#5C4A42', fontWeight: isSubActive ? '600' : '500', flex: 1 }} numberOfLines={1}>
+                              <View style={[
+                                styles.subgroupIconContainer,
+                                isSubActive && styles.subgroupIconContainerActive
+                              ]}>
+                                <Ionicons 
+                                  name={getCategoryIcon(sub.category)} 
+                                  size={14} 
+                                  color={isSubActive ? '#F1842D' : '#8C7B73'} 
+                                />
+                              </View>
+                              <Text style={[
+                                styles.subgroupText,
+                                isSubActive && styles.subgroupTextActive
+                              ]} numberOfLines={1}>
                                 {sub.category ? sub.category.charAt(0).toUpperCase() + sub.category.slice(1) : sub.name}
                               </Text>
-                              <Text style={{ fontSize: 11, color: '#8C7B73', marginLeft: 8 }}>
+                              <Text style={[
+                                styles.subgroupCount,
+                                isSubActive && styles.subgroupCountActive
+                              ]}>
                                 {sub.memberCount}
                               </Text>
                             </TouchableOpacity>
@@ -1399,6 +1444,7 @@ const styles = StyleSheet.create({
     marginTop: 24,
     paddingHorizontal: 20,
   },
+
   sidebarSectionTitle: {
     fontSize: 12,
     fontWeight: '600',
@@ -1406,6 +1452,98 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 12,
+  },
+  planGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    marginVertical: 2,
+  },
+  planGroupHeaderActive: {
+    backgroundColor: 'rgba(241, 132, 45, 0.06)',
+  },
+  planGroupIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(241, 132, 45, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  planGroupIconContainerActive: {
+    backgroundColor: '#F1842D',
+  },
+  planGroupName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#2C2420',
+  },
+  planGroupNameActive: {
+    color: '#F1842D',
+  },
+  planGroupMeta: {
+    fontSize: 11,
+    color: '#8C7B73',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  subgroupsContainer: {
+    marginLeft: 28,
+    paddingLeft: 12,
+    borderLeftWidth: 1.5,
+    borderLeftColor: 'rgba(92, 74, 66, 0.08)',
+    paddingVertical: 4,
+    gap: 4,
+  },
+  subgroupItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    marginRight: 12,
+  },
+  subgroupItemActive: {
+    backgroundColor: 'rgba(241, 132, 45, 0.08)',
+  },
+  subgroupIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: 'rgba(92, 74, 66, 0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  subgroupIconContainerActive: {
+    backgroundColor: 'rgba(241, 132, 45, 0.15)',
+  },
+  subgroupText: {
+    fontSize: 14,
+    color: '#5C4A42',
+    fontWeight: '500',
+    flex: 1,
+  },
+  subgroupTextActive: {
+    color: '#F1842D',
+    fontWeight: '600',
+  },
+  subgroupCount: {
+    fontSize: 11,
+    color: '#8C7B73',
+    fontWeight: '600',
+    backgroundColor: 'rgba(92, 74, 66, 0.06)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  subgroupCountActive: {
+    color: '#F1842D',
+    backgroundColor: 'rgba(241, 132, 45, 0.12)',
   },
   sidebarItem: {
     flexDirection: 'row',
