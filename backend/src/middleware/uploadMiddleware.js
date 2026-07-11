@@ -110,12 +110,12 @@ export const uploadMultipleImages = multer({
   }
 }).array('images', 10);
 
-// Single video upload (max 1GB)
+// Single video upload (max 2GB)
 export const uploadSingleVideo = multer({
   storage: videoStorage,
   fileFilter: videoFilter,
   limits: {
-    fileSize: 1024 * 1024 * 1024 // 1GB
+    fileSize: 2 * 1024 * 1024 * 1024 // 2GB
   }
 }).single('video');
 
@@ -151,7 +151,7 @@ export const uploadMixedMedia = multer({
   storage: storage,
   fileFilter: mediaFilter,
   limits: {
-    fileSize: 1024 * 1024 * 1024, // 1GB
+    fileSize: 2 * 1024 * 1024 * 1024, // 2GB
     files: 10
   }
 }).array('media', 10);

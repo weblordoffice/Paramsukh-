@@ -132,6 +132,19 @@ export const grantMembershipByAdmin = async (req, res) => {
       },
     });
 
+    // Sync properties to the User document so mobile client reads active membership profile details
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          subscriptionPlan: plan.slug,
+          subscriptionStatus: 'active',
+          subscriptionStartDate: effectiveStartDate,
+          subscriptionEndDate: effectiveEndDate,
+        }
+      }
+    );
+
     return res.status(201).json({
       success: true,
       message: 'Membership granted successfully',
@@ -204,6 +217,19 @@ export const revokeAdminGrantedMembership = async (req, res) => {
 
     await membership.save();
 
+    // Reset properties on the User document to clear premium access
+    await User.updateOne(
+      { _id: membership.userId },
+      {
+        $set: {
+          subscriptionPlan: 'free',
+          subscriptionStatus: 'inactive',
+          subscriptionStartDate: null,
+          subscriptionEndDate: null,
+        }
+      }
+    );
+
     return res.status(200).json({
       success: true,
       message: 'Admin granted membership revoked',
@@ -258,6 +284,17 @@ export const extendAdminGrantedMembership = async (req, res) => {
     };
 
     await membership.save();
+
+    // Update extended endDate on the User document
+    await User.updateOne(
+      { _id: membership.userId },
+      {
+        $set: {
+          subscriptionStatus: 'active',
+          subscriptionEndDate: computedEndDate,
+        }
+      }
+    );
 
     return res.status(200).json({
       success: true,

@@ -1156,7 +1156,7 @@ export const handleWebhook = async (req, res) => {
 
             if (String(pNotes?.adminCreated || '').toLowerCase() === 'true') {
               await AdminPaymentLink.findOneAndUpdate(
-                { paymentLinkId: payment.order_id || payment.id },
+                { paymentLinkId: payment.payment_link_id || payment.order_id || payment.id },
                 {
                   status: 'paid',
                   paymentId: payment.id,
@@ -1306,6 +1306,20 @@ export const handleWebhook = async (req, res) => {
             await whBooking.save();
             console.log(`✅ Booking ${notes.bookingId} confirmed via payment_link.paid`);
           }
+        }
+        break;
+      }
+      
+      case 'payment_link.cancelled':
+      case 'payment_link.expired': {
+        const pl = payload?.payload?.payment_link?.entity;
+        if (pl?.id) {
+          const status = payload.event === 'payment_link.cancelled' ? 'cancelled' : 'expired';
+          await AdminPaymentLink.findOneAndUpdate(
+            { paymentLinkId: pl.id },
+            { status }
+          );
+          console.log(`❌ Payment link ${pl.id} marked as ${status} via webhook`);
         }
         break;
       }

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { Settings, UserPlus, Edit, Trash2, Mail, Shield, Search } from 'lucide-react';
+import { Settings, UserPlus, Edit, Trash2, Mail, Shield, Search, Video, Upload } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/authStore';
 import AdminModal, { type AdminUser } from './AdminModal';
 
@@ -18,6 +18,54 @@ export default function SettingsPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedAdmin, setSelectedAdmin] = useState<AdminUser | null>(null);
+    const [welcomeVideoUrl, setWelcomeVideoUrl] = useState('');
+    const [savingVideo, setSavingVideo] = useState(false);
+    const [uploading, setUploading] = useState(false);
+
+    const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('video/')) {
+            toast.error('Please select a valid video file (e.g. .mp4)');
+            return;
+        }
+
+        setUploading(true);
+        const toastId = toast.loading('Uploading video file...');
+
+        try {
+            const formData = new FormData();
+            formData.append('video', file);
+
+            const response = await apiClient.post('/api/upload/video', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
+
+            if (response.data?.success && response.data?.data?.url) {
+                const uploadedUrl = response.data.data.url;
+                setWelcomeVideoUrl(uploadedUrl);
+                toast.success('Video uploaded successfully!', { id: toastId });
+                
+                // Save it immediately to the settings config
+                const saveResponse = await apiClient.post('/api/config/welcome-video', {
+                    videoUrl: uploadedUrl
+                });
+                if (saveResponse.data?.success) {
+                    toast.success('Welcome video updated to your upload');
+                }
+            } else {
+                toast.error(response.data?.message || 'Failed to upload video', { id: toastId });
+            }
+        } catch (error: unknown) {
+            const err = error as { response?: { data?: { message?: string } } };
+            toast.error(err.response?.data?.message || 'Upload failed', { id: toastId });
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const fetchAdmins = useCallback(async () => {
         try {
@@ -41,13 +89,49 @@ export default function SettingsPage() {
         }
     }, [router]);
 
+    const fetchWelcomeVideo = useCallback(async () => {
+        try {
+            const response = await apiClient.get('/api/config/welcome-video');
+            if (response.data?.success && response.data?.videoUrl) {
+                setWelcomeVideoUrl(response.data.videoUrl);
+            }
+        } catch (error) {
+            console.error('Failed to load welcome video URL:', error);
+        }
+    }, []);
+
     useEffect(() => {
         if (!isSuperAdmin) {
             router.replace('/dashboard');
             return;
         }
         fetchAdmins();
-    }, [isSuperAdmin, router, fetchAdmins]);
+        fetchWelcomeVideo();
+    }, [isSuperAdmin, router, fetchAdmins, fetchWelcomeVideo]);
+
+    const handleSaveWelcomeVideo = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!welcomeVideoUrl.trim()) {
+            toast.error('Please enter a valid video URL');
+            return;
+        }
+        setSavingVideo(true);
+        try {
+            const response = await apiClient.post('/api/config/welcome-video', {
+                videoUrl: welcomeVideoUrl.trim()
+            });
+            if (response.data?.success) {
+                toast.success('Welcome video URL updated successfully');
+            } else {
+                toast.error(response.data?.message || 'Failed to update welcome video');
+            }
+        } catch (error: unknown) {
+            const err = error as { response?: { data?: { message?: string } } };
+            toast.error(err.response?.data?.message || 'Failed to update welcome video');
+        } finally {
+            setSavingVideo(false);
+        }
+    };
 
     const handleCreate = () => {
         setSelectedAdmin(null);
@@ -239,6 +323,73 @@ export default function SettingsPage() {
                         </tbody>
                     </table>
                 </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-md p-6 mt-8">
+                <div className="flex items-center gap-2 border-b border-gray-100 pb-4 mb-4">
+                    <Video className="w-6 h-6 text-primary" />
+                    <h2 className="text-xl font-bold text-secondary">Global App Settings</h2>
+                </div>
+                <form onSubmit={handleSaveWelcomeVideo} className="space-y-6 max-w-4xl">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label className="block text-sm font-semibold text-secondary mb-2">
+                                Welcome Intro Video URL
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ or direct link"
+                                value={welcomeVideoUrl}
+                                onChange={(e) => setWelcomeVideoUrl(e.target.value)}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-black"
+                            />
+                            <p className="text-xs text-accent mt-2">
+                                Enter a YouTube link or a direct video URL path.
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-semibold text-secondary mb-2">
+                                Or Upload Video File
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="file"
+                                    accept="video/*"
+                                    id="welcome-video-upload"
+                                    onChange={handleVideoUpload}
+                                    disabled={uploading || savingVideo}
+                                    className="hidden"
+                                />
+                                <label
+                                    htmlFor="welcome-video-upload"
+                                    className={`flex items-center justify-center gap-2 w-full px-4 py-3 border-2 border-dashed border-gray-300 hover:border-primary rounded-lg cursor-pointer text-gray-500 hover:text-primary transition duration-200 ${uploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    <Upload className="w-5 h-5" />
+                                    <span className="font-medium text-sm">
+                                        {uploading ? 'Uploading Video...' : 'Choose MP4 / Video File'}
+                                    </span>
+                                </label>
+                            </div>
+                            <p className="text-xs text-accent mt-2">
+                                Upload a video from your computer (Max size: 2 GB).
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-gray-100 pt-4">
+                        <p className="text-xs text-accent">
+                            Note: Directly uploaded files will play in the premium native mobile player. YouTube videos will play in the embedded webview.
+                        </p>
+                        <button
+                            type="submit"
+                            disabled={savingVideo || uploading}
+                            className="flex items-center space-x-2 px-6 py-3 bg-primary hover:bg-primary-dark text-white rounded-lg transition duration-200 font-medium disabled:opacity-50 shadow-md shadow-primary/30"
+                        >
+                            <span>{savingVideo ? 'Saving...' : 'Save Settings'}</span>
+                        </button>
+                    </div>
+                </form>
             </div>
 
             <AdminModal

@@ -15,6 +15,7 @@ import {
     Settings,
     BarChart3,
     Headphones,
+    FileText,
     X
 } from 'lucide-react';
 import Link from 'next/link';
@@ -45,6 +46,7 @@ const menuItems: MenuItem[] = [
     { icon: Crown, label: 'Plans', href: '/dashboard/plans', permission: 'manage_users' },
     { icon: BookOpen, label: 'Courses', href: '/dashboard/courses', permission: 'manage_courses' },
     { icon: Mic, label: 'Podcasts', href: '/dashboard/podcasts', permission: 'manage_content' },
+    { icon: FileText, label: 'Blogs', href: '/dashboard/blogs', permission: 'manage_content' },
     { icon: Calendar, label: 'Events', href: '/dashboard/events', permission: 'manage_events' },
     { icon: ShoppingCart, label: 'Products', href: '/dashboard/products', permission: 'manage_shop' },
     { icon: Package, label: 'Orders', href: '/dashboard/orders', permission: 'manage_orders' },

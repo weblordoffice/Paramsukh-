@@ -25,6 +25,8 @@ import uploadRoutes from './routes/upload/uploadRoute.js';
 import podcastRoutes from './routes/podcast/podcastRoute.js';
 import adminRoutes from './routes/admin/adminRoute.js';
 import chatRoutes from './routes/chat/chatRoute.js';
+import blogRoutes from './routes/blog/blogRoute.js';
+import configRoutes from './routes/config/configRoute.js';
 
 import donationsRoutes from './routes/donations/donationsRoute.js';
 import supportRoutes from './routes/support/supportRoute.js';
@@ -67,17 +69,17 @@ const corsOptions = {
     // allow non-browser clients (curl, server-to-server) with no Origin header
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    
+
     // Allow local development origins dynamically in development
     if (process.env.NODE_ENV === 'development') {
-      const isLocal = origin.startsWith('http://localhost:') || 
-                      origin.startsWith('http://127.0.0.1:') ||
-                      origin.startsWith('http://192.168.') ||
-                      origin.startsWith('http://10.') ||
-                      origin.startsWith('http://172.');
+      const isLocal = origin.startsWith('http://localhost:') ||
+        origin.startsWith('http://127.0.0.1:') ||
+        origin.startsWith('http://192.168.') ||
+        origin.startsWith('http://10.') ||
+        origin.startsWith('http://172.');
       if (isLocal) return callback(null, true);
     }
-    
+
     return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
   credentials: true,
@@ -115,6 +117,8 @@ app.use('/api/membership-plans', membershipPlanRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/podcasts', podcastRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/blogs', blogRoutes);
+app.use('/api/config', configRoutes);
 
 app.use('/api/donations', donationsRoutes);
 app.use('/api/support', supportRoutes);
@@ -287,7 +291,7 @@ setupCounselingCrons();
 app.use((err, req, res, next) => {
   console.error('❌ Global Error Handler:', err);
   console.error('Stack:', err.stack);
-  
+
   // Mongoose validation error
   if (err.name === 'ValidationError') {
     return res.status(400).json({
@@ -296,7 +300,7 @@ app.use((err, req, res, next) => {
       errors: err.errors
     });
   }
-  
+
   // Mongoose duplicate key error
   if (err.code === 11000) {
     return res.status(400).json({
@@ -305,7 +309,7 @@ app.use((err, req, res, next) => {
       field: Object.keys(err.keyPattern)[0]
     });
   }
-  
+
   // JWT errors
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
@@ -313,14 +317,14 @@ app.use((err, req, res, next) => {
       message: 'Invalid token'
     });
   }
-  
+
   if (err.name === 'TokenExpiredError') {
     return res.status(401).json({
       success: false,
       message: 'Token expired'
     });
   }
-  
+
   // Default error
   res.status(err.status || 500).json({
     success: false,
