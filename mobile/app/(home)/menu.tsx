@@ -32,6 +32,28 @@ const getYouTubeId = (url: string): string | null => {
   return (match && match[2].length === 11) ? match[2] : null;
 };
 
+type NativeVideoPlayerProps = {
+  videoUrl: string;
+};
+
+const NativeVideoPlayer = ({ videoUrl }: NativeVideoPlayerProps) => {
+  const player = useVideoPlayer(videoUrl, (p) => {
+    p.loop = false;
+    p.play();
+  });
+
+  return (
+    <View style={styles.videoPlayerWrapper}>
+      <VideoView
+        player={player}
+        style={styles.nativePlayer}
+        allowsFullscreen
+        allowsPictureInPicture
+      />
+    </View>
+  );
+};
+
 type MinimalVideoPlayerProps = {
   videoUrl: string;
 };
@@ -56,21 +78,7 @@ const MinimalVideoPlayer = ({ videoUrl }: MinimalVideoPlayerProps) => {
   }
 
   if (isDirect) {
-    const player = useVideoPlayer(videoUrl, (p) => {
-      p.loop = false;
-      p.play();
-    });
-
-    return (
-      <View style={styles.videoPlayerWrapper}>
-        <VideoView
-          player={player}
-          style={styles.nativePlayer}
-          allowsFullscreen
-          allowsPictureInPicture
-        />
-      </View>
-    );
+    return <NativeVideoPlayer videoUrl={videoUrl} />;
   }
 
   return (
