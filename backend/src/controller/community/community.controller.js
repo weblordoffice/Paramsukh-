@@ -36,6 +36,21 @@ export const checkCommunityAccess = async (req, res) => {
   }
 };
 
+const ensureGlobalGroup = async () => {
+  let globalGroup = await Group.findOne({ groupType: 'plan', planSlug: 'global' });
+  if (!globalGroup) {
+    globalGroup = await Group.create({
+      name: 'Global Community',
+      description: 'The general discussion space for all active members.',
+      groupType: 'plan',
+      planSlug: 'global',
+      isActive: true,
+    });
+    console.log('✨ Created Global Community Group');
+  }
+  return globalGroup;
+};
+
 /**
  * Get user's groups (based on enrolled courses) - returns hierarchical plan -> subgroup tree
  * GET /api/community/my-groups
@@ -52,112 +67,49 @@ export const getMyGroups = async (req, res) => {
       });
     }
 
-    const loadMemberships = async () => GroupMember.find({ userId, isActive: true })
-      .populate({
-        path: 'groupId',
-        populate: {
-          path: 'courseId',
-          select: 'title category thumbnail'
-        }
-      })
-      .sort({ joinedAt: -1 });
+    // 1. Ensure Global Community group exists
+    const globalGroup = await ensureGlobalGroup();
 
-    // Always sync current plan -> category groups before loading memberships,
-    // so existing users and plan changes are reflected immediately.
-    if (access.plan && access.plan !== 'free') {
-      try {
-        await syncUserCommunityMembershipsByPlan({
-          userId,
-          planSlug: access.plan,
-          membershipActive: true,
-        });
-      } catch (syncError) {
-        console.error(`⚠️ Failed community sync for user ${userId}:`, syncError.message);
-      }
+    // 2. Ensure user is enrolled in this group
+    let membership = await GroupMember.findOne({ groupId: globalGroup._id, userId });
+    if (!membership) {
+      membership = await GroupMember.create({
+        groupId: globalGroup._id,
+        userId,
+        role: 'member',
+        isActive: true,
+      });
+      // Increment memberCount on the group
+      globalGroup.memberCount = (globalGroup.memberCount || 0) + 1;
+      await globalGroup.save();
     }
 
-    // Get user's group memberships
-    const memberships = await loadMemberships();
+    // 3. Format the group structure just like the client expects
+    const formattedGroup = {
+      _id: globalGroup._id,
+      name: globalGroup.name,
+      description: globalGroup.description,
+      memberCount: globalGroup.memberCount || 1,
+      coverImage: globalGroup.coverImage || null,
+      groupType: 'plan',
+      planSlug: 'global',
+      category: null,
+      parentGroupId: null,
+      course: null,
+      joinedAt: membership.joinedAt,
+      role: membership.role,
+    };
 
-    // Build flat group list
-    const groups = memberships
-      .filter((membership) => Boolean(membership.groupId))
-      .map((m) => {
-        const group = m.groupId;
-        const category = String(group.category || '').trim().toLowerCase();
-        const planSlug = String(group.planSlug || '').trim().toLowerCase();
-
-        const fallbackCourse = category
-          ? {
-              _id: `category:${planSlug || 'generic'}:${category}`,
-              title: group.name || `${category.charAt(0).toUpperCase()}${category.slice(1)} Community`,
-              category,
-              thumbnail: null,
-            }
-          : null;
-
-        return {
-          _id: group._id,
-          name: group.name,
-          description: group.description,
-          memberCount: group.memberCount,
-          coverImage: group.coverImage,
-          groupType: group.groupType || 'course',
-          planSlug: planSlug || null,
-          category: category || null,
-          parentGroupId: group.parentGroupId ? String(group.parentGroupId) : null,
-          course: group.courseId || fallbackCourse,
-          joinedAt: m.joinedAt,
-          role: m.role,
-        };
-      });
-
-    // Build hierarchical plan -> subgroup tree
-    const planGroupMap = new Map(); // planGroupId -> { ...planGroup, subgroups: [] }
-    const categoryGroups = [];
-    const otherGroups = [];
-
-    groups.forEach((group) => {
-      if (group.groupType === 'plan') {
-        planGroupMap.set(String(group._id), {
-          ...group,
-          subgroups: [],
-        });
-      } else if (group.groupType === 'category') {
-        categoryGroups.push(group);
-      } else {
-        otherGroups.push(group);
-      }
-    });
-
-    // Nest category subgroups under their parent plan group
-    categoryGroups.forEach((subgroup) => {
-      if (subgroup.parentGroupId && planGroupMap.has(subgroup.parentGroupId)) {
-        planGroupMap.get(subgroup.parentGroupId).subgroups.push(subgroup);
-      } else {
-        // Orphan category group (no parent) — try to find by planSlug
-        let placed = false;
-        for (const [, planGroup] of planGroupMap) {
-          if (planGroup.planSlug && planGroup.planSlug === subgroup.planSlug) {
-            planGroup.subgroups.push(subgroup);
-            placed = true;
-            break;
-          }
-        }
-        if (!placed) {
-          otherGroups.push(subgroup);
-        }
-      }
-    });
-
-    const planGroups = Array.from(planGroupMap.values());
-
+    // Return the response structure that the client expects
     return res.status(200).json({
       success: true,
-      planGroups,
-      groups, // backward-compatible flat list
-      otherGroups, // course-based groups not part of plan hierarchy
-      totalGroups: groups.length
+      planGroups: [{
+        ...formattedGroup,
+        subgroups: [] // No subgroups for simplicity
+      }],
+      groups: [formattedGroup],
+      otherGroups: [],
+      totalGroups: 1
     });
 
   } catch (error) {

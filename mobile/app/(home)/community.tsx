@@ -34,7 +34,7 @@ const getCategoryIcon = (category: string | undefined): keyof typeof Ionicons.gl
   const norm = String(category || '').trim().toLowerCase();
   switch (norm) {
     case 'physical': return 'barbell-outline';
-    case 'mental': return 'brain-outline';
+    case 'mental': return 'layers-outline';
     case 'financial': return 'cash-outline';
     case 'relationship': return 'heart-outline';
     case 'spiritual': return 'sparkles-outline';
@@ -312,19 +312,13 @@ export default function CommunityScreen() {
 
   const notificationBadgeCount = unreadCount > 99 ? '99+' : String(unreadCount);
 
+
   return (
     <View style={styles.container}>
       {/* Custom Header with Menu Button */}
       <View style={[styles.customHeader, { paddingTop: Platform.OS === 'ios' ? 50 : 40 }]}>
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={toggleSidebar}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="menu" size={28} color="#111827" />
-          </TouchableOpacity>
-          <View style={styles.headerTitleContainer}>
+          <View style={[styles.headerTitleContainer, { marginLeft: 0 }]}>
             <Text style={styles.headerTitle} numberOfLines={1}>{getViewTitle()}</Text>
           </View>
           <View style={styles.headerRightButtons}>
@@ -623,37 +617,6 @@ export default function CommunityScreen() {
                   </TouchableOpacity>
                 )}
 
-                {/* Filter Buttons */}
-                <View style={styles.filterButtonsContainer}>
-                  <TouchableOpacity
-                    style={styles.filterButton}
-                    onPress={() => setShowPostTypeFilter(true)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.filterButtonText}>post-type</Text>
-                    <Ionicons name="chevron-down" size={16} color="#111827" style={{ marginLeft: 4 }} />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.filterButton}
-                    onPress={() => {
-                      router.push('/(home)/membership-new');
-                    }}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.filterButtonText}>membership</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.filterButton}
-                    onPress={() => setShowTagFilter(true)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.filterButtonText}>tag</Text>
-                    <Ionicons name="chevron-down" size={16} color="#111827" style={{ marginLeft: 4 }} />
-                  </TouchableOpacity>
-                </View>
-
                 {/* Create Post Button */}
                 <TouchableOpacity
                   style={styles.createPostButton}
@@ -663,7 +626,7 @@ export default function CommunityScreen() {
                   <View style={styles.createPostContent}>
                     <Ionicons name="add-circle" size={24} color="#F1842D" />
                     <Text style={styles.createPostText}>
-                      {activeGroup && activeGroup.name ? `Share in ${activeGroup.name}...` : 'Select a group to post...'}
+                      Share something with the community...
                     </Text>
                   </View>
                   <View style={styles.mediaIcons}>
@@ -673,7 +636,7 @@ export default function CommunityScreen() {
 
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>
-                    {activeGroup && activeGroup.name ? `${activeGroup.name} Posts` : 'Community Posts'}
+                    Recent Posts
                   </Text>
                 </View>
               </>

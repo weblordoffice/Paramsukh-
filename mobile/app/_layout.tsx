@@ -20,6 +20,8 @@ function RootNavigator() {
       <Stack.Screen name="(home)" />
       <Stack.Screen name="counseling" />
       <Stack.Screen name="book-counseling" />
+      <Stack.Screen name="blogs" />
+      <Stack.Screen name="blog-detail" />
     </Stack>
   );
 }

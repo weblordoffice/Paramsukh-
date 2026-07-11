@@ -1,10 +1,90 @@
 import { useRouter } from 'expo-router';
-import React, { useRef } from 'react';
-import { ScrollView, Text, TouchableOpacity, View, Linking, Animated, StyleSheet } from 'react-native';
+import React, { useRef, useEffect, useState } from 'react';
+import { ScrollView, Text, TouchableOpacity, View, Linking, Animated, StyleSheet, Image, Modal, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { WebView } from 'react-native-webview';
 import Header from '../../components/Header';
 import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
+import { useBlogStore } from '../../store/blogStore';
+import apiClient from '../../utils/apiClient';
+
+// Helper functions for video URL parsing
+const isDirectVideoUrl = (url: string): boolean => {
+  if (!url || typeof url !== 'string') return false;
+  const u = url.toLowerCase();
+  return (
+    u.includes('cloudinary.com') ||
+    u.startsWith('file://') ||
+    u.includes('.mp4') ||
+    u.includes('.m3u8') ||
+    u.includes('.webm') ||
+    u.includes('video/upload')
+  );
+};
+
+const getYouTubeId = (url: string): string | null => {
+  if (!url || typeof url !== 'string') return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+};
+
+type MinimalVideoPlayerProps = {
+  videoUrl: string;
+};
+
+const MinimalVideoPlayer = ({ videoUrl }: MinimalVideoPlayerProps) => {
+  const ytId = getYouTubeId(videoUrl);
+  const isYouTube = !!ytId;
+  const isDirect = !isYouTube && isDirectVideoUrl(videoUrl);
+
+  if (isYouTube) {
+    return (
+      <View style={styles.videoPlayerWrapper}>
+        <WebView
+          style={styles.webViewPlayer}
+          source={{ uri: `https://www.youtube.com/embed/${ytId}?autoplay=1&playsinline=1` }}
+          allowsFullscreenVideo
+          javaScriptEnabled
+          scrollEnabled={false}
+        />
+      </View>
+    );
+  }
+
+  if (isDirect) {
+    const player = useVideoPlayer(videoUrl, (p) => {
+      p.loop = false;
+      p.play();
+    });
+
+    return (
+      <View style={styles.videoPlayerWrapper}>
+        <VideoView
+          player={player}
+          style={styles.nativePlayer}
+          allowsFullscreen
+          allowsPictureInPicture
+        />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.fallbackPlayerContainer}>
+      <Text style={styles.fallbackPlayerText}>Opening link in web browser...</Text>
+      <TouchableOpacity
+        style={styles.fallbackLinkBtn}
+        onPress={() => Linking.openURL(videoUrl)}
+      >
+        <Text style={styles.fallbackLinkText}>Open Video</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 interface FeatureCardProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -103,6 +183,12 @@ function QuickAccessItem({ icon, emoji, title, description, iconBg, iconColor, o
 
 export default function HomeTab() {
   const router = useRouter();
+  const { blogs, fetchBlogs } = useBlogStore();
+
+  useEffect(() => {
+    fetchBlogs();
+  }, [fetchBlogs]);
+
   const scrollY = useRef(new Animated.Value(0)).current;
   const bottomTabHeight = useBottomTabBarHeight();
   const heroScale = scrollY.interpolate({
@@ -111,9 +197,35 @@ export default function HomeTab() {
     extrapolate: 'clamp',
   });
 
+  const [introVideoUrl, setIntroVideoUrl] = useState<string>('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  const [isVideoModalVisible, setIsVideoModalVisible] = useState(false);
+
+  useEffect(() => {
+    const loadAndSyncVideo = async () => {
+      try {
+        // 1. Read cached URL first to enable instant playback
+        const cached = await AsyncStorage.getItem('welcome_video_url');
+        if (cached) {
+          setIntroVideoUrl(cached);
+        }
+        
+        // 2. Fetch the latest from the backend to sync the cache
+        const response = await apiClient.get('/config/welcome-video');
+        if (response.data?.success && response.data?.videoUrl) {
+          const latestUrl = response.data.videoUrl;
+          setIntroVideoUrl(latestUrl);
+          await AsyncStorage.setItem('welcome_video_url', latestUrl);
+        }
+      } catch (err) {
+        console.log('Failed welcome video sync:', err);
+      }
+    };
+    loadAndSyncVideo();
+  }, []);
+
   const handleWatchIntro = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    Linking.openURL('https://www.youtube.com/@paramsukh').catch(() => {});
+    setIsVideoModalVisible(true);
   };
 
   return (
@@ -143,7 +255,7 @@ export default function HomeTab() {
                 <Text style={styles.heroTitle}>ParamSukh Gurukul</Text>
               </View>
             </View>
-            
+
             <Text style={styles.heroDescription}>
               Your spiritual companion for meditation, learning & community
             </Text>
@@ -198,6 +310,62 @@ export default function HomeTab() {
           </View>
         </View>
 
+        {/* Blogs Section - Premium Horizontal Cards */}
+        {blogs && blogs.length > 0 && (
+          <View style={styles.blogSection}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Latest Blogs</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/blogs');
+                }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.seeAllText}>See All</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.blogScrollContent}
+            >
+              {blogs.map((blog) => (
+                <TouchableOpacity
+                  key={blog._id}
+                  style={styles.blogCard}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push({
+                      pathname: '/blog-detail',
+                      params: { id: blog._id }
+                    });
+                  }}
+                >
+                  <View style={styles.blogImageContainer}>
+                    {blog.imageUrl ? (
+                      <Image source={{ uri: blog.imageUrl }} style={styles.blogImage} />
+                    ) : (
+                      <View style={styles.blogPlaceholderImage}>
+                        <Ionicons name="document-text" size={32} color="#8C7B73" />
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.blogCardContent}>
+                    <Text style={styles.blogTitle} numberOfLines={2}>
+                      {blog.title}
+                    </Text>
+                    <Text style={styles.blogAuthor} numberOfLines={1}>
+                      By {blog.author}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Quick Access - Warm Elevated List */}
         <View style={styles.quickAccessSection}>
           <Text style={styles.sectionTitle}>Quick Access</Text>
@@ -234,10 +402,49 @@ export default function HomeTab() {
               iconBg="rgba(92, 74, 66, 0.08)"
               onPress={() => router.push('/(home)/podcasts')}
             />
-            
+
           </View>
         </View>
       </ScrollView>
+
+      {/* Premium Minimalist Video Modal */}
+      <Modal
+        visible={isVideoModalVisible}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setIsVideoModalVisible(false)}
+      >
+        <View style={styles.modalContainer}>
+          <TouchableOpacity
+            style={styles.modalOverlayDismiss}
+            activeOpacity={1}
+            onPress={() => setIsVideoModalVisible(false)}
+          />
+          
+          <View style={styles.modalContent}>
+            {/* Header / Dismiss Button */}
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalHeaderTitle} numberOfLines={1}>Welcome to ParamSukh</Text>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setIsVideoModalVisible(false)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close" size={24} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Video Player */}
+            <View style={styles.playerContainer}>
+              {isVideoModalVisible && introVideoUrl ? (
+                <MinimalVideoPlayer videoUrl={introVideoUrl} />
+              ) : (
+                <ActivityIndicator size="large" color="#F1842D" />
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -437,5 +644,149 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: 'rgba(244, 243, 235, 0.9)',
     marginHorizontal: 20,
+  },
+  blogSection: {
+    marginBottom: 28,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginBottom: 14,
+  },
+  seeAllText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#F1842D',
+  },
+  blogScrollContent: {
+    paddingLeft: 20,
+    paddingRight: 8,
+  },
+  blogCard: {
+    width: 200,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    marginRight: 16,
+    overflow: 'hidden',
+    shadowColor: '#5C4A42',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  blogImageContainer: {
+    height: 120,
+    width: '100%',
+    backgroundColor: '#F4F3EB',
+  },
+  blogImage: {
+    height: '100%',
+    width: '100%',
+    resizeMode: 'cover',
+  },
+  blogPlaceholderImage: {
+    height: '100%',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  blogCardContent: {
+    padding: 12,
+  },
+  blogTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2C2420',
+    marginBottom: 4,
+    height: 38,
+  },
+  blogAuthor: {
+    fontSize: 11,
+    color: '#8C7B73',
+    fontWeight: '500',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalOverlayDismiss: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 600,
+    backgroundColor: '#1E1613',
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  modalHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playerContainer: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoPlayerWrapper: {
+    width: '100%',
+    height: '100%',
+  },
+  webViewPlayer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  nativePlayer: {
+    flex: 1,
+  },
+  fallbackPlayerContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  fallbackPlayerText: {
+    color: '#8C7B73',
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  fallbackLinkBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#F1842D',
+  },
+  fallbackLinkText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 14,
   },
 });
