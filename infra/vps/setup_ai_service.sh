@@ -5,8 +5,9 @@ echo "============================================="
 echo "   ParamSukh AI Service Setup & Deploy       "
 echo "============================================="
 
-# Directories
-PROJECT_DIR="/var/www/saas-native"
+# Directories (resolved dynamically based on script location)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 AI_DIR="$PROJECT_DIR/ai-service"
 
 # Navigate to AI service
