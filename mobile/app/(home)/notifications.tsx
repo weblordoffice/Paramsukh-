@@ -102,6 +102,50 @@ export default function NotificationsScreen() {
 
   const handleMarkAsRead = async (item: NotificationItem) => {
     if (!item.isRead) await markAsRead(item._id);
+
+    try {
+      if (item.actionUrl) {
+        router.push(item.actionUrl as any);
+        return;
+      }
+
+      const { relatedType, relatedId } = item;
+
+      if (relatedType === 'support' || item.type === 'support_reply') {
+        router.push('/(home)/help-support');
+        return;
+      }
+
+      if (!relatedType || !relatedId) return;
+
+      switch (relatedType) {
+        case 'event':
+          router.push({ pathname: '/event-detail', params: { eventId: relatedId } });
+          break;
+        case 'course':
+          router.push({ pathname: '/course-detail', params: { courseId: relatedId } });
+          break;
+        case 'booking':
+          router.push('/counseling');
+          break;
+        case 'membership':
+          router.push('/(home)/my-membership');
+          break;
+        case 'support':
+          router.push('/(home)/help-support');
+          break;
+        case 'order':
+          router.push({ pathname: '/order-detail', params: { orderId: relatedId } });
+          break;
+        case 'post':
+          router.push('/(home)/community');
+          break;
+        default:
+          break;
+      }
+    } catch (err) {
+      console.error('Failed to navigate from notification tap:', err);
+    }
   };
 
   const handleMarkAllAsRead = async () => {

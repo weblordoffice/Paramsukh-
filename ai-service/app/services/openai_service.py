@@ -1,14 +1,52 @@
 import json
 from typing import Any, AsyncGenerator
+from uuid import uuid4
 
 from openai import AsyncOpenAI, OpenAI
 
 from app.core.config import get_settings
 from app.core.exceptions import ConfigurationError
+from app.core.logging import get_logger
 from app.models.chat import ChatRequest, MemoryItem
 from app.tools.registry import ToolRegistry
 
+logger = get_logger(__name__)
+
 MemoryRule = dict[str, Any]
+
+
+class MockToolCall:
+    def __init__(self, call_id: str, name: str, arguments: str):
+        self.type = "function_call"
+        self.call_id = call_id
+        self.name = name
+        self.arguments = arguments
+
+
+class MockResponse:
+    def __init__(self, response_id: str, output_text: str, tool_calls: list[Any] = None):
+        self.id = response_id
+        self.output_text = output_text
+        self.output = [
+            MockToolCall(tc.id, tc.function.name, tc.function.arguments)
+            for tc in (tool_calls or [])
+        ]
+
+
+class MockItem:
+    def __init__(self, name: str, arguments: str, call_id: str):
+        self.type = "function_call"
+        self.name = name
+        self.arguments = arguments
+        self.call_id = call_id
+
+
+class MockDoneChunk:
+    def __init__(self, item: MockItem, response_id: str):
+        self.type = "response.output_item.done"
+        self.item = item
+        self.id = response_id
+
 
 MEMORY_RULES: tuple[MemoryRule, ...] = (
     {
@@ -100,8 +138,15 @@ class OpenAIService:
         self.registry = ToolRegistry()
         if not self.settings.openai_api_key:
             raise ConfigurationError("OPENAI_API_KEY is not configured.")
-        self.client = OpenAI(api_key=self.settings.openai_api_key)
-        self.async_client = AsyncOpenAI(api_key=self.settings.openai_api_key)
+        self.client = OpenAI(
+            api_key=self.settings.openai_api_key,
+            base_url=self.settings.openai_api_base,
+        )
+        self.async_client = AsyncOpenAI(
+            api_key=self.settings.openai_api_key,
+            base_url=self.settings.openai_api_base,
+        )
+        self.saved_messages = []
 
     @staticmethod
     def normalize_role(role: str) -> str:
@@ -576,19 +621,49 @@ class OpenAIService:
         return extracted
 
     def build_tools(self) -> list[dict[str, Any]]:
-        return self.registry.get_tool_schemas()
+        schemas = self.registry.get_tool_schemas()
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": s["name"],
+                    "description": s["description"],
+                    "parameters": s["parameters"]
+                }
+            }
+            for s in schemas
+        ]
 
     def create_initial_response(self, payload: ChatRequest) -> Any:
-        return self.client.responses.create(
+        messages = [
+            {"role": "system", "content": self.build_system_prompt(payload)},
+            *self.build_history_items(payload),
+            {"role": "user", "content": payload.message},
+        ]
+        tools = self.build_tools()
+        log_payload = {
+            "model": self.settings.openai_model,
+            "messages": messages,
+            "tools": tools,
+            "max_tokens": self.settings.openai_max_output_tokens,
+            "parallel_tool_calls": False,
+        }
+        logger.info("Sending Chat Completion Request: %s", json.dumps(log_payload, indent=2))
+
+        completion = self.client.chat.completions.create(
             model=self.settings.openai_model,
-            input=[
-                {"role": "system", "content": self.build_system_prompt(payload)},
-                *self.build_history_items(payload),
-                {"role": "user", "content": payload.message},
-            ],
-            tools=self.build_tools(),
-            max_output_tokens=self.settings.openai_max_output_tokens,
+            messages=messages,
+            tools=tools,
+            max_tokens=self.settings.openai_max_output_tokens,
             parallel_tool_calls=False,
+        )
+        self.saved_messages = messages
+        choice_msg = completion.choices[0].message
+        self.saved_messages.append(choice_msg)
+        return MockResponse(
+            completion.id,
+            choice_msg.content or "",
+            choice_msg.tool_calls
         )
 
     def create_followup_response(
@@ -597,12 +672,32 @@ class OpenAIService:
         previous_response_id: str,
         tool_outputs: list[dict[str, Any]],
     ) -> Any:
-        return self.client.responses.create(
+        for out in tool_outputs:
+            self.saved_messages.append({
+                "role": "tool",
+                "tool_call_id": out["call_id"],
+                "content": out["output"]
+            })
+        log_payload = {
+            "model": self.settings.openai_model,
+            "messages": self.saved_messages,
+            "max_tokens": self.settings.openai_max_output_tokens,
+            "parallel_tool_calls": False,
+        }
+        logger.info("Sending Chat Completion Follow-up Request: %s", json.dumps(log_payload, indent=2))
+
+        completion = self.client.chat.completions.create(
             model=self.settings.openai_model,
-            previous_response_id=previous_response_id,
-            input=tool_outputs,
-            max_output_tokens=self.settings.openai_max_output_tokens,
+            messages=self.saved_messages,
+            max_tokens=self.settings.openai_max_output_tokens,
             parallel_tool_calls=False,
+        )
+        choice_msg = completion.choices[0].message
+        self.saved_messages.append(choice_msg)
+        return MockResponse(
+            completion.id,
+            choice_msg.content or "",
+            choice_msg.tool_calls
         )
 
     @staticmethod
@@ -618,20 +713,88 @@ class OpenAIService:
         return parsed
 
     async def create_streaming_response(self, payload: ChatRequest) -> AsyncGenerator[Any, None]:
-        response = await self.async_client.responses.create(
+        messages = [
+            {"role": "system", "content": self.build_system_prompt(payload)},
+            *self.build_history_items(payload),
+            {"role": "user", "content": payload.message},
+        ]
+        self.saved_messages = messages
+        
+        tools = self.build_tools()
+        log_payload = {
+            "model": self.settings.openai_model,
+            "messages": messages,
+            "tools": tools,
+            "max_tokens": self.settings.openai_max_output_tokens,
+            "parallel_tool_calls": False,
+            "stream": True,
+        }
+        logger.info("Sending Streaming Chat Completion Request: %s", json.dumps(log_payload, indent=2))
+
+        response_id = f"chatcmpl-{uuid4()}"
+        response = await self.async_client.chat.completions.create(
             model=self.settings.openai_model,
-            input=[
-                {"role": "system", "content": self.build_system_prompt(payload)},
-                *self.build_history_items(payload),
-                {"role": "user", "content": payload.message},
-            ],
-            tools=self.build_tools(),
-            max_output_tokens=self.settings.openai_max_output_tokens,
+            messages=messages,
+            tools=tools,
+            max_tokens=self.settings.openai_max_output_tokens,
             parallel_tool_calls=False,
             stream=True,
         )
+        
+        tool_calls_accumulated = {}
+        assistant_content = ""
+        
         async for chunk in response:
+            if chunk.id:
+                response_id = chunk.id
             yield chunk
+            
+            if chunk.choices and chunk.choices[0].delta:
+                delta = chunk.choices[0].delta
+                if delta.content:
+                    assistant_content += delta.content
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in tool_calls_accumulated:
+                            tool_calls_accumulated[idx] = {
+                                "id": "",
+                                "name": "",
+                                "arguments": ""
+                            }
+                        if tc.id:
+                            tool_calls_accumulated[idx]["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                tool_calls_accumulated[idx]["name"] += tc.function.name
+                            if tc.function.arguments:
+                                tool_calls_accumulated[idx]["arguments"] += tc.function.arguments
+
+        if tool_calls_accumulated:
+            tool_calls_list = []
+            for idx, tc in sorted(tool_calls_accumulated.items()):
+                tool_calls_list.append({
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": tc["arguments"]
+                    }
+                })
+            self.saved_messages.append({
+                "role": "assistant",
+                "content": None,
+                "tool_calls": tool_calls_list
+            })
+            
+            for idx, tc in sorted(tool_calls_accumulated.items()):
+                item = MockItem(tc["name"], tc["arguments"], tc["id"])
+                yield MockDoneChunk(item, response_id)
+        else:
+            self.saved_messages.append({
+                "role": "assistant",
+                "content": assistant_content
+            })
 
     async def create_streaming_followup(
         self,
@@ -639,13 +802,36 @@ class OpenAIService:
         previous_response_id: str,
         tool_outputs: list[dict[str, Any]],
     ) -> AsyncGenerator[Any, None]:
-        response = await self.async_client.responses.create(
+        for out in tool_outputs:
+            self.saved_messages.append({
+                "role": "tool",
+                "tool_call_id": out["call_id"],
+                "content": out["output"]
+            })
+            
+        log_payload = {
+            "model": self.settings.openai_model,
+            "messages": self.saved_messages,
+            "max_tokens": self.settings.openai_max_output_tokens,
+            "stream": True,
+        }
+        logger.info("Sending Streaming Chat Completion Follow-up Request: %s", json.dumps(log_payload, indent=2))
+
+        response = await self.async_client.chat.completions.create(
             model=self.settings.openai_model,
-            previous_response_id=previous_response_id,
-            input=tool_outputs,
-            max_output_tokens=self.settings.openai_max_output_tokens,
-            parallel_tool_calls=False,
+            messages=self.saved_messages,
+            max_tokens=self.settings.openai_max_output_tokens,
             stream=True,
         )
+        
+        assistant_content = ""
         async for chunk in response:
             yield chunk
+            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                assistant_content += chunk.choices[0].delta.content
+                
+        self.saved_messages.append({
+            "role": "assistant",
+            "content": assistant_content
+        })
+
