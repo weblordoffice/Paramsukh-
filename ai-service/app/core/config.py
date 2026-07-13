@@ -7,7 +7,8 @@ class Settings(BaseSettings):
     ai_service_env: str = "development"
     ai_service_port: int = 8001
     openai_api_key: str | None = None
-    openai_model: str = "gpt-4.1-mini"
+    openai_api_base: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    openai_model: str = "gemini-3.5-flash"
     openai_max_output_tokens: int = 450
     openai_history_message_limit: int = 20
     openai_history_char_limit: int = 500
