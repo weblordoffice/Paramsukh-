@@ -472,7 +472,8 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
                                                 Webhook Secret <span className="text-xs text-gray-400">(Optional)</span>
                                             </label>
                                             <input
-                                                type="text"
+                                                type="password"
+                                                autoComplete="off"
                                                 value={formData.calendlyIntegration.webhookSecret}
                                                 onChange={(e) => setFormData({
                                                     ...formData,

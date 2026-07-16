@@ -30,7 +30,7 @@ export const useDonationStore = create<DonationState>((set) => ({
     fetchMyDonations: async () => {
         try {
             set({ isLoading: true });
-            const response = await apiClient.get(`${API_URL}/auth/donations/my-history`);
+            const response = await apiClient.get(`${API_URL}/donations/my-history`);
 
             if (response.data?.success) {
                 set({ donations: response.data?.data ?? [], isLoading: false });
@@ -42,7 +42,7 @@ export const useDonationStore = create<DonationState>((set) => ({
 
     recordDonation: async (data) => {
         try {
-            const response = await apiClient.post(`${API_URL}/auth/donations/record`, data);
+            const response = await apiClient.post(`${API_URL}/donations/record`, data);
 
             if (response.data?.success) {
                 return { success: true, message: 'Thank you for your donation!' };

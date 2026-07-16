@@ -5,14 +5,14 @@ import { OAuth2Client } from 'google-auth-library';
 // Export generateAdminToken for use in refresh endpoint
 export { generateAdminToken };
 
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET;
+
 const generateAdminToken = (adminId, res) => {
-    // Access token: expires in 24 hours
-    const token = jwt.sign({ id: adminId, role: 'admin' }, process.env.JWT_SECRET, {
+    const token = jwt.sign({ id: adminId, role: 'admin' }, ADMIN_JWT_SECRET, {
         expiresIn: '24h',
     });
 
-    // Refresh token: expires in 30 days
-    const refreshToken = jwt.sign({ id: adminId, role: 'admin' }, process.env.JWT_SECRET, {
+    const refreshToken = jwt.sign({ id: adminId, role: 'admin' }, ADMIN_JWT_SECRET, {
         expiresIn: '30d',
     });
 
@@ -222,7 +222,12 @@ export const updateAdmin = async (req, res) => {
         if (admin) {
             admin.name = name || admin.name;
             admin.email = email || admin.email;
-            if (role) admin.role = role;
+            if (role) {
+                if (admin.role === 'super_admin' && role !== 'super_admin') {
+                    return res.status(403).json({ success: false, message: 'Cannot change super admin role' });
+                }
+                admin.role = role;
+            }
             if (permissions) admin.permissions = permissions;
             if (typeof isActive !== 'undefined') admin.isActive = isActive;
 
@@ -258,9 +263,12 @@ export const deleteAdmin = async (req, res) => {
         const admin = await Admin.findById(req.params.id);
 
         if (admin) {
-            // Prevent deleting self?
             if (admin._id.toString() === req.admin._id.toString()) {
                 return res.status(400).json({ success: false, message: 'Cannot delete yourself' });
+            }
+
+            if (admin.role === 'super_admin') {
+                return res.status(403).json({ success: false, message: 'Cannot delete super admin accounts' });
             }
 
             await admin.deleteOne();
@@ -298,8 +306,8 @@ export const refreshTokenAdmin = async (req, res) => {
     }
 
     try {
-        // Verify refresh token
-        const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+        const secret = process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET;
+        const decoded = jwt.verify(refreshToken, secret);
 
         // Check if admin still exists and is active
         const admin = await Admin.findById(decoded.id).select('-password');

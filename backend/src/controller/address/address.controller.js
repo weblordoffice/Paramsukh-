@@ -43,6 +43,14 @@ export const addAddress = async (req, res) => {
       });
     }
 
+    // Validate pincode format (6 digits)
+    if (!/^\d{6}$/.test(String(pincode).trim())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid pincode format (must be 6 digits)'
+      });
+    }
+
     const address = new Address({
       user: userId,
       type,

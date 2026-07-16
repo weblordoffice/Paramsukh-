@@ -4,6 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../store/authStore';
 import { getTokenSecurely, getRefreshTokenSecurely, storeTokenSecurely, storeRefreshTokenSecurely, clearSecureTokens } from './biometricAuth';
 
+import { getDeviceDetailsMobile } from './deviceInfo';
+
 let isRefreshing = false;
 let failedQueue: any[] = [];
 
@@ -25,13 +27,24 @@ const apiClient = axios.create({
   },
 });
 
-// Request interceptor - add auth token
+// Request interceptor - add auth token & device identity
 apiClient.interceptors.request.use(
   async (config) => {
     const token = await getTokenSecurely();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    try {
+      const device = await getDeviceDetailsMobile();
+      config.headers['x-device-id'] = device.deviceId;
+      config.headers['x-device-name'] = device.deviceName;
+      config.headers['x-device-os'] = device.os;
+      config.headers['x-device-browser'] = device.browser;
+    } catch (e) {
+      console.warn('Failed to inject device headers:', e);
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -44,6 +57,13 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      if (error.response.data?.code === 'SESSION_REVOKED') {
+        await clearSecureTokens();
+        await AsyncStorage.multiRemove(['token', 'refreshToken', 'user', 'assessment_completed']);
+        useAuthStore.setState({ user: null, token: null, refreshToken: null });
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });

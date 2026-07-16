@@ -65,7 +65,7 @@ export const paymentLimiter = rateLimit({
  */
 export const otpLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
-  max: process.env.NODE_ENV === 'production' ? 3 : 10, // More lenient in dev
+  max: process.env.NODE_ENV === 'production' ? 3 : (process.env.NODE_ENV === 'test' ? 1000 : 10),
   message: {
     success: false,
     message: process.env.NODE_ENV === 'production' 
@@ -74,14 +74,8 @@ export const otpLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Use phone number if available, otherwise fall back to IP
+  // Use IP address for rate limiting to prevent phone-rotation bypass
   keyGenerator: (req) => {
-    // Use phone number from request body for more accurate rate limiting
-    const phone = req.body?.phone;
-    if (phone) {
-      return `otp:${phone}`;
-    }
-    // Fallback to IP address
     return `otp:${req.ip}`;
   },
   // Log rate limit hits in development

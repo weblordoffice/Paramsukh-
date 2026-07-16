@@ -1,8 +1,6 @@
 import mongoose from 'mongoose';  
 import dotenv from 'dotenv';
-import dns from 'node:dns'; 
 dotenv.config();  
-dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -20,6 +18,9 @@ const connectDatabase = async () => {
         try {
             const conn = await mongoose.connect(uri, {
                 serverSelectionTimeoutMS: 15000,
+                ssl: true,
+                tls: true,
+                tlsAllowInvalidCertificates: process.env.NODE_ENV !== 'production' ? true : false,
             });
             console.log(`MongoDB Connected: ${conn.connection.host}`);
             return;

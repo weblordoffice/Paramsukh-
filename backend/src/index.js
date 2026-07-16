@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
+import mongoose from 'mongoose';
 import connectDatabase from './config/database.js';
 import apiRoutes from './routes/index.js';
 import coursesRoutes from './routes/courses/courseRoute.js';
@@ -27,9 +28,11 @@ import adminRoutes from './routes/admin/adminRoute.js';
 import chatRoutes from './routes/chat/chatRoute.js';
 import blogRoutes from './routes/blog/blogRoute.js';
 import configRoutes from './routes/config/configRoute.js';
+import adminCouponRoutes from './routes/coupons/admin.coupons.routes.js';
 
 import donationsRoutes from './routes/donations/donationsRoute.js';
 import supportRoutes from './routes/support/supportRoute.js';
+import { clerkWebhookHandler } from './controller/auth/clerkWebhook.controller.js';
 import { setupCounselingCrons } from './services/counselingCron.service.js';
 dotenv.config();
 
@@ -49,6 +52,7 @@ if (isProduction) {
 }
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 // Middleware
@@ -74,9 +78,9 @@ const corsOptions = {
     if (process.env.NODE_ENV === 'development') {
       const isLocal = origin.startsWith('http://localhost:') ||
         origin.startsWith('http://127.0.0.1:') ||
-        origin.startsWith('http://192.168.') ||
-        origin.startsWith('http://10.') ||
-        origin.startsWith('http://172.');
+        origin.startsWith('http://192.168.');
+      if (isLocal) return callback(null, true);
+    }
       if (isLocal) return callback(null, true);
     }
 
@@ -84,19 +88,41 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-API-Key', 'Cache-Control', 'Pragma', 'Last-Event-ID', 'X-Requested-With', 'Accept', 'Origin'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-API-Key', 'Cache-Control', 'Pragma', 'Last-Event-ID', 'X-Requested-With', 'Accept', 'Origin', 'x-device-id', 'x-device-name', 'x-device-os', 'x-device-browser', 'x-revoke-device-id'],
 };
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+    },
+  },
+}));
 app.use(cors(corsOptions));
 // path-to-regexp v8+ requires a named wildcard (e.g. /*splat), not '*' or '(.*)'
 app.options('/*splat', cors(corsOptions));
+
+// Clerk webhook needs raw body for Svix signature verification
+app.post('/api/auth/clerk-webhook', express.raw({ type: 'application/json' }), (req, res) => {
+  const rawBody = req.body instanceof Buffer ? req.body.toString('utf8') : String(req.body);
+  try {
+    req.body = JSON.parse(rawBody);
+  } catch (_) {
+    req.body = {};
+  }
+  // Pass raw body for signature verification
+  req.rawBody = rawBody;
+  clerkWebhookHandler(req, res);
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // Routes
 app.use('/api/auth', apiRoutes);
+app.use('/api/admin/coupons', adminCouponRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/courses', coursesRoutes);
 app.use('/api/events', eventsRoutes);
@@ -123,12 +149,35 @@ app.use('/api/config', configRoutes);
 app.use('/api/donations', donationsRoutes);
 app.use('/api/support', supportRoutes);
 
-// Health check (for testing if API is reachable)
-app.get('/health', (req, res) => {
-  res.json({ ok: true, message: 'API is running', timestamp: new Date().toISOString() });
+// Health check (validates database connectivity)
+app.get('/health', async (req, res) => {
+  try {
+    const dbState = mongoose.connection.readyState;
+    if (dbState !== 1) {
+      return res.status(503).json({ ok: false, message: 'Database not connected', dbState });
+    }
+    await mongoose.connection.db.admin().ping();
+    res.json({ ok: true, message: 'API is running', dbConnected: true, timestamp: new Date().toISOString() });
+  } catch (error) {
+    res.status(503).json({ ok: false, message: 'Health check failed', error: error.message });
+  }
 });
 
-// Test route
+// Metrics endpoint for monitoring
+let requestCount = 0;
+app.use((req, res, next) => {
+  requestCount++;
+  next();
+});
+app.get('/metrics', (req, res) => {
+  res.json({
+    uptime: process.uptime(),
+    requests: requestCount,
+    memory: process.memoryUsage(),
+    dbState: mongoose.connection.readyState,
+    timestamp: Date.now(),
+  });
+});
 app.get('/', (req, res) => {
   res.json({
     message: '🚀 ParamSukh API v2.0',
@@ -346,9 +395,10 @@ process.on('uncaughtException', (err) => {
   process.exit(1); // Exit gracefully
 });
 
-// Listen on all interfaces (0.0.0.0) so phone/other devices on LAN can reach the API
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server is running on http://0.0.0.0:${PORT}`);
+// In development, bind to all interfaces for LAN device testing.
+// In production, bind only to loopback (Nginx handles external connections).
+const listenHost = process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0';
+app.listen(PORT, listenHost, () => {
+  console.log(`🚀 Server is running on http://${listenHost}:${PORT}`);
   console.log(`   → Use in browser: http://127.0.0.1:${PORT}/health`);
-  console.log(`   → On this network: http://192.168.0.104:${PORT}`);
 });

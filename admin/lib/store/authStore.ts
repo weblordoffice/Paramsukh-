@@ -56,7 +56,6 @@ export const useAuthStore = create<AuthState>()(
                             refreshToken: refreshToken || null,
                             tokenExpiry: expiryTime,
                         });
-                        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
                         return { ok: true };
                     }
                     return { ok: false, message: response.data?.message || 'Not an admin' };
@@ -74,7 +73,6 @@ export const useAuthStore = create<AuthState>()(
 
             logout: () => {
                 set({ isAuthenticated: false, user: null, token: null, refreshToken: null, tokenExpiry: null });
-                delete axios.defaults.headers.common['Authorization'];
             },
 
             refreshTokenIfNeeded: async () => {
@@ -110,7 +108,6 @@ export const useAuthStore = create<AuthState>()(
                             user: admin,
                             tokenExpiry: expiryTime,
                         });
-                        axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
                         console.log('✅ Token refreshed successfully');
                         return true;
                     }

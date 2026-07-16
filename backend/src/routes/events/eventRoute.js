@@ -115,9 +115,9 @@ router.delete('/:eventId/register', protectedRoutes, cancelRegistration);
 // GET /api/events/:eventId/registration-status
 router.get('/:eventId/registration-status', protectedRoutes, getRegistrationStatus);
 
-// Get all registrations for an event (admin)
+// Get all registrations for an event (admin only)
 // GET /api/events/:eventId/registrations
-router.get('/:eventId/registrations', getEventRegistrations);
+router.get('/:eventId/registrations', adminAuth, getEventRegistrations);
 
 // Check-in user at event
 // PATCH /api/events/:eventId/registrations/:registrationId/checkin

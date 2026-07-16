@@ -1,4 +1,5 @@
 import express from 'express';
+import crypto from 'crypto';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
 import { uploadLimiter } from '../../middleware/rateLimiter.js';
@@ -29,8 +30,12 @@ const adminOrUserAuth = async (req, res, next) => {
   const apiKey = req.headers['x-admin-api-key'];
   const adminApiKey = process.env.ADMIN_API_KEY;
 
-  if (apiKey && adminApiKey && apiKey === adminApiKey) {
-    return next();
+  if (apiKey && adminApiKey) {
+    const keyBuffer = Buffer.from(String(apiKey));
+    const expectedBuffer = Buffer.from(adminApiKey);
+    if (keyBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(keyBuffer, expectedBuffer)) {
+      return next();
+    }
   }
 
   return protectedRoutes(req, res, next);

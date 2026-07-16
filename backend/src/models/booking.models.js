@@ -333,6 +333,30 @@ bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
   return availableSlots;
 };
 
+// Normalize bookingTime to 24h format on save
+bookingSchema.pre('save', function (next) {
+  if (this.bookingTime) {
+    const timeStr = String(this.bookingTime).trim();
+    // If already in 24h format (e.g. "14:30"), keep as-is
+    if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
+      const [h, m] = timeStr.split(':').map(Number);
+      this.bookingTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    } else {
+      // Try to parse 12h format (e.g. "02:30 PM")
+      const match = timeStr.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+      if (match) {
+        let hours = parseInt(match[1], 10);
+        const minutes = match[2];
+        const period = match[3].toUpperCase();
+        if (period === 'PM' && hours < 12) hours += 12;
+        if (period === 'AM' && hours === 12) hours = 0;
+        this.bookingTime = `${String(hours).padStart(2, '0')}:${minutes}`;
+      }
+    }
+  }
+  next();
+});
+
 const Booking = mongoose.model('Booking', bookingSchema);
 
 export default Booking;

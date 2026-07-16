@@ -30,6 +30,8 @@ const getBaseUrl = () => {
 };
 
 export const BASE_URL = getBaseUrl();
-console.log('[API Config] Resolved BASE_URL:', BASE_URL);
+if (__DEV__) {
+  console.log('[API Config] Resolved BASE_URL:', BASE_URL);
+}
 export const API_BASE_URL = `${BASE_URL}/api`;
 export const API_URL = API_BASE_URL;

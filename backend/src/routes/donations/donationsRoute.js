@@ -11,6 +11,7 @@ const router = express.Router();
 
 router.post('/record', protectedRoutes, recordDonation);
 router.get('/my-history', protectedRoutes, getMyDonations);
+router.get('/', protectedRoutes, getMyDonations);
 
 // Admin Routes
 router.get('/all', adminAuth, getAllDonations);

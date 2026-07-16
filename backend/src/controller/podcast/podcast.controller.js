@@ -1,5 +1,6 @@
 import Podcast from '../../models/podcast.model.js';
 import PodcastPurchase from '../../models/podcastPurchase.model.js';
+import PodcastFavorite from '../../models/podcastFavorite.model.js';
 import { UserMembership } from '../../models/userMembership.models.js';
 
 const stripMediaUrls = (podcastDoc) => {
@@ -504,6 +505,102 @@ export const checkPodcastPurchaseStatus = async (req, res) => {
             message: 'Failed to check purchase status',
             error: error.message,
         });
+    }
+};
+
+// ============ FAVORITES ============
+
+export const toggleFavorite = async (req, res) => {
+    try {
+        const userId = req.user?.id || req.user?._id;
+        const podcastId = req.params.id;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Authentication required' });
+        }
+
+        const podcast = await Podcast.findById(podcastId);
+        if (!podcast) {
+            return res.status(404).json({ success: false, message: 'Podcast not found' });
+        }
+
+        let favoriteDoc = await PodcastFavorite.findOne({ user: userId });
+        let favorited = false;
+
+        if (!favoriteDoc) {
+            favoriteDoc = new PodcastFavorite({ user: userId, podcasts: [] });
+            await favoriteDoc.addPodcast(podcastId);
+            favorited = true;
+        } else {
+            const alreadyFavorited = favoriteDoc.podcasts.some(
+                (item) => item.podcast.toString() === podcastId
+            );
+
+            if (alreadyFavorited) {
+                await favoriteDoc.removePodcast(podcastId);
+                favorited = false;
+            } else {
+                await favoriteDoc.addPodcast(podcastId);
+                favorited = true;
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            message: favorited ? 'Podcast added to favorites' : 'Podcast removed from favorites',
+            data: { favorited },
+        });
+    } catch (error) {
+        console.error('Toggle Favorite Error:', error);
+        res.status(500).json({ success: false, message: 'Failed to toggle favorite', error: error.message });
+    }
+};
+
+export const getUserFavorites = async (req, res) => {
+    try {
+        const userId = req.user?.id || req.user?._id;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Authentication required' });
+        }
+
+        const favoriteDoc = await PodcastFavorite.findOne({ user: userId })
+            .populate('podcasts.podcast', 'title host duration category thumbnailUrl accessType');
+
+        const favorites = favoriteDoc?.podcasts || [];
+
+        res.status(200).json({
+            success: true,
+            count: favorites.length,
+            data: { favorites },
+        });
+    } catch (error) {
+        console.error('Get User Favorites Error:', error);
+        res.status(500).json({ success: false, message: 'Failed to retrieve favorites', error: error.message });
+    }
+};
+
+export const checkFavoriteStatus = async (req, res) => {
+    try {
+        const userId = req.user?.id || req.user?._id;
+        const podcastId = req.params.id;
+
+        if (!userId) {
+            return res.status(401).json({ success: false, message: 'Authentication required' });
+        }
+
+        const favoriteDoc = await PodcastFavorite.findOne({ user: userId });
+        const isFavorited = favoriteDoc
+            ? favoriteDoc.podcasts.some((item) => item.podcast.toString() === podcastId)
+            : false;
+
+        res.status(200).json({
+            success: true,
+            data: { favorited: isFavorited },
+        });
+    } catch (error) {
+        console.error('Check Favorite Status Error:', error);
+        res.status(500).json({ success: false, message: 'Failed to check favorite status', error: error.message });
     }
 };
 

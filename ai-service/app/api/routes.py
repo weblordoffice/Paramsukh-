@@ -7,9 +7,12 @@ from app.core.config import get_settings
 from app.models.chat import ChatRequest, ChatResponse
 from app.services.orchestrator import ChatOrchestrator
 from app.services.stream_orchestrator import StreamingChatOrchestrator
+from app.api.recommendations import router as recommendations_router
 
 router = APIRouter()
 settings = get_settings()
+
+router.include_router(recommendations_router)
 
 
 def verify_internal_secret(x_ai_service_secret: str | None) -> None:

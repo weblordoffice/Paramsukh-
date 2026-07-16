@@ -1,6 +1,6 @@
 'use client';
 
-import { X, ClipboardList, MapPin, Briefcase, Calendar } from 'lucide-react';
+import { X, ClipboardList, MapPin, Briefcase, Calendar, Activity, Heart, Moon, Battery, Smile } from 'lucide-react';
 
 interface AssessmentModalProps {
     isOpen: boolean;
@@ -138,6 +138,74 @@ export default function AssessmentModal({ isOpen, onClose, assessment, userName 
                                     <div>
                                         <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Location</p>
                                         <p className="font-semibold text-gray-900 line-clamp-1" title={locationDisplay}>{locationDisplay}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Wellness Scales */}
+                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                                <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wider">Wellness State Tracking</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                                    <div className="bg-white rounded-lg p-3 border border-gray-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Activity className="w-4 h-4 text-red-500" />
+                                            <span className="text-xs text-gray-500 font-medium">Stress</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg font-bold text-gray-900">{assessment.stressLevel || 5}</span>
+                                            <span className="text-xs text-gray-400">/10</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                                            <div className="bg-red-500 h-1.5 rounded-full" style={{ width: `${((assessment.stressLevel || 5) / 10) * 100}%` }} />
+                                        </div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-3 border border-gray-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Moon className="w-4 h-4 text-indigo-500" />
+                                            <span className="text-xs text-gray-500 font-medium">Sleep</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg font-bold text-gray-900">{assessment.sleepQuality || 5}</span>
+                                            <span className="text-xs text-gray-400">/10</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                                            <div className="bg-indigo-500 h-1.5 rounded-full" style={{ width: `${((assessment.sleepQuality || 5) / 10) * 100}%` }} />
+                                        </div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-3 border border-gray-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Battery className="w-4 h-4 text-green-500" />
+                                            <span className="text-xs text-gray-500 font-medium">Energy</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg font-bold text-gray-900">{assessment.energyLevel || 5}</span>
+                                            <span className="text-xs text-gray-400">/10</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                                            <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${((assessment.energyLevel || 5) / 10) * 100}%` }} />
+                                        </div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-3 border border-gray-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Smile className="w-4 h-4 text-yellow-500" />
+                                            <span className="text-xs text-gray-500 font-medium">Mood</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-lg font-bold text-gray-900">{assessment.moodRating || 5}</span>
+                                            <span className="text-xs text-gray-400">/10</span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                                            <div className="bg-yellow-500 h-1.5 rounded-full" style={{ width: `${((assessment.moodRating || 5) / 10) * 100}%` }} />
+                                        </div>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-3 border border-gray-100">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Heart className="w-4 h-4 text-pink-500" />
+                                            <span className="text-xs text-gray-500 font-medium">Activity</span>
+                                        </div>
+                                        <span className="text-sm font-bold text-gray-900 capitalize">
+                                            {(assessment.physicalActivityLevel || 'moderate').replace('_', ' ')}
+                                        </span>
                                     </div>
                                 </div>
                             </div>

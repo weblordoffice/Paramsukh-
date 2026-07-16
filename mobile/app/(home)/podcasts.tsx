@@ -15,11 +15,17 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Audio } from 'expo-av';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
 import { Video, ResizeMode } from 'expo-av';
 import { WebView } from 'react-native-webview';
 import { useAuthStore } from '../../store/authStore';
+import { useAudioPlayerStore } from '../../store/audioPlayerStore';
+import { useOfflinePodcastStore } from '../../store/offlinePodcastStore';
+import { usePodcastStore } from '../../store/podcastStore';
+import { hasActiveMembership } from '../../utils/membership';
+import AudioPlayerMiniBar from '../../components/AudioPlayerMiniBar';
 
 const { width } = Dimensions.get('window');
 
@@ -127,6 +133,10 @@ export default function PodcastsScreen() {
   const router = useRouter();
   const { podcastId } = useLocalSearchParams<{ podcastId?: string }>();
   const { user, token } = useAuthStore();
+  const { loadAndPlay, currentTrack, stop } = useAudioPlayerStore();
+  const { downloadPodcast, isDownloaded, activeDownloads, progressByPodcastId, removeDownload, hydrate: hydrateDownloads } = useOfflinePodcastStore();
+  const { favoriteIds, toggleFavorite, fetchFavorites, loadingToggles } = usePodcastStore();
+  const isPremiumMember = hasActiveMembership(user);
   const [podcasts, setPodcasts] = useState<Podcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -135,7 +145,6 @@ export default function PodcastsScreen() {
   const [showPaymentFlow, setShowPaymentFlow] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
 
-  // Video Player State
   const [currentPodcast, setCurrentPodcast] = useState<Podcast | null>(null);
   const [youtubeMode, setYoutubeMode] = useState<'embed' | 'watch'>('embed');
   const [youtubePlaybackBlocked, setYoutubePlaybackBlocked] = useState(false);
@@ -150,25 +159,22 @@ export default function PodcastsScreen() {
     try {
       let response;
       if (user && token) {
-        // Authenticated user - get accessible podcasts (free + membership + purchased)
         response = await axios.get(`${API_URL}/podcasts/user/accessible`, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        // Unauthenticated - get only free podcasts
         response = await axios.get(`${API_URL}/podcasts`);
       }
 
       if (response.data && response.data.success) {
-        setPodcasts(response.data.data.podcasts.map((p: any) => ({ 
-          ...p, 
+        setPodcasts(response.data.data.podcasts.map((p: any) => ({
+          ...p,
           isPlaying: false,
           canAccess: typeof p.canAccess === 'boolean' ? p.canAccess : p.accessType === 'free'
         })) || []);
       }
     } catch (error: any) {
       if (error.response?.status === 401) {
-        // Unauthenticated
         Alert.alert('Login Required', 'Please login to view all podcasts');
       } else if (error.response?.status === 404) {
         setPodcasts([]);
@@ -184,6 +190,13 @@ export default function PodcastsScreen() {
   useEffect(() => {
     fetchPodcasts();
   }, [fetchPodcasts]);
+
+  useEffect(() => {
+    hydrateDownloads();
+    if (user) {
+      fetchFavorites();
+    }
+  }, [user]);
 
   useEffect(() => {
     if (podcastId && podcasts.length > 0) {
@@ -212,6 +225,23 @@ export default function PodcastsScreen() {
     fetchPodcasts();
   }, [fetchPodcasts]);
 
+  const handlePlayLocalPodcast = async (podcast: Podcast) => {
+    if (!podcast.videoUrl) {
+      Alert.alert('Error', 'Audio source not available');
+      return;
+    }
+
+    await loadAndPlay({
+      id: podcast._id,
+      title: podcast.title,
+      host: podcast.host,
+      thumbnailUrl: podcast.thumbnailUrl,
+      audioUrl: podcast.videoUrl,
+      duration: podcast.duration,
+      category: podcast.category,
+    });
+  };
+
   const handlePlayPodcast = async (podcast: Podcast) => {
     if (!user && podcast.accessType !== 'free') {
       Alert.alert(
@@ -225,7 +255,12 @@ export default function PodcastsScreen() {
       return;
     }
 
-    if (podcast.accessType === 'free') {
+    if (podcast.accessType === 'free' && podcast.source === 'local') {
+      await handlePlayLocalPodcast(podcast);
+      return;
+    }
+
+    if (podcast.accessType === 'free' && podcast.source === 'youtube') {
       setCurrentPodcast(podcast);
       return;
     }
@@ -254,18 +289,67 @@ export default function PodcastsScreen() {
     }
 
     try {
-      // Stream endpoint returns gated podcast payload with media URLs when access is allowed
       const streamResponse = await axios.get(`${API_URL}/podcasts/${podcast._id}/stream`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
       if (streamResponse.data?.success && streamResponse.data?.data?.podcast) {
-        setCurrentPodcast(streamResponse.data.data.podcast);
+        const streamedPodcast = streamResponse.data.data.podcast;
+
+        if (streamedPodcast.source === 'youtube') {
+          setCurrentPodcast(streamedPodcast);
+        } else {
+          await handlePlayLocalPodcast(streamedPodcast);
+        }
       } else {
         Alert.alert('Error', 'Unable to open podcast stream');
       }
     } catch (error: any) {
       Alert.alert('Access Denied', error.response?.data?.reason || 'You do not have access to this podcast');
+    }
+  };
+
+  const handleDownloadPodcast = async (podcast: Podcast) => {
+    if (!isPremiumMember) {
+      Alert.alert(
+        'Premium Feature',
+        'Offline downloads are available for premium members only.',
+        [{ text: 'View Plans', onPress: () => router.push('/my-membership') }, { text: 'Cancel', style: 'cancel' }]
+      );
+      return;
+    }
+
+    if (podcast.source !== 'local' || !podcast.videoUrl) {
+      Alert.alert('Not Available', 'Only local podcasts can be downloaded for offline listening.');
+      return;
+    }
+
+    if (isDownloaded(podcast._id)) {
+      Alert.alert(
+        'Already Downloaded',
+        'This podcast is already saved for offline listening.',
+        [
+          { text: 'Remove Download', onPress: () => { removeDownload(podcast._id); } },
+          { text: 'OK', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    const result = await downloadPodcast({
+      podcastId: podcast._id,
+      podcastTitle: podcast.title,
+      podcastHost: podcast.host,
+      podcastCategory: podcast.category,
+      podcastDuration: podcast.duration,
+      thumbnailUrl: podcast.thumbnailUrl,
+      remoteUrl: podcast.videoUrl,
+    });
+
+    if (result.success) {
+      Alert.alert('Downloaded', 'Podcast saved for offline listening.');
+    } else if (result.message) {
+      Alert.alert('Download', result.message);
     }
   };
 
@@ -277,7 +361,6 @@ export default function PodcastsScreen() {
 
     setProcessingPayment(true);
     try {
-      // Create payment link
       const paymentResponse = await axios.post(
         `${API_URL}/podcasts/${podcast._id}/create-payment`,
         {},
@@ -287,10 +370,8 @@ export default function PodcastsScreen() {
       if (paymentResponse.data?.success && paymentResponse.data?.data?.url) {
         const paymentLinkId = paymentResponse.data?.data?.paymentLinkId;
 
-        // Open payment URL
         await Linking.openURL(paymentResponse.data.data.url);
 
-        // Let user confirm payment from app after checkout completion
         Alert.alert(
           'Complete Payment',
           'After finishing payment, tap "I Completed Payment" to unlock access.',
@@ -326,6 +407,14 @@ export default function PodcastsScreen() {
     } finally {
       setProcessingPayment(false);
     }
+  };
+
+  const handleToggleFavorite = async (podcastId: string) => {
+    if (!user) {
+      Alert.alert('Login Required', 'Please login to add favorites');
+      return;
+    }
+    const { favorited } = await toggleFavorite(podcastId);
   };
 
   const closePlayer = () => {
@@ -427,99 +516,151 @@ export default function PodcastsScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {filteredPodcasts.map((podcast) => (
-          <View
-            key={podcast._id}
-            className="flex-row bg-white rounded-2xl p-4 mb-4 shadow-sm relative overflow-hidden"
-          >
-            {/* Thumbnail */}
-            <TouchableOpacity 
-              className="w-20 h-20 rounded-xl bg-gray-100 items-center justify-center mr-4 relative overflow-hidden"
-              onPress={() => handlePlayPodcast(podcast)}
+        {filteredPodcasts.map((podcast) => {
+          const isFav = favoriteIds.has(podcast._id);
+          const isTogglingFav = loadingToggles[podcast._id];
+          const downloaded = isDownloaded(podcast._id);
+          const downloading = activeDownloads[podcast._id];
+          const dlProgress = progressByPodcastId[podcast._id] || 0;
+
+          return (
+            <View
+              key={podcast._id}
+              className="flex-row bg-white rounded-2xl p-4 mb-4 shadow-sm relative overflow-hidden"
             >
-              {podcast.thumbnailUrl && podcast.thumbnailUrl.startsWith('http') ? (
-                <Image
-                  source={{ uri: podcast.thumbnailUrl }}
-                  className="w-full h-full"
-                  resizeMode="cover"
-                />
-              ) : (
-                <Text className="text-4xl">🎙️</Text>
-              )}
+              {/* Thumbnail */}
+              <TouchableOpacity
+                className="w-20 h-20 rounded-xl bg-gray-100 items-center justify-center mr-4 relative overflow-hidden"
+                onPress={() => handlePlayPodcast(podcast)}
+              >
+                {podcast.thumbnailUrl && podcast.thumbnailUrl.startsWith('http') ? (
+                  <Image
+                    source={{ uri: podcast.thumbnailUrl }}
+                    className="w-full h-full"
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <Text className="text-4xl">🎙️</Text>
+                )}
 
-              {/* Access Indicator Overlay */}
-              {podcast.accessType === 'membership' && podcast.canAccess === false && (
-                <View className="absolute inset-0 bg-black/30 items-center justify-center">
-                  <Ionicons name="lock-closed" size={24} color="white" />
-                </View>
-              )}
-              {podcast.accessType === 'paid' && podcast.canAccess === false && (
-                <View className="absolute inset-0 bg-black/30 items-center justify-center">
-                  <Ionicons name="lock-closed" size={24} color="white" />
-                </View>
-              )}
-            </TouchableOpacity>
-
-            {/* Content */}
-            <View className="flex-1 mr-3">
-              <View className="flex-row items-center gap-2 mb-1">
-                <Text className="text-base font-bold text-gray-900 flex-1" numberOfLines={1}>{podcast.title}</Text>
-                {podcast.accessType === 'membership' && (
-                  <View className="px-2 py-0.5 rounded-md bg-blue-100">
-                    <Text className="text-[10px] font-semibold text-blue-700">🔐 PREMIUM</Text>
+                {/* Access Indicator Overlay */}
+                {podcast.accessType === 'membership' && podcast.canAccess === false && (
+                  <View className="absolute inset-0 bg-black/30 items-center justify-center">
+                    <Ionicons name="lock-closed" size={24} color="white" />
                   </View>
                 )}
-                {podcast.accessType === 'paid' && (
-                  <View className="px-2 py-0.5 rounded-md bg-yellow-100">
-                    <Text className="text-[10px] font-semibold text-yellow-700">💰 ₹{podcast.price}</Text>
+                {podcast.accessType === 'paid' && podcast.canAccess === false && (
+                  <View className="absolute inset-0 bg-black/30 items-center justify-center">
+                    <Ionicons name="lock-closed" size={24} color="white" />
                   </View>
                 )}
+
+                {/* Download progress overlay */}
+                {downloading && (
+                  <View className="absolute inset-0 bg-black/50 items-center justify-center">
+                    <Text className="text-white text-xs font-bold">{Math.round(dlProgress * 100)}%</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              {/* Content */}
+              <View className="flex-1 mr-3">
+                <View className="flex-row items-center gap-2 mb-1">
+                  <Text className="text-base font-bold text-gray-900 flex-1" numberOfLines={1}>{podcast.title}</Text>
+                  {podcast.accessType === 'membership' && (
+                    <View className="px-2 py-0.5 rounded-md bg-blue-100">
+                      <Text className="text-[10px] font-semibold text-blue-700">🔐 PREMIUM</Text>
+                    </View>
+                  )}
+                  {podcast.accessType === 'paid' && (
+                    <View className="px-2 py-0.5 rounded-md bg-yellow-100">
+                      <Text className="text-[10px] font-semibold text-yellow-700">💰 ₹{podcast.price}</Text>
+                    </View>
+                  )}
+                </View>
+
+                <Text className="text-sm text-gray-500 mb-1.5">{podcast.host}</Text>
+                <Text className="text-[13px] text-gray-400 mb-2" numberOfLines={1}>{podcast.description}</Text>
+
+                <View className="flex-row items-center gap-3">
+                  <View className="flex-row items-center gap-1">
+                    <Ionicons name="time-outline" size={14} color="#6B7280" />
+                    <Text className="text-xs text-gray-500">{podcast.duration || '00:00'}</Text>
+                  </View>
+                  <View className="px-2 py-1 rounded-xl bg-blue-50">
+                    <Text className="text-[11px] font-semibold text-blue-500">{podcast.category}</Text>
+                  </View>
+                  {downloaded && (
+                    <View className="flex-row items-center gap-1">
+                      <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                      <Text className="text-[11px] text-green-600">Offline</Text>
+                    </View>
+                  )}
+                </View>
               </View>
 
-              <Text className="text-sm text-gray-500 mb-1.5">{podcast.host}</Text>
-              <Text className="text-[13px] text-gray-400 mb-2" numberOfLines={1}>{podcast.description}</Text>
+              {/* Action Buttons */}
+              <View className="justify-center items-center gap-2">
+                {/* Play/Access Button */}
+                {podcast.accessType === 'free' || podcast.canAccess === true ? (
+                  <TouchableOpacity
+                    className="w-10 h-10 rounded-full items-center justify-center shadow-lg bg-blue-500"
+                    onPress={() => handlePlayPodcast(podcast)}
+                  >
+                    <Ionicons
+                      name={currentTrack?.id === podcast._id ? "volume-high" : "play"}
+                      size={18}
+                      color="#FFFFFF"
+                      style={currentTrack?.id !== podcast._id ? { marginLeft: 2 } : undefined}
+                    />
+                  </TouchableOpacity>
+                ) : podcast.accessType === 'membership' ? (
+                  <TouchableOpacity
+                    className="w-10 h-10 rounded-full items-center justify-center shadow-lg bg-gray-400"
+                    onPress={() => handlePlayPodcast(podcast)}
+                  >
+                    <Ionicons name="lock-closed" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    className="w-10 h-10 rounded-full items-center justify-center shadow-lg bg-purple-500"
+                    onPress={() => handlePlayPodcast(podcast)}
+                  >
+                    <Ionicons name="card" size={18} color="#FFFFFF" />
+                  </TouchableOpacity>
+                )}
 
-              <View className="flex-row items-center gap-3">
-                <View className="flex-row items-center gap-1">
-                  <Ionicons name="time-outline" size={14} color="#6B7280" />
-                  <Text className="text-xs text-gray-500">{podcast.duration || '00:00'}</Text>
-                </View>
-                <View className="px-2 py-1 rounded-xl bg-blue-50">
-                  <Text className="text-[11px] font-semibold text-blue-500">{podcast.category}</Text>
-                </View>
+                {/* Download Button */}
+                {podcast.source === 'local' && (podcast.accessType === 'free' || podcast.canAccess === true) && (
+                  <TouchableOpacity
+                    className="w-10 h-10 rounded-full items-center justify-center bg-gray-100"
+                    onPress={() => handleDownloadPodcast(podcast)}
+                    disabled={downloading}
+                  >
+                    <Ionicons
+                      name={downloaded ? "cloud-done" : "cloud-download"}
+                      size={18}
+                      color={downloaded ? "#10B981" : downloading ? "#3B82F6" : "#6B7280"}
+                    />
+                  </TouchableOpacity>
+                )}
+
+                {/* Favorite Button */}
+                <TouchableOpacity
+                  className="w-10 h-10 rounded-full items-center justify-center"
+                  onPress={() => handleToggleFavorite(podcast._id)}
+                  disabled={isTogglingFav}
+                >
+                  <Ionicons
+                    name={isFav ? "heart" : "heart-outline"}
+                    size={18}
+                    color={isFav ? "#EF4444" : "#9CA3AF"}
+                  />
+                </TouchableOpacity>
               </View>
             </View>
-
-            {/* Play/Access Button */}
-            {podcast.accessType === 'free' || podcast.canAccess === true ? (
-              <TouchableOpacity
-                className="w-12 h-12 rounded-full items-center justify-center shadow-lg bg-blue-500"
-                onPress={() => handlePlayPodcast(podcast)}
-              >
-                <Ionicons
-                  name="play"
-                  size={20}
-                  color="#FFFFFF"
-                  style={{ marginLeft: 3 }}
-                />
-              </TouchableOpacity>
-            ) : podcast.accessType === 'membership' ? (
-              <TouchableOpacity
-                className="w-12 h-12 rounded-full items-center justify-center shadow-lg bg-gray-400"
-                onPress={() => handlePlayPodcast(podcast)}
-              >
-                <Ionicons name="lock-closed" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                className="w-12 h-12 rounded-full items-center justify-center shadow-lg bg-purple-500"
-                onPress={() => handlePlayPodcast(podcast)}
-              >
-                <Ionicons name="card" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-            )}
-          </View>
-        ))}
+          );
+        })}
 
         {filteredPodcasts.length === 0 && !loading && (
           <View className="items-center justify-center py-20">
@@ -532,7 +673,10 @@ export default function PodcastsScreen() {
         )}
       </ScrollView>
 
-      {/* Video Player Modal */}
+      {/* Audio Player Mini-Bar */}
+      <AudioPlayerMiniBar />
+
+      {/* Video Player Modal (YouTube only) */}
       <Modal
         animationType="slide"
         transparent={false}
@@ -540,7 +684,6 @@ export default function PodcastsScreen() {
         onRequestClose={closePlayer}
       >
         <SafeAreaView className="flex-1 bg-black">
-          {/* Player Header */}
           <View className="flex-row items-center justify-between px-4 py-2 bg-black/50 absolute top-0 left-0 right-0 z-10 w-full mt-12">
             <TouchableOpacity
               onPress={closePlayer}
@@ -560,10 +703,6 @@ export default function PodcastsScreen() {
                 resizeMode={ResizeMode.CONTAIN}
                 isLooping={false}
                 shouldPlay={true}
-
-                onError={(error) => {
-                  Alert.alert('Error', 'Could not load video source');
-                }}
               />
             ) : currentPodcast && currentPodcast.source === 'youtube' && currentPodcast.youtubeUrl ? (
               (() => {
@@ -627,7 +766,6 @@ export default function PodcastsScreen() {
                           setYoutubeMode('watch');
                           return;
                         }
-
                         setYoutubePlaybackBlocked(true);
                       }}
                       onError={() => {
@@ -635,10 +773,9 @@ export default function PodcastsScreen() {
                           setYoutubeMode('watch');
                           return;
                         }
-
                         setYoutubePlaybackBlocked(true);
                       }}
-                      originWhitelist={['*']}
+                      originWhitelist={['https://*.youtube.com', 'https://*.youtube-nocookie.com']}
                     />
 
                     {youtubeMode === 'watch' && (
@@ -659,13 +796,11 @@ export default function PodcastsScreen() {
             )}
           </View>
 
-          {/* Player Info */}
           <View className="px-6 pb-10 bg-black">
             {currentPodcast && (
               <>
                 <Text className="text-white text-2xl font-bold mb-2">{currentPodcast.title}</Text>
                 <Text className="text-gray-400 text-lg mb-4">{currentPodcast.host}</Text>
-
                 <ScrollView className="max-h-40">
                   <Text className="text-gray-300 text-base leading-6">
                     {currentPodcast.description}
@@ -686,15 +821,13 @@ export default function PodcastsScreen() {
       >
         <View className="flex-1 bg-black/50 items-center justify-center p-4">
           <View className="bg-white rounded-3xl p-6 width-full max-w-xs w-full">
-            {/* Close Button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               onPress={() => setShowPaymentFlow(false)}
               className="absolute top-4 right-4 w-8 h-8 items-center justify-center"
             >
               <Ionicons name="close" size={24} color="#6B7280" />
             </TouchableOpacity>
 
-            {/* Content */}
             {selectedPodcast && (
               <>
                 <Text className="text-2xl font-bold text-gray-900 mb-2 pr-6">
@@ -702,7 +835,6 @@ export default function PodcastsScreen() {
                 </Text>
                 <Text className="text-lg text-gray-600 mb-6">{selectedPodcast.host}</Text>
 
-                {/* Price Card */}
                 <View className="bg-purple-50 rounded-2xl p-6 mb-6 border border-purple-200">
                   <Text className="text-gray-600 text-sm mb-1">Price</Text>
                   <Text className="text-3xl font-bold text-purple-600">
@@ -713,14 +845,12 @@ export default function PodcastsScreen() {
                   </Text>
                 </View>
 
-                {/* Description */}
                 <ScrollView className="max-h-32 mb-6">
                   <Text className="text-gray-600 text-base">
                     {selectedPodcast.description}
                   </Text>
                 </ScrollView>
 
-                {/* Purchase Button */}
                 <TouchableOpacity
                   className="w-full bg-purple-600 py-4 rounded-xl items-center justify-center"
                   disabled={processingPayment}
@@ -733,7 +863,6 @@ export default function PodcastsScreen() {
                   )}
                 </TouchableOpacity>
 
-                {/* Cancel Button */}
                 <TouchableOpacity
                   className="w-full mt-3 py-3 rounded-xl items-center justify-center border border-gray-300"
                   onPress={() => setShowPaymentFlow(false)}

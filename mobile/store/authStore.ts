@@ -13,14 +13,16 @@ import {
   authenticateWithBiometrics
 } from '../utils/biometricAuth';
 import { useMembershipStore } from './membershipStore';
+import { getDeviceDetailsMobile } from '../utils/deviceInfo';
 
 interface User {
   _id: string;
+  clerkId?: string;
   displayName: string;
   email?: string;
   phone?: string;
   photoURL?: string;
-  authProvider: 'google' | 'phone';
+  authProvider: 'google' | 'phone' | 'clerk';
   subscriptionPlan: string;
   subscriptionStatus: string;
 }
@@ -33,9 +35,10 @@ interface AuthState {
   error: string | null;
   biometricEnabled: boolean;
 
-  googleSignIn: (idToken: string) => Promise<{ success: boolean; message?: string }>;
+  googleSignIn: (idToken: string, revokeDeviceId?: string) => Promise<{ success: boolean; message?: string }>;
+  syncClerkUser: (clerkData: { clerkId: string; email?: string; displayName?: string; photoURL?: string; referralCode?: string; clerkToken?: string }, revokeDeviceId?: string) => Promise<{ success: boolean; message?: string; needsPhoneVerification?: boolean; deviceLimitExceeded?: boolean; activeDevices?: any[] }>;
   sendOTP: (phone: string, purpose?: 'signin' | 'signup') => Promise<{ success: boolean; message?: string; isNewUser?: boolean }>;
-  verifyOTP: (phone: string, code: string, name?: string, email?: string) => Promise<{ success: boolean; message?: string; isNewUser?: boolean }>;
+  verifyOTP: (phone: string, code: string, name?: string, email?: string, revokeDeviceId?: string, referralCode?: string) => Promise<{ success: boolean; message?: string; isNewUser?: boolean; deviceLimitExceeded?: boolean; activeDevices?: any[] }>;
   logout: () => Promise<void>;
   logoutWithBiometric: () => Promise<{ success: boolean; message?: string }>;
   loadUser: () => Promise<void>;
@@ -46,6 +49,23 @@ interface AuthState {
   disableBiometric: () => Promise<void>;
 }
 
+const getAuthHeaders = async (token?: string | null, revokeDeviceId?: string) => {
+  const device = await getDeviceDetailsMobile();
+  const headers: any = {
+    'x-device-id': device.deviceId,
+    'x-device-name': device.deviceName,
+    'x-device-os': device.os,
+    'x-device-browser': device.browser
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  if (revokeDeviceId) {
+    headers['x-revoke-device-id'] = revokeDeviceId;
+  }
+  return headers;
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
@@ -54,10 +74,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
   biometricEnabled: false,
 
-  googleSignIn: async (idToken: string) => {
+  googleSignIn: async (_idToken: string, _revokeDeviceId?: string) => {
+    // Deprecated: Google sign-in is now handled via Clerk OAuth.
+    // Use syncClerkUser() instead with a Clerk-issued session token.
+    console.warn('googleSignIn is deprecated. Use Clerk OAuth via syncClerkUser instead.');
+    return { success: false, message: 'Google sign-in is now handled via Clerk. Please use Clerk OAuth.' };
+  },
+
+  syncClerkUser: async (clerkData: { clerkId: string; email?: string; displayName?: string; photoURL?: string; referralCode?: string; clerkToken?: string }, revokeDeviceId?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.post(`${API_URL}/auth/google`, { idToken });
+      const headers = await getAuthHeaders(null, revokeDeviceId);
+      if (clerkData.clerkToken) {
+        headers.Authorization = `Bearer ${clerkData.clerkToken}`;
+      }
+      const response = await axios.post(`${API_URL}/auth/clerk-sync`, clerkData, { headers });
 
       if (response.data?.success) {
         const user = response.data?.user;
@@ -71,13 +102,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
         
         set({ user, token, refreshToken, isLoading: false });
-        return { success: true };
+        return { success: true, needsPhoneVerification: !!response.data?.needsPhoneVerification };
       }
 
       set({ isLoading: false, error: response.data?.message });
       return { success: false, message: response.data?.message };
     } catch (error: any) {
-      const msg = error.response?.data?.message || 'Sign in failed';
+      const data = error.response?.data;
+      if (data?.deviceLimitExceeded || data?.cooldown) {
+        set({ isLoading: false });
+        return {
+          success: false,
+          deviceLimitExceeded: data?.deviceLimitExceeded || false,
+          activeDevices: data?.activeDevices || [],
+          message: data?.message
+        };
+      }
+      const msg = error.response?.data?.message || 'Failed to sync Google user';
       set({ isLoading: false, error: msg });
       return { success: false, message: msg };
     }
@@ -86,10 +127,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   sendOTP: async (phone: string, purpose?: 'signin' | 'signup') => {
     set({ isLoading: true, error: null });
     try {
+      const token = get().token;
+      const headers: any = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
       const response = await axios.post(
         `${API_URL}/auth/send-otp`,
         { phone, purpose },
-        { timeout: 15000 }
+        { 
+          timeout: 15000,
+          headers
+        }
       );
 
       set({ isLoading: false });
@@ -126,20 +175,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ isLoading: false, error: msg });
       return { success: false, message: msg, isNewUser };
-    } finally {
-      set({ isLoading: false });
     }
   },
 
-  verifyOTP: async (phone: string, code: string, name?: string, email?: string) => {
+  verifyOTP: async (phone: string, code: string, name?: string, email?: string, revokeDeviceId?: string, referralCode?: string) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await axios.post(`${API_URL}/auth/verify-otp`, {
-        phone,
-        otp: code,
-        name,
-        email
-      });
+      const token = get().token;
+      const headers = await getAuthHeaders(token, revokeDeviceId);
+      const response = await axios.post(
+        `${API_URL}/auth/verify-otp`, 
+        {
+          phone,
+          otp: code,
+          name,
+          email,
+          referralCode
+        },
+        { headers }
+      );
 
       if (response.data?.success) {
         const user = response.data?.user;
@@ -167,6 +221,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false, error: response.data?.message });
       return { success: false, message: response.data?.message };
     } catch (error: any) {
+      const data = error.response?.data;
+      if (data?.deviceLimitExceeded || data?.cooldown) {
+        set({ isLoading: false });
+        return {
+          success: false,
+          deviceLimitExceeded: data?.deviceLimitExceeded || false,
+          activeDevices: data?.activeDevices || [],
+          message: data?.message
+        };
+      }
       let msg = 'Verification failed. Please try again.';
       
       if (error.response) {
@@ -195,9 +259,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       if (token) {
-        await axios.post(`${API_URL}/auth/logout`, {}, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const headers = await getAuthHeaders(token);
+        await axios.post(`${API_URL}/auth/logout`, {}, { headers });
       }
     } finally {
       // Always clear local auth state so stale sessions cannot survive a failed logout call.
@@ -271,11 +334,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { success: false };
       }
 
-      const response = await axios.get(`${API_URL}/auth/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
+      const headers = await getAuthHeaders(token);
+      const response = await axios.get(`${API_URL}/auth/me`, { headers });
 
       if (response.data?.success) {
         const user = response.data?.user;
@@ -316,9 +376,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       set({ isLoading: true });
+      const headers = await getAuthHeaders();
       const response = await axios.post(`${API_URL}/auth/refresh-token`, {
         refreshToken
-      });
+      }, { headers });
 
       if (response.data?.success) {
         const { token, refreshToken: newRefreshToken } = response.data || {};

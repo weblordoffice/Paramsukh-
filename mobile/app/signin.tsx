@@ -1,8 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image, Linking } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuthStore } from '../store/authStore';
+import { useOAuth } from '@clerk/clerk-expo';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import * as Haptics from 'expo-haptics';
+import DeviceSwapModal from '../components/DeviceSwapModal';
+
+WebBrowser.maybeCompleteAuthSession();
 
 function formatPhone(phone: string) {
   const digits = phone.replace(/\D/g, '');
@@ -13,6 +20,7 @@ function formatPhone(phone: string) {
 export default function SignInScreen() {
   const router = useRouter();
   const { sendOTP, verifyOTP, isLoading } = useAuthStore();
+  const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
   const scrollViewRef = useRef<ScrollView>(null);
   const otpInputRef = useRef<TextInput>(null);
 
@@ -21,6 +29,8 @@ export default function SignInScreen() {
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const resendIntervalRef = useRef<any>(null);
+  const [showSwapModal, setShowSwapModal] = useState(false);
+  const [activeDevices, setActiveDevices] = useState<any[]>([]);
 
   useEffect(() => {
     return () => {
@@ -29,6 +39,22 @@ export default function SignInScreen() {
       }
     };
   }, []);
+
+  const handleGoogleSignIn = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const { createdSessionId, setActive } = await startOAuthFlow({
+        redirectUrl: Linking.createURL('/oauth-redirect', { scheme: 'paramsukh' }),
+      });
+
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
+      }
+    } catch (err: any) {
+      console.error('OAuth error', err);
+      Alert.alert('Authentication Error', err.message || 'Failed to authenticate with Google');
+    }
+  };
 
   const handleSendOTP = async () => {
     if (!phone || phone.length < 10) {
@@ -67,22 +93,25 @@ export default function SignInScreen() {
     }
   };
 
-  const handleVerifyOTP = async () => {
+  const handleVerifyOTP = async (revokeDeviceId?: string) => {
     if (otp.length !== 6) {
       Alert.alert('Error', 'Enter 6-digit OTP');
       return;
     }
 
     const formattedPhone = formatPhone(phone);
-
-    // For signin, we don't need name and email
-    const result = await verifyOTP(formattedPhone, otp);
+    const result = await verifyOTP(formattedPhone, otp, undefined, undefined, revokeDeviceId);
 
     if (result.success) {
-      // Existing user - let index.tsx check assessment status
+      setShowSwapModal(false);
       router.replace('/');
     } else {
-      Alert.alert('Error', result.message || 'Verification failed');
+      if (result.deviceLimitExceeded) {
+        setActiveDevices(result.activeDevices || []);
+        setShowSwapModal(true);
+      } else {
+        Alert.alert('Error', result.message || 'Verification failed');
+      }
     }
   };
 
@@ -166,6 +195,27 @@ export default function SignInScreen() {
                 </Text>
               </View>
 
+              {/* Divider */}
+              <View className="flex-row items-center my-6">
+                <View className="flex-grow h-px bg-gray-300" />
+                <Text className="mx-4 text-gray-500 font-semibold text-sm">or</Text>
+                <View className="flex-grow h-px bg-gray-300" />
+              </View>
+
+              {/* Google OAuth button */}
+              <TouchableOpacity
+                className="flex-row items-center justify-center bg-white border border-gray-300 rounded-xl py-4 shadow-sm active:bg-gray-50"
+                onPress={handleGoogleSignIn}
+                disabled={isLoading}
+              >
+                <Image
+                  source={{ uri: 'https://developers.google.com/static/identity/images/g-logo.png' }}
+                  className="w-5 h-5 mr-3"
+                  resizeMode="contain"
+                />
+                <Text className="text-gray-700 font-bold text-base">Continue with Google</Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 className="mt-6"
                 onPress={() => router.replace('/signup')}
@@ -235,6 +285,14 @@ export default function SignInScreen() {
           </Text>
         </Text>
       </ScrollView>
+
+      <DeviceSwapModal
+        visible={showSwapModal}
+        activeDevices={activeDevices}
+        onConfirm={(deviceId) => handleVerifyOTP(deviceId)}
+        onClose={() => setShowSwapModal(false)}
+        isLoading={isLoading}
+      />
     </KeyboardAvoidingView>
   );
 }

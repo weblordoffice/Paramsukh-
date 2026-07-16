@@ -86,14 +86,16 @@ enrollmentSchema.methods.updateProgress = function(totalVideos, totalPdfs) {
 };
 
 enrollmentSchema.methods.markVideoComplete = function(videoId) {
-  if (!this.completedVideos.includes(videoId)) {
+  const vidStr = String(videoId);
+  if (!this.completedVideos.some(id => String(id) === vidStr)) {
     this.completedVideos.push(videoId);
   }
   return this;
 };
 
 enrollmentSchema.methods.markPdfComplete = function(pdfId) {
-  if (!this.completedPdfs.includes(pdfId)) {
+  const pdfStr = String(pdfId);
+  if (!this.completedPdfs.some(id => String(id) === pdfStr)) {
     this.completedPdfs.push(pdfId);
   }
   return this;

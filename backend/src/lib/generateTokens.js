@@ -6,7 +6,7 @@ dotenv.config();
 
 export const generateTokens = (userId, res) => {
     try {
-        const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '15d' });
+        const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
         
         // Always set cookie for browser clients
         if (res) {
@@ -14,7 +14,7 @@ export const generateTokens = (userId, res) => {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: 'lax',
-                maxAge: 15 * 24 * 60 * 60 * 1000 // 15 days
+                maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
             });
         }
         

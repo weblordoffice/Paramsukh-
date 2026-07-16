@@ -1,17 +1,18 @@
 'use client';
 
-import { useEffect } from 'react';
-import axios from 'axios';
+import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/lib/store/authStore';
 
 export default function AuthInitializer() {
     const { token, isAuthenticated } = useAuthStore();
+    const prevAuth = useRef(isAuthenticated);
 
     useEffect(() => {
-        if (isAuthenticated && token) {
-            axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        if (!isAuthenticated && prevAuth.current) {
+            window.location.href = '/';
         }
-    }, [isAuthenticated, token]);
+        prevAuth.current = isAuthenticated;
+    }, [isAuthenticated]);
 
     return null;
 }

@@ -123,7 +123,7 @@ export const enrollInCourse = async (req, res) => {
     // Check if already enrolled
     const existingEnrollment = await Enrollment.findOne({ userId, courseId });
     if (existingEnrollment) {
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
         message: "You are already enrolled in this course"
       });
@@ -171,9 +171,8 @@ export const enrollInCourse = async (req, res) => {
       currentVideoId: course.videos.length > 0 ? course.videos[0]._id : null
     });
 
-    // Update course enrollment count
-    course.enrollmentCount += 1;
-    await course.save();
+    // Atomically update course enrollment count
+    await Course.findByIdAndUpdate(courseId, { $inc: { enrollmentCount: 1 } });
 
     // Keep plan-category community groups aligned with the user's enrolled categories.
     try {
@@ -656,6 +655,16 @@ export const markCourseComplete = async (req, res) => {
       });
     }
 
+    if (enrollment.isCompleted) {
+      return res.status(200).json({
+        success: true,
+        message: "Course is already marked as complete",
+        progress: 100,
+        isCompleted: true,
+        completedAt: enrollment.completedAt
+      });
+    }
+
     // Mark all videos as complete
     if (Array.isArray(course.videos)) {
       course.videos.forEach(video => {
@@ -679,9 +688,8 @@ export const markCourseComplete = async (req, res) => {
     enrollment.completedAt = new Date();
     await enrollment.save();
 
-    // Increment course completion count
-    course.completionCount = (course.completionCount || 0) + 1;
-    await course.save();
+    // Atomically increment course completion count
+    await Course.findByIdAndUpdate(courseId, { $inc: { completionCount: 1 } });
 
     console.log(`✅ Course ${courseId} marked complete for user ${userId}.`);
 

@@ -117,8 +117,10 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
 
         try {
             const selectedPlanSlugs = formData.includedInPlans || [];
-            if (selectedPlanSlugs.length === 0) {
-                toast.error('Select at least one membership plan.');
+            const isFreeCourse = formData.isFreeCourse === true;
+
+            if (!isFreeCourse && selectedPlanSlugs.length === 0) {
+                toast.error('Select at least one membership plan, or mark the course as free.');
                 setLoading(false);
                 return;
             }
@@ -130,11 +132,10 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                 return;
             }
 
-            // Create a payload derived from formData
-            // Ensure tags is an array
             const payload = {
                 ...formData,
                 category: normalizedCategory,
+                includedInPlans: isFreeCourse ? [] : selectedPlanSlugs,
                 tags: tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag !== '')
             };
 
@@ -377,32 +378,65 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                     {/* Membership Access */}
                     <div>
                         <label className="block text-sm font-medium text-secondary mb-2">
-                            Included in Restricted Plans (Auto-Enroll)
+                            Course Access Settings
                         </label>
-                        {loadingPlans ? (
-                            <p className="text-sm text-gray-500">Loading plans...</p>
-                        ) : membershipPlans.length === 0 ? (
-                            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-lg text-sm">
-                                No plans exist. Please ask the admin to create a membership plan first.
+
+                        {/* Free Course Toggle */}
+                        <div className="flex items-center gap-3 mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                            <input
+                                type="checkbox"
+                                id="isFreeCourse"
+                                checked={formData.isFreeCourse === true}
+                                onChange={() => {
+                                    setFormData((prev: any) => ({
+                                        ...prev,
+                                        isFreeCourse: !prev.isFreeCourse,
+                                        includedInPlans: !prev.isFreeCourse ? [] : prev.includedInPlans,
+                                    }));
+                                }}
+                                className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                            />
+                            <div>
+                                <label htmlFor="isFreeCourse" className="text-sm font-semibold text-green-800 cursor-pointer select-none">
+                                    Free Course — Available to all users without membership
+                                </label>
+                                <p className="text-xs text-green-700 mt-1">
+                                    Anyone can enroll in this course. No payment or membership plan required.
+                                </p>
                             </div>
-                        ) : (
-                            <div className="flex flex-wrap gap-4">
-                                {membershipPlans.map((plan) => (
-                                    <label key={plan._id} className="flex items-center space-x-2 cursor-pointer">
-                                        <input
-                                            type="checkbox"
-                                            checked={(formData.includedInPlans || []).includes(plan.slug)}
-                                            onChange={() => handlePlanChange(plan.slug)}
-                                            className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
-                                        />
-                                        <span className="capitalize text-black">{plan.title}</span>
-                                    </label>
-                                ))}
-                            </div>
+                        </div>
+
+                        {!formData.isFreeCourse && (
+                            <>
+                                <label className="block text-sm font-medium text-secondary mb-2">
+                                    Restricted Plan Access (Auto-Enroll)
+                                </label>
+                                {loadingPlans ? (
+                                    <p className="text-sm text-gray-500">Loading plans...</p>
+                                ) : membershipPlans.length === 0 ? (
+                                    <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-lg text-sm">
+                                        No plans exist. Please ask the admin to create a membership plan first.
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-wrap gap-4">
+                                        {membershipPlans.map((plan) => (
+                                            <label key={plan._id} className="flex items-center space-x-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={(formData.includedInPlans || []).includes(plan.slug)}
+                                                    onChange={() => handlePlanChange(plan.slug)}
+                                                    className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                                                />
+                                                <span className="capitalize text-black">{plan.title}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                )}
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Users on these plans will be automatically enrolled in this course upon purchase.
+                                </p>
+                            </>
                         )}
-                        <p className="text-xs text-gray-500 mt-1">
-                            Users on these plans will be automatically enrolled in this course upon purchase.
-                        </p>
                     </div>
 
                     {/* Tags */}

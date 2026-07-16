@@ -48,7 +48,12 @@ export const getAllServicesAdmin = async (req, res) => {
 
 export const createService = async (req, res) => {
   try {
-    const service = await CounselingService.create(req.body);
+    const { title, description, counselorName, counselorImage, category, duration, price, currencyCode, isActive, onlineMeetingLink, meetingPlatform, meetingPassword, availableSlots } = req.body;
+    const service = await CounselingService.create({
+      title, description, counselorName, counselorImage, category, duration, price, currencyCode: currencyCode || 'INR',
+      isActive: typeof isActive === 'boolean' ? isActive : true,
+      onlineMeetingLink, meetingPlatform, meetingPassword, availableSlots,
+    });
     res.status(201).json({
       success: true,
       data: { service }
@@ -65,7 +70,12 @@ export const createService = async (req, res) => {
 
 export const updateService = async (req, res) => {
   try {
-    const service = await CounselingService.findByIdAndUpdate(req.params.id, req.body, {
+    const allowed = ['title', 'description', 'counselorName', 'counselorImage', 'category', 'duration', 'price', 'currencyCode', 'isActive', 'onlineMeetingLink', 'meetingPlatform', 'meetingPassword', 'availableSlots'];
+    const update = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) update[key] = req.body[key];
+    }
+    const service = await CounselingService.findByIdAndUpdate(req.params.id, update, {
       new: true,
       runValidators: true
     });
@@ -572,7 +582,10 @@ export const rescheduleBooking = async (req, res) => {
     booking.bookingTime = newTime;
     booking.rescheduledReason = reason || 'User requested reschedule';
     booking.rescheduledBy = 'user';
-    booking.status = 'confirmed';
+    // Only set to confirmed if already confirmed; preserve pending/awaiting_payment status
+    if (booking.status === 'confirmed') {
+      booking.status = 'confirmed';
+    }
 
     await booking.save();
 
