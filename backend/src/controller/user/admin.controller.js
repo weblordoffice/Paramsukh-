@@ -538,8 +538,7 @@ export const updateUserMembership = async (req, res) => {
               currentVideoId: course.videos.length > 0 ? course.videos[0]._id : null
             });
 
-            course.enrollmentCount += 1;
-            await course.save();
+            await Course.findByIdAndUpdate(course._id, { $inc: { enrollmentCount: 1 } });
             console.log(`✅ Enrolled user ${id} in course: ${course.title}`);
           } else {
             console.log(`ℹ️ User ${id} already enrolled in: ${course.title}`);

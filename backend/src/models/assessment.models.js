@@ -40,6 +40,37 @@ const assessmentSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  // Wellness State Tracking (1-10 scale)
+  stressLevel: {
+    type: Number,
+    min: 1,
+    max: 10,
+    default: 5
+  },
+  sleepQuality: {
+    type: Number,
+    min: 1,
+    max: 10,
+    default: 5
+  },
+  energyLevel: {
+    type: Number,
+    min: 1,
+    max: 10,
+    default: 5
+  },
+  moodRating: {
+    type: Number,
+    min: 1,
+    max: 10,
+    default: 5
+  },
+  physicalActivityLevel: {
+    type: String,
+    enum: ['sedentary', 'light', 'moderate', 'active', 'very_active'],
+    default: 'moderate'
+  },
+
   // Assessment Questions
   physicalIssue: {
     type: Boolean,

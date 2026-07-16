@@ -20,17 +20,73 @@ import { Country, State } from 'country-state-city';
 import Constants from 'expo-constants';
 
 import apiClient from '../utils/apiClient';
+import { useAssessmentStore } from '../store/assessmentStore';
+
+function ScaleInput({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <View style={styles.scaleBlock}>
+      <View style={styles.scaleHeader}>
+        <Text style={styles.scaleLabel}>{label}</Text>
+        <Text style={styles.scaleValue}>{value}/10</Text>
+      </View>
+      <View style={styles.scaleDots}>
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+          <TouchableOpacity
+            key={n}
+            style={[styles.scaleDot, value >= n && styles.scaleDotActive]}
+            onPress={() => onChange(n)}
+          >
+            <Text style={[styles.scaleDotText, value >= n && styles.scaleDotTextActive]}>
+              {n}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      <View style={styles.scaleLabels}>
+        <Text style={styles.scaleMinLabel}>Low</Text>
+        <Text style={styles.scaleMaxLabel}>High</Text>
+      </View>
+    </View>
+  );
+}
+
+function DetailInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder: string }) {
+  return (
+    <View style={styles.detailBlock}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <TextInput
+        style={styles.detailTextInput}
+        placeholder={placeholder}
+        placeholderTextColor="#9CA3AF"
+        value={value}
+        onChangeText={onChange}
+        multiline
+        numberOfLines={2}
+        textAlignVertical="top"
+      />
+    </View>
+  );
+}
+
+const ACTIVITY_LEVELS = [
+  { value: 'sedentary', label: 'Sedentary', desc: 'Little to no exercise' },
+  { value: 'light', label: 'Light', desc: 'Light activity 1-3 days/week' },
+  { value: 'moderate', label: 'Moderate', desc: 'Moderate activity 3-5 days/week' },
+  { value: 'active', label: 'Active', desc: 'Active 5-7 days/week' },
+  { value: 'very_active', label: 'Very Active', desc: 'Intense daily training' },
+];
 
 export default function AssessmentScreen() {
   const router = useRouter();
+  const store = useAssessmentStore();
 
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [textInputs, setTextInputs] = useState({
-    age: '',
-    occupation: '',
-  });
-  const [selectedCountryCode, setSelectedCountryCode] = useState('');
-  const [selectedStateCode, setSelectedStateCode] = useState('');
+  const {
+    answers, textInputs, scales, issueDetails,
+    selectedCountryCode, selectedStateCode,
+    setAnswer, setTextInput, setScale, setIssueDetail,
+    setCountryCode, setStateCode,
+  } = store;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const textFields = [
@@ -52,62 +108,34 @@ export default function AssessmentScreen() {
   );
   const selectedCountry = countries.find((country) => country.isoCode === selectedCountryCode);
   const selectedState = states.find((state) => state.isoCode === selectedStateCode);
-            
+
   const questions = [
-    {
-      id: 'physical_issue',
-      question: 'Do you have any Physical Issues?',
-      options: ['Yes', 'No'],
-    },
-    {
-      id: 'special_disease_issue',
-      question: 'Do you have any Special Disease Issues?',
-      options: ['Yes', 'No'],
-    },    
-    {
-      id: 'relationship_issue',
-      question: 'Do you have any Relationship Issues?',
-      options: ['Yes', 'No'],
-    },
-    {
-      id: 'financial_issue',
-      question: 'Do you have any Financial Issues?',
-      options: ['Yes', 'No'],
-    },
-    {
-      id: 'emotional_issue',
-      question: 'Do you have any Mental Health Issues?',
-      options: ['Yes', 'No'],
-    },
-    {
-      id: 'spiritual_issue',
-      question: 'Do you have any Spiritual Growth Interests?',
-      options: ['Yes', 'No'],
-    },
+    { id: 'physical_issue', question: 'Do you have any Physical Issues?', detailKey: 'physicalIssueDetails' as const, detailLabel: 'Please describe your physical concerns', detailPlaceholder: 'e.g., back pain, joint issues, fatigue...' },
+    { id: 'special_disease_issue', question: 'Do you have any Special Disease Issues?', detailKey: 'specialDiseaseDetails' as const, detailLabel: 'Please describe any medical conditions', detailPlaceholder: 'e.g., diabetes, hypertension, thyroid...' },
+    { id: 'relationship_issue', question: 'Do you have any Relationship Issues?', detailKey: 'relationshipIssueDetails' as const, detailLabel: 'Please describe your relationship concerns', detailPlaceholder: 'e.g., communication, trust, loneliness...' },
+    { id: 'financial_issue', question: 'Do you have any Financial Issues?', detailKey: 'financialIssueDetails' as const, detailLabel: 'Please describe your financial concerns', detailPlaceholder: 'e.g., debt, career uncertainty, budgeting...' },
+    { id: 'emotional_issue', question: 'Do you have any Mental Health Issues?', detailKey: 'mentalHealthIssueDetails' as const, detailLabel: 'Please describe your mental health concerns', detailPlaceholder: 'e.g., anxiety, depression, stress...' },
+    { id: 'spiritual_issue', question: 'Do you have any Spiritual Growth Interests?', detailKey: 'spiritualGrowthDetails' as const, detailLabel: 'Please describe your spiritual interests', detailPlaceholder: 'e.g., meditation, consciousness, purpose...' },
   ];
 
-  const handleAnswer = (questionId: string, answer: string) => {
-    setAnswers({ ...answers, [questionId]: answer });
-  };
-
-  const handleTextInput = (fieldId: string, value: string) => {
-    setTextInputs({ ...textInputs, [fieldId]: value });
-  };
+  const scaleQuestions = [
+    { key: 'stressLevel' as const, label: 'Current Stress Level' },
+    { key: 'sleepQuality' as const, label: 'Sleep Quality' },
+    { key: 'energyLevel' as const, label: 'Daily Energy Level' },
+    { key: 'moodRating' as const, label: 'Overall Mood' },
+  ];
 
   const handleCountryChange = (countryCode: string) => {
-    setSelectedCountryCode(countryCode);
-    setSelectedStateCode('');
+    setCountryCode(countryCode);
   };
 
   const handleSubmit = async () => {
-    // Validate age first
     const ageValue = parseInt(textInputs.age);
     if (isNaN(ageValue) || ageValue < 1 || ageValue > 150) {
       Alert.alert('Invalid Age', 'Please enter a valid age between 1 and 150.');
       return;
     }
 
-    // Check if all fields are filled
     const answeredCount = Object.keys(answers).length;
     const filledTextInputs = Object.values(textInputs).filter(val => val.trim() !== '').length;
     const locationSelections = (selectedCountryCode ? 1 : 0) + (selectedStateCode ? 1 : 0);
@@ -118,17 +146,15 @@ export default function AssessmentScreen() {
       const missingFields = totalFields - totalAnswered;
       Alert.alert(
         'Incomplete Assessment',
-        `Please complete all fields before proceeding. You have ${missingFields} field${missingFields > 1 ? 's' : ''} remaining.`,
+        `Please complete all required fields before proceeding. You have ${missingFields} field${missingFields > 1 ? 's' : ''} remaining.`,
         [{ text: 'OK' }]
       );
       return;
     }
 
-    // All fields completed - submit
     setIsSubmitting(true);
-    
+
     try {
-      // Prepare assessment data for API
       const assessmentData = {
         age: parseInt(textInputs.age),
         occupation: textInputs.occupation,
@@ -137,25 +163,28 @@ export default function AssessmentScreen() {
         stateCode: selectedState?.isoCode || '',
         stateName: selectedState?.name || '',
         location: selectedState && selectedCountry ? `${selectedState.name}, ${selectedCountry.name}` : '',
+        stressLevel: scales.stressLevel,
+        sleepQuality: scales.sleepQuality,
+        energyLevel: scales.energyLevel,
+        moodRating: scales.moodRating,
+        physicalActivityLevel: scales.physicalActivityLevel,
         physicalIssue: answers.physical_issue === 'Yes',
-        physicalIssueDetails: '',
+        physicalIssueDetails: issueDetails.physicalIssueDetails,
         specialDiseaseIssue: answers.special_disease_issue === 'Yes',
-        specialDiseaseDetails: '',
+        specialDiseaseDetails: issueDetails.specialDiseaseDetails,
         relationshipIssue: answers.relationship_issue === 'Yes',
-        relationshipIssueDetails: '',
+        relationshipIssueDetails: issueDetails.relationshipIssueDetails,
         financialIssue: answers.financial_issue === 'Yes',
-        financialIssueDetails: '',
+        financialIssueDetails: issueDetails.financialIssueDetails,
         mentalHealthIssue: answers.emotional_issue === 'Yes',
-        mentalHealthIssueDetails: '',
+        mentalHealthIssueDetails: issueDetails.mentalHealthIssueDetails,
         spiritualGrowth: answers.spiritual_issue === 'Yes',
-        spiritualGrowthDetails: ''
+        spiritualGrowthDetails: issueDetails.spiritualGrowthDetails
       };
 
-      // Submit to backend API (apiClient automatically adds auth token)
       const response = await apiClient.post('/assessment/submit', assessmentData);
 
       if (response.data.success) {
-        // Save assessment completion locally
         await AsyncStorage.setItem('assessment_completed', 'true');
         const allAnswers = {
           ...answers,
@@ -166,11 +195,9 @@ export default function AssessmentScreen() {
           stateName: selectedState?.name || '',
         };
         await AsyncStorage.setItem('assessment_answers', JSON.stringify(allAnswers));
-        
-        // Small delay for better UX
+
         await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Navigate to home
+        store.reset();
         router.replace('/(home)/menu');
       } else {
         throw new Error(response.data.message || 'Failed to submit assessment');
@@ -196,7 +223,6 @@ export default function AssessmentScreen() {
       style={styles.container}
     >
       <View style={styles.container}>
-        {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Welcome to ParamSukh! 🙏</Text>
@@ -204,21 +230,15 @@ export default function AssessmentScreen() {
           </View>
         </View>
 
-        {/* Progress Bar */}
         <View style={styles.progressContainer}>
           <View style={styles.progressInfo}>
             <Text style={styles.progressText}>
-              {totalAnswered} of {totalFields} completed
+              {totalAnswered} of {totalFields} required completed
             </Text>
             <Text style={styles.progressPercent}>{Math.round(progressPercentage)}%</Text>
           </View>
           <View style={styles.progressBar}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${progressPercentage}%` },
-              ]}
-            />
+            <View style={[styles.progressFill, { width: `${progressPercentage}%` }]} />
           </View>
         </View>
 
@@ -252,21 +272,20 @@ export default function AssessmentScreen() {
             </View>
           </View>
 
-          {/* Text Input Fields */}
+          {/* Section: Personal Info */}
+          <Text style={styles.sectionHeading}>Personal Information</Text>
+
           {textFields.map((field) => (
             <View key={field.id} style={styles.inputBlock}>
               <Text style={styles.inputLabel}>
                 {field.label} <Text style={styles.required}>*</Text>
               </Text>
               <TextInput
-                style={[
-                  styles.textInput,
-                  textInputs[field.id as keyof typeof textInputs] && styles.textInputFilled
-                ]}
+                style={[styles.textInput, textInputs[field.id as keyof typeof textInputs] && styles.textInputFilled]}
                 placeholder={field.placeholder}
                 placeholderTextColor="#9CA3AF"
                 value={textInputs[field.id as keyof typeof textInputs]}
-                onChangeText={(value) => handleTextInput(field.id, value)}
+                onChangeText={(value) => setTextInput(field.id, value)}
                 keyboardType={field.keyboardType}
               />
             </View>
@@ -305,7 +324,7 @@ export default function AssessmentScreen() {
               <Picker
                 enabled={!!selectedCountryCode}
                 selectedValue={selectedStateCode}
-                onValueChange={(value) => setSelectedStateCode(String(value))}
+                onValueChange={(value) => setStateCode(String(value))}
                 style={styles.picker}
               >
                 <Picker.Item
@@ -319,7 +338,51 @@ export default function AssessmentScreen() {
             </View>
           </View>
 
-          {/* Yes/No Questions */}
+          {/* Section: Wellness State */}
+          <Text style={styles.sectionHeading}>Your Current State</Text>
+          <Text style={styles.sectionSubheading}>Rate how you've been feeling recently (1 = low, 10 = high)</Text>
+
+          {scaleQuestions.map((sq) => (
+            <ScaleInput
+              key={sq.key}
+              label={sq.label}
+              value={scales[sq.key]}
+              onChange={(v) => setScale(sq.key, v)}
+            />
+          ))}
+
+          {/* Physical Activity Level */}
+          <View style={styles.inputBlock}>
+            <Text style={styles.inputLabel}>Physical Activity Level</Text>
+            {ACTIVITY_LEVELS.map((level) => (
+              <TouchableOpacity
+                key={level.value}
+                style={[
+                  styles.activityOption,
+                  scales.physicalActivityLevel === level.value && styles.activityOptionSelected,
+                ]}
+                onPress={() => setScale('physicalActivityLevel', level.value)}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[
+                    styles.activityLabel,
+                    scales.physicalActivityLevel === level.value && styles.activityLabelSelected,
+                  ]}>
+                    {level.label}
+                  </Text>
+                  <Text style={styles.activityDesc}>{level.desc}</Text>
+                </View>
+                {scales.physicalActivityLevel === level.value && (
+                  <Ionicons name="checkmark-circle" size={22} color="#3B82F6" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Section: Wellness Areas */}
+          <Text style={styles.sectionHeading}>Wellness Areas</Text>
+          <Text style={styles.sectionSubheading}>Tell us about any challenges you're facing</Text>
+
           {questions.map((question) => (
             <View key={question.id} style={styles.questionBlock}>
               <Text style={styles.questionText}>
@@ -327,7 +390,7 @@ export default function AssessmentScreen() {
               </Text>
 
               <View style={styles.yesNoContainer}>
-                {question.options.map((option) => {
+                {['Yes', 'No'].map((option) => {
                   const isSelected = answers[question.id] === option;
                   return (
                     <TouchableOpacity
@@ -336,34 +399,32 @@ export default function AssessmentScreen() {
                         styles.yesNoButton,
                         isSelected && (option === 'Yes' ? styles.yesButtonSelected : styles.noButtonSelected),
                       ]}
-                      onPress={() => handleAnswer(question.id, option)}
+                      onPress={() => setAnswer(question.id, option)}
                     >
-                      <Text
-                        style={[
-                          styles.yesNoText,
-                          isSelected && styles.selectedYesNoText,
-                        ]}
-                      >
+                      <Text style={[styles.yesNoText, isSelected && styles.selectedYesNoText]}>
                         {option}
                       </Text>
-                      {isSelected && (
-                        <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                      )}
+                      {isSelected && <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />}
                     </TouchableOpacity>
                   );
                 })}
               </View>
+
+              {answers[question.id] === 'Yes' && (
+                <DetailInput
+                  label={question.detailLabel}
+                  value={issueDetails[question.detailKey]}
+                  onChange={(v) => setIssueDetail(question.detailKey, v)}
+                  placeholder={question.detailPlaceholder}
+                />
+              )}
             </View>
           ))}
         </ScrollView>
 
-        {/* Footer */}
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[
-              styles.submitButton,
-              (!isComplete || isSubmitting) && styles.submitButtonDisabled,
-            ]}
+            style={[styles.submitButton, (!isComplete || isSubmitting) && styles.submitButtonDisabled]}
             onPress={handleSubmit}
             disabled={!isComplete || isSubmitting}
           >
@@ -375,7 +436,7 @@ export default function AssessmentScreen() {
             ) : (
               <>
                 <Text style={styles.submitButtonText}>
-                  {isComplete ? 'Complete Assessment & Continue' : 'Complete All Fields to Continue'}
+                  {isComplete ? 'Complete Assessment & Continue' : 'Complete All Required Fields'}
                 </Text>
                 <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
               </>
@@ -454,13 +515,25 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
+  sectionHeading: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 24,
+    marginBottom: 4,
+  },
+  sectionSubheading: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginBottom: 16,
+  },
   consentBanner: {
     backgroundColor: '#EFF6FF',
     borderWidth: 1,
     borderColor: '#BFDBFE',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   consentBannerContent: {
     flexDirection: 'row',
@@ -483,7 +556,7 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   inputBlock: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   inputLabel: {
     fontSize: 15,
@@ -521,8 +594,96 @@ const styles = StyleSheet.create({
   picker: {
     color: '#111827',
   },
+  scaleBlock: {
+    marginBottom: 20,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  scaleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  scaleLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  scaleValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  scaleDots: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  scaleDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scaleDotActive: {
+    backgroundColor: '#3B82F6',
+  },
+  scaleDotText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  scaleDotTextActive: {
+    color: '#FFFFFF',
+  },
+  scaleLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  scaleMinLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  scaleMaxLabel: {
+    fontSize: 11,
+    color: '#9CA3AF',
+  },
+  activityOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+  },
+  activityOptionSelected: {
+    borderColor: '#3B82F6',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 2,
+  },
+  activityLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#111827',
+  },
+  activityLabelSelected: {
+    color: '#1D4ED8',
+  },
+  activityDesc: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
   questionBlock: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   questionText: {
     fontSize: 15,
@@ -561,6 +722,30 @@ const styles = StyleSheet.create({
   },
   selectedYesNoText: {
     color: '#FFFFFF',
+  },
+  detailBlock: {
+    marginTop: 12,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  detailLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#92400E',
+    marginBottom: 6,
+  },
+  detailTextInput: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 14,
+    color: '#111827',
+    minHeight: 50,
   },
   footer: {
     backgroundColor: '#FFFFFF',

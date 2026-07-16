@@ -100,16 +100,16 @@ export const createCourse = async (req, res) => {
         const { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status, includedInPlans, strictVideoOrder } = req.body;
 
         // validate the request body
-        if (!title || !description || !color || !icon || !thumbnailUrl || !bannerUrl || !duration || !category || !tags || !status) {
+        if (!title || !description || !duration || !category) {
             return res.status(400).json({
                 success: false,
-                message: "All fields are required"
+                message: "Title, description, duration, and category are required"
             });
         }
 
         const normalizedTitle = normalizeText(title);
         const normalizedCategory = normalizeText(category).toLowerCase();
-        const slug = await resolveUniqueSlug(`${normalizedTitle}-${normalizedCategory}`);
+        const slug = await resolveUniqueSlug(normalizedTitle);
         const existingCourse = await Course.findOne({
             title: { $regex: `^${escapeRegex(normalizedTitle)}$`, $options: 'i' },
             category: normalizedCategory,
@@ -130,25 +130,18 @@ export const createCourse = async (req, res) => {
             });
         }
 
-        if (planSlugs.length === 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'At least one membership plan is required'
-            });
-        }
-
         // creating a courses 
         const course = await Course.create({
             title: normalizedTitle,
             description: normalizeText(description),
-            color,
-            icon: normalizeText(icon),
-            thumbnailUrl,
-            bannerUrl,
+            color: color || '#8B5CF6',
+            icon: normalizeText(icon || 'book'),
+            thumbnailUrl: thumbnailUrl || null,
+            bannerUrl: bannerUrl || null,
             duration: normalizeText(duration),
             category: normalizedCategory,
-            tags,
-            status,
+            tags: tags || [],
+            status: status || 'draft',
             slug,
             includedInPlans: planSlugs,
             strictVideoOrder: strictVideoOrder === true || strictVideoOrder === 'true'
@@ -221,16 +214,23 @@ export const updateCourse = async (req, res) => {
             })
         }
         const { title, description, color, icon, thumbnailUrl, bannerUrl, duration, category, tags, status, includedInPlans, strictVideoOrder } = req.body;
-        if (!title || !description || !color || !icon || !thumbnailUrl || !bannerUrl || !duration || !category || !tags || !status) {
-            return res.status(400).json({
+
+        const course = await Course.findById(id);
+        if (!course) {
+            return res.status(404).json({
                 success: false,
-                message: "All fields are required"
-            })
+                message: "Course not found"
+            });
         }
 
-        const normalizedTitle = normalizeText(title);
-        const normalizedCategory = normalizeText(category).toLowerCase();
-        const slug = await resolveUniqueSlug(`${normalizedTitle}-${normalizedCategory}`, id);
+        const normalizedTitle = title !== undefined ? normalizeText(title) : course.title;
+        const normalizedCategory = category !== undefined ? normalizeText(category).toLowerCase() : course.category;
+        
+        let slug = course.slug;
+        if (title !== undefined || category !== undefined) {
+            slug = await resolveUniqueSlug(normalizedTitle, id);
+        }
+
         const duplicateCourse = await Course.findOne({
             _id: { $ne: id },
             title: { $regex: `^${escapeRegex(normalizedTitle)}$`, $options: 'i' },
@@ -254,49 +254,40 @@ export const updateCourse = async (req, res) => {
                     message: `Invalid membership plan values: ${resolved.invalidValues.join(', ')}`
                 });
             }
-            if (resolved.planSlugs.length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'At least one membership plan is required'
-                });
-            }
             planIds = resolved.planIds;
             planSlugs = resolved.planSlugs;
         }
 
         const updatePayload = {
             title: normalizedTitle,
-            description: normalizeText(description),
-            color,
-            icon: normalizeText(icon),
-            thumbnailUrl,
-            bannerUrl,
-            duration: normalizeText(duration),
+            description: description !== undefined ? normalizeText(description) : course.description,
+            color: color !== undefined ? color : course.color,
+            icon: icon !== undefined ? normalizeText(icon) : course.icon,
+            thumbnailUrl: thumbnailUrl !== undefined ? thumbnailUrl : course.thumbnailUrl,
+            bannerUrl: bannerUrl !== undefined ? bannerUrl : course.bannerUrl,
+            duration: duration !== undefined ? normalizeText(duration) : course.duration,
             category: normalizedCategory,
-            tags,
+            tags: tags !== undefined ? tags : course.tags,
             slug,
-            status,
-            strictVideoOrder: strictVideoOrder === true || strictVideoOrder === 'true',
+            status: status !== undefined ? status : course.status,
+            strictVideoOrder: strictVideoOrder !== undefined ? (strictVideoOrder === true || strictVideoOrder === 'true') : course.strictVideoOrder,
             ...(planSlugs !== null ? { includedInPlans: planSlugs } : {})
         };
 
-        const course = await Course.findByIdAndUpdate(id, updatePayload, { new: true }).populate('assignments');
-        if (!course) {
-            return res.status(404).json({
-                success: false,
-                message: "courses not found"
-            })
-        }
+        const updatedCourse = await Course.findByIdAndUpdate(
+            id,
+            { $set: updatePayload },
+            { new: true, runValidators: true }
+        ).populate('assignments');
 
-        // Sync junction table
         if (planIds !== null) {
-            await syncCoursePlans(course._id, planIds);
+            await syncCoursePlans(id, planIds);
         }
 
         return res.status(200).json({
             success: true,
             message: "Course updated successfully",
-            course
+            course: updatedCourse
         })
     } catch (error) {
         console.error("❌ Error in updating course:", error);
@@ -311,23 +302,25 @@ export const updateCourse = async (req, res) => {
 export const getAllCourses = async (req, res) => {
     try {
         const query = isAdminRequest(req) ? {} : { status: 'published' };
-        const courses = await Course.find(query)
+        const page = Math.max(1, Number(req.query.page || 1));
+        const limit = Number(req.query.limit);
+
+        let q = Course.find(query)
             .select('title description thumbnailUrl bannerUrl color icon duration category tags status totalVideos totalPdfs enrollmentCount completionCount averageRating reviewCount includedInPlans createdAt')
             .sort({ createdAt: -1 });
 
-        if (!courses || courses.length === 0) {
-            return res.status(404).json({
-                success: false,
-                message: "courses not found"
-            })
+        if (limit && limit > 0) {
+            q = q.skip((page - 1) * limit).limit(limit);
         }
+
+        const courses = await q;
 
         // Make sure to return includedInPlans for the UI to precheck the checkboxes.
         return res.status(200).json({
             success: true,
             message: "courses fetched successfully",
-            courses
-        })
+            courses: courses || []
+        });
     } catch (error) {
         console.error("❌ Error in fetching courses:", error);
         return res.status(500).json({

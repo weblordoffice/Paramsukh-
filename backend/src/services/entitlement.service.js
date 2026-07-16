@@ -109,7 +109,9 @@ export const evaluateCourseEnrollmentAccess = async ({
     };
   }
 
-  if (!entitlement.isPaid) {
+  const isCourseFree = !course.includedInPlans || course.includedInPlans.length === 0;
+
+  if (!isCourseFree && !entitlement.isPaid) {
     return {
       allowed: false,
       reason: 'plan_required',
@@ -122,7 +124,7 @@ export const evaluateCourseEnrollmentAccess = async ({
   // course.includedInPlans may contain slugs (new) or ObjectIds (legacy from old admin UI)
   // We handle both: slugs are compared to planSlugs, ObjectIds are compared to the active plan's _id
   const isObjectId = (v) => /^[a-f\d]{24}$/i.test(String(v));
-  const matchesPlanTag = (course.includedInPlans || []).some((tag) => {
+  const matchesPlanTag = isCourseFree || (course.includedInPlans || []).some((tag) => {
     const t = normalize(tag);
     if (isObjectId(t)) {
       // legacy ObjectId stored in includedInPlans — compare against active plan _id

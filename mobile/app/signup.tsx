@@ -1,8 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image, Linking } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuthStore } from '../store/authStore';
+import { useOAuth } from '@clerk/clerk-expo';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import * as Haptics from 'expo-haptics';
+import DeviceSwapModal from '../components/DeviceSwapModal';
+
+WebBrowser.maybeCompleteAuthSession();
 
 function formatPhone(phone: string) {
   const digits = phone.replace(/\D/g, '');
@@ -13,6 +20,7 @@ function formatPhone(phone: string) {
 export default function SignUpScreen() {
   const router = useRouter();     
   const { sendOTP, verifyOTP, isLoading } = useAuthStore();
+  const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
   const scrollViewRef = useRef<ScrollView>(null);        
   const otpInputRef = useRef<TextInput>(null);
     
@@ -21,6 +29,8 @@ export default function SignUpScreen() {
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const resendIntervalRef = useRef<any>(null);
+  const [showSwapModal, setShowSwapModal] = useState(false);
+  const [activeDevices, setActiveDevices] = useState<any[]>([]);
 
   useEffect(() => {
     return () => {
@@ -30,7 +40,24 @@ export default function SignUpScreen() {
     };
   }, []);
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');    
+  const [email, setEmail] = useState('');
+  const [referralCode, setReferralCode] = useState('');    
+
+  const handleGoogleSignIn = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const { createdSessionId, setActive } = await startOAuthFlow({
+        redirectUrl: Linking.createURL('/oauth-redirect', { scheme: 'paramsukh' }),
+      });
+
+      if (createdSessionId && setActive) {
+        await setActive({ session: createdSessionId });
+      }
+    } catch (err: any) {
+      console.error('OAuth error', err);
+      Alert.alert('Authentication Error', err.message || 'Failed to authenticate with Google');
+    }
+  };
 
   const handleSendOTP = async () => {
     if (!phone || phone.length < 10) {
@@ -75,21 +102,33 @@ export default function SignUpScreen() {
     }
   };
 
-  const handleVerifyOTP = async () => {
+  const handleVerifyOTP = async (revokeDeviceId?: string) => {
     if (otp.length !== 6) {
       Alert.alert('Error', 'Enter 6-digit OTP');
       return;
     }
 
     const formattedPhone = formatPhone(phone);
-
-    const result = await verifyOTP(formattedPhone, otp, name.trim(), email.trim());
+    const result = await verifyOTP(
+      formattedPhone,
+      otp,
+      name.trim(),
+      email.trim(),
+      revokeDeviceId,
+      referralCode.trim() || undefined
+    );
 
     if (result.success) {
+      setShowSwapModal(false);
       // New user should go directly to assessment
       router.replace('/assessment');
     } else {
-      Alert.alert('Error', result.message || 'Verification failed');
+      if (result.deviceLimitExceeded) {
+        setActiveDevices(result.activeDevices || []);
+        setShowSwapModal(true);
+      } else {
+        Alert.alert('Error', result.message || 'Verification failed');
+      }
     }
   };
 
@@ -180,6 +219,18 @@ export default function SignUpScreen() {
                 </View>
               </View>
 
+              <View className="mb-5">
+                <Text className="text-gray-700 font-medium mb-2">Referral Code (Optional)</Text>
+                <TextInput
+                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-base shadow-sm"
+                  placeholder="Enter referral code (e.g. PARAM-1234)"
+                  value={referralCode}
+                  onChangeText={setReferralCode}
+                  autoCapitalize="characters"
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
               <TouchableOpacity
                 className={`${isLoading ? 'bg-purple-400' : 'bg-purple-600'} rounded-xl py-4 shadow-md`}
                 onPress={handleSendOTP}
@@ -197,6 +248,27 @@ export default function SignUpScreen() {
                   ℹ️ For security, you can request OTP up to 3 times per 10 minutes
                 </Text>
               </View>
+
+              {/* Divider */}
+              <View className="flex-row items-center my-6">
+                <View className="flex-grow h-px bg-gray-300" />
+                <Text className="mx-4 text-gray-500 font-semibold text-sm">or</Text>
+                <View className="flex-grow h-px bg-gray-300" />
+              </View>
+
+              {/* Google OAuth button */}
+              <TouchableOpacity
+                className="flex-row items-center justify-center bg-white border border-gray-300 rounded-xl py-4 shadow-sm active:bg-gray-50"
+                onPress={handleGoogleSignIn}
+                disabled={isLoading}
+              >
+                <Image
+                  source={{ uri: 'https://developers.google.com/static/identity/images/g-logo.png' }}
+                  className="w-5 h-5 mr-3"
+                  resizeMode="contain"
+                />
+                <Text className="text-gray-700 font-bold text-base">Continue with Google</Text>
+              </TouchableOpacity>
 
               <TouchableOpacity 
                 className="mt-6"
@@ -274,6 +346,14 @@ export default function SignUpScreen() {
           </Text>
         </Text>
       </ScrollView>
+
+      <DeviceSwapModal
+        visible={showSwapModal}
+        activeDevices={activeDevices}
+        onConfirm={(deviceId) => handleVerifyOTP(deviceId)}
+        onClose={() => setShowSwapModal(false)}
+        isLoading={isLoading}
+      />
     </KeyboardAvoidingView>
   );
 }

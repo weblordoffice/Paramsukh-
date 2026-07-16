@@ -143,6 +143,16 @@ export const getGroupPosts = async (req, res) => {
       });
     }
 
+    // Determine which group IDs to query posts from
+    // If this is a plan-level parent group, get posts from all child subgroups too
+    const group = await Group.findById(groupId).select('groupType').lean();
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Group not found"
+      });
+    }
+
     // Check if user is a member of this group
     const membership = await GroupMember.findOne({ groupId, userId, isActive: true });
     if (!membership) {
@@ -152,12 +162,9 @@ export const getGroupPosts = async (req, res) => {
       });
     }
 
-    // Determine which group IDs to query posts from
-    // If this is a plan-level parent group, get posts from all child subgroups too
-    const group = await Group.findById(groupId).select('groupType').lean();
     let queryGroupIds = [groupId];
 
-    if (group && group.groupType === 'plan') {
+    if (group.groupType === 'plan') {
       const childGroups = await Group.find({ parentGroupId: groupId, isActive: true })
         .select('_id')
         .lean();

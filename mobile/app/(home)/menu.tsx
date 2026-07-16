@@ -9,6 +9,7 @@ import { WebView } from 'react-native-webview';
 import Header from '../../components/Header';
 import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
 import { useBlogStore } from '../../store/blogStore';
+import { useRecommendationStore } from '../../store/recommendationStore';
 import apiClient from '../../utils/apiClient';
 
 // Helper functions for video URL parsing
@@ -93,6 +94,24 @@ const MinimalVideoPlayer = ({ videoUrl }: MinimalVideoPlayerProps) => {
     </View>
   );
 };
+
+const CATEGORY_CONFIG: Record<
+  string,
+  { color: string; bg: string; icon: string; label: string }
+> = {
+  physical: { color: '#FFFFFF', bg: '#EF4444', icon: 'barbell', label: 'Physical' },
+  mental: { color: '#FFFFFF', bg: '#8B5CF6', icon: 'brain', label: 'Mental' },
+  financial: { color: '#1A1A1A', bg: '#22C55E', icon: 'cash', label: 'Financial' },
+  relationship: { color: '#FFFFFF', bg: '#EC4899', icon: 'heart', label: 'Relationship' },
+  spiritual: { color: '#FFFFFF', bg: '#F59E0B', icon: 'sparkles', label: 'Spiritual' },
+  general: { color: '#FFFFFF', bg: '#64748B', icon: 'layers', label: 'General' },
+};
+
+function getCategoryConfig(category?: string) {
+  if (!category) return null;
+  const key = category.toLowerCase().trim();
+  return CATEGORY_CONFIG[key] || { color: '#FFFFFF', bg: '#4F46E5', icon: 'layers', label: category };
+}
 
 interface FeatureCardProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -192,10 +211,7 @@ function QuickAccessItem({ icon, emoji, title, description, iconBg, iconColor, o
 export default function HomeTab() {
   const router = useRouter();
   const { blogs, fetchBlogs } = useBlogStore();
-
-  useEffect(() => {
-    fetchBlogs();
-  }, [fetchBlogs]);
+  const { recommendations, loading: loadingRecs, fetchRecommendations } = useRecommendationStore();
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const bottomTabHeight = useBottomTabBarHeight();
@@ -317,6 +333,79 @@ export default function HomeTab() {
             />
           </View>
         </View>
+
+        {/* Recommendations Section - AI-powered Carousel */}
+        {!loadingRecs && recommendations.length > 0 && (
+          <View style={styles.recommendationSection}>
+            <Text style={styles.sectionTitle}>Personalized for You</Text>
+            <Text style={styles.sectionSubtitle}>AI recommendations based on your wellness assessment</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.recommendationScrollContent}
+            >
+              {recommendations.map((course) => {
+                const categoryConfig = getCategoryConfig(course.category);
+                return (
+                  <TouchableOpacity
+                    key={course._id}
+                    style={styles.recCard}
+                    activeOpacity={0.8}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push({
+                        pathname: '/course-detail',
+                        params: {
+                          id: course._id,
+                          title: course.title,
+                          color: course.color,
+                          duration: course.duration,
+                          videos: course.totalVideos || 0,
+                        },
+                      });
+                    }}
+                  >
+                    <View style={styles.recImageContainer}>
+                      {course.thumbnailUrl ? (
+                        <Image source={{ uri: course.thumbnailUrl }} style={styles.recImage} />
+                      ) : (
+                        <View style={[styles.recPlaceholderImage, { backgroundColor: course.color || '#F1842D' }]}>
+                          <Ionicons name="book" size={32} color="#FFFFFF" />
+                        </View>
+                      )}
+                      
+                      {categoryConfig && (
+                        <View style={[styles.recCategoryBadge, { backgroundColor: categoryConfig.bg }]}>
+                          <Ionicons name={categoryConfig.icon as any} size={10} color={categoryConfig.color} />
+                          <Text style={[styles.recCategoryText, { color: categoryConfig.color }]}>
+                            {categoryConfig.label}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.recCardContent}>
+                      <Text style={styles.recCourseTitle} numberOfLines={1}>
+                        {course.title}
+                      </Text>
+                      
+                      {/* AI explanation highlight card */}
+                      <View style={styles.aiExplanationCard}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                          <Ionicons name="sparkles" size={12} color="#F1842D" />
+                          <Text style={styles.aiExplanationLabel}>AI GUIDANCE</Text>
+                        </View>
+                        <Text style={styles.aiExplanationText} numberOfLines={3}>
+                          {course.whyThisFits || 'This course matches your assessment goals.'}
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Blogs Section - Premium Horizontal Cards */}
         {blogs && blogs.length > 0 && (
@@ -796,5 +885,89 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 14,
+  },
+  recommendationSection: {
+    marginVertical: 12,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#8C7B73',
+    marginHorizontal: 20,
+    marginTop: -8,
+    marginBottom: 16,
+  },
+  recommendationScrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 16,
+  },
+  recCard: {
+    width: 280,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#5C4A42',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F4F3EB',
+  },
+  recImageContainer: {
+    height: 140,
+    position: 'relative',
+  },
+  recImage: {
+    width: '100%',
+    height: '100%',
+  },
+  recPlaceholderImage: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recCategoryBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  recCategoryText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  recCardContent: {
+    padding: 16,
+  },
+  recCourseTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2C2420',
+    marginBottom: 10,
+  },
+  aiExplanationCard: {
+    backgroundColor: '#FDF8F3',
+    borderWidth: 1,
+    borderColor: '#F1842D30',
+    borderRadius: 12,
+    padding: 10,
+  },
+  aiExplanationLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#F1842D',
+    letterSpacing: 0.5,
+  },
+  aiExplanationText: {
+    fontSize: 12,
+    color: '#5C4A42',
+    lineHeight: 16,
   },
 });

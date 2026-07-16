@@ -10,6 +10,9 @@ import {
     getUserPodcastPurchases,
     checkPodcastPurchaseStatus,
     getAdminAllPodcasts,
+    toggleFavorite,
+    getUserFavorites,
+    checkFavoriteStatus,
 } from '../../controller/podcast/podcast.controller.js';
 import {
     createPodcastPaymentLink,
@@ -35,6 +38,11 @@ router.get('/:podcastId/purchase-status', protectedRoutes, checkPodcastPurchaseS
 router.post('/:id/create-payment', protectedRoutes, createPodcastPaymentLink);
 router.post('/:id/confirm-payment', protectedRoutes, confirmPodcastPayment);
 router.post('/webhook/razorpay', handlePodcastPaymentWebhook);
+
+// Favorites routes (protected)
+router.get('/favorites', protectedRoutes, getUserFavorites);
+router.post('/:id/favorite', protectedRoutes, toggleFavorite);
+router.get('/:id/favorite-status', protectedRoutes, checkFavoriteStatus);
 
 // Admin routes
 router.get('/admin/all', adminAuth, getAdminAllPodcasts);

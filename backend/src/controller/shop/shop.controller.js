@@ -2,6 +2,7 @@ import Shop from '../../models/shop.models.js';
 import Product from '../../models/product.models.js';
 import Review from '../../models/review.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
+import { escapeRegex } from '../../utils/sanitizeUtils.js';
 
 // @desc    Register new shop
 // @route   POST /api/shops/register
@@ -89,9 +90,10 @@ export const getAllShops = async (req, res) => {
     if (featured === 'true') query.isFeatured = true;
     if (rating) query['rating.average'] = { $gte: parseFloat(rating) };
     if (search) {
+      const safeSearch = escapeRegex(search);
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { name: { $regex: safeSearch, $options: 'i' } },
+        { description: { $regex: safeSearch, $options: 'i' } }
       ];
     }
 

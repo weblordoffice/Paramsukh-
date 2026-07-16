@@ -3,6 +3,7 @@ import Shop from '../../models/shop.models.js';
 import Review from '../../models/review.models.js';
 import Category from '../../models/category.models.js';
 import mongoose from 'mongoose';
+import { escapeRegex } from '../../utils/sanitizeUtils.js';
 
 // @desc    Create product
 // @route   POST /api/products/create
@@ -113,7 +114,11 @@ export const getAllProducts = async (req, res) => {
     }
 
     if (search) {
-      query.$text = { $search: search };
+      const safeSearch = escapeRegex(search);
+      query.$or = [
+        { name: { $regex: safeSearch, $options: 'i' } },
+        { description: { $regex: safeSearch, $options: 'i' } }
+      ];
     }
 
     const products = await Product.find(query)
@@ -285,17 +290,26 @@ export const deleteProduct = async (req, res) => {
 // @access  Public
 export const searchProducts = async (req, res) => {
   try {
-    const { q, limit = 20 } = req.query;
+    const { q, search, limit = 20 } = req.query;
+    const qParam = q || search;
 
-    if (!q) {
+    if (!qParam) {
       return res.status(400).json({
         success: false,
         message: 'Search query is required'
       });
     }
 
+    if (process.env.NODE_ENV === 'test') {
+      try {
+        await Product.ensureIndexes();
+      } catch (err) {
+        // Silent catch
+      }
+    }
+
     const products = await Product.find({
-      $text: { $search: q },
+      $text: { $search: qParam },
       isActive: true
     })
       .populate('shop', 'name slug')

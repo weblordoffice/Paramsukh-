@@ -32,8 +32,14 @@ export const markVideoComplete = async (req, res) => {
         // Mark video as complete
         enrollment.markVideoComplete(videoId);
 
-        // Update current video
-        enrollment.currentVideoId = videoId;
+        // Update current video to next one
+        const currentVideoIndex = course.videos.findIndex(v => v._id.toString() === videoId);
+        if (currentVideoIndex !== -1 && currentVideoIndex < course.videos.length - 1) {
+            enrollment.currentVideoIndex = currentVideoIndex + 1;
+            enrollment.currentVideoId = course.videos[currentVideoIndex + 1]._id;
+        } else {
+            enrollment.currentVideoId = videoId;
+        }
         enrollment.lastAccessedAt = new Date();
 
         // Recalculate progress
@@ -42,6 +48,36 @@ export const markVideoComplete = async (req, res) => {
         enrollment.updateProgress(totalVideos, totalPdfs);
 
         await enrollment.save();
+
+        // Update course completion count if completed
+        if (enrollment.isCompleted) {
+            course.completionCount = (course.completionCount || 0) + 1;
+            await course.save();
+
+            // Automatically generate certificate
+            try {
+                const { generateCertificateRecord } = await import('../../services/certificate.service.js');
+                await generateCertificateRecord(userId, courseId);
+            } catch (certError) {
+                console.error('❌ Failed to generate certificate on course completion:', certError);
+            }
+
+            // Process referral rewards if this user was referred by someone
+            try {
+                const { processReferralMilestone } = await import('../../services/referralRewardProcessor.js');
+                await processReferralMilestone(userId);
+            } catch (refError) {
+                console.error('❌ Failed to process referral rewards on course completion:', refError);
+            }
+        }
+
+        // Trigger badge unlocking evaluation
+        try {
+            const { unlockBadgesForUser } = await import('../../services/badgeUnlockingService.js');
+            await unlockBadgesForUser(userId);
+        } catch (badgeError) {
+            console.error('❌ Failed to update achievements:', badgeError);
+        }
 
         return res.status(200).json({
             success: true,
@@ -96,6 +132,36 @@ export const markPdfComplete = async (req, res) => {
         enrollment.updateProgress(totalVideos, totalPdfs);
 
         await enrollment.save();
+
+        // Update course completion count if completed
+        if (enrollment.isCompleted) {
+            course.completionCount = (course.completionCount || 0) + 1;
+            await course.save();
+
+            // Automatically generate certificate
+            try {
+                const { generateCertificateRecord } = await import('../../services/certificate.service.js');
+                await generateCertificateRecord(userId, courseId);
+            } catch (certError) {
+                console.error('❌ Failed to generate certificate on course completion:', certError);
+            }
+
+            // Process referral rewards if this user was referred by someone
+            try {
+                const { processReferralMilestone } = await import('../../services/referralRewardProcessor.js');
+                await processReferralMilestone(userId);
+            } catch (refError) {
+                console.error('❌ Failed to process referral rewards on course completion:', refError);
+            }
+        }
+
+        // Trigger badge unlocking evaluation
+        try {
+            const { unlockBadgesForUser } = await import('../../services/badgeUnlockingService.js');
+            await unlockBadgesForUser(userId);
+        } catch (badgeError) {
+            console.error('❌ Failed to update achievements:', badgeError);
+        }
 
         return res.status(200).json({
             success: true,

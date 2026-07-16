@@ -1,5 +1,6 @@
 import { User } from '../../models/user.models.js';
 import { Enrollment } from '../../models/enrollment.models.js';
+import Assessment from '../../models/assessment.models.js';
 import {
   resolveMembershipPlanChargeAmount,
   resolveMembershipPlanInheritanceBySlug,
@@ -19,7 +20,10 @@ export const getProfile = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const user = await User.findById(userId).select('-__v');
+    const [user, assessment] = await Promise.all([
+      User.findById(userId).select('-__v'),
+      Assessment.findOne({ user: userId })
+    ]);
 
     if (!user) {
       return res.status(404).json({
@@ -31,7 +35,8 @@ export const getProfile = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Profile fetched successfully",
-      user
+      user,
+      profileDetails: assessment || null
     });
 
   } catch (error) {
@@ -51,9 +56,36 @@ export const getProfile = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { displayName, photoURL } = req.body;
+    const {
+      displayName,
+      photoURL,
+      age,
+      occupation,
+      location,
+      countryCode,
+      countryName,
+      stateCode,
+      stateName,
+      stressLevel,
+      sleepQuality,
+      energyLevel,
+      moodRating,
+      physicalActivityLevel,
+      physicalIssue,
+      physicalIssueDetails,
+      specialDiseaseIssue,
+      specialDiseaseDetails,
+      relationshipIssue,
+      relationshipIssueDetails,
+      financialIssue,
+      financialIssueDetails,
+      mentalHealthIssue,
+      mentalHealthIssueDetails,
+      spiritualGrowth,
+      spiritualGrowthDetails
+    } = req.body;
 
-    // Build update object (only include provided fields)
+    // 1. Build update object for User (only include provided fields)
     const updateData = {};
 
     if (displayName !== undefined) {
@@ -66,30 +98,89 @@ export const updateProfile = async (req, res) => {
       updateData.displayName = displayName.trim();
     }
 
-
-
     if (photoURL !== undefined) {
       updateData.photoURL = photoURL;
     }
 
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No valid fields to update"
-      });
+    let user = req.user;
+    if (Object.keys(updateData).length > 0) {
+      user = await User.findByIdAndUpdate(
+        userId,
+        updateData,
+        { new: true, runValidators: true }
+      ).select('-__v');
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found"
+        });
+      }
     }
 
-    const user = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      { new: true, runValidators: true }
-    ).select('-__v');
+    // 2. Build and save Assessment details if any assessment focus fields are provided
+    const assessmentFields = {
+      age,
+      occupation,
+      location,
+      countryCode,
+      countryName,
+      stateCode,
+      stateName,
+      stressLevel,
+      sleepQuality,
+      energyLevel,
+      moodRating,
+      physicalActivityLevel,
+      physicalIssue,
+      physicalIssueDetails,
+      specialDiseaseIssue,
+      specialDiseaseDetails,
+      relationshipIssue,
+      relationshipIssueDetails,
+      financialIssue,
+      financialIssueDetails,
+      mentalHealthIssue,
+      mentalHealthIssueDetails,
+      spiritualGrowth,
+      spiritualGrowthDetails
+    };
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
+    let hasAssessmentUpdates = false;
+    const assessmentUpdateData = {};
+
+    Object.keys(assessmentFields).forEach(key => {
+      if (assessmentFields[key] !== undefined) {
+        assessmentUpdateData[key] = assessmentFields[key];
+        hasAssessmentUpdates = true;
+      }
+    });
+
+    let assessment = null;
+    if (hasAssessmentUpdates) {
+      assessment = await Assessment.findOne({ user: userId });
+      if (!assessment) {
+        assessment = new Assessment({
+          user: userId,
+          age: age || 30,
+          occupation: occupation || 'Self-employed',
+          location: location || 'India',
+          physicalIssue: physicalIssue || false,
+          specialDiseaseIssue: specialDiseaseIssue || false,
+          relationshipIssue: relationshipIssue || false,
+          financialIssue: financialIssue || false,
+          mentalHealthIssue: mentalHealthIssue || false,
+          spiritualGrowth: spiritualGrowth || false
+        });
+      }
+
+      Object.keys(assessmentUpdateData).forEach(key => {
+        assessment[key] = assessmentUpdateData[key];
       });
+
+      await assessment.save();
+    } else {
+      assessment = await Assessment.findOne({ user: userId });
     }
 
     console.log(`✅ Profile updated for user: ${user.displayName}`);
@@ -97,14 +188,12 @@ export const updateProfile = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Profile updated successfully",
-      user
+      user,
+      profileDetails: assessment
     });
 
   } catch (error) {
     console.error("❌ Error updating profile:", error);
-
-
-
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -334,7 +423,7 @@ export const getSubscription = async (req, res) => {
  * GET /api/user/stats
  */
 export const getUserStats = async (req, res) => {
-  try {image.png
+  try {
     const userId = req.user._id;
 
     // Import models dynamically to avoid circular dependencies
@@ -466,11 +555,26 @@ export const deleteAccount = async (req, res) => {
 /**
  * Purchase membership and auto-enroll in courses
  * POST /api/user/membership/purchase
+ * 
+ * NOTE: This endpoint requires a valid Razorpay payment verification.
+ * Direct activation without payment is blocked. Use the payment flow:
+ * 1. POST /api/payments/create-membership-payment → get payment link
+ * 2. Complete payment on Razorpay
+ * 3. POST /api/payments/verify-membership-payment → verify payment
+ * The verify endpoint will call upsertActiveUserMembership to activate.
  */
 export const purchaseMembership = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { plan, variantSlug } = req.body;
+    const { plan, variantSlug, razorpayPaymentId, razorpayOrderId, razorpaySignature } = req.body;
+
+    // Require payment verification — no free activation
+    if (!razorpayPaymentId || !razorpayOrderId || !razorpaySignature) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment verification required. Use /api/payments/create-membership-payment to initiate payment.'
+      });
+    }
 
     const planConfig = await resolveMembershipPlanChargeAmount({ plan, variantSlug });
     if (!planConfig.isValid) {
@@ -480,28 +584,40 @@ export const purchaseMembership = async (req, res) => {
       });
     }
 
+    // Verify Razorpay signature
+    try {
+      const { verifyMembershipPaymentInternal } = await import('../../services/razorpayService.js');
+      const isValid = await verifyMembershipPaymentInternal(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+      if (!isValid) {
+        return res.status(400).json({
+          success: false,
+          message: 'Payment verification failed. Signature mismatch.'
+        });
+      }
+    } catch (paymentError) {
+      console.error('Payment verification error:', paymentError);
+      return res.status(400).json({
+        success: false,
+        message: 'Payment verification failed. Please try again.'
+      });
+    }
+
     const finalPlan = planConfig.slug;
     const finalVariant = planConfig.variantSlug || null;
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found"
-      });
+      return res.status(404).json({ success: false, message: "User not found" });
     }
 
     const courses = await getAutoEnrollCoursesForPlan(finalPlan);
 
     if (courses.length === 0) {
       console.warn(`⚠️ No courses found for ${finalPlan} plan in database configuration.`);
-      // We process the membership update anyway, assuming admin might add courses later
-      // or this might be a plan without courses (unlikely but possible)
     } else {
       console.log(`Found ${courses.length} courses for plan ${finalPlan}:`, courses.map(c => c.title));
     }
 
-    // Update user subscription
     user.subscriptionPlan = finalPlan;
     user.subscriptionPlanVariant = finalVariant;
     user.subscriptionStatus = 'active';
@@ -524,6 +640,8 @@ export const purchaseMembership = async (req, res) => {
       source: 'purchase',
       metadata: {
         sourceController: 'profile.purchaseMembership',
+        razorpayPaymentId,
+        razorpayOrderId,
         planVariantSlug: finalVariant,
         planSelectionKey: planConfig.selectionKey,
       },
@@ -539,9 +657,8 @@ export const purchaseMembership = async (req, res) => {
           currentVideoId: course.videos.length > 0 ? course.videos[0]._id : null
         });
 
-        // Update course enrollment count
-        course.enrollmentCount += 1;
-        await course.save();
+        // Atomically update course enrollment count
+        await Course.findByIdAndUpdate(course._id, { $inc: { enrollmentCount: 1 } });
 
         return enrollment;
       }

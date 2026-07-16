@@ -1,8 +1,10 @@
 import Order from '../../models/order.models.js';
 import Cart from '../../models/cart.models.js';
 import Product from '../../models/product.models.js';
-import Shop from '../../models/shop.models.js';
 import Address from '../../models/address.models.js';
+import crypto from 'crypto';
+import { escapeRegex } from '../../utils/sanitizeUtils.js';
+import mongoose from 'mongoose';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { createRazorpayOrder, verifyRazorpaySignature, createRazorpayPaymentLink, fetchPaymentLink } from '../../services/razorpayService.js';
 import { sendOrderConfirmationEmail } from '../../services/emailService.js';
@@ -23,6 +25,66 @@ export const createOrder = async (req, res) => {
 
     if (!cart || cart.items.length === 0) {
       return res.status(400).json({ success: false, message: 'Cart is empty' });
+    }
+
+    // Validate coupon code if attached to the cart
+    let dbCoupon = null;
+    if (cart.coupon && cart.coupon.code) {
+      const { default: Coupon } = await import('../../models/coupon.models.js');
+      dbCoupon = await Coupon.findOne({ code: cart.coupon.code.toUpperCase(), isActive: true });
+      if (!dbCoupon) {
+        return res.status(400).json({
+          success: false,
+          message: 'The coupon applied to your cart is no longer active.'
+        });
+      }
+
+      let eligibleSubtotal = 0;
+      if (dbCoupon.applicableOn === 'category') {
+        eligibleSubtotal = cart.items.reduce((sum, item) => {
+          const productCategory = item.product?.category?._id || item.product?.category || item.product;
+          const matchesCategory = dbCoupon.categories.some(catId => 
+            catId.toString() === productCategory.toString()
+          );
+          return matchesCategory ? sum + (item.price * item.quantity) : sum;
+        }, 0);
+      } 
+      else if (dbCoupon.applicableOn === 'product') {
+        eligibleSubtotal = cart.items.reduce((sum, item) => {
+          const productId = item.product?._id || item.product;
+          const matchesProduct = dbCoupon.products.some(prodId => 
+            prodId.toString() === productId.toString()
+          );
+          return matchesProduct ? sum + (item.price * item.quantity) : sum;
+        }, 0);
+      } 
+      else if (dbCoupon.applicableOn === 'shop') {
+        eligibleSubtotal = cart.items.reduce((sum, item) => {
+          const productShop = item.product?.shop?._id || item.product?.shop || item.product;
+          const matchesShop = dbCoupon.shops.some(shopId => 
+            shopId.toString() === productShop.toString()
+          );
+          return matchesShop ? sum + (item.price * item.quantity) : sum;
+        }, 0);
+      } 
+      else {
+        eligibleSubtotal = cart.subtotal;
+      }
+
+      if (eligibleSubtotal === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Applied coupon is not applicable to any products in your cart.'
+        });
+      }
+
+      const validity = await dbCoupon.canUserUse(userId, eligibleSubtotal);
+      if (!validity.valid) {
+        return res.status(400).json({
+          success: false,
+          message: `Coupon validation failed: ${validity.message}`
+        });
+      }
     }
 
     // Get delivery address
@@ -76,7 +138,7 @@ export const createOrder = async (req, res) => {
     const date = new Date();
     const year = date.getFullYear().toString().slice(-2);
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const random = Math.floor(100000 + Math.random() * 900000);
+    const random = crypto.randomInt(100000, 999999 + 1);
     const generatedOrderNumber = `ORD${year}${month}${random}`;
 
     // Create order
@@ -135,22 +197,50 @@ export const createOrder = async (req, res) => {
 
     await order.save();
 
-
-    // Inventory Update
+    // Atomic inventory update with oversell protection
     for (const item of cart.items) {
-      if (item.product) {
-        const product = await Product.findById(item.product._id);
-        if (product) {
-          if (product.inventory && !product.inventory.isUnlimited) {
-            product.inventory.stock = Math.max(0, product.inventory.stock - item.quantity);
-          }
-          if (product.stats) {
-            product.stats.soldCount = (product.stats.soldCount || 0) + item.quantity;
-          } else {
-            product.stats = { soldCount: item.quantity };
-          }
-          await product.save();
+      if (item.product && item.product.inventory && !item.product.inventory.isUnlimited) {
+        const result = await Product.findOneAndUpdate(
+          { _id: item.product._id, 'inventory.stock': { $gte: item.quantity } },
+          { $inc: { 'inventory.stock': -item.quantity, 'stats.soldCount': item.quantity } },
+          { new: true }
+        );
+        if (!result) {
+          await Order.findByIdAndDelete(order._id);
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient stock for "${item.product.name}". Order cancelled.`
+          });
         }
+      } else if (item.product) {
+        await Product.findByIdAndUpdate(item.product._id, { $inc: { 'stats.soldCount': item.quantity } });
+      }
+    }
+
+    // Record coupon usage
+    if (dbCoupon && cart.coupon && cart.coupon.code) {
+      try {
+        const { default: CouponUsage } = await import('../../models/couponUsage.models.js');
+        
+        await CouponUsage.create({
+          coupon: dbCoupon._id,
+          user: userId,
+          order: order._id,
+          discountAmount: order.pricing.discount,
+          usedAt: new Date()
+        });
+
+        // Atomic coupon counter increment
+        const { default: Coupon } = await import('../../models/coupon.models.js');
+        await Coupon.findByIdAndUpdate(dbCoupon._id, {
+          $inc: {
+            currentUsageCount: 1,
+            'stats.totalUsed': 1,
+            'stats.totalDiscount': order.pricing.discount
+          }
+        });
+      } catch (couponUsageErr) {
+        console.error('Failed to log coupon usage stats:', couponUsageErr);
       }
     }
 
@@ -207,9 +297,10 @@ export const getAllOrders = async (req, res) => {
     if (status) query.status = status;
 
     if (search) {
+      const safeSearch = escapeRegex(search);
       query.$or = [
-        { orderNumber: { $regex: search, $options: 'i' } },
-        { 'deliveryAddress.fullName': { $regex: search, $options: 'i' } }
+        { orderNumber: { $regex: safeSearch, $options: 'i' } },
+        { 'deliveryAddress.fullName': { $regex: safeSearch, $options: 'i' } }
       ];
     }
 

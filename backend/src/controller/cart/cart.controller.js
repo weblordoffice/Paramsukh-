@@ -2,6 +2,63 @@ import Cart from '../../models/cart.models.js';
 import Product from '../../models/product.models.js';
 import Coupon from '../../models/coupon.models.js';
 
+/**
+ * Calculates the subtotal of items in the cart that match the coupon's restrictions.
+ */
+const getEligibleSubtotal = (cart, coupon) => {
+  if (coupon.applicableOn === 'category') {
+    return cart.items.reduce((sum, item) => {
+      const productCategory = item.product?.category?._id || item.product?.category || item.product;
+      const matchesCategory = coupon.categories.some(catId => 
+        catId.toString() === productCategory.toString()
+      );
+      return matchesCategory ? sum + (item.price * item.quantity) : sum;
+    }, 0);
+  } 
+  else if (coupon.applicableOn === 'product') {
+    return cart.items.reduce((sum, item) => {
+      const productId = item.product?._id || item.product;
+      const matchesProduct = coupon.products.some(prodId => 
+        prodId.toString() === productId.toString()
+      );
+      return matchesProduct ? sum + (item.price * item.quantity) : sum;
+    }, 0);
+  } 
+  else if (coupon.applicableOn === 'shop') {
+    return cart.items.reduce((sum, item) => {
+      const productShop = item.product?.shop?._id || item.product?.shop || item.product;
+      const matchesShop = coupon.shops.some(shopId => 
+        shopId.toString() === productShop.toString()
+      );
+      return matchesShop ? sum + (item.price * item.quantity) : sum;
+    }, 0);
+  } 
+  return cart.subtotal;
+};
+
+/**
+ * Helper to dynamically load the active coupon from DB and recalculate cart totals.
+ */
+export const recalculateCartTotals = async (cart) => {
+  if (cart.coupon && cart.coupon.code) {
+    const coupon = await Coupon.findOne({ code: cart.coupon.code.toUpperCase(), isActive: true });
+    if (coupon) {
+      await cart.populate({
+        path: 'items.product',
+        select: 'name images pricing inventory shop category'
+      });
+      cart.calculateTotals(coupon);
+    } else {
+      cart.coupon = undefined;
+      cart.discount = 0;
+      cart.calculateTotals();
+    }
+  } else {
+    cart.calculateTotals();
+  }
+  return cart;
+};
+
 // @desc    Get user's cart
 // @route   GET /api/cart
 // @access  Private
@@ -9,21 +66,20 @@ export const getCart = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    let cart = await Cart.findOne({ user: userId })
-      .populate({
-        path: 'items.product',
-        select: 'name images pricing inventory shop',
-        populate: { path: 'shop', select: 'name slug' }
-      });
-
+    let cart = await Cart.findOne({ user: userId });
     if (!cart) {
       cart = new Cart({ user: userId, items: [] });
       await cart.save();
     }
 
-    // Recalculate totals
-    cart.calculateTotals();
+    await recalculateCartTotals(cart);
     await cart.save();
+
+    await cart.populate({
+      path: 'items.product',
+      select: 'name images pricing inventory shop category',
+      populate: { path: 'shop', select: 'name slug' }
+    });
 
     res.status(200).json({
       success: true,
@@ -47,7 +103,6 @@ export const addToCart = async (req, res) => {
     const userId = req.user._id;
     const { productId, quantity = 1, variant } = req.body;
 
-    // Check if product exists and is available
     const product = await Product.findById(productId);
     if (!product || !product.isActive) {
       return res.status(404).json({
@@ -56,7 +111,6 @@ export const addToCart = async (req, res) => {
       });
     }
 
-    // Check stock availability
     if (!product.isAvailable(quantity)) {
       return res.status(400).json({
         success: false,
@@ -64,19 +118,19 @@ export const addToCart = async (req, res) => {
       });
     }
 
-    // Get or create cart
     let cart = await Cart.findOne({ user: userId });
     if (!cart) {
       cart = new Cart({ user: userId, items: [] });
     }
 
-    // Add item to cart
     await cart.addItem(productId, quantity, product.pricing.sellingPrice, variant);
 
-    // Populate cart items
+    await recalculateCartTotals(cart);
+    await cart.save();
+
     await cart.populate({
       path: 'items.product',
-      select: 'name images pricing inventory shop'
+      select: 'name images pricing inventory shop category'
     });
 
     res.status(200).json({
@@ -118,7 +172,6 @@ export const updateCartItem = async (req, res) => {
       });
     }
 
-    // Check stock for the product
     const item = cart.items.find(i => i._id.toString() === itemId);
     if (item) {
       const product = await Product.findById(item.product);
@@ -132,9 +185,12 @@ export const updateCartItem = async (req, res) => {
 
     await cart.updateQuantity(itemId, quantity);
 
+    await recalculateCartTotals(cart);
+    await cart.save();
+
     await cart.populate({
       path: 'items.product',
-      select: 'name images pricing inventory shop'
+      select: 'name images pricing inventory shop category'
     });
 
     res.status(200).json({
@@ -170,9 +226,12 @@ export const removeFromCart = async (req, res) => {
 
     await cart.removeItem(itemId);
 
+    await recalculateCartTotals(cart);
+    await cart.save();
+
     await cart.populate({
       path: 'items.product',
-      select: 'name images pricing inventory shop'
+      select: 'name images pricing inventory shop category'
     });
 
     res.status(200).json({
@@ -245,7 +304,6 @@ export const applyCoupon = async (req, res) => {
       });
     }
 
-    // Find coupon
     const coupon = await Coupon.findOne({ code: code.toUpperCase(), isActive: true });
     if (!coupon) {
       return res.status(404).json({
@@ -254,8 +312,20 @@ export const applyCoupon = async (req, res) => {
       });
     }
 
-    // Validate coupon
-    const validity = await coupon.canUserUse(userId, cart.subtotal);
+    await cart.populate({
+      path: 'items.product',
+      select: 'name images pricing inventory shop category'
+    });
+
+    const eligibleSubtotal = getEligibleSubtotal(cart, coupon);
+    if (eligibleSubtotal === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'This coupon is not applicable to any products in your cart.'
+      });
+    }
+
+    const validity = await coupon.canUserUse(userId, eligibleSubtotal);
     if (!validity.valid) {
       return res.status(400).json({
         success: false,
@@ -263,23 +333,8 @@ export const applyCoupon = async (req, res) => {
       });
     }
 
-    // Calculate discount
-    const discount = coupon.calculateDiscount(cart.subtotal);
-
-    // Apply coupon to cart
-    cart.coupon = {
-      code: coupon.code,
-      discount: discount,
-      discountType: coupon.discountType
-    };
-
-    cart.calculateTotals();
+    cart.calculateTotals(coupon);
     await cart.save();
-
-    await cart.populate({
-      path: 'items.product',
-      select: 'name images pricing inventory shop'
-    });
 
     res.status(200).json({
       success: true,
@@ -311,13 +366,14 @@ export const removeCoupon = async (req, res) => {
       });
     }
 
-    cart.coupon = {};
+    cart.coupon = undefined;
+    cart.discount = 0;
     cart.calculateTotals();
     await cart.save();
 
     await cart.populate({
       path: 'items.product',
-      select: 'name images pricing inventory shop'
+      select: 'name images pricing inventory shop category'
     });
 
     res.status(200).json({

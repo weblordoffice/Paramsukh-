@@ -5,6 +5,8 @@ import {
   ScrollView,   
   TouchableOpacity,
   ActivityIndicator,
+  Alert,
+  StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,38 +14,57 @@ import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
 import { useAuthStore } from '../../store/authStore';
-       
+import CertificateViewerModal from '../../components/CertificateViewerModal';
+
 export default function MyProgressScreen() {
   const router = useRouter();          
-  const { token } = useAuthStore();
+  const { token, user: authUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(authUser);
   const [stats, setStats] = useState({
     totalEnrollments: 0,
     completedCourses: 0,
     inProgressCourses: 0,
     eventRegistrations: 0,
     eventsAttended: 0,
-    loginCount: 0
+    loginCount: 0,
+    memberSince: null
   });
+  const [certificates, setCertificates] = useState([]);
+  const [selectedCert, setSelectedCert] = useState<any>(null);
+  const [certModalVisible, setCertModalVisible] = useState(false);
   const isMountedRef = useRef(true);
+
+  const loadData = async () => {
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+      const [statsRes, profileRes, certsRes] = await Promise.all([
+        axios.get(`${API_URL}/user/stats`, { headers }),
+        axios.get(`${API_URL}/user/profile`, { headers }),
+        axios.get(`${API_URL}/user/profile/certificates`, { headers })
+      ]);
+
+      if (!isMountedRef.current) return;
+
+      if (statsRes.data.success && statsRes.data.stats) {
+        setStats(statsRes.data.stats);
+      }
+      if (profileRes.data.success && profileRes.data.user) {
+        setUser(profileRes.data.user);
+      }
+      if (certsRes.data.success && certsRes.data.certificates) {
+        setCertificates(certsRes.data.certificates);
+      }
+    } catch (error) {
+      console.error('❌ Failed to load progress details:', error);
+    } finally {
+      if (isMountedRef.current) setLoading(false);
+    }
+  };
 
   useEffect(() => {
     isMountedRef.current = true;
-    const fetchStats = async () => {
-      try {
-        const response = await axios.get(`${API_URL}/user/stats`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined
-        });
-        if (!isMountedRef.current) return;
-        if (response.data.success && response.data.stats) {
-          setStats(response.data.stats);
-        }
-      } catch (error) {
-      } finally {
-        if (isMountedRef.current) setLoading(false);
-      }
-    };
-    fetchStats();
+    loadData();
     return () => {
       isMountedRef.current = false;
     };
@@ -56,22 +77,51 @@ export default function MyProgressScreen() {
     { label: 'Events Attended', value: stats.eventsAttended.toString(), icon: 'ticket-outline', color: '#EF4444' },
   ];    
 
+  const isBadgeUnlocked = (badgeId: string) => {
+    return user?.unlockedBadges?.some((b: any) => b.badgeId === badgeId) || false;
+  };
+
   const achievements = [
-    { title: 'First Step', description: 'Enrolled in your first course', icon: '🎯', unlocked: stats.totalEnrollments >= 1 },
-    { title: 'Knowledge Seeker', description: 'Completed a course', icon: '📚', unlocked: stats.completedCourses >= 1 },
-    { title: 'Event Enthusiast', description: 'Registered for an event', icon: '🎪', unlocked: stats.eventRegistrations >= 1 },
-    { title: 'Master Learner', description: 'Completed 5 courses', icon: '🏆', unlocked: stats.completedCourses >= 5 },
-    { title: 'Active Member', description: 'Logged in 10 times', icon: '🔥', unlocked: stats.loginCount >= 10 },
-    { title: 'Community Pillar', description: 'Attended 5 events', icon: '👥', unlocked: stats.eventsAttended >= 5 },
+    { id: 'first-step', title: 'First Step', description: 'Enrolled in your first course', icon: '🎯', requirement: 'Enroll in 1 course' },
+    { id: 'knowledge-seeker', title: 'Knowledge Seeker', description: 'Completed a course', icon: '📚', requirement: 'Complete 1 course' },
+    { id: 'event-enthusiast', title: 'Event Enthusiast', description: 'Registered for an event', icon: '🎪', requirement: 'Register for 1 event' },
+    { id: 'dedicated-learner', title: 'Dedicated Learner', description: 'Completed 5 courses', icon: '🏆', requirement: 'Complete 5 courses' },
+    { id: 'active-member', title: 'Active Member', description: 'Logged in 10 times', icon: '🔥', requirement: 'Log in 10 times' },
+    { id: 'community-pillar', title: 'Community Pillar', description: 'Attended 5 events', icon: '👥', requirement: 'Attend 5 events' },
   ];
-    
-  const recentActivity = [   
-    { title: 'Completed "Meditation Basics"', time: '2 hours ago', icon: 'checkmark-circle', color: '#10B981' },
-    { title: 'Joined "Spiritual Growth" group', time: '1 day ago', icon: 'people', color: '#3B82F6' },
-    { title: 'Attended "Yoga Workshop"', time: '3 days ago', icon: 'calendar', color: '#F59E0B' },
-    { title: 'Unlocked "Dedicated Learner"', time: '5 days ago', icon: 'trophy', color: '#EF4444' },
-  ];
-                                   
+
+  const handleBadgePress = (badge: typeof achievements[0]) => {
+    const unlocked = isBadgeUnlocked(badge.id);
+    if (unlocked) {
+      const match = user.unlockedBadges.find((b: any) => b.badgeId === badge.id);
+      const unlockDate = match?.unlockedAt 
+        ? new Date(match.unlockedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+        : 'recently';
+      Alert.alert(
+        `🏆 ${badge.title} Unlocked!`,
+        `${badge.description}\n\nUnlocked: ${unlockDate}`
+      );
+    } else {
+      Alert.alert(
+        `🔒 Locked Badge`,
+        `How to unlock: ${badge.requirement}`
+      );
+    }
+  };
+
+  const handleViewCert = (cert: any) => {
+    setSelectedCert(cert);
+    setCertModalVisible(true);
+  };
+
+  const completionRate = stats.totalEnrollments > 0 
+    ? Math.round((stats.completedCourses / stats.totalEnrollments) * 100)
+    : 0;
+
+  const joinDate = stats.memberSince 
+    ? new Date(stats.memberSince).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+    : 'Recently';
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
@@ -90,7 +140,21 @@ export default function MyProgressScreen() {
           </View>
         ) : (
           <>
-            
+            {/* Overview Visual Card */}
+            <View className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex-row items-center justify-between mb-6">
+              <View className="flex-1 pr-4">
+                <Text className="text-xs text-gray-400 font-bold uppercase tracking-wider">Gurukul Disciple Since</Text>
+                <Text className="text-lg font-bold text-gray-800 mt-1">{joinDate}</Text>
+                <Text className="text-sm text-gray-500 mt-1">Logged in {stats.loginCount} times to study</Text>
+              </View>
+              <View style={styles.circularContainer}>
+                <View style={[styles.circularFill, { transform: [{ rotate: `${(completionRate / 100) * 360}deg` }] }]} />
+                <View style={styles.circularInner}>
+                  <Text className="text-xl font-extrabold text-blue-500">{completionRate}%</Text>
+                  <Text className="text-[10px] text-gray-400 font-bold">Done</Text>
+                </View>
+              </View>
+            </View>
 
             {/* Stats Grid */}
             <View className="flex-row flex-wrap gap-3 mb-6">
@@ -107,53 +171,109 @@ export default function MyProgressScreen() {
               ))}
             </View>
 
+            {/* Verifiable Certificates Section */}
+            <View className="mb-6">
+              <Text className="text-xl font-bold text-gray-900 mb-4">Verifiable Certificates</Text>
+              {certificates.length === 0 ? (
+                <View className="bg-white p-6 rounded-xl border border-dashed border-gray-300 items-center justify-center">
+                  <Ionicons name="ribbon-outline" size={36} color="#9CA3AF" />
+                  <Text className="text-sm text-gray-500 text-center mt-2 font-medium">Complete courses to 100% to earn certificates.</Text>
+                </View>
+              ) : (
+                <View className="gap-3">
+                  {certificates.map((cert: any) => (
+                    <View key={cert._id} className="flex-row items-center justify-between bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                      <View className="flex-1 pr-3">
+                        <Text className="text-[15px] font-bold text-gray-900 mb-1">{cert.courseName}</Text>
+                        <Text className="text-xs text-gray-500">ID: {cert.certificateId}</Text>
+                      </View>
+                      <TouchableOpacity 
+                        onPress={() => handleViewCert(cert)}
+                        className="bg-amber-500 px-4 py-2 rounded-lg flex-row items-center"
+                      >
+                        <Ionicons name="eye-outline" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+                        <Text className="text-xs font-bold text-white">View</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
             {/* Achievements Section */}
             <View className="mb-6">
               <Text className="text-xl font-bold text-gray-900 mb-4">Achievements</Text>
               <View className="flex-row flex-wrap gap-3">
-                {achievements.map((achievement, index) => (
-                  <View
-                    key={index}
-                    className={`flex-1 min-w-[45%] bg-white p-4 rounded-xl items-center shadow-sm relative ${
-                      !achievement.unlocked ? 'opacity-50 bg-gray-100' : ''
-                    }`}
-                  >
-                    <Text className="text-4xl mb-2">{achievement.icon}</Text>
-                    <Text className="text-sm font-bold text-gray-900 text-center mb-1">{achievement.title}</Text>
-                    <Text className="text-[11px] text-gray-500 text-center">
-                      {achievement.description}     
-                    </Text>
-                    {achievement.unlocked && (
-                      <View className="absolute top-2 right-2">
-                        <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                      </View>
-                    )}
-                  </View>
-                ))}
+                {achievements.map((achievement, index) => {
+                  const unlocked = isBadgeUnlocked(achievement.id);
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => handleBadgePress(achievement)}
+                      activeOpacity={0.7}
+                      className={`flex-1 min-w-[45%] bg-white p-4 rounded-xl items-center shadow-sm relative ${
+                        !unlocked ? 'opacity-40 bg-gray-100' : ''
+                      }`}
+                    >
+                      <Text className="text-4xl mb-2">{achievement.icon}</Text>
+                      <Text className="text-sm font-bold text-gray-900 text-center mb-1">{achievement.title}</Text>
+                      <Text className="text-[11px] text-gray-500 text-center">
+                        {achievement.description}     
+                      </Text>
+                      {unlocked && (
+                        <View className="absolute top-2 right-2">
+                          <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            </View>
-
-            {/* Recent Activity Section */}
-            <View className="mb-6">
-              <Text className="text-xl font-bold text-gray-900 mb-4">Recent Activity</Text>
-              {recentActivity.map((activity, index) => (
-                <View key={index} className="flex-row items-center bg-white p-4 rounded-xl mb-3 shadow-sm">
-                  <View 
-                    className="w-11 h-11 rounded-full items-center justify-center mr-3"
-                    style={{ backgroundColor: `${activity.color}20` }}
-                  >
-                    <Ionicons name={activity.icon as any} size={20} color={activity.color} />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-[15px] font-semibold text-gray-900 mb-1">{activity.title}</Text>
-                    <Text className="text-[13px] text-gray-500">{activity.time}</Text>
-                  </View>
-                </View>
-              ))}
             </View>
           </>
         )}
       </ScrollView>
+
+      {/* Certificate Modal */}
+      <CertificateViewerModal
+        visible={certModalVisible}
+        onClose={() => setCertModalVisible(false)}
+        certificate={selectedCert}
+      />
     </SafeAreaView>
   );                       
 }
+
+const styles = StyleSheet.create({
+  circularContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 4,
+    borderColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden'
+  },
+  circularFill: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 4,
+    borderColor: '#3B82F6',
+    borderTopColor: 'transparent',
+    borderLeftColor: 'transparent'
+  },
+  circularInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center'
+  }
+});

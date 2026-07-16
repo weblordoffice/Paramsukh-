@@ -168,7 +168,20 @@ export const useCourseStore = create<CourseState>((set) => ({
                 set({ enrollmentProgress: response.data?.data });
             }
         } catch (error: any) {
-            // 404 = user is not enrolled yet — this is expected, not a real error
+            // 404 = user is not enrolled yet — try to auto-enroll them in the background
+            if (error.response?.status === 404) {
+                try {
+                    const enrollResponse = await apiClient.post(`${API_URL}/enrollments/enroll`, { courseId });
+                    if (enrollResponse.data?.success) {
+                        const retryResponse = await apiClient.get(`${API_URL}/courses/${courseId}/progress`);
+                        if (retryResponse.data?.success) {
+                            set({ enrollmentProgress: retryResponse.data?.data });
+                        }
+                    }
+                } catch (enrollError) {
+                    // Ignore enrollment error, keep enrollmentProgress null
+                }
+            }
         }
     },
 

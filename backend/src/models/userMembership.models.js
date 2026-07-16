@@ -93,5 +93,7 @@ const userMembershipSchema = new mongoose.Schema({
 });
 
 userMembershipSchema.index({ userId: 1, status: 1, endDate: -1 });
+// Prevent duplicate active memberships per user
+userMembershipSchema.index({ userId: 1, planId: 1 }, { unique: true, partialFilterExpression: { status: 'active' } });
 
 export const UserMembership = mongoose.model('UserMembership', userMembershipSchema);

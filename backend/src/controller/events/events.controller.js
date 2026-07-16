@@ -1,4 +1,5 @@
 import { Event } from '../../models/event.models.js';
+import { escapeRegex } from '../../utils/sanitizeUtils.js';
 
 /**
  * Create a new event
@@ -176,10 +177,11 @@ export const getAllEvents = async (req, res) => {
 
     // Text search
     if (search) {
+      const safeSearch = escapeRegex(search);
       query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { location: { $regex: search, $options: 'i' } }
+        { title: { $regex: safeSearch, $options: 'i' } },
+        { description: { $regex: safeSearch, $options: 'i' } },
+        { location: { $regex: safeSearch, $options: 'i' } }
       ];
     }
 

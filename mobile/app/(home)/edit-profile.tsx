@@ -22,18 +22,20 @@ export default function EditProfileScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     displayName: '',
+    age: '',
+    occupation: '',
+    location: '',
+    physicalIssue: false,
+    specialDiseaseIssue: false,
+    relationshipIssue: false,
+    financialIssue: false,
+    mentalHealthIssue: false,
+    spiritualGrowth: false
   });
 
   useEffect(() => {
-    if (user) {
-      setFormData({
-        displayName: user.displayName || '',
-      });
-      setIsLoading(false);
-    } else {
-      fetchUserProfile();
-    }
-  }, [user]);
+    fetchUserProfile();
+  }, []);
 
   const fetchUserProfile = async () => {
     try {
@@ -43,11 +45,22 @@ export default function EditProfileScreen() {
       });
       if (response.data.success) {
         const userData = response.data.user;
+        const details = response.data.profileDetails || {};
         setFormData({
           displayName: userData.displayName || '',
+          age: details.age ? details.age.toString() : '',
+          occupation: details.occupation || '',
+          location: details.location || '',
+          physicalIssue: !!details.physicalIssue,
+          specialDiseaseIssue: !!details.specialDiseaseIssue,
+          relationshipIssue: !!details.relationshipIssue,
+          financialIssue: !!details.financialIssue,
+          mentalHealthIssue: !!details.mentalHealthIssue,
+          spiritualGrowth: !!details.spiritualGrowth
         });
       }
     } catch (error) {
+      console.error('❌ Failed to fetch profile details:', error);
     } finally {
       setIsLoading(false);
     }
@@ -64,7 +77,18 @@ export default function EditProfileScreen() {
       const token = await useAuthStore.getState().token;
       const response = await axios.put(
         `${API_URL}/user/profile`,
-        { displayName: formData.displayName.trim() },
+        {
+          displayName: formData.displayName.trim(),
+          age: formData.age ? parseInt(formData.age, 10) : undefined,
+          occupation: formData.occupation.trim() || undefined,
+          location: formData.location.trim() || undefined,
+          physicalIssue: formData.physicalIssue,
+          specialDiseaseIssue: formData.specialDiseaseIssue,
+          relationshipIssue: formData.relationshipIssue,
+          financialIssue: formData.financialIssue,
+          mentalHealthIssue: formData.mentalHealthIssue,
+          spiritualGrowth: formData.spiritualGrowth
+        },
         { headers: token ? { Authorization: `Bearer ${token}` } : undefined }
       );
 
@@ -82,6 +106,22 @@ export default function EditProfileScreen() {
     }
   };
 
+  const toggleFocus = (key: keyof typeof formData) => {
+    setFormData(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const focusAreas = [
+    { key: 'physicalIssue', label: 'Physical Wellness', icon: 'fitness-outline' },
+    { key: 'specialDiseaseIssue', label: 'Chronic Illness Recovery', icon: 'medical-outline' },
+    { key: 'relationshipIssue', label: 'Healthy Relationships', icon: 'heart-outline' },
+    { key: 'financialIssue', label: 'Financial Freedom', icon: 'cash-outline' },
+    { key: 'mentalHealthIssue', label: 'Mental Clarity & Peace', icon: 'brain-outline' },
+    { key: 'spiritualGrowth', label: 'Spiritual Growth', icon: 'rose-outline' }
+  ];
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
@@ -93,7 +133,7 @@ export default function EditProfileScreen() {
         <View className="w-10" />
       </View>
 
-<ScrollView className="flex-1" contentContainerClassName="p-5">
+      <ScrollView className="flex-1" contentContainerClassName="p-5">
         {isLoading ? (
           <View className="flex-1 items-center justify-center py-20">
             <ActivityIndicator size="large" color="#3B82F6" />
@@ -103,39 +143,104 @@ export default function EditProfileScreen() {
             {/* Profile Image */}
             <View className="items-center mb-8"> 
               <View className="relative mb-3">
-                <View className="w-[120px] h-[120px] rounded-full bg-gray-200 items-center justify-center">
-                  <Ionicons name="person" size={60} color="#9CA3AF" />
+                <View className="w-[100px] h-[100px] rounded-full bg-blue-100 items-center justify-center">
+                  <Ionicons name="person" size={50} color="#3B82F6" />
                 </View>  
-                <TouchableOpacity className="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-blue-500 items-center justify-center border-[3px] border-white">
-                  <Ionicons name="camera" size={20} color="#FFFFFF" />
-                </TouchableOpacity>
               </View>
-              <Text className="text-sm text-blue-500 font-semibold">Change Profile Photo</Text>
+              <Text className="text-lg font-bold text-gray-800">{formData.displayName || 'Gurukul Learner'}</Text>
             </View>
                      
             {/* Form Fields */}      
             <View className="gap-5">    
               <View className="gap-2">
-                <Text className="text-sm font-semibold text-gray-700">Name</Text>
+                <Text className="text-sm font-semibold text-gray-700">Display Name</Text>
                 <TextInput       
-                  className="bg-white border border-gray-300 rounded-xl px-4 py-3 text-base text-gray-900"
+                  className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 shadow-sm"
                   value={formData.displayName}    
                   onChangeText={(text) => setFormData({ ...formData, displayName: text })}
                   placeholder="Enter your name"
                 />      
-              </View>           
+              </View>
+
+              <View className="gap-2">
+                <Text className="text-sm font-semibold text-gray-700">Age</Text>
+                <TextInput       
+                  className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 shadow-sm"
+                  value={formData.age}
+                  keyboardType="numeric"
+                  onChangeText={(text) => setFormData({ ...formData, age: text.replace(/[^0-9]/g, '') })}
+                  placeholder="Enter your age"
+                />      
+              </View>
+
+              <View className="gap-2">
+                <Text className="text-sm font-semibold text-gray-700">Occupation</Text>
+                <TextInput       
+                  className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 shadow-sm"
+                  value={formData.occupation}
+                  onChangeText={(text) => setFormData({ ...formData, occupation: text })}
+                  placeholder="e.g. Professional, Entrepreneur"
+                />      
+              </View>
+
+              <View className="gap-2">
+                <Text className="text-sm font-semibold text-gray-700">Location</Text>
+                <TextInput       
+                  className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 shadow-sm"
+                  value={formData.location}
+                  onChangeText={(text) => setFormData({ ...formData, location: text })}
+                  placeholder="e.g. New Delhi, India"
+                />      
+              </View>
+
+              {/* Wellness Goals / Focus Areas */}
+              <View className="gap-3 mt-2">
+                <Text className="text-base font-bold text-gray-900">Your Wellness Focus Areas</Text>
+                <Text className="text-xs text-gray-500 -mt-1">Select focus areas to align your Gurukul experience</Text>
+                
+                <View className="flex-row flex-wrap gap-2 mt-1">
+                  {focusAreas.map((area) => {
+                    const isActive = formData[area.key as keyof typeof formData] as boolean;
+                    return (
+                      <TouchableOpacity
+                        key={area.key}
+                        onPress={() => toggleFocus(area.key as any)}
+                        className={`flex-row items-center px-4 py-3 rounded-full border shadow-sm ${
+                          isActive 
+                            ? 'bg-blue-500 border-blue-500' 
+                            : 'bg-white border-gray-200'
+                        }`}
+                      >
+                        <Ionicons 
+                          name={area.icon as any} 
+                          size={16} 
+                          color={isActive ? '#FFFFFF' : '#4B5563'} 
+                          style={{ marginRight: 6 }}
+                        />
+                        <Text 
+                          className={`text-sm font-semibold ${
+                            isActive ? 'text-white' : 'text-gray-700'
+                          }`}
+                        >
+                          {area.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
             </View>
 
             {/* Save Button */}
             <TouchableOpacity 
-              className="bg-blue-500 py-4 rounded-xl items-center mt-8 shadow-lg" 
+              className="bg-blue-500 py-4 rounded-xl items-center mt-10 shadow-md" 
               onPress={handleSave}
               disabled={isSaving}
             >
               {isSaving ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Text className="text-base font-bold text-white">Save Changes</Text>
+                <Text className="text-base font-bold text-white">Save Profile Details</Text>
               )}
             </TouchableOpacity>
           </>

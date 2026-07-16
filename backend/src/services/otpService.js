@@ -9,11 +9,6 @@ const OTP_SMS_SENDER = process.env.OTP_SMS_SENDER || 'NamJin';
 const OTP_SMS_ENTITY_ID = process.env.OTP_SMS_ENTITY_ID || '1201159239283403256';
 const OTP_SMS_TEMPLATE_ID = process.env.OTP_SMS_TEMPLATE_ID || '1707177796052193562';
 
-// ── TEMPORARY: Play Store review bypass credentials ──
-// Remove these after Play Store review is approved.
-const PLAYSTORE_REVIEW_MOBILE = process.env.PLAYSTORE_REVIEW_MOBILE || '9999999999';
-const PLAYSTORE_REVIEW_OTP = process.env.PLAYSTORE_REVIEW_OTP || '123456';
-
 /**
  * Generate a random 6-digit OTP
  */
@@ -49,24 +44,13 @@ export const sendOTP = async (phone) => {
       throw new Error('Invalid phone number. Must be 10 digits.');
     }
 
-    // ── TEMPORARY: Play Store review bypass ──
-    // Skip SMS for the reviewer's fixed number. Remove after approval.
-    if (cleanPhone === PLAYSTORE_REVIEW_MOBILE) {
-      console.log('[PLAYSTORE REVIEW LOGIN] OTP bypass used — skipping SMS for review number');
-      return {
-        success: true,
-        message: 'OTP generated and sent successfully'
-      };
-    }
-
-    const otp = generateOTP();
-
     if (!OTP_SMS_API_KEY) {
       throw new Error('OTP SMS API key is not configured');
     }
 
     // "test" key means local test mode: skip provider call, still generate/store OTP.
     const isTestMode = OTP_SMS_API_KEY.toLowerCase() === 'test';
+    const otp = isTestMode ? '123456' : generateOTP();
 
     try {
       if (!isTestMode) {
@@ -92,12 +76,8 @@ export const sendOTP = async (phone) => {
           `&mobile=${cleanPhone}` +
           `&message=${encodeURIComponent(message)}`;
 
-        // ── Debug: log everything for troubleshooting ──
-        console.log('[OTP SMS] ── Request Debug ──');
-        console.log('[OTP SMS] Message (raw)    :', message);
-        console.log('[OTP SMS] Message (encoded):', encodeURIComponent(message));
-        console.log('[OTP SMS] Mobile           :', cleanPhone);
-        console.log('[OTP SMS] Final URL        :', smsUrl);
+        // Debug: log request metadata only (never log OTP content or full URLs)
+        console.log(`[OTP SMS] Sending to ${cleanPhone} via ${OTP_SMS_SENDER}`);
 
         // Compare with the known working dashboard URL format
         const dashboardRef =
@@ -159,16 +139,6 @@ export const verifyOTP = async (phone, otp) => {
   try {
     const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '');
 
-    // ── TEMPORARY: Play Store review bypass ──
-    // Accept the fixed OTP for the reviewer's number. Remove after approval.
-    if (cleanPhone === PLAYSTORE_REVIEW_MOBILE && otp.toString() === PLAYSTORE_REVIEW_OTP) {
-      console.log('[PLAYSTORE REVIEW LOGIN] OTP bypass used — verification granted for review number');
-      return {
-        success: true,
-        message: 'OTP verified successfully'
-      };
-    }
-
     const stored = otpStore.get(cleanPhone);
 
     if (!stored) {
@@ -186,7 +156,7 @@ export const verifyOTP = async (phone, otp) => {
       };
     }
 
-    if (stored.attempts >= 3) {
+    if (stored.attempts >= 7) {
       otpStore.delete(cleanPhone);
       return {
         success: false,
@@ -205,7 +175,7 @@ export const verifyOTP = async (phone, otp) => {
       otpStore.set(cleanPhone, stored);
       return {
         success: false,
-        message: `Invalid OTP. ${3 - stored.attempts} attempts remaining.`
+        message: `Invalid OTP. ${7 - stored.attempts} attempts remaining.`
       };
     }
   } catch (error) {

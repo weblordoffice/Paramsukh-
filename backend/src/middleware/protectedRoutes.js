@@ -1,6 +1,8 @@
 import { User } from "../models/user.models.js";
 import jwt from 'jsonwebtoken';
 import { reconcileUserSubscriptionPlanIntegrity } from '../services/membershipPlan.service.js';
+import { DeviceSession } from '../models/deviceSession.models.js';
+import { getDeviceDetails } from '../lib/deviceHelper.js';
 
 
 export const protectedRoutes = async(req, res, next) => {
@@ -45,8 +47,31 @@ export const protectedRoutes = async(req, res, next) => {
         if (reconciliation?.reconciled) {
             console.warn(`⚠️ Reconciled orphan plan for user ${user._id}: ${reconciliation.previousPlan} -> free`);
         }
+
+        // Validate active device session
+        const { deviceId } = getDeviceDetails(req);
+        const session = await DeviceSession.findOne({
+            user: user._id,
+            deviceId,
+            isRevoked: false
+        });
+
+        if (!session) {
+            return res.status(401).json({
+                success: false,
+                code: 'SESSION_REVOKED',
+                message: 'Session has been revoked or is invalid. Please log in again.'
+            });
+        }
+
+        // Update lastSeen with 1-minute write throttling to optimize DB load
+        if (Date.now() - session.lastSeen.getTime() > 60 * 1000) {
+            session.lastSeen = new Date();
+            await session.save();
+        }
         
         req.user = user;
+        req.deviceSession = session;
         next();
     } catch(error) {
         console.error("❌ Error in protected route middleware:", error);

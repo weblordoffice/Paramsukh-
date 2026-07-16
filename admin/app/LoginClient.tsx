@@ -13,8 +13,8 @@ export default function LoginClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState('admin@paramsukh.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   useEffect(() => {
     const error = searchParams.get('error');
@@ -56,7 +56,6 @@ export default function LoginClient() {
           tokenExpiry: expiryTime,
         });
         
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         toast.success('Signed in successfully!');
         router.push('/dashboard');
       } else {

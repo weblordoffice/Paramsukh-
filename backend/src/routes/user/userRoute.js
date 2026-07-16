@@ -12,6 +12,15 @@ import {
   purchaseMembership
 } from '../../controller/user/profile.controller.js';
 import {
+  getUserCertificates,
+  generateCertificate
+} from '../../controller/user/certificate.controller.js';
+import {
+  getUserReferralDashboard,
+  getAdminReferralConfig,
+  updateAdminReferralConfig
+} from '../../controller/user/referral.controller.js';
+import {
   getAllUsers,
   getUserById,
   createUserAdmin,
@@ -49,6 +58,9 @@ router.put('/preferences', protectedRoutes, updatePreferences);
 router.get('/subscription', protectedRoutes, getSubscription);
 router.post('/membership/purchase', protectedRoutes, purchaseMembership);
 router.get('/stats', protectedRoutes, getUserStats);
+router.get('/profile/certificates', protectedRoutes, getUserCertificates);
+router.post('/profile/certificates/claim/:courseId', protectedRoutes, generateCertificate);
+router.get('/profile/referrals', protectedRoutes, getUserReferralDashboard);
 router.post('/deactivate', protectedRoutes, deactivateAccount);
 router.delete('/account', protectedRoutes, deleteAccount);
 
@@ -62,6 +74,8 @@ router.post('/create', adminAuth, createUserAdmin);
 router.get('/import/template', adminAuth, getUserImportTemplate);
 router.post('/import/preview', adminAuth, uploadLimiter, uploadSingleSpreadsheet, handleMulterError, previewUserImport);
 router.post('/import/commit', adminAuth, commitUserImport);
+router.get('/referral-config', adminAuth, getAdminReferralConfig);
+router.put('/referral-config', adminAuth, updateAdminReferralConfig);
 
 // Admin parameterized routes (must be after specific user paths)
 router.get('/:id', adminAuth, getUserById);

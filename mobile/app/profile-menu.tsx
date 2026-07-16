@@ -53,6 +53,14 @@ export default function ProfileMenuScreen() {
       route: '/(home)/my-progress',
     },
     {
+      id: 'referral',
+      title: 'Invite & Earn',
+      description: 'Invite friends to earn free premium',
+      icon: 'gift-outline',
+      color: '#EC4899',
+      route: '/(home)/referral',
+    },
+    {
       id: 'settings',
       title: 'Settings',
       description: 'App preferences and notifications',

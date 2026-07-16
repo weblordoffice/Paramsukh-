@@ -89,3 +89,19 @@ export const streamChatFromAIService = async (payload) => {
     throw networkError;
   }
 };
+
+export const generateRecommendationExplanation = async (payload) => {
+  const { baseUrl, sharedSecret, timeoutMs } = getAiServiceConfig();
+
+  try {
+    const response = await axios.post(`${baseUrl}/recommendations/explain`, payload, {
+      timeout: timeoutMs,
+      headers: buildHeaders(sharedSecret),
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('generateRecommendationExplanation error:', error.message);
+    throw error;
+  }
+};

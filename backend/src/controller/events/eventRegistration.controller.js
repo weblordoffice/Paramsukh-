@@ -64,7 +64,7 @@ export const registerForEvent = async (req, res) => {
   try {
     const { eventId } = req.params;
     const userId = req.user._id; // From auth middleware
-    const { notes, name, email, phone, simulatePayment, paymentId } = req.body;
+    const { notes, name, email, phone, simulatePayment, paymentId } = req.body || {};
 
     // Check if event exists
     const event = await Event.findById(eventId);

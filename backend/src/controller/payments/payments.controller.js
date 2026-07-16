@@ -194,7 +194,9 @@ export const confirmBookingPaymentLink = async (req, res) => {
         relatedId: booking._id,
         relatedType: 'booking',
       });
-    } catch (_) {}
+    } catch (notifyErr) {
+      console.error('Failed to send payment confirmation notification:', notifyErr.message);
+    }
     return res.status(200).json({
       success: true,
       message: 'Payment confirmed',

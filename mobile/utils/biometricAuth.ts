@@ -122,7 +122,7 @@ export const storeTokenSecurely = async (token: string): Promise<void> => {
   try {
     await SecureStore.setItemAsync(SECURE_TOKEN_KEY, token);
   } catch (error) {
-    // Fallback to AsyncStorage
+    console.warn('[SECURITY] SecureStore unavailable — token stored in AsyncStorage (unencrypted)', error);
     await AsyncStorage.setItem('token', token);
   }
 };
@@ -134,7 +134,7 @@ export const storeRefreshTokenSecurely = async (token: string): Promise<void> =>
   try {
     await SecureStore.setItemAsync(SECURE_REFRESH_KEY, token);
   } catch (error) {
-    // Fallback to AsyncStorage
+    console.warn('[SECURITY] SecureStore unavailable — refresh token stored in AsyncStorage (unencrypted)', error);
     await AsyncStorage.setItem('refreshToken', token);
   }
 };
@@ -147,7 +147,7 @@ export const getTokenSecurely = async (): Promise<string | null> => {
     const token = await SecureStore.getItemAsync(SECURE_TOKEN_KEY);
     return token;
   } catch (error) {
-    // Fallback to AsyncStorage
+    console.warn('[SECURITY] SecureStore unavailable — reading token from AsyncStorage (unencrypted)', error);
     return await AsyncStorage.getItem('token');
   }
 };
@@ -160,7 +160,7 @@ export const getRefreshTokenSecurely = async (): Promise<string | null> => {
     const token = await SecureStore.getItemAsync(SECURE_REFRESH_KEY);
     return token;
   } catch (error) {
-    // Fallback to AsyncStorage
+    console.warn('[SECURITY] SecureStore unavailable — reading refresh token from AsyncStorage (unencrypted)', error);
     return await AsyncStorage.getItem('refreshToken');
   }
 };
@@ -173,7 +173,7 @@ export const clearSecureTokens = async (): Promise<void> => {
     await SecureStore.deleteItemAsync(SECURE_TOKEN_KEY);
     await SecureStore.deleteItemAsync(SECURE_REFRESH_KEY);
   } catch (error) {
-    // Fallback to AsyncStorage
+    console.warn('[SECURITY] SecureStore unavailable — attempting AsyncStorage token cleanup', error);
     await AsyncStorage.multiRemove(['token', 'refreshToken']);
   }
 };

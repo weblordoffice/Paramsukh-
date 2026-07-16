@@ -1,26 +1,31 @@
 import React, { useCallback } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Alert, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useOfflineVideoStore } from '../../store/offlineVideoStore';
+import { useOfflinePodcastStore } from '../../store/offlinePodcastStore';
+import { useAudioPlayerStore } from '../../store/audioPlayerStore';
 import { useAuthStore } from '../../store/authStore';
 import { hasActiveMembership } from '../../utils/membership';
 
 export default function DownloadsScreen() {
   const router = useRouter();
   const { user } = useAuthStore();
-  const { downloads, hydrate, removeDownload, hydrated } = useOfflineVideoStore();
+  const { downloads: videoDownloads, hydrate: hydrateVideos, removeDownload: removeVideo, hydrated: videosHydrated } = useOfflineVideoStore();
+  const { downloads: podcastDownloads, hydrate: hydratePodcasts, removeDownload: removePodcast, hydrated: podcastsHydrated } = useOfflinePodcastStore();
+  const { loadAndPlay } = useAudioPlayerStore();
   const isPremiumMember = hasActiveMembership(user);
 
   useFocusEffect(
     useCallback(() => {
-      hydrate();
-    }, [hydrate])
+      hydrateVideos();
+      hydratePodcasts();
+    }, [hydrateVideos, hydratePodcasts])
   );
 
   const handleOpenVideo = (videoId: string) => {
-    const target = downloads.find((item) => item.videoId === videoId);
+    const target = videoDownloads.find((item) => item.videoId === videoId);
     if (!target) return;
 
     router.push({
@@ -37,12 +42,34 @@ export default function DownloadsScreen() {
     });
   };
 
-  const handleRemove = async (videoId: string) => {
-    const ok = await removeDownload(videoId);
+  const handlePlayPodcast = (podcast: typeof podcastDownloads[0]) => {
+    loadAndPlay({
+      id: podcast.podcastId,
+      title: podcast.podcastTitle,
+      host: podcast.podcastHost,
+      thumbnailUrl: podcast.thumbnailUrl,
+      audioUrl: podcast.localUri,
+      duration: podcast.podcastDuration,
+      category: podcast.podcastCategory,
+    });
+  };
+
+  const handleRemoveVideo = async (videoId: string) => {
+    const ok = await removeVideo(videoId);
     if (!ok) {
       Alert.alert('Error', 'Could not remove downloaded video.');
     }
   };
+
+  const handleRemovePodcast = async (podcastId: string) => {
+    const ok = await removePodcast(podcastId);
+    if (!ok) {
+      Alert.alert('Error', 'Could not remove downloaded podcast.');
+    }
+  };
+
+  const totalDownloads = videoDownloads.length + podcastDownloads.length;
+  const hydrated = videosHydrated && podcastsHydrated;
 
   if (!hydrated) {
     return (
@@ -61,7 +88,7 @@ export default function DownloadsScreen() {
           <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
             <Ionicons name="arrow-back" size={24} color="#111827" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Downloaded Videos</Text>
+          <Text style={styles.headerTitle}>Downloads</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -69,7 +96,7 @@ export default function DownloadsScreen() {
           <Ionicons name="lock-closed-outline" size={52} color="#9CA3AF" />
           <Text style={styles.lockTitle}>Premium Only</Text>
           <Text style={styles.lockText}>
-            Offline video downloads are available only with an active membership.
+            Offline downloads are available only with an active membership.
           </Text>
           <TouchableOpacity style={styles.membershipBtn} onPress={() => router.push('/(home)/my-membership')}>
             <Text style={styles.membershipBtnText}>View Membership</Text>
@@ -85,45 +112,83 @@ export default function DownloadsScreen() {
         <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
           <Ionicons name="arrow-back" size={24} color="#111827" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Downloaded Videos</Text>
+        <Text style={styles.headerTitle}>Downloads</Text>
         <View style={{ width: 40 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.subtitle}>
-          Videos saved here stay inside the app and can be watched offline.
+          Content saved here stays inside the app and can be watched or listened to offline.
         </Text>
 
-        {downloads.length === 0 ? (
+        {totalDownloads === 0 ? (
           <View style={styles.emptyCard}>
             <Ionicons name="download-outline" size={48} color="#9CA3AF" />
             <Text style={styles.emptyTitle}>No Downloads Yet</Text>
             <Text style={styles.emptyText}>
-              Open a premium course video and tap the download button to save it offline.
+              Open a course video or podcast and tap the download button to save it offline.
             </Text>
           </View>
         ) : (
-          downloads.map((item) => (
-            <View key={item.videoId} style={styles.card}>
-              <TouchableOpacity style={styles.cardMain} onPress={() => handleOpenVideo(item.videoId)} activeOpacity={0.8}>
-                <View style={[styles.iconWrap, { backgroundColor: item.courseColor + '20' }]}>
-                  <Ionicons name="play-circle" size={26} color={item.courseColor} />
-                </View>
-                <View style={styles.meta}>
-                  <Text style={styles.courseTitle} numberOfLines={1}>{item.courseTitle}</Text>
-                  <Text style={styles.videoTitle} numberOfLines={2}>{item.videoTitle}</Text>
-                  <Text style={styles.metaText}>
-                    {item.videoDuration} • Downloaded {new Date(item.downloadedAt).toLocaleDateString()}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+          <>
+            {podcastDownloads.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>Podcasts</Text>
+                {podcastDownloads.map((item) => (
+                  <View key={item.podcastId} style={styles.card}>
+                    <TouchableOpacity style={styles.cardMain} onPress={() => handlePlayPodcast(item)} activeOpacity={0.8}>
+                      {item.thumbnailUrl && item.thumbnailUrl.startsWith('http') ? (
+                        <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbImage} />
+                      ) : (
+                        <View style={[styles.iconWrap, { backgroundColor: '#F3F4F6' }]}>
+                          <Ionicons name="musical-note" size={22} color="#6B7280" />
+                        </View>
+                      )}
+                      <View style={styles.meta}>
+                        <Text style={styles.courseTitle} numberOfLines={1}>{item.podcastCategory}</Text>
+                        <Text style={styles.videoTitle} numberOfLines={2}>{item.podcastTitle}</Text>
+                        <Text style={styles.metaText}>
+                          {item.podcastHost} • {item.podcastDuration} • Downloaded {new Date(item.downloadedAt).toLocaleDateString()}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
 
-              <TouchableOpacity style={styles.removeBtn} onPress={() => handleRemove(item.videoId)}>
-                <Ionicons name="trash-outline" size={18} color="#DC2626" />
-                <Text style={styles.removeText}>Remove</Text>
-              </TouchableOpacity>
-            </View>
-          ))
+                    <TouchableOpacity style={styles.removeBtn} onPress={() => handleRemovePodcast(item.podcastId)}>
+                      <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                      <Text style={styles.removeText}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </>
+            )}
+
+            {videoDownloads.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>Course Videos</Text>
+                {videoDownloads.map((item) => (
+                  <View key={item.videoId} style={styles.card}>
+                    <TouchableOpacity style={styles.cardMain} onPress={() => handleOpenVideo(item.videoId)} activeOpacity={0.8}>
+                      <View style={[styles.iconWrap, { backgroundColor: item.courseColor + '20' }]}>
+                        <Ionicons name="play-circle" size={26} color={item.courseColor} />
+                      </View>
+                      <View style={styles.meta}>
+                        <Text style={styles.courseTitle} numberOfLines={1}>{item.courseTitle}</Text>
+                        <Text style={styles.videoTitle} numberOfLines={2}>{item.videoTitle}</Text>
+                        <Text style={styles.metaText}>
+                          {item.videoDuration} • Downloaded {new Date(item.downloadedAt).toLocaleDateString()}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity style={styles.removeBtn} onPress={() => handleRemoveVideo(item.videoId)}>
+                      <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                      <Text style={styles.removeText}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </>
+            )}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>
@@ -168,6 +233,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     lineHeight: 20,
   },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 12,
+    marginTop: 8,
+  },
   emptyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
@@ -207,6 +279,12 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  thumbImage: {
+    width: 54,
+    height: 54,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
   },
   meta: {
     flex: 1,

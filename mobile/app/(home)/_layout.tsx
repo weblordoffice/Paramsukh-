@@ -161,6 +161,12 @@ export default function HomeLayout() {
           }}
         />
         <Tabs.Screen
+          name="devices"
+          options={{
+            href: null, // Hide from tabs navigation
+          }}
+        />
+        <Tabs.Screen
           name="ai-chat"
           options={{
             href: null, // Hide from tabs navigation

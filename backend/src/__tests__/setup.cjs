@@ -1,0 +1,14 @@
+process.env.NODE_ENV = 'test';
+process.env.JWT_SECRET = 'test-jwt-secret-key-for-testing';
+process.env.ADMIN_JWT_SECRET = 'test-admin-jwt-secret-key';
+process.env.ADMIN_API_KEY = 'test-admin-api-key';
+process.env.OTP_SMS_API_KEY = 'test';
+process.env.RAZORPAY_KEY_ID = 'test';
+process.env.RAZORPAY_KEY_SECRET = 'test_secret';
+process.env.CLOUDINARY_CLOUD_NAME = 'test';
+process.env.CLOUDINARY_API_KEY = 'test';
+process.env.CLOUDINARY_API_SECRET = 'test';
+process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
+process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
+process.env.AI_SERVICE_BASE_URL = 'http://localhost:8011';
+process.env.AI_SERVICE_SHARED_SECRET = 'test_shared_secret';

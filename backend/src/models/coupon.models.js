@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import './couponUsage.models.js';
 
 const couponSchema = new mongoose.Schema({
   code: {

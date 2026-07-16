@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "2"
+      "buildNumber": "2",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
     },
     "android": {
       "package": "com.paramsukh.onlinegurukul",
@@ -59,7 +62,8 @@
         "projectId": "97449424-f4d1-490f-a8d8-30ceb8a9f75e"
       },
       "apiUrl": "https://api.getbill.in",
-      "privacyPolicyUrl": "https://ps-pp.vercel.app/"
+      "privacyPolicyUrl": "https://ps-pp.vercel.app/",
+      "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ"
     },
     "owner": "neerajkk01"
   }

@@ -18,9 +18,11 @@ const userSchema = new mongoose.Schema({
   },
   email: {
     type: String,
+    unique: true,
     sparse: true,
     lowercase: true,
-    trim: true
+    trim: true,
+    match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please provide a valid email address'],
   },
   photoURL: {
     type: String,
@@ -35,9 +37,16 @@ const userSchema = new mongoose.Schema({
   // Authentication type
   authProvider: {
     type: String,
-    enum: ['phone'],
+    enum: ['phone', 'google', 'clerk'],
     required: true,
     default: 'phone'
+  },
+  clerkId: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+    index: true
   },
 
 
@@ -162,8 +171,27 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-
-  
+  unlockedBadges: [{
+    badgeId: {
+      type: String,
+      required: true
+    },
+    unlockedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  referralCode: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true
+  },
+  referredBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
+  }
 }, {
   timestamps: true
 });

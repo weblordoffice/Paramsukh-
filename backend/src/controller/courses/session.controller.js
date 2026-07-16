@@ -81,7 +81,8 @@ export const addLiveSessionToCourse = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: "Live session added successfully",
-      liveSession: addedSession
+      liveSession: addedSession,
+      session: addedSession
     });
 
   } catch (error) {

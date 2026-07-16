@@ -10,7 +10,9 @@ import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 const router = express.Router();
 
 router.post('/message', protectedRoutes, submitMessage);
+router.post('/', protectedRoutes, submitMessage);
 router.get('/messages', protectedRoutes, getMyMessages);
+router.get('/my-messages', protectedRoutes, getMyMessages);
 router.get('/message/:id', protectedRoutes, getMessageById);
 router.post('/message/:id/close', protectedRoutes, closeTicket);
 

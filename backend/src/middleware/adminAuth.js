@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import Admin from '../models/admin.models.js';
 
+const ADMIN_JWT_SECRET = process.env.ADMIN_JWT_SECRET || process.env.JWT_SECRET;
+
 /**
  * Admin middleware for admin panel routes.
  * Accepts either:
@@ -17,10 +19,9 @@ export const adminAuth = async (req, res, next) => {
     const cookieToken = req.cookies?.adminToken;
     const jwtToken = bearerToken || cookieToken;
 
-    // Prefer logged-in admin JWT when available.
     if (jwtToken) {
       try {
-        const decoded = jwt.verify(jwtToken, process.env.JWT_SECRET);
+        const decoded = jwt.verify(jwtToken, ADMIN_JWT_SECRET);
         const admin = await Admin.findById(decoded.id).select('-password');
         if (admin && admin.isActive) {
           req.admin = admin;
@@ -53,6 +54,8 @@ export const adminAuth = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Invalid admin API key' });
     }
 
+    // API key is the shared credential — allow access.
+    // Individual admin identity is not required for API key auth.
     next();
   } catch (error) {
     console.error('Admin auth error:', error);

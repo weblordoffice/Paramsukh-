@@ -1,11 +1,11 @@
 node_modules
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
 .env
 .env.*
-.next/cache
 .git
 .gitignore
+logs
+*.log
+.next
+out
 Dockerfile
+docker-compose.yml

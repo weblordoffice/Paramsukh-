@@ -1,6 +1,7 @@
 import { User } from '../../models/user.models.js';
 import jwt from 'jsonwebtoken';
 import { reconcileUserSubscriptionPlanIntegrity } from '../../services/membershipPlan.service.js';
+import { registerOrValidateDevice } from '../../lib/deviceSessionManager.js';
 
 /**
  * Refresh access token using refresh token
@@ -53,6 +54,18 @@ export const refreshToken = async (req, res) => {
     user.loginCount = (user.loginCount || 0) + 1;
     user.lastLoginAt = new Date();
     await user.save();
+
+    const deviceGuard = await registerOrValidateDevice(user._id, req, user.authProvider || 'phone');
+    if (!deviceGuard.success) {
+      return res.status(deviceGuard.cooldown ? 403 : (deviceGuard.deviceLimitExceeded ? 403 : 400)).json({
+        success: false,
+        deviceLimitExceeded: deviceGuard.deviceLimitExceeded || false,
+        cooldown: deviceGuard.cooldown || false,
+        cooldownRemaining: deviceGuard.cooldownRemaining || 0,
+        activeDevices: deviceGuard.activeDevices || [],
+        message: deviceGuard.message
+      });
+    }
 
     // Generate new access token
     const token = jwt.sign(
