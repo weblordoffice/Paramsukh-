@@ -147,8 +147,7 @@ const eventSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: ['upcoming', 'ongoing', 'past', 'cancelled'],
-    default: 'upcoming',
-    index: true
+    default: 'upcoming'
   },
   isActive: {
     type: Boolean,
@@ -269,9 +268,7 @@ const eventSchema = new mongoose.Schema({
 
 // Indexes
 eventSchema.index({ title: 'text', description: 'text' });
-eventSchema.index({ category: 1 });
 eventSchema.index({ status: 1, eventDate: 1 });
-eventSchema.index({ isPaid: 1 });
 eventSchema.index({ eventDate: 1, startTime: 1 });
 eventSchema.index({ createdAt: -1 });
 eventSchema.index({ locationType: 1 });

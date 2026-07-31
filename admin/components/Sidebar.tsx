@@ -16,7 +16,9 @@ import {
     BarChart3,
     Headphones,
     FileText,
-    X
+    X,
+    DollarSign,
+    Brain
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -41,7 +43,9 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
     { icon: Home, label: 'Dashboard', href: '/dashboard' },
     { icon: BarChart3, label: 'Analytics', href: '/dashboard/analytics', superAdminOnly: true },
+    { icon: DollarSign, label: 'Revenue', href: '/dashboard/revenue', superAdminOnly: true },
     { icon: Users, label: 'Users', href: '/dashboard/users', permission: 'manage_users' },
+    { icon: Crown, label: 'Referrals', href: '/dashboard/referrals', superAdminOnly: true },
     { icon: Crown, label: 'Memberships', href: '/dashboard/memberships', permission: 'manage_users' },
     { icon: Crown, label: 'Plans', href: '/dashboard/plans', permission: 'manage_users' },
     { icon: BookOpen, label: 'Courses', href: '/dashboard/courses', permission: 'manage_courses' },
@@ -55,6 +59,7 @@ const menuItems: MenuItem[] = [
     { icon: MessageSquare, label: 'Counseling', href: '/dashboard/counseling', permission: 'manage_content' },
     { icon: Headphones, label: 'Support', href: '/dashboard/support', permission: 'manage_content' },
     { icon: Bell, label: 'Notifications', href: '/dashboard/notifications', permission: 'manage_content' },
+    { icon: Brain, label: 'AI Recommendations', href: '/dashboard/ai-recommendations', superAdminOnly: true },
     { icon: Settings, label: 'Settings', href: '/dashboard/settings', superAdminOnly: true },
 ];
 

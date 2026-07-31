@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
+import { useAuth } from '@clerk/clerk-expo';
 import * as Haptics from 'expo-haptics';
 
 function formatPhone(phone: string) {
@@ -13,6 +14,7 @@ function formatPhone(phone: string) {
 export default function VerifyPhoneScreen() {
   const router = useRouter();
   const { sendOTP, verifyOTP, logout, isLoading, user } = useAuthStore();
+  const { signOut: clerkSignOut } = useAuth();
   const scrollViewRef = useRef<ScrollView>(null);
   const otpInputRef = useRef<TextInput>(null);
 
@@ -39,7 +41,7 @@ export default function VerifyPhoneScreen() {
     const formattedPhone = formatPhone(phone);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const result = await sendOTP(formattedPhone, 'signup'); // using default signup purpose to signify verification
+    const result = await sendOTP(formattedPhone);
 
     if (result.success) {
       setOtpSent(true);
@@ -75,6 +77,7 @@ export default function VerifyPhoneScreen() {
 
   const handleLogout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await clerkSignOut();
     await logout();
     router.replace('/signin');
   };

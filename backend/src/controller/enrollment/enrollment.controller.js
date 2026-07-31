@@ -304,180 +304,6 @@ export const getEnrollmentByCourse = async (req, res) => {
 };
 
 /**
- * Mark video as complete
- * POST /api/enrollments/course/:courseId/video/:videoId/complete
- */
-export const markVideoComplete = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { courseId, videoId } = req.params;
-
-    const enrollment = await Enrollment.findOne({ userId, courseId });
-    if (!enrollment) {
-      return res.status(404).json({
-        success: false,
-        message: "Enrollment not found"
-      });
-    }
-
-    const course = await Course.findById(courseId);
-    if (!course) {
-      return res.status(404).json({
-        success: false,
-        message: "Course not found"
-      });
-    }
-
-    // Mark video complete
-    enrollment.markVideoComplete(videoId);
-
-    // Update progress
-    enrollment.updateProgress(course.totalVideos, course.totalPdfs);
-
-    // Update current video to next one
-    const currentVideoIndex = course.videos.findIndex(v => v._id.toString() === videoId);
-    if (currentVideoIndex < course.videos.length - 1) {
-      enrollment.currentVideoIndex = currentVideoIndex + 1;
-      enrollment.currentVideoId = course.videos[currentVideoIndex + 1]._id;
-    }
-
-    await enrollment.save();
-
-    // Update course completion count if completed
-    if (enrollment.isCompleted) {
-      course.completionCount += 1;
-      await course.save();
-    }
-
-    console.log(`✅ Video ${videoId} marked complete. Progress: ${enrollment.progress}%`);
-
-    return res.status(200).json({
-      success: true,
-      message: "Video marked as complete",
-      progress: enrollment.progress,
-      isCompleted: enrollment.isCompleted,
-      nextVideo: enrollment.currentVideoId,
-      completedVideos: enrollment.completedVideos.length,
-      totalVideos: course.totalVideos
-    });
-
-  } catch (error) {
-    console.error("❌ Error marking video complete:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message
-    });
-  }
-};
-
-/**
- * Mark PDF as complete
- * POST /api/enrollments/course/:courseId/pdf/:pdfId/complete
- */
-export const markPdfComplete = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { courseId, pdfId } = req.params;
-
-    const enrollment = await Enrollment.findOne({ userId, courseId });
-    if (!enrollment) {
-      return res.status(404).json({
-        success: false,
-        message: "Enrollment not found"
-      });
-    }
-
-    const course = await Course.findById(courseId);
-    if (!course) {
-      return res.status(404).json({
-        success: false,
-        message: "Course not found"
-      });
-    }
-
-    // Mark PDF complete
-    enrollment.markPdfComplete(pdfId);
-
-    // Update progress
-    enrollment.updateProgress(course.totalVideos, course.totalPdfs);
-    await enrollment.save();
-
-    // Update course completion count if completed
-    if (enrollment.isCompleted) {
-      course.completionCount += 1;
-      await course.save();
-    }
-
-    console.log(`✅ PDF ${pdfId} marked complete. Progress: ${enrollment.progress}%`);
-
-    return res.status(200).json({
-      success: true,
-      message: "PDF marked as complete",
-      progress: enrollment.progress,
-      isCompleted: enrollment.isCompleted,
-      completedPdfs: enrollment.completedPdfs.length,
-      totalPdfs: course.totalPdfs
-    });
-
-  } catch (error) {
-    console.error("❌ Error marking PDF complete:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message
-    });
-  }
-};
-
-/**
- * Get course progress
- * GET /api/enrollments/course/:courseId/progress
- */
-export const getCourseProgress = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { courseId } = req.params;
-
-    const enrollment = await Enrollment.findOne({ userId, courseId });
-    if (!enrollment) {
-      return res.status(404).json({
-        success: false,
-        message: "Enrollment not found"
-      });
-    }
-
-    const course = await Course.findById(courseId)
-      .select('title totalVideos totalPdfs videos pdfs');
-
-    return res.status(200).json({
-      success: true,
-      progress: {
-        percentage: enrollment.progress,
-        isCompleted: enrollment.isCompleted,
-        completedAt: enrollment.completedAt,
-        completedVideos: enrollment.completedVideos,
-        completedPdfs: enrollment.completedPdfs,
-        totalVideos: course.totalVideos,
-        totalPdfs: course.totalPdfs,
-        currentVideoId: enrollment.currentVideoId,
-        currentVideoIndex: enrollment.currentVideoIndex,
-        lastAccessedAt: enrollment.lastAccessedAt,
-        enrolledAt: enrollment.enrolledAt
-      }
-    });
-
-  } catch (error) {
-    console.error("❌ Error fetching course progress:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message
-    });
-  }
-};
-
-/**
  * Update current video position (for resume functionality)
  * PATCH /api/enrollments/course/:courseId/position
  */
@@ -535,14 +361,35 @@ export const unenrollFromCourse = async (req, res) => {
       });
     }
 
-    // Update course enrollment count
     const course = await Course.findById(courseId);
     if (course) {
-      course.enrollmentCount = Math.max(0, course.enrollmentCount - 1);
+      course.enrollmentCount = Math.max(0, (course.enrollmentCount || 0) - 1);
+      if (enrollment.isCompleted) {
+        course.completionCount = Math.max(0, (course.completionCount || 0) - 1);
+      }
       await course.save();
     }
 
-    console.log(`✅ User ${userId} unenrolled from course: ${courseId}`);
+    if (enrollment.isCompleted) {
+      const { Certificate } = await import('../../models/certificate.models.js');
+      await Certificate.updateOne(
+        { user: userId, course: courseId },
+        { $set: { isRevoked: true, revokedAt: new Date() } }
+      );
+    }
+
+    try {
+      const { syncUserCommunityMembershipsByPlan } = await import('../../services/planUpgrade.service.js');
+      await syncUserCommunityMembershipsByPlan({
+        userId,
+        planSlug: req.user?.subscriptionPlan,
+        membershipActive: req.user?.subscriptionStatus === 'active',
+      });
+    } catch (syncError) {
+      console.error('Community sync failed on unenrollment:', syncError.message);
+    }
+
+    console.log(`User ${userId} unenrolled from course: ${courseId}`);
 
     return res.status(200).json({
       success: true,
@@ -550,7 +397,7 @@ export const unenrollFromCourse = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Error unenrolling from course:", error);
+    console.error("Error unenrolling from course:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -665,33 +512,24 @@ export const markCourseComplete = async (req, res) => {
       });
     }
 
-    // Mark all videos as complete
     if (Array.isArray(course.videos)) {
-      course.videos.forEach(video => {
-        if (!enrollment.completedVideos.includes(video._id)) {
-          enrollment.completedVideos.push(video._id);
-        }
-      });
+      course.videos.forEach(v => enrollment.markVideoComplete(v._id));
     }
-
-    // Mark all PDFs as complete
     if (Array.isArray(course.pdfs)) {
-      course.pdfs.forEach(pdf => {
-        if (!enrollment.completedPdfs.includes(pdf._id)) {
-          enrollment.completedPdfs.push(pdf._id);
-        }
-      });
+      course.pdfs.forEach(p => enrollment.markPdfComplete(p._id));
     }
 
-    enrollment.progress = 100;
-    enrollment.isCompleted = true;
-    enrollment.completedAt = new Date();
+    const totalVideos = Array.isArray(course.videos) ? course.videos.length : 0;
+    const totalPdfs = Array.isArray(course.pdfs) ? course.pdfs.length : 0;
+    enrollment.updateProgress(totalVideos, totalPdfs);
     await enrollment.save();
 
-    // Atomically increment course completion count
-    await Course.findByIdAndUpdate(courseId, { $inc: { completionCount: 1 } });
+    const { handleCourseCompletion } = await import('../../services/courseCompletion.service.js');
+    handleCourseCompletion(userId, courseId).catch(err =>
+      console.error('Post-completion hook failed:', err.message)
+    );
 
-    console.log(`✅ Course ${courseId} marked complete for user ${userId}.`);
+    console.log(`Course ${courseId} marked complete for user ${userId}.`);
 
     return res.status(200).json({
       success: true,
@@ -703,7 +541,7 @@ export const markCourseComplete = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("❌ Error marking course complete:", error);
+    console.error("Error marking course complete:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",

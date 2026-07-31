@@ -20,7 +20,7 @@ export default function MembershipScreen() {
   const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
 
   const loadPublicPlans = useCallback(async () => {
-    const dynamicPlans = await fetchPublicMembershipPlans({ includeVariants: true });
+    const dynamicPlans = await fetchPublicMembershipPlans();
     setPlans(dynamicPlans);
     if (dynamicPlans.length > 0) {
       setSelectedPlan(dynamicPlans[0].id);
@@ -199,16 +199,7 @@ export default function MembershipScreen() {
                   borderColor: isSelected ? plan.color : undefined,
                 }}
               >
-                {/* Popular Badge */}
-                {plan.popular && (
-                  <View
-                    className="absolute top-4 right-4 flex-row items-center gap-1 px-2.5 py-1.5 rounded-[20px]"
-                    style={{ backgroundColor: plan.color }}
-                  >
-                    <Ionicons name="star" size={12} color="#FFFFFF" />
-                    <Text className="text-white text-[10px] font-extrabold tracking-wider">RECOMMENDED</Text>
-                  </View>
-                )}
+
 
                 {/* Plan Header */}
                 <View className="flex-row justify-between items-center mb-4">

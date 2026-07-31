@@ -39,7 +39,7 @@ const defaultPlans = [
       includedCategories: ['physical'],
       includedCourseIds: [],
       limits: { maxCategories: null, maxCoursesTotal: 1 },
-      accessMode: 'auto_enroll',
+      accessMode: 'entitlement_only',
       communityAccess: true,
       counselingAccess: true,
       eventAccess: true,
@@ -50,11 +50,7 @@ const defaultPlans = [
       { text: 'Membership counseling support', included: true },
       { text: 'Advanced course access', included: false },
     ],
-    metadata: {
-      badgeColor: '#CD7F32',
-      icon: 'bronze',
-      popular: false,
-    },
+
   },
   {
     title: 'Copper',
@@ -75,7 +71,7 @@ const defaultPlans = [
       includedCategories: ['physical', 'mental', 'spiritual'],
       includedCourseIds: [],
       limits: { maxCategories: null, maxCoursesTotal: 3 },
-      accessMode: 'auto_enroll',
+      accessMode: 'entitlement_only',
       communityAccess: true,
       counselingAccess: true,
       eventAccess: true,
@@ -86,11 +82,7 @@ const defaultPlans = [
       { text: 'Membership counseling support', included: true },
       { text: 'Advanced course access', included: false },
     ],
-    metadata: {
-      badgeColor: '#B87333',
-      icon: 'copper',
-      popular: false,
-    },
+
   },
   {
     title: 'Silver',
@@ -111,7 +103,7 @@ const defaultPlans = [
       includedCategories: ['physical', 'mental', 'financial', 'relationship', 'spiritual'],
       includedCourseIds: [],
       limits: { maxCategories: null, maxCoursesTotal: null },
-      accessMode: 'hybrid',
+      accessMode: 'entitlement_only',
       communityAccess: true,
       counselingAccess: true,
       eventAccess: true,
@@ -122,11 +114,7 @@ const defaultPlans = [
       { text: 'Membership counseling support', included: true },
       { text: 'Advanced course access', included: true },
     ],
-    metadata: {
-      badgeColor: '#A8A9AD',
-      icon: 'silver',
-      popular: true,
-    },
+
   },
 ];
 

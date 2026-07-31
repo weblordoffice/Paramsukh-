@@ -163,7 +163,7 @@ export const getAllPodcasts = async (req, res) => {
         }
 
         const podcasts = await Podcast.find(query)
-            .populate('requiredMemberships', 'title slug badgeColor')
+            .populate('requiredMemberships', 'title slug')
             .sort({ createdAt: -1 });
 
         res.status(200).json({
@@ -172,6 +172,7 @@ export const getAllPodcasts = async (req, res) => {
             data: { podcasts },
         });
     } catch (error) {
+
         console.error('Get Podcasts Error:', error);
         res.status(500).json({
             success: false,
@@ -212,7 +213,7 @@ export const getUserAccessiblePodcasts = async (req, res) => {
         }
 
         const podcasts = await Podcast.find(query)
-            .populate('requiredMemberships', 'title slug badgeColor')
+            .populate('requiredMemberships', 'title slug')
             .sort({ createdAt: -1 });
 
         const activePlanId = userMembership?.planId?._id?.toString();
@@ -270,7 +271,7 @@ export const getUserAccessiblePodcasts = async (req, res) => {
 export const getPodcastDetails = async (req, res) => {
     try {
         const podcast = await Podcast.findById(req.params.id)
-            .populate('requiredMemberships', 'title slug badgeColor price');
+            .populate('requiredMemberships', 'title slug price');
 
         if (!podcast) {
             return res.status(404).json({
@@ -397,7 +398,7 @@ export const updatePodcast = async (req, res) => {
             new: true,
             runValidators: true,
             useFindAndModify: false,
-        }).populate('requiredMemberships', 'title slug badgeColor');
+        }).populate('requiredMemberships', 'title slug');
 
         res.status(200).json({
             success: true,
@@ -615,7 +616,7 @@ export const getAdminAllPodcasts = async (req, res) => {
         }
 
         const podcasts = await Podcast.find(query)
-            .populate('requiredMemberships', 'title slug badgeColor')
+            .populate('requiredMemberships', 'title slug')
             .sort({ createdAt: -1 });
 
         res.status(200).json({

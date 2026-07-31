@@ -99,121 +99,7 @@ export const uploadImage = async (fileBuffer, folder = 'uploads', filename = 'im
 };
 
 /**
- * Upload video to Cloudinary
- * @param {Buffer} fileBuffer - Video file buffer
- * @param {String} folder - Cloudinary folder name
- * @param {String} filename - Original filename
- * @returns {Promise<Object>} Upload result with URL
- */
-export const uploadVideo = async (fileInput, folder = 'videos', filename = 'video') => {
-  try {
-    // Test mode - return mock URL
-    if (TEST_MODE) {
-      console.log('🧪 TEST MODE: Generating mock video URL');
-      const mockUrl = generateMockUrl(filename, folder, 'video');
-      return {
-        success: true,
-        url: mockUrl,
-        publicId: `${folder}/${filename}_${Date.now()}`,
-        resourceType: 'video',
-        format: 'mp4',
-        duration: 120.5,
-        width: 1920,
-        height: 1080,
-        bytes: Buffer.isBuffer(fileInput) ? fileInput.length : 0,
-        testMode: true
-      };
-    }
-
-    // Prefer Cloudinary's chunked upload for large files (disk path input).
-    // upload_large returns a stream when no callback is passed; use callback form to get the result.
-    if (typeof fileInput === 'string' && fileInput) {
-      if (!fs.existsSync(fileInput)) {
-        throw new Error('Upload temp file missing');
-      }
-      return new Promise((resolve, reject) => {
-        // NOTE: cloudinary.v2 uploader signature is (path, options, callback)
-        cloudinary.uploader.upload_large(fileInput, {
-          folder,
-          resource_type: 'video',
-          chunk_size: 6_000_000,
-          timeout: 10 * 60 * 1000, // 10 minutes
-          eager_async: true,
-        }, (err, result) => {
-          if (err) {
-            console.error('❌ Cloudinary upload_large error:', err);
-            return reject(err);
-          }
-          const url = result?.secure_url || result?.url;
-          if (!url) {
-            console.error('❌ Cloudinary did not return a URL. Result keys:', result ? Object.keys(result) : []);
-            return reject(new Error('Cloudinary video upload did not return a URL'));
-          }
-          console.log('✅ Video uploaded to Cloudinary:', result.public_id);
-          resolve({
-            success: true,
-            url,
-            publicId: result.public_id,
-            resourceType: result.resource_type,
-            format: result.format,
-            duration: result.duration,
-            width: result.width,
-            height: result.height,
-            bytes: result.bytes,
-            testMode: false
-          });
-        });
-      });
-    }
-
-    // Buffer fallback (small videos only): stream upload with higher timeout
-    return new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: folder,
-          resource_type: 'video',
-          timeout: 10 * 60 * 1000, // 10 minutes
-          eager_async: true
-        },
-        (error, result) => {
-          if (error) {
-            console.error('❌ Cloudinary video upload error:', error);
-            reject(error);
-          } else {
-            const url = result?.secure_url || result?.url;
-            if (!url) {
-              console.error('❌ Cloudinary stream upload did not return a URL');
-              return reject(new Error('Cloudinary video upload did not return a URL'));
-            }
-            console.log('✅ Video uploaded to Cloudinary:', result.public_id);
-            resolve({
-              success: true,
-              url,
-              publicId: result.public_id,
-              resourceType: result.resource_type,
-              format: result.format,
-              duration: result.duration,
-              width: result.width,
-              height: result.height,
-              bytes: result.bytes,
-              testMode: false
-            });
-          }
-        }
-      );
-
-      const readableStream = Readable.from(fileInput);
-      readableStream.pipe(uploadStream);
-    });
-
-  } catch (error) {
-    console.error('❌ Upload video error:', error);
-    throw new Error('Failed to upload video: ' + error.message);
-  }
-};
-
-/**
- * Upload multiple images
+ * Upload raw file (e.g. PDF) to Cloudinary
  * @param {Array<Buffer>} fileBuffers - Array of image buffers
  * @param {String} folder - Cloudinary folder name
  * @returns {Promise<Array>} Array of upload results
@@ -269,26 +155,6 @@ export const deleteFile = async (publicId, resourceType = 'image') => {
     console.error('❌ Delete file error:', error);
     throw new Error('Failed to delete file: ' + error.message);
   }
-};
-
-/**
- * Generate thumbnail from video
- * @param {String} videoPublicId - Video public ID
- * @returns {String} Thumbnail URL
- */
-export const generateVideoThumbnail = (videoPublicId) => {
-  if (TEST_MODE) {
-    return generateMockUrl('thumbnail', 'videos', 'image');
-  }
-
-  return cloudinary.url(videoPublicId, {
-    resource_type: 'video',
-    format: 'jpg',
-    transformation: [
-      { width: 640, height: 360, crop: 'fill' },
-      { quality: 'auto' }
-    ]
-  });
 };
 
 /**
@@ -377,11 +243,9 @@ export const isTestMode = () => TEST_MODE;
 
 export default {
   uploadImage,
-  uploadVideo,
   uploadMultipleImages,
   uploadRawFile,
   deleteFile,
-  generateVideoThumbnail,
   getOptimizedImageUrl,
   isTestMode
 };

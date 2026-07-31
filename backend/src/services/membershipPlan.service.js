@@ -1,18 +1,8 @@
 import { MembershipPlan } from '../models/membershipPlan.models.js';
 
 export const normalizePlanSlug = (plan) => String(plan || '').trim().toLowerCase();
-export const normalizePlanVariantSlug = (variant) => String(variant || '').trim().toLowerCase();
 
-export const buildMembershipSelectionKey = (planSlug, variantSlug = null) => {
-  const normalizedPlan = normalizePlanSlug(planSlug);
-  const normalizedVariant = normalizePlanVariantSlug(variantSlug);
-  if (!normalizedPlan) {
-    return '';
-  }
-  return normalizedVariant ? `${normalizedPlan}::${normalizedVariant}` : normalizedPlan;
-};
-
-const parseSelectionInput = (planInput, variantInput = null) => {
+const parseSelectionInput = (planInput) => {
   if (planInput && typeof planInput === 'object' && !Array.isArray(planInput)) {
     const inputPlan = normalizePlanSlug(
       planInput.plan
@@ -20,114 +10,10 @@ const parseSelectionInput = (planInput, variantInput = null) => {
       || planInput.slug
       || ''
     );
-    const inputVariant = normalizePlanVariantSlug(
-      planInput.variantSlug
-      || planInput.planVariant
-      || planInput.variant
-      || variantInput
-      || ''
-    );
-
-    return { planSlug: inputPlan, variantSlug: inputVariant };
+    return inputPlan;
   }
 
-  const rawPlan = normalizePlanSlug(planInput);
-  const rawVariant = normalizePlanVariantSlug(variantInput);
-
-  if (rawPlan.includes('::') && !rawVariant) {
-    const [planSlug, variantSlug] = rawPlan.split('::');
-    return {
-      planSlug: normalizePlanSlug(planSlug),
-      variantSlug: normalizePlanVariantSlug(variantSlug),
-    };
-  }
-
-  return { planSlug: rawPlan, variantSlug: rawVariant };
-};
-
-const getActiveVariants = (plan) => {
-  if (!plan?.planVariantsEnabled) {
-    return [];
-  }
-
-  const variants = Array.isArray(plan.planVariants) ? plan.planVariants : [];
-  return variants.filter((variant) => {
-    if (!variant) {
-      return false;
-    }
-    const slug = normalizePlanVariantSlug(variant.slug);
-    return Boolean(slug) && variant.isActive !== false;
-  });
-};
-
-const resolveSelectionFromPlan = (plan, requestedVariantSlug = '') => {
-  const parentSlug = normalizePlanSlug(plan?.slug);
-  if (!parentSlug) {
-    return { isValid: false, source: 'invalid', slug: '' };
-  }
-
-  const variantSlug = normalizePlanVariantSlug(requestedVariantSlug);
-  const activeVariants = getActiveVariants(plan);
-  const selectedVariant = variantSlug
-    ? activeVariants.find((variant) => normalizePlanVariantSlug(variant.slug) === variantSlug) || null
-    : null;
-
-  if (variantSlug && !selectedVariant) {
-    return {
-      isValid: false,
-      source: plan?.planVariantsEnabled ? 'variant_not_found' : 'variant_disabled',
-      slug: parentSlug,
-      parentSlug,
-      variantSlug,
-      selectionKey: buildMembershipSelectionKey(parentSlug, variantSlug),
-      amount: null,
-      currency: 'INR',
-      validityDays: null,
-      plan,
-      variant: null,
-    };
-  }
-
-  const useCustomPricingAndValidity = Boolean(selectedVariant?.useCustomPricingAndValidity);
-
-  const parentAmount = Number(plan?.pricing?.oneTime?.amount || 0);
-  const parentCurrency = plan?.pricing?.oneTime?.currency || 'INR';
-  const parentValidityDays = Number(plan?.validityDays || 365);
-
-  const customAmount = Number(selectedVariant?.customPricing?.amount);
-  const customCurrency = selectedVariant?.customPricing?.currency || parentCurrency;
-  const customValidityDays = Number(selectedVariant?.customValidityDays);
-
-  const effectiveAmount = useCustomPricingAndValidity && Number.isFinite(customAmount)
-    ? customAmount
-    : parentAmount;
-  const effectiveCurrency = useCustomPricingAndValidity
-    ? customCurrency
-    : parentCurrency;
-  const effectiveValidityDays = useCustomPricingAndValidity && Number.isFinite(customValidityDays) && customValidityDays > 0
-    ? customValidityDays
-    : parentValidityDays;
-
-  const resolvedVariantSlug = selectedVariant ? normalizePlanVariantSlug(selectedVariant.slug) : null;
-  const selectionKey = buildMembershipSelectionKey(parentSlug, resolvedVariantSlug);
-  const displayTitle = selectedVariant
-    ? `${plan.title} - ${selectedVariant.title}`
-    : plan.title;
-
-  return {
-    isValid: true,
-    source: selectedVariant ? 'dynamic_variant' : 'dynamic',
-    slug: parentSlug,
-    parentSlug,
-    variantSlug: resolvedVariantSlug,
-    selectionKey,
-    amount: effectiveAmount,
-    currency: effectiveCurrency,
-    validityDays: effectiveValidityDays,
-    displayTitle,
-    plan,
-    variant: selectedVariant,
-  };
+  return normalizePlanSlug(planInput);
 };
 
 const resolvePlanInheritance = async (rootPlan) => {
@@ -194,46 +80,43 @@ export const getPublishedMembershipPlan = async (planSlug) => {
 };
 
 export const resolveMembershipPlanChargeAmount = async (planSlug) => {
-  const parsed = parseSelectionInput(planSlug);
-  const requestedPlanSlug = parsed.planSlug;
-  const requestedVariantSlug = parsed.variantSlug;
+  const slug = parseSelectionInput(planSlug);
 
-  if (!requestedPlanSlug) {
+  if (!slug) {
     return { isValid: false, slug: '', amount: null, source: 'invalid' };
   }
 
-  let plan = await getPublishedMembershipPlan(requestedPlanSlug);
-  let variantSlug = requestedVariantSlug;
-
-  if (!plan && requestedPlanSlug !== 'free' && !requestedVariantSlug) {
-    const planWithVariant = await MembershipPlan.findOne({
-      status: 'published',
-      planVariantsEnabled: true,
-      'planVariants.slug': requestedPlanSlug,
-      'planVariants.isActive': true,
-    }).lean();
-
-    if (planWithVariant) {
-      plan = planWithVariant;
-      variantSlug = requestedPlanSlug;
-    }
-  }
+  const plan = await getPublishedMembershipPlan(slug);
 
   if (plan) {
-    return resolveSelectionFromPlan(plan, variantSlug);
+    const amount = Number(plan?.pricing?.oneTime?.amount || 0);
+    const currency = plan?.pricing?.oneTime?.currency || 'INR';
+    const validityDays = plan.isLifetime ? null : Number(plan?.validityDays || 365);
+
+    return {
+      isValid: true,
+      source: 'dynamic',
+      slug,
+      parentSlug: slug,
+      selectionKey: slug,
+      amount,
+      currency,
+      validityDays,
+      isLifetime: !!plan.isLifetime,
+      displayTitle: plan.title,
+      plan,
+    };
   }
 
   return {
     isValid: false,
-    slug: requestedPlanSlug,
-    parentSlug: requestedPlanSlug,
-    variantSlug: variantSlug || null,
-    selectionKey: buildMembershipSelectionKey(requestedPlanSlug, variantSlug),
+    slug,
+    parentSlug: slug,
+    selectionKey: slug,
     amount: null,
     currency: 'INR',
     validityDays: null,
     plan: null,
-    variant: null,
     source: 'invalid',
   };
 };
@@ -255,30 +138,10 @@ export const reconcileUserSubscriptionPlanIntegrity = async (user, { save = true
 
   const planExists = await MembershipPlan.exists({ slug: currentPlan });
   if (planExists) {
-    if (user.subscriptionPlanVariant) {
-      const plan = await MembershipPlan.findOne({ slug: currentPlan }).select('planVariantsEnabled planVariants').lean();
-      const variantSlug = normalizePlanVariantSlug(user.subscriptionPlanVariant);
-      const hasVariant = Boolean(
-        variantSlug
-        && plan?.planVariantsEnabled
-        && Array.isArray(plan?.planVariants)
-        && plan.planVariants.some((variant) => normalizePlanVariantSlug(variant.slug) === variantSlug && variant.isActive !== false)
-      );
-
-      if (!hasVariant) {
-        user.subscriptionPlanVariant = null;
-        if (save && typeof user.save === 'function') {
-          await user.save();
-        }
-        return { reconciled: true, reason: 'variant_reset', previousPlan: currentPlan, newPlan: currentPlan };
-      }
-    }
-
     return { reconciled: false, reason: 'plan_exists' };
   }
 
   user.subscriptionPlan = 'free';
-  user.subscriptionPlanVariant = null;
   user.subscriptionStatus = 'inactive';
   user.subscriptionStartDate = null;
   user.subscriptionEndDate = null;

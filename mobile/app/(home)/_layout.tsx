@@ -67,13 +67,13 @@ export default function HomeLayout() {
             title: 'Home',
             tabBarIcon: ({ color, focused }) => (
               <Ionicons name={focused ? 'home' : 'home-outline'} size={24} color={color} />
-            ),
+            ),             
           }}
         />
         <Tabs.Screen
           name="courses"
           options={{
-            title: 'Courses',
+            title: 'Courses',      
             tabBarIcon: ({ color, focused }) => (
               <Ionicons name={focused ? 'book' : 'book-outline'} size={24} color={color} />
             ),
@@ -82,12 +82,12 @@ export default function HomeLayout() {
         <Tabs.Screen
           name="events"
           options={{
-            title: 'Events',
+            title: 'Events',                 
             tabBarIcon: ({ color, focused }) => (
               <Ionicons name={focused ? 'calendar' : 'calendar-outline'} size={24} color={color} />
             ),
           }}
-        />
+        />     
         <Tabs.Screen
           name="membership-new"
           options={{
@@ -101,7 +101,7 @@ export default function HomeLayout() {
             tabBarIcon: ({ color, focused }) => (
               <Ionicons name={focused ? 'card' : 'card-outline'} size={24} color={color} />
             ),
-          }}
+          }}     
         />
         <Tabs.Screen
           name="community"
@@ -146,7 +146,7 @@ export default function HomeLayout() {
           name="downloads"
           options={{
             href: null, // Hide from tabs navigation
-          }}
+          }}   
         />
         <Tabs.Screen
           name="podcasts"
@@ -170,6 +170,18 @@ export default function HomeLayout() {
           name="ai-chat"
           options={{
             href: null, // Hide from tabs navigation
+          }}
+        />
+        <Tabs.Screen
+          name="referral"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="choose-courses"
+          options={{
+            href: null,
           }}
         />
       </Tabs>

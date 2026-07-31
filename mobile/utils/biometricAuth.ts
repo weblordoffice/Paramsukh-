@@ -122,9 +122,9 @@ export const storeTokenSecurely = async (token: string): Promise<void> => {
   try {
     await SecureStore.setItemAsync(SECURE_TOKEN_KEY, token);
   } catch (error) {
-    console.warn('[SECURITY] SecureStore unavailable — token stored in AsyncStorage (unencrypted)', error);
-    await AsyncStorage.setItem('token', token);
+    console.warn('[SECURITY] SecureStore set failed — falling back to AsyncStorage', error);
   }
+  await AsyncStorage.setItem('token', token);
 };
 
 /**
@@ -134,9 +134,9 @@ export const storeRefreshTokenSecurely = async (token: string): Promise<void> =>
   try {
     await SecureStore.setItemAsync(SECURE_REFRESH_KEY, token);
   } catch (error) {
-    console.warn('[SECURITY] SecureStore unavailable — refresh token stored in AsyncStorage (unencrypted)', error);
-    await AsyncStorage.setItem('refreshToken', token);
+    console.warn('[SECURITY] SecureStore set failed — falling back to AsyncStorage', error);
   }
+  await AsyncStorage.setItem('refreshToken', token);
 };
 
 /**
@@ -145,11 +145,11 @@ export const storeRefreshTokenSecurely = async (token: string): Promise<void> =>
 export const getTokenSecurely = async (): Promise<string | null> => {
   try {
     const token = await SecureStore.getItemAsync(SECURE_TOKEN_KEY);
-    return token;
+    if (token) return token;
   } catch (error) {
-    console.warn('[SECURITY] SecureStore unavailable — reading token from AsyncStorage (unencrypted)', error);
-    return await AsyncStorage.getItem('token');
+    console.warn('[SECURITY] SecureStore read failed', error);
   }
+  return await AsyncStorage.getItem('token');
 };
 
 /**
@@ -158,11 +158,11 @@ export const getTokenSecurely = async (): Promise<string | null> => {
 export const getRefreshTokenSecurely = async (): Promise<string | null> => {
   try {
     const token = await SecureStore.getItemAsync(SECURE_REFRESH_KEY);
-    return token;
+    if (token) return token;
   } catch (error) {
-    console.warn('[SECURITY] SecureStore unavailable — reading refresh token from AsyncStorage (unencrypted)', error);
-    return await AsyncStorage.getItem('refreshToken');
+    console.warn('[SECURITY] SecureStore read failed', error);
   }
+  return await AsyncStorage.getItem('refreshToken');
 };
 
 /**
@@ -174,6 +174,6 @@ export const clearSecureTokens = async (): Promise<void> => {
     await SecureStore.deleteItemAsync(SECURE_REFRESH_KEY);
   } catch (error) {
     console.warn('[SECURITY] SecureStore unavailable — attempting AsyncStorage token cleanup', error);
-    await AsyncStorage.multiRemove(['token', 'refreshToken']);
   }
+  await AsyncStorage.multiRemove(['token', 'refreshToken']);
 };

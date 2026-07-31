@@ -7,6 +7,7 @@ import Podcast from '../../models/podcast.model.js';
 import PodcastPurchase from '../../models/podcastPurchase.model.js';
 import { User } from '../../models/user.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
+import { recordTransaction } from '../../services/transaction.service.js';
 
 /**
  * Create payment link for podcast purchase
@@ -171,7 +172,6 @@ export const confirmPodcastPayment = async (req, res) => {
         });
 
         if (!purchase) {
-            // Create purchase record
             purchase = await PodcastPurchase.create({
                 userId,
                 podcastId,
@@ -179,6 +179,16 @@ export const confirmPodcastPayment = async (req, res) => {
                 orderId: paymentLinkId,
                 purchasedAt: new Date(),
             });
+
+            recordTransaction({
+              userId,
+              source: 'podcast',
+              sourceId: purchase._id.toString(),
+              amount: podcast.price || 0,
+              provider: 'razorpay',
+              providerRef: paymentId,
+              metadata: { podcastName: podcast.title, paymentId },
+            }).catch(err => console.error('Transaction recording failed:', err.message));
         }
 
         // Send notification
@@ -269,6 +279,16 @@ export const handlePodcastPaymentWebhook = async (req, res) => {
                         paymentId,
                         purchasedAt: new Date(),
                     });
+
+                    recordTransaction({
+                      userId,
+                      source: 'podcast',
+                      sourceId: purchase._id.toString(),
+                      amount: podcast?.price || 0,
+                      provider: 'razorpay',
+                      providerRef: paymentId,
+                      metadata: { podcastName: podcast?.title, paymentId },
+                    }).catch(err => console.error('Transaction recording failed:', err.message));
                 }
 
                 // Send notification

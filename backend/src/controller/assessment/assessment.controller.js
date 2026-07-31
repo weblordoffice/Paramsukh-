@@ -2,7 +2,10 @@ import Assessment from '../../models/assessment.models.js';
 import { User } from '../../models/user.models.js';
 import { Course } from '../../models/course.models.js';
 import { AppConfig } from '../../models/appConfig.models.js';
-import { generateRecommendationExplanation } from '../../services/chatProxy.service.js';
+import { generateBatchRecommendationExplanations } from '../../services/chatProxy.service.js';
+import { deriveCategoriesAndIssues, scoreCourse } from '../../services/recommendationScoring.service.js';
+import { Enrollment } from '../../models/enrollment.models.js';
+import { getUserEntitlementContext } from '../../services/entitlement.service.js';
 
 const LOCAL_FALLBACK_MAPPING = {
   physicalIssue: {
@@ -50,7 +53,7 @@ export const submitAssessment = async (req, res) => {
   try {
     const userId = req.user._id;
     const {
-      age,
+      birthDate,
       occupation,
       countryCode,
       countryName,
@@ -88,10 +91,10 @@ export const submitAssessment = async (req, res) => {
     const finalLocation = normalizedLocation || derivedLocation;
 
     // Validate required fields
-    if (!age || !occupation || !finalLocation) {
+    if (!birthDate || !occupation || !finalLocation) {
       return res.status(400).json({
         success: false,
-        message: 'Age, occupation, and location are required'
+        message: 'Birth date, occupation, and location are required'
       });
     }
 
@@ -115,7 +118,7 @@ export const submitAssessment = async (req, res) => {
 
     if (assessment) {
       // Update existing assessment
-      assessment.age = age;
+      assessment.birthDate = birthDate;
       assessment.occupation = occupation;
       assessment.countryCode = normalizedCountryCode;
       assessment.countryName = normalizedCountryName;
@@ -154,7 +157,7 @@ export const submitAssessment = async (req, res) => {
     // Create new assessment
     assessment = new Assessment({
       user: userId,
-      age,
+      birthDate,
       occupation,
       countryCode: normalizedCountryCode,
       countryName: normalizedCountryName,
@@ -237,7 +240,7 @@ export const getAssessment = async (req, res) => {
   }
 };
 
-// @desc    Get personalized recommendations
+// @desc    Get personalized recommendations (cached 30 min)
 // @route   GET /api/assessment/recommendations
 // @access  Private
 export const getRecommendations = async (req, res) => {
@@ -245,184 +248,83 @@ export const getRecommendations = async (req, res) => {
     const userId = req.user._id;
 
     const assessment = await Assessment.findOne({ user: userId });
-
     if (!assessment) {
-      return res.status(200).json({
-        success: true,
-        recommendations: [],
-        message: 'Assessment not completed yet.'
-      });
+      return res.status(200).json({ success: true, recommendations: [], message: 'Assessment not completed yet.' });
     }
 
-    const config = await AppConfig.findOne({ key: 'recommendation_mappings' });
-    const mappings = config ? config.value : LOCAL_FALLBACK_MAPPING;
-
-    const uniqueCategories = new Set();
-    const priorityTagSet = new Set();
-    const issues = [];
-    const checkKeys = [
-      'physicalIssue',
-      'specialDiseaseIssue',
-      'mentalHealthIssue',
-      'relationshipIssue',
-      'financialIssue',
-      'spiritualGrowth'
-    ];
-
-    for (const key of checkKeys) {
-      if (assessment[key] === true) {
-        const map = mappings[key] || LOCAL_FALLBACK_MAPPING[key];
-        if (map) {
-          uniqueCategories.add(map.category);
-          (map.secondaryCategories || []).forEach((c) => uniqueCategories.add(c));
-          (map.priorityTags || []).forEach((t) => priorityTagSet.add(t.toLowerCase()));
-          issues.push({
-            key,
-            category: map.category,
-            details: assessment[key + 'Details'] || '',
-            template: map.template,
-            priorityTags: (map.priorityTags || []).map((t) => t.toLowerCase())
-          });
-        }
-      }
+    const THIRTY_MIN = 30 * 60 * 1000;
+    if (req.user._cachedRecs && req.user._cachedRecsAt && (Date.now() - req.user._cachedRecsAt) < THIRTY_MIN) {
+      return res.status(200).json({ success: true, recommendations: req.user._cachedRecs, cached: true });
     }
 
-    // Contextual category boosting based on wellness scales
-    const { stressLevel = 5, sleepQuality = 5, energyLevel = 5, moodRating = 5, physicalActivityLevel = 'moderate' } = assessment;
+    const [config, enrolledCourses, userDoc] = await Promise.all([
+      AppConfig.findOne({ key: 'recommendation_mappings' }),
+      Enrollment.find({ userId }).select('courseId').lean(),
+      User.findById(userId).select('tags').lean(),
+    ]);
+    const mappings = (config && config.value) ? config.value : LOCAL_FALLBACK_MAPPING;
+    const enrolledCourseIds = new Set(enrolledCourses.map(e => String(e.courseId)));
 
-    if (stressLevel >= 7) {
-      uniqueCategories.add('mental');
-      uniqueCategories.add('spiritual');
+    const { categories, issues } = deriveCategoriesAndIssues(assessment, mappings);
+    if (categories.length === 0) categories.push('general');
+
+    let courses = await Course.find({ category: { $in: categories }, status: 'published' }).lean();
+    courses = courses.filter(c => !enrolledCourseIds.has(String(c._id)));
+
+    const userTags = (userDoc && userDoc.tags) ? userDoc.tags.map(t => t.toLowerCase()) : [];
+    const scored = courses.map(c => ({
+      ...c, _score: scoreCourse(c, { categories, issues, assessment, userTags }),
+    })).sort((a, b) => b._score - a._score);
+
+    const top10 = scored.slice(0, 10);
+
+    const batchPayload = {
+      courses: top10.map(c => ({
+        course_id: String(c._id),
+        course_title: c.title,
+        course_description: c.description || '',
+        issue_type: (issues.find(i => i.category === c.category) || issues[0] || {}).key || 'general',
+        issue_details: (issues.find(i => i.category === c.category) || {}).details || '',
+      })),
+      user_age: assessment.birthDate ? Math.floor((Date.now() - new Date(assessment.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : 30,
+      user_occupation: assessment.occupation || 'professional',
+      user_location: assessment.location || '',
+    };
+
+    let explanations = {};
+    try {
+      const batchRes = await generateBatchRecommendationExplanations(batchPayload);
+      explanations = batchRes.explanations || {};
+    } catch (err) {
+      console.warn('Batch AI explanations failed, using templates:', err.message);
     }
-    if (sleepQuality <= 4) {
-      uniqueCategories.add('spiritual');
-      uniqueCategories.add('mental');
-    }
-    if (energyLevel <= 4) {
-      uniqueCategories.add('physical');
-    }
-    if (moodRating <= 4) {
-      uniqueCategories.add('mental');
-      uniqueCategories.add('spiritual');
-    }
 
-    const categoryArray = [...uniqueCategories];
-    let courses = [];
-
-    if (categoryArray.length === 0) {
-      courses = await Course.find({ category: 'general', status: 'published' }).lean();
-    } else {
-      courses = await Course.find({ category: { $in: categoryArray }, status: 'published' }).lean();
-    }
-
-    // Score and rank courses based on profile match
-    const scoredCourses = courses.map((course) => {
-      let score = 0;
-
-      const courseTags = (course.tags || []).map((t) => t.toLowerCase());
-
-      const primaryIssueForCategory = issues.find((i) => i.category === course.category);
-      if (primaryIssueForCategory) {
-        score += 10; // Direct category match
-
-        // Tag matching
-        const matchingTags = primaryIssueForCategory.priorityTags.filter((pt) =>
-          courseTags.some((ct) => ct.includes(pt) || pt.includes(ct))
-        );
-        score += matchingTags.length * 4;
-      } else if (categoryArray.includes(course.category)) {
-        score += 6; // Secondary category match
+    const recommendations = top10.map(c => {
+      const aiExplanation = explanations[String(c._id)];
+      const relevantIssue = issues.find(i => i.category === c.category) || issues[0];
+      let explanation = aiExplanation || '';
+      if (!explanation && relevantIssue) {
+        explanation = (relevantIssue.template || 'This course matches your profile assessment goals.')
+          .replace(/\${occupation}/g, assessment.occupation || 'professional')
+          .replace(/\${age}/g, String(assessment.birthDate ? Math.floor((Date.now() - new Date(assessment.birthDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000)) : 'adult'));
       }
+      if (!explanation) explanation = 'This course aligns with your wellness profile.';
 
-      // Contextual boosts
-      if (stressLevel >= 7 && courseTags.some((t) => ['meditation', 'calm', 'relax', 'stress', 'mindfulness', 'breath'].some((k) => t.includes(k)))) {
-        score += 5;
-      }
-      if (sleepQuality <= 4 && courseTags.some((t) => ['sleep', 'relax', 'calm', 'rest', 'yoga nidra'].some((k) => t.includes(k)))) {
-        score += 5;
-      }
-      if (energyLevel <= 4 && courseTags.some((t) => ['energy', 'vitality', 'prana', 'breath'].some((k) => t.includes(k)))) {
-        score += 4;
-      }
-      if (moodRating <= 4 && courseTags.some((t) => ['mood', 'joy', 'happiness', 'gratitude', 'positive'].some((k) => t.includes(k)))) {
-        score += 4;
-      }
-
-      // Activity level matching
-      const beginnerIndicators = ['beginner', 'gentle', 'intro', 'foundation', 'basic'];
-      const advancedIndicators = ['advanced', 'intensive', 'challenging', 'power'];
-      if (physicalActivityLevel === 'sedentary' || physicalActivityLevel === 'light') {
-        if (courseTags.some((t) => beginnerIndicators.some((k) => t.includes(k)))) {
-          score += 4;
-        }
-      } else if (physicalActivityLevel === 'active' || physicalActivityLevel === 'very_active') {
-        if (courseTags.some((t) => advancedIndicators.some((k) => t.includes(k)))) {
-          score += 3;
-        }
-      }
-
-      // Age group awareness
-      const age = assessment.age || 30;
-      if (age > 50 && courseTags.some((t) => ['gentle', 'senior', 'restorative', 'chair'].some((k) => t.includes(k)))) {
-        score += 3;
-      }
-
-      return { ...course, _score: score };
+      const { _score, ...course } = c;
+      return { ...course, whyThisFits: explanation, recommendationScore: _score };
     });
 
-    scoredCourses.sort((a, b) => b._score - a._score);
-
-    const recommendations = [];
-    for (const course of scoredCourses) {
-      const relevantIssue = issues.find((i) => i.category === course.category) || issues[0];
-      let explanation = '';
-
-      if (relevantIssue) {
-        try {
-          const payload = {
-            course_title: course.title,
-            course_description: course.description || course.shortDescription || '',
-            issue_type: relevantIssue.key,
-            issue_details: relevantIssue.details || 'None provided',
-            user_age: assessment.age,
-            user_occupation: assessment.occupation,
-            user_location: assessment.location || ''
-          };
-          const aiRes = await generateRecommendationExplanation(payload);
-          if (aiRes && aiRes.explanation) {
-            explanation = aiRes.explanation;
-          }
-        } catch (err) {
-          console.warn(`AI explanation failed for course ${course.title}, using fallback template:`, err.message);
-        }
-
-        if (!explanation) {
-          explanation = relevantIssue.template || 'This course matches your profile assessment goals.';
-          explanation = explanation
-            .replace(/\${occupation}/g, assessment.occupation || 'professional')
-            .replace(/\${age}/g, String(assessment.age || 'adult'));
-        }
-      } else {
-        explanation = 'This course aligns with wellness principles and holistic health.';
-      }
-
-      recommendations.push({
-        ...course,
-        whyThisFits: explanation
+    try {
+      await User.findByIdAndUpdate(userId, {
+        _cachedRecs: recommendations,
+        _cachedRecsAt: new Date(),
       });
-    }
+    } catch (_) {}
 
-    return res.status(200).json({
-      success: true,
-      recommendations
-    });
+    return res.status(200).json({ success: true, recommendations });
   } catch (error) {
     console.error('Get Recommendations Error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to retrieve recommendations',
-      error: error.message
-    });
+    res.status(500).json({ success: false, message: 'Failed to retrieve recommendations', error: error.message });
   }
 };
 

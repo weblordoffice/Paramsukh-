@@ -1,11 +1,11 @@
 import { 
   uploadImage, 
-  uploadVideo, 
   uploadMultipleImages,
   uploadRawFile,
   deleteFile,
   isTestMode 
 } from '../../services/cloudinaryService.js';
+import { uploadVideo, deleteVideo, extractKeyFromUrl } from '../../services/r2Service.js';
 import fs from 'fs/promises';
 
 /**
@@ -26,7 +26,6 @@ export const uploadSingleImage = async (req, res) => {
     const folder = req.query.folder || 'general';
     const filename = req.file.originalname;
 
-    // Upload to Cloudinary (or mock in test mode)
     const result = await uploadImage(req.file.buffer, folder, filename);
 
     console.log(`✅ Image uploaded: ${result.url}`);
@@ -73,7 +72,6 @@ export const uploadImages = async (req, res) => {
     const folder = req.query.folder || 'general';
     const fileBuffers = req.files.map(file => file.buffer);
 
-    // Upload all images
     const results = await uploadMultipleImages(fileBuffers, folder);
 
     console.log(`✅ ${results.length} images uploaded`);
@@ -124,7 +122,6 @@ export const uploadProfilePhoto = async (req, res) => {
     const folder = 'profile-photos';
     const filename = `user_${userId}_${Date.now()}`;
 
-    // Upload to Cloudinary
     const result = await uploadImage(req.file.buffer, folder, filename);
 
     console.log(`✅ Profile photo uploaded for user ${userId}`);
@@ -150,7 +147,7 @@ export const uploadProfilePhoto = async (req, res) => {
 };
 
 /**
- * Upload video
+ * Upload video to R2
  * POST /api/upload/video
  * @multipart file: video file
  * @query folder: optional folder name
@@ -168,12 +165,11 @@ export const uploadVideoFile = async (req, res) => {
     const folder = req.query.folder || 'videos';
     const filename = req.file.originalname;
 
-    // Upload to Cloudinary (use tmp file path for large uploads; buffer only as fallback)
     const result = await uploadVideo(tmpPath || req.file.buffer, folder, filename);
 
     const url = result?.url;
     if (!url) {
-      console.error('❌ Upload succeeded but no URL in result:', result);
+      console.error(' Upload succeeded but no URL in result:', result);
       return res.status(500).json({
         success: false,
         message: 'Video upload did not return a URL',
@@ -181,19 +177,15 @@ export const uploadVideoFile = async (req, res) => {
       });
     }
 
-    console.log(`✅ Video uploaded: ${url}`);
+    console.log(` Video uploaded: ${url}`);
 
     return res.status(200).json({
       success: true,
       message: 'Video uploaded successfully',
       data: {
         url,
-        publicId: result.publicId,
-        duration: result.duration,
-        width: result.width,
-        height: result.height,
+        key: result.key,
         size: result.bytes,
-        format: result.format,
         testMode: result.testMode || false
       }
     });
@@ -206,7 +198,6 @@ export const uploadVideoFile = async (req, res) => {
       error: error.message
     });
   } finally {
-    // Cleanup tmp file if we used disk storage
     if (tmpPath) {
       try { await fs.unlink(tmpPath); } catch {}
     }
@@ -214,7 +205,7 @@ export const uploadVideoFile = async (req, res) => {
 };
 
 /**
- * Upload PDF file
+ * Upload PDF file (Cloudinary)
  * POST /api/upload/pdf
  * @multipart file: PDF file
  * @query folder: optional folder name (default: pdfs)
@@ -254,7 +245,7 @@ export const uploadPdfFile = async (req, res) => {
 };
 
 /**
- * Upload product images
+ * Upload product images (Cloudinary)
  * POST /api/upload/product-images
  * @multipart files: array of product image files
  */
@@ -279,7 +270,7 @@ export const uploadProductImages = async (req, res) => {
         images: results.map((result, index) => ({
           url: result.url,
           publicId: result.publicId,
-          isPrimary: index === 0, // First image is primary
+          isPrimary: index === 0,
           alt: `Product image ${index + 1}`
         })),
         testMode: results[0]?.testMode || false
@@ -297,7 +288,7 @@ export const uploadProductImages = async (req, res) => {
 };
 
 /**
- * Upload course thumbnail/banner
+ * Upload course thumbnail/banner (Cloudinary)
  * POST /api/upload/course-media
  * @multipart file: image file
  * @query type: thumbnail or banner
@@ -311,7 +302,7 @@ export const uploadCourseMedia = async (req, res) => {
       });
     }
 
-    const type = req.query.type || 'thumbnail'; // thumbnail or banner
+    const type = req.query.type || 'thumbnail';
     const folder = `courses/${type}s`;
     const filename = `course_${type}_${Date.now()}`;
 
@@ -341,12 +332,26 @@ export const uploadCourseMedia = async (req, res) => {
 /**
  * Delete uploaded file
  * DELETE /api/upload/delete
- * @body publicId: Cloudinary public ID
+ * @body publicId: Cloudinary public ID (images/PDFs)
+ * @body key: R2 key (videos)
  * @body resourceType: image or video
  */
 export const deleteUploadedFile = async (req, res) => {
   try {
-    const { publicId, resourceType = 'image' } = req.body;
+    const { publicId, key, resourceType = 'image' } = req.body;
+
+    if (resourceType === 'video') {
+      const deleteKey = key || extractKeyFromUrl(req.body.url) || publicId;
+      if (!deleteKey) {
+        return res.status(400).json({ success: false, message: 'Video key or URL is required' });
+      }
+      const result = await deleteVideo(deleteKey);
+      return res.status(200).json({
+        success: true,
+        message: 'Video deleted successfully',
+        data: result
+      });
+    }
 
     if (!publicId) {
       return res.status(400).json({
@@ -374,7 +379,7 @@ export const deleteUploadedFile = async (req, res) => {
 };
 
 /**
- * Get upload status (test mode or production)
+ * Get upload status
  * GET /api/upload/status
  */
 export const getUploadStatus = async (req, res) => {
@@ -385,7 +390,7 @@ export const getUploadStatus = async (req, res) => {
         testMode: isTestMode(),
         message: isTestMode() 
           ? 'Running in TEST MODE - uploads are mocked' 
-          : 'Running in PRODUCTION MODE - uploads go to Cloudinary',
+          : 'Running in PRODUCTION MODE - images → Cloudinary, videos → Cloudflare R2',
         cloudName: process.env.CLOUDINARY_CLOUD_NAME || 'test-cloud'
       }
     });

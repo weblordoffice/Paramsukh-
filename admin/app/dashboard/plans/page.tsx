@@ -7,6 +7,15 @@ import { apiClient } from "@/lib/api/client";
 
 type PlanStatus = "draft" | "published" | "archived";
 type AccessMode = "entitlement_only" | "auto_enroll" | "hybrid";
+type EligibleCoursesMode = "all_published" | "specific" | "categories";
+
+interface CourseSelection {
+  enabled: boolean;
+  maxSelectableCourses: number;
+  eligibleCoursesMode: EligibleCoursesMode;
+  eligibleCourseIds: string[];
+  eligibleCategories: string[];
+}
 
 interface PlanVariant {
   _id?: string;
@@ -51,6 +60,7 @@ interface MembershipPlan {
     communityAccess?: boolean;
     counselingAccess?: boolean;
     eventAccess?: boolean;
+    courseSelection?: CourseSelection;
   };
   metadata?: {
     badgeColor?: string;
@@ -79,6 +89,11 @@ interface PlanFormState {
   popular: boolean;
   planVariantsEnabled: boolean;
   planVariants: PlanVariant[];
+  courseSelectionEnabled: boolean;
+  maxSelectableCourses: number;
+  eligibleCoursesMode: EligibleCoursesMode;
+  eligibleCourseIds: string[];
+  eligibleCategoriesText: string;
 }
 
 type FormErrors = Partial<Record<
@@ -110,6 +125,11 @@ const DEFAULT_FORM: PlanFormState = {
   popular: false,
   planVariantsEnabled: false,
   planVariants: [],
+  courseSelectionEnabled: false,
+  maxSelectableCourses: 3,
+  eligibleCoursesMode: "all_published",
+  eligibleCourseIds: [],
+  eligibleCategoriesText: "",
 };
 
 const toSlug = (value: string) => {
@@ -140,6 +160,17 @@ const createDefaultVariant = (displayOrder = 0): PlanVariant => ({
   },
 });
 
+const parseListInput = (value: string) => {
+  return Array.from(
+    new Set(
+      String(value || "")
+        .split(",")
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean)
+    )
+  );
+};
+
 export default function MembershipPlansPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -151,6 +182,7 @@ export default function MembershipPlansPage() {
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const [planUsage, setPlanUsage] = useState<Record<string, number>>({});
   const hasInitializedSelection = useRef(false);
+  const [allCourses, setAllCourses] = useState<{ _id: string; title: string }[]>([]);
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan._id === selectedPlanId) || null,
@@ -217,6 +249,7 @@ export default function MembershipPlansPage() {
   useEffect(() => {
     loadPlans();
     loadPlanUsage();
+    fetchAllCourses();
   }, [loadPlans, loadPlanUsage]);
 
   useEffect(() => {
@@ -264,8 +297,23 @@ export default function MembershipPlansPage() {
             },
           }))
         : [],
+      courseSelectionEnabled: !!selectedPlan.access?.courseSelection?.enabled,
+      maxSelectableCourses: selectedPlan.access?.courseSelection?.maxSelectableCourses ?? 3,
+      eligibleCoursesMode: selectedPlan.access?.courseSelection?.eligibleCoursesMode || "all_published",
+      eligibleCourseIds: (selectedPlan.access?.courseSelection?.eligibleCourseIds || []).map((id) => String(id)),
+      eligibleCategoriesText: (selectedPlan.access?.courseSelection?.eligibleCategories || []).join(", "),
     });
   }, [selectedPlan]);
+
+  const fetchAllCourses = useCallback(async () => {
+    try {
+      const response = await apiClient.get("/api/courses/all");
+      const courses = response.data?.courses || [];
+      setAllCourses(courses.map((c: any) => ({ _id: c._id, title: c.title })));
+    } catch {
+      // non-critical
+    }
+  }, []);
 
   const handleCreateNew = () => {
     setSelectedPlanId(null);
@@ -442,6 +490,17 @@ export default function MembershipPlansPage() {
         communityAccess: form.communityAccess,
         counselingAccess: form.counselingAccess,
         eventAccess: form.eventAccess,
+        courseSelection: {
+          enabled: form.courseSelectionEnabled,
+          maxSelectableCourses: Number(form.maxSelectableCourses || 3),
+          eligibleCoursesMode: form.eligibleCoursesMode,
+          eligibleCourseIds: form.eligibleCoursesMode === "specific"
+            ? (form.eligibleCourseIds || []).filter(Boolean)
+            : [],
+          eligibleCategories: form.eligibleCoursesMode === "categories"
+            ? parseListInput(form.eligibleCategoriesText)
+            : [],
+        },
       },
       metadata: {
         badgeColor: form.badgeColor,
@@ -630,6 +689,11 @@ export default function MembershipPlansPage() {
                 <p className="text-xs text-gray-500 mt-1">slug: {plan.slug}</p>
                 <p className="text-sm text-gray-700 mt-2">₹{(plan.pricing?.oneTime?.amount || 0).toLocaleString("en-IN")}</p>
                 <p className="text-xs text-gray-500 mt-1">Users: {planUsage[plan.slug] || 0}</p>
+                {plan.access?.courseSelection?.enabled && (
+                  <p className="text-xs text-teal-600 mt-0.5 font-medium">
+                    Course Selection: {plan.access.courseSelection.maxSelectableCourses} credits
+                  </p>
+                )}
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     onClick={(event) => {
@@ -996,6 +1060,111 @@ export default function MembershipPlansPage() {
                 Event Access
               </label>
             </div>
+
+            <div className="border-t pt-4 mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-gray-900">Course Selection (Credit-Based)</h4>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={form.courseSelectionEnabled}
+                    onChange={(event) => updateField("courseSelectionEnabled", event.target.checked)}
+                  />
+                  Enable Course Selection
+                </label>
+              </div>
+              <p className="text-xs text-gray-500 mb-4">
+                When enabled, users on this plan get limited credits to pick specific courses rather than accessing all courses.
+              </p>
+
+              <div
+                className="space-y-4 transition-opacity duration-200"
+                style={{
+                  opacity: form.courseSelectionEnabled ? 1 : 0.5,
+                  pointerEvents: form.courseSelectionEnabled ? "auto" : "none",
+                }}
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Max Selectable Courses (Credits)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={form.maxSelectableCourses}
+                      onChange={(event) => updateField("maxSelectableCourses", Number(event.target.value || 1))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">How many courses the user can pick</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Eligible Courses Mode
+                    </label>
+                    <select
+                      value={form.eligibleCoursesMode}
+                      onChange={(event) => setForm((prev) => ({ ...prev, eligibleCoursesMode: event.target.value as EligibleCoursesMode }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    >
+                      <option value="all_published">All Published Courses</option>
+                      <option value="specific">Specific Courses</option>
+                      <option value="categories">By Categories</option>
+                    </select>
+                  </div>
+                </div>
+
+                {form.eligibleCoursesMode === "specific" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select Eligible Courses
+                    </label>
+                    <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 space-y-1.5">
+                      {allCourses.length === 0 ? (
+                        <p className="text-sm text-gray-500">No courses found.</p>
+                      ) : (
+                        allCourses.map((course) => (
+                          <label key={course._id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
+                            <input
+                              type="checkbox"
+                              checked={form.eligibleCourseIds.includes(course._id)}
+                              onChange={(event) => {
+                                const checked = event.target.checked;
+                                setForm((prev) => ({
+                                  ...prev,
+                                  eligibleCourseIds: checked
+                                    ? Array.from(new Set([...prev.eligibleCourseIds, course._id]))
+                                    : prev.eligibleCourseIds.filter((id) => id !== course._id),
+                                }));
+                              }}
+                            />
+                            <span className="truncate">{course.title}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Selected: {form.eligibleCourseIds.length} course(s)
+                    </p>
+                  </div>
+                )}
+
+                {form.eligibleCoursesMode === "categories" && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Eligible Categories
+                    </label>
+                    <input
+                      value={form.eligibleCategoriesText}
+                      onChange={(event) => setForm((prev) => ({ ...prev, eligibleCategoriesText: event.target.value }))}
+                      placeholder="physical, mental, financial"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Comma-separated category names</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="border border-gray-200 rounded-lg p-4 space-y-4">
@@ -1058,6 +1227,11 @@ export default function MembershipPlansPage() {
                 {form.communityAccess && <span className="px-2 py-1 rounded bg-green-50 text-green-700">Community</span>}
                 {form.counselingAccess && <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700">Counseling</span>}
                 {form.eventAccess && <span className="px-2 py-1 rounded bg-orange-50 text-orange-700">Events</span>}
+                {form.courseSelectionEnabled && (
+                  <span className="px-2 py-1 rounded bg-teal-50 text-teal-700">
+                    Course Selection ({form.maxSelectableCourses} credits, {form.eligibleCoursesMode})
+                  </span>
+                )}
               </div>
             </div>
             {(selectedPlan && selectedPlan.status === "published" && ["draft", "archived"].includes(form.status) && (planUsage[selectedPlan.slug] || 0) > 0) && (

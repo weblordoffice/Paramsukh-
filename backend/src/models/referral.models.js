@@ -1,31 +1,15 @@
 import mongoose from 'mongoose';
 
 const referralSchema = new mongoose.Schema({
-  referrer: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-    index: true
+  referrer:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  referredUser: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true, index: true },
+  referralCode: { type: String, required: true },
+  metadata: {
+    ip:         { type: String },
+    userAgent:  { type: String },
+    channel:    { type: String, enum: ['app', 'web', 'link', 'unknown'], default: 'unknown' },
   },
-  referredUser: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true,
-    unique: true,
-    index: true
-  },
-  status: {
-    type: String,
-    enum: ['joined', 'completed'],
-    default: 'joined'
-  },
-  rewardApplied: {
-    type: Boolean,
-    default: false
-  }
-}, {
-  timestamps: true
-});
+}, { timestamps: true });
 
 export const Referral = mongoose.model('Referral', referralSchema);
 export default Referral;

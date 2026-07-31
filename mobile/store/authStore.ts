@@ -25,6 +25,9 @@ interface User {
   authProvider: 'google' | 'phone' | 'clerk';
   subscriptionPlan: string;
   subscriptionStatus: string;
+  assessmentCompleted?: boolean;
+  assessmentCompletedAt?: string | null;
+  onboardingCompleted?: boolean;
 }
 
 interface AuthState {
@@ -43,7 +46,7 @@ interface AuthState {
   logoutWithBiometric: () => Promise<{ success: boolean; message?: string }>;
   loadUser: () => Promise<void>;
   fetchCurrentUser: () => Promise<{ success: boolean; user?: User }>;
-  refreshAuth: () => Promise<void>;
+  refreshAuth: () => Promise<boolean>;
   checkBiometricAvailability: () => Promise<boolean>;
   enableBiometric: () => Promise<boolean>;
   disableBiometric: () => Promise<void>;
@@ -64,6 +67,12 @@ const getAuthHeaders = async (token?: string | null, revokeDeviceId?: string) =>
     headers['x-revoke-device-id'] = revokeDeviceId;
   }
   return headers;
+};
+
+let clerkSignOutRef: (() => Promise<void>) | null = null;
+
+export const setClerkSignOut = (fn: () => Promise<void>) => {
+  clerkSignOutRef = fn;
 };
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -88,12 +97,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (clerkData.clerkToken) {
         headers.Authorization = `Bearer ${clerkData.clerkToken}`;
       }
+      console.log('[syncClerkUser] POST /auth/clerk-sync — email:', clerkData.email);
       const response = await axios.post(`${API_URL}/auth/clerk-sync`, clerkData, { headers });
 
       if (response.data?.success) {
         const user = response.data?.user;
         const token = response.data?.token;
         const refreshToken = response.data?.refreshToken;
+
+        if (__DEV__) console.log('[syncClerkUser] SUCCESS — phone:', user.phone, 'email:', user.email);
         
         await AsyncStorage.setItem('user', JSON.stringify(user));
         await storeTokenSecurely(token);
@@ -109,6 +121,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { success: false, message: response.data?.message };
     } catch (error: any) {
       const data = error.response?.data;
+      if (__DEV__) console.error('[syncClerkUser] error —', error.response?.status, data?.message);
       if (data?.deviceLimitExceeded || data?.cooldown) {
         set({ isLoading: false });
         return {
@@ -263,7 +276,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         await axios.post(`${API_URL}/auth/logout`, {}, { headers });
       }
     } finally {
-      // Always clear local auth state so stale sessions cannot survive a failed logout call.
+      if (clerkSignOutRef) {
+        try { await clerkSignOutRef(); } catch (_) {}
+      }
       await clearSecureTokens();
       await AsyncStorage.multiRemove(['token', 'refreshToken', 'user', 'assessment_completed']);
       set({ user: null, token: null, refreshToken: null });
@@ -304,7 +319,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const biometricEnabled = await isBiometricAvailable();
 
       if (userStr && !token) {
-        // A cached user without a token is a broken session; clear it instead of treating it as logged in.
+        if (__DEV__) console.warn('[loadUser] broken session — clearing');
         await clearSecureTokens();
         await AsyncStorage.multiRemove(['token', 'refreshToken', 'user', 'assessment_completed']);
         set({ user: null, token: null, refreshToken: null, biometricEnabled });
@@ -312,8 +327,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       if (userStr && token) {
+        const parsed = JSON.parse(userStr);
+        if (__DEV__) console.log('[loadUser] session restored — phone:', parsed.phone);
         set({
-          user: JSON.parse(userStr),
+          user: parsed,
           token,
           refreshToken,
           biometricEnabled
@@ -323,6 +340,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({ user: null, token: null, refreshToken: null, biometricEnabled });
     } catch (error) {
+      if (__DEV__) console.error('[loadUser] error:', error);
       set({ user: null, token: null, refreshToken: null, biometricEnabled: false });
     }
   },
@@ -339,46 +357,64 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (response.data?.success) {
         const user = response.data?.user;
-        
-        // Update AsyncStorage with fresh user data
+
         await AsyncStorage.setItem('user', JSON.stringify(user));
-        
-        // Sync assessment completion status from server
+
         if (user.assessmentCompleted) {
           await AsyncStorage.setItem('assessment_completed', 'true');
         } else {
           await AsyncStorage.removeItem('assessment_completed');
         }
-        
+
         set({ user, token, refreshToken: await getRefreshTokenSecurely() });
         return { success: true, user };
       }
-      
+
       return { success: false };
     } catch (error: any) {
-      // 401/400/403 = invalid or bad auth - clear local data and treat as logged out
       const status = error.response?.status;
+      if (status === 401) {
+        const refreshed = await get().refreshAuth();
+        if (refreshed) {
+          const newToken = await getTokenSecurely();
+          if (newToken) {
+            try {
+              const headers = await getAuthHeaders(newToken);
+              const response = await axios.get(`${API_URL}/auth/me`, { headers });
+              if (response.data?.success) {
+                const user = response.data?.user;
+                await AsyncStorage.setItem('user', JSON.stringify(user));
+                if (user.assessmentCompleted) {
+                  await AsyncStorage.setItem('assessment_completed', 'true');
+                }
+                set({ user, token: newToken, refreshToken: await getRefreshTokenSecurely() });
+                return { success: true, user };
+              }
+            } catch (_) {}
+          }
+        }
+      }
       if (status === 401 || status === 400 || status === 403) {
         await clearSecureTokens();
         await AsyncStorage.multiRemove(['user', 'assessment_completed']);
         set({ user: null, token: null, refreshToken: null });
       }
-      
+
       return { success: false };
     }
   },
 
   refreshAuth: async () => {
-    const refreshToken = get().refreshToken;
-    if (!refreshToken) {
-      return;
+    const currentRefreshToken = await getRefreshTokenSecurely();
+    if (!currentRefreshToken) {
+      return false;
     }
 
     try {
       set({ isLoading: true });
       const headers = await getAuthHeaders();
       const response = await axios.post(`${API_URL}/auth/refresh-token`, {
-        refreshToken
+        refreshToken: currentRefreshToken
       }, { headers });
 
       if (response.data?.success) {
@@ -389,12 +425,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         if (newRefreshToken) {
           await storeRefreshTokenSecurely(newRefreshToken);
         }
-        set({ token, refreshToken: newRefreshToken || refreshToken, isLoading: false });
+        set({ token, refreshToken: newRefreshToken || currentRefreshToken, isLoading: false });
+        return true;
       }
+      set({ isLoading: false });
+      return false;
     } catch (error) {
-        // On refresh failure, logout user
         await get().logout();
         set({ isLoading: false });
+        return false;
       }
   },
 

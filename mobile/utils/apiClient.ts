@@ -57,7 +57,8 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
-      if (error.response.data?.code === 'SESSION_REVOKED') {
+      const code = error.response.data?.code;
+      if (code === 'SESSION_REVOKED' || code === 'TOKEN_REPLAY' || code === 'TOKEN_STALE' || code === 'TOKEN_DEVICE_MISMATCH') {
         await clearSecureTokens();
         await AsyncStorage.multiRemove(['token', 'refreshToken', 'user', 'assessment_completed']);
         useAuthStore.setState({ user: null, token: null, refreshToken: null });
@@ -83,8 +84,16 @@ apiClient.interceptors.response.use(
           throw new Error('No refresh token available');
         }
 
+        const device = await getDeviceDetailsMobile();
         const response = await axios.post(`${API_URL}/auth/refresh-token`, {
           refreshToken,
+        }, {
+          headers: {
+            'x-device-id': device.deviceId,
+            'x-device-name': device.deviceName,
+            'x-device-os': device.os,
+            'x-device-browser': device.browser,
+          }
         });
 
         if (response.data?.success) {

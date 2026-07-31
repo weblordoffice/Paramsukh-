@@ -3,25 +3,29 @@ import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 dotenv.config();
 
+const ACCESS_EXPIRY = '15m';
+const ACCESS_MS = 15 * 60 * 1000;
 
-export const generateTokens = (userId, res) => {
+export const generateTokens = (userId, deviceId, tokenVersion, res) => {
     try {
-        const token = jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
-        
-        // Always set cookie for browser clients
+        const token = jwt.sign(
+            { id: userId, deviceId, v: tokenVersion },
+            process.env.JWT_SECRET,
+            { expiresIn: ACCESS_EXPIRY }
+        );
+
         if (res) {
             res.cookie('token', token, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: 'lax',
-                maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+                maxAge: ACCESS_MS
             });
         }
-        
-        // Always return token for API clients (Postman, mobile apps, etc.)
+
         return token;
     } catch (error) {
-        console.error("❌ Error generating tokens:", error);
+        console.error("Error generating tokens:", error);
         throw new Error("Token generation failed");
     }
 }

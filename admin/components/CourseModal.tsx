@@ -18,7 +18,6 @@ interface Course {
     title: string;
     description: string;
     color: string;
-    icon: string;
     thumbnailUrl: string;
     bannerUrl: string;
     duration: number;
@@ -42,7 +41,6 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
         title: '',
         description: '',
         color: '#000000',
-        icon: '',
         thumbnailUrl: '',
         bannerUrl: '',
         duration: '', // Changed to string for input
@@ -90,7 +88,6 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                 title: '',
                 description: '',
                 color: '#000000',
-                icon: '',
                 thumbnailUrl: '',
                 bannerUrl: '',
                 duration: '',
@@ -189,13 +186,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
         const toastId = toast.loading('Uploading image...');
 
         try {
-            // Explicitly unsetting Content-Type (or setting to undefined which axios handles)
-            // allows the browser to set the correct multipart/form-data header with boundary.
-            const response = await apiClient.post(`/api/upload/course-media?type=${type}`, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                }
-            });
+            const response = await apiClient.post(`/api/upload/course-media?type=${type}`, formData);
 
             if (response.data.success) {
                 setFormData((prev: Course) => ({
@@ -263,51 +254,19 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Color */}
                         <div>
                             <label className="block text-sm font-medium text-secondary mb-2">
-                                Color (Hex) *
-                            </label>
-                            <div className="flex items-center space-x-2">
-                                <input
-                                    type="color"
-                                    name="color"
-                                    value={formData.color}
-                                    onChange={handleChange}
-                                    className="h-12 w-12 border border-gray-300 rounded-lg cursor-pointer"
-                                    required
-                                />
-                                <input
-                                    type="text"
-                                    name="color"
-                                    value={formData.color}
-                                    onChange={handleChange}
-                                    className="flex-1 px-4 py-3 border border-gray-300 rounded-lg outline-none uppercase text-black"
-                                    placeholder="#000000"
-                                    pattern="^#[0-9A-Fa-f]{6}$"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        {/* Icon */}
-                        <div>
-                            <label className="block text-sm font-medium text-secondary mb-2">
-                                Icon (URL or Name) *
+                                Color
                             </label>
                             <input
-                                type="text"
-                                name="icon"
-                                value={formData.icon}
+                                type="color"
+                                name="color"
+                                value={formData.color}
                                 onChange={handleChange}
-                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-black"
-                                placeholder="e.g., code, book, or URL"
-                                required
+                                className="h-12 w-full border border-gray-300 rounded-lg cursor-pointer"
                             />
                         </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Duration */}
                         <div>
                             <label className="block text-sm font-medium text-secondary mb-2">

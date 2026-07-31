@@ -217,7 +217,6 @@ groupSchema.index(
     },
   }
 ); // Prevent duplicate plan-level parent groups
-groupSchema.index({ parentGroupId: 1 }); // Efficient child lookups
 groupMemberSchema.index({ groupId: 1, userId: 1 }, { unique: true });
 groupMemberSchema.index({ userId: 1 });
 postSchema.index({ groupId: 1, createdAt: -1 });

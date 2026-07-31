@@ -3,6 +3,8 @@ import { Event } from '../../models/event.models.js';
 import { User } from '../../models/user.models.js';
 import { createRazorpayOrder, createRazorpayPaymentLink, verifyRazorpaySignature, fetchPaymentDetails, fetchPaymentLink, isRazorpayTestMode } from '../../services/razorpayService.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
+import { recordTransaction } from '../../services/transaction.service.js';
+import { sendEventRegistrationEmail } from '../../services/emailService.js';
 
 const syncEventAttendeeCount = async (eventOrId) => {
   const event = typeof eventOrId?.updateAttendeeCount === 'function'
@@ -644,6 +646,16 @@ export const confirmEventPayment = async (req, res) => {
       ? paymentDetails.amount / 100
       : registration.paymentAmount;
 
+    recordTransaction({
+      userId,
+      source: 'event',
+      sourceId: registration._id.toString(),
+      amount: amountInRupees,
+      provider: 'razorpay',
+      providerRef: razorpay_payment_id,
+      metadata: { eventName: event?.title, orderId: razorpay_order_id, paymentId: razorpay_payment_id },
+    }).catch(err => console.error('Transaction recording failed:', err.message));
+
     const user = await User.findById(userId).select('payments');
     if (user) {
       user.payments = user.payments || [];
@@ -656,6 +668,8 @@ export const confirmEventPayment = async (req, res) => {
         date: new Date()
       });
       await user.save();
+
+      sendEventRegistrationEmail(user, event?.title, amountInRupees);
     }
 
     await syncEventAttendeeCount(eventId);
@@ -828,6 +842,17 @@ export const confirmEventPaymentByLink = async (req, res) => {
     await registration.save();
 
     const event = await Event.findById(eventId).select('title');
+
+    recordTransaction({
+      userId,
+      source: 'event',
+      sourceId: registration._id.toString(),
+      amount: registration.paymentAmount,
+      provider: 'razorpay',
+      providerRef: registration.paymentId,
+      metadata: { eventName: event?.title, orderId: paymentLinkId, paymentId: registration.paymentId },
+    }).catch(err => console.error('Transaction recording failed:', err.message));
+
     const user = await User.findById(userId).select('payments');
     if (user) {
       user.payments = user.payments || [];
@@ -840,6 +865,8 @@ export const confirmEventPaymentByLink = async (req, res) => {
         date: new Date(),
       });
       await user.save();
+
+      sendEventRegistrationEmail(user, event?.title, registration.paymentAmount);
     }
     await syncEventAttendeeCount(eventId);
 

@@ -171,9 +171,7 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
 
             // Track upload progress
             const response = await apiClient.post(endpoint, formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data',
-                },
+                timeout: 30 * 60 * 1000, // 30 min for large video uploads
                 onUploadProgress: (progressEvent) => {
                     if (progressEvent.total) {
                         const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);

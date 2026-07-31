@@ -78,7 +78,7 @@ export default function SettingsScreen() {
       // Silently handle load errors (e.g. offline)
     } finally {
       if (isMountedRef.current) setLoading(false);
-    }
+    }           
   };
 
   const saveSettings = async (newSettings: UserSettings) => {
@@ -96,7 +96,7 @@ export default function SettingsScreen() {
           emailNotifications: newSettings.emailNotifications,
           autoPlay: newSettings.autoPlay,
           dataSaver: newSettings.dataSaver,
-        },
+        },          
       );
     } catch (error) {
       // Silently fail - local storage already saved
@@ -147,12 +147,12 @@ export default function SettingsScreen() {
         {
           text: 'Logout',
           style: 'destructive',
-          onPress: async () => {
+          onPress: async () => {   
             await useAuthStore.getState().logout();
             router.replace('/signin');
           },
         },
-      ]
+      ]       
     );
   };
 
@@ -176,7 +176,7 @@ export default function SettingsScreen() {
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' }}>
         <TouchableOpacity onPress={navigateBack} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', justifyContent: 'center', alignItems: 'center' }}>
           <Ionicons name="arrow-back" size={24} color="#111827" />
-        </TouchableOpacity>
+        </TouchableOpacity>     
         <Text style={{ fontSize: 20, fontWeight: '700', color: '#111827' }}>Settings</Text>
         <View style={{ width: 40 }} />
       </View>
@@ -189,7 +189,7 @@ export default function SettingsScreen() {
             <Text style={{ fontSize: 14, color: '#6B7280' }}>Saving...</Text>
           </View>
         )}
-
+        
         {/* Notifications Section */}
         <View style={{ marginBottom: 24 }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 12 }}>Notifications</Text>
@@ -213,7 +213,7 @@ export default function SettingsScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 8, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
               <Ionicons name="mail-outline" size={24} color="#3B82F6" />
-              <View style={{ marginLeft: 12, flex: 1 }}>
+              <View style={{ marginLeft: 12, flex: 1 }}> 
                 <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827' }}>Email Notifications</Text>
                 <Text style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>Receive email updates</Text>
               </View>
@@ -288,7 +288,7 @@ export default function SettingsScreen() {
         {/* Account Section */}
         <View style={{ marginBottom: 24 }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: '#111827', marginBottom: 12 }}>Account</Text>
-          
+            
           <TouchableOpacity 
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 8, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
             onPress={() => router.push('/profile-menu')}
@@ -299,7 +299,7 @@ export default function SettingsScreen() {
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
-
+                   
           <TouchableOpacity 
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 8, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
             onPress={() => router.push('/(home)/devices')}
@@ -307,7 +307,7 @@ export default function SettingsScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
               <Ionicons name="phone-portrait-outline" size={24} color="#3B82F6" />
               <Text style={{ fontSize: 16, fontWeight: '600', color: '#111827', marginLeft: 12 }}>Active Devices</Text>
-            </View>
+            </View>  
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
 

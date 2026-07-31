@@ -100,8 +100,8 @@ export default function AssessmentModal({ isOpen, onClose, assessment, userName 
                                         <Calendar className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Age</p>
-                                        <p className="font-semibold text-gray-900">{assessment.age} years</p>
+                                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Birth Date</p>
+                                        <p className="font-semibold text-gray-900">{assessment.birthDate ? new Date(assessment.birthDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not provided'}</p>
                                     </div>
                                 </div>
                                 <div className="p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-center gap-3">

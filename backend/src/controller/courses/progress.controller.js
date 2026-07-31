@@ -1,5 +1,6 @@
 import { Enrollment } from '../../models/enrollment.models.js';
 import { Course } from '../../models/course.models.js';
+import { handleCourseCompletion } from '../../services/courseCompletion.service.js';
 
 /**
  * Update video progress for a user's enrollment
@@ -10,7 +11,6 @@ export const markVideoComplete = async (req, res) => {
         const { courseId, videoId } = req.params;
         const userId = req.user._id;
 
-        // Find the enrollment
         const enrollment = await Enrollment.findOne({ userId, courseId });
 
         if (!enrollment) {
@@ -20,7 +20,6 @@ export const markVideoComplete = async (req, res) => {
             });
         }
 
-        // Find the course to get total videos and PDFs
         const course = await Course.findById(courseId);
         if (!course) {
             return res.status(404).json({
@@ -29,11 +28,18 @@ export const markVideoComplete = async (req, res) => {
             });
         }
 
-        // Mark video as complete
+        const belongsToCourse = Array.isArray(course.videos) &&
+            course.videos.some(v => String(v._id) === String(videoId));
+        if (!belongsToCourse) {
+            return res.status(400).json({
+                success: false,
+                message: 'Video not found in this course'
+            });
+        }
+
         enrollment.markVideoComplete(videoId);
 
-        // Update current video to next one
-        const currentVideoIndex = course.videos.findIndex(v => v._id.toString() === videoId);
+        const currentVideoIndex = course.videos.findIndex(v => String(v._id) === String(videoId));
         if (currentVideoIndex !== -1 && currentVideoIndex < course.videos.length - 1) {
             enrollment.currentVideoIndex = currentVideoIndex + 1;
             enrollment.currentVideoId = course.videos[currentVideoIndex + 1]._id;
@@ -42,41 +48,21 @@ export const markVideoComplete = async (req, res) => {
         }
         enrollment.lastAccessedAt = new Date();
 
-        // Recalculate progress
-        const totalVideos = course.videos.length;
-        const totalPdfs = course.pdfs.length;
-        enrollment.updateProgress(totalVideos, totalPdfs);
+        enrollment.updateProgress(course.videos.length, course.pdfs ? course.pdfs.length : 0);
 
         await enrollment.save();
 
-        // Update course completion count if completed
         if (enrollment.isCompleted) {
-            course.completionCount = (course.completionCount || 0) + 1;
-            await course.save();
-
-            // Automatically generate certificate
-            try {
-                const { generateCertificateRecord } = await import('../../services/certificate.service.js');
-                await generateCertificateRecord(userId, courseId);
-            } catch (certError) {
-                console.error('❌ Failed to generate certificate on course completion:', certError);
-            }
-
-            // Process referral rewards if this user was referred by someone
-            try {
-                const { processReferralMilestone } = await import('../../services/referralRewardProcessor.js');
-                await processReferralMilestone(userId);
-            } catch (refError) {
-                console.error('❌ Failed to process referral rewards on course completion:', refError);
-            }
+            handleCourseCompletion(userId, courseId).catch(err =>
+                console.error('Post-completion hook failed:', err.message)
+            );
         }
 
-        // Trigger badge unlocking evaluation
         try {
             const { unlockBadgesForUser } = await import('../../services/badgeUnlockingService.js');
             await unlockBadgesForUser(userId);
         } catch (badgeError) {
-            console.error('❌ Failed to update achievements:', badgeError);
+            console.error('Failed to update achievements:', badgeError);
         }
 
         return res.status(200).json({
@@ -124,43 +110,36 @@ export const markPdfComplete = async (req, res) => {
             });
         }
 
+        const belongsToCourse = Array.isArray(course.pdfs) &&
+            course.pdfs.some(p => String(p._id) === String(pdfId));
+        if (!belongsToCourse) {
+            return res.status(400).json({
+                success: false,
+                message: 'PDF not found in this course'
+            });
+        }
+
         enrollment.markPdfComplete(pdfId);
         enrollment.lastAccessedAt = new Date();
 
-        const totalVideos = course.videos.length;
-        const totalPdfs = course.pdfs.length;
-        enrollment.updateProgress(totalVideos, totalPdfs);
+        enrollment.updateProgress(
+            course.videos ? course.videos.length : 0,
+            course.pdfs ? course.pdfs.length : 0
+        );
 
         await enrollment.save();
 
-        // Update course completion count if completed
         if (enrollment.isCompleted) {
-            course.completionCount = (course.completionCount || 0) + 1;
-            await course.save();
-
-            // Automatically generate certificate
-            try {
-                const { generateCertificateRecord } = await import('../../services/certificate.service.js');
-                await generateCertificateRecord(userId, courseId);
-            } catch (certError) {
-                console.error('❌ Failed to generate certificate on course completion:', certError);
-            }
-
-            // Process referral rewards if this user was referred by someone
-            try {
-                const { processReferralMilestone } = await import('../../services/referralRewardProcessor.js');
-                await processReferralMilestone(userId);
-            } catch (refError) {
-                console.error('❌ Failed to process referral rewards on course completion:', refError);
-            }
+            handleCourseCompletion(userId, courseId).catch(err =>
+                console.error('Post-completion hook failed:', err.message)
+            );
         }
 
-        // Trigger badge unlocking evaluation
         try {
             const { unlockBadgesForUser } = await import('../../services/badgeUnlockingService.js');
             await unlockBadgesForUser(userId);
         } catch (badgeError) {
-            console.error('❌ Failed to update achievements:', badgeError);
+            console.error('Failed to update achievements:', badgeError);
         }
 
         return res.status(200).json({

@@ -8,7 +8,7 @@ async function seed() {
   console.log('Connecting to MongoDB:', process.env.MONGO_URI);
   await mongoose.connect(process.env.MONGO_URI);
 
-  const email = 'admin@paramsukh.com';
+  const email = 'neerajkushwaha0401@gmail.com';
   
   // Clear any existing dev admin
   await Admin.deleteMany({ email });

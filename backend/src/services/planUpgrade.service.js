@@ -297,6 +297,7 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
     : [];
 
   // Find all current active plan+category memberships to detect ones that need deactivation
+  // Exclude 'general' planSlug — it belongs to the free/public General group
   const activePlanCategoryMemberships = await GroupMember.aggregate([
     { $match: { userId: normalizedUserId, isActive: true } },
     {
@@ -310,9 +311,14 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
     { $unwind: '$group' },
     {
       $match: {
-        $or: [
-          { 'group.groupType': 'category', 'group.planSlug': { $type: 'string' } },
-          { 'group.groupType': 'plan', 'group.planSlug': { $type: 'string' } },
+        $and: [
+          { 'group.planSlug': { $ne: 'general' } },
+          {
+            $or: [
+              { 'group.groupType': 'category', 'group.planSlug': { $type: 'string' } },
+              { 'group.groupType': 'plan', 'group.planSlug': { $type: 'string' } },
+            ],
+          },
         ],
       },
     },

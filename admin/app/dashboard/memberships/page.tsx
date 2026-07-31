@@ -40,7 +40,6 @@ interface PlanInfo {
   title: string;
   status: string;
   displayOrder: number;
-  badgeColor?: string;
 }
 
 interface MembershipGrant {
@@ -70,8 +69,6 @@ interface MembershipGrant {
 
 const normalize = (value: string) => String(value || '').trim().toLowerCase();
 const isFreePlan = (value: string) => normalize(value || 'free') === 'free';
-
-const isHexColor = (value: string) => /^#[0-9a-fA-F]{6}$/.test(value || '');
 
 export default function MembershipsPage() {
   const router = useRouter();
@@ -139,7 +136,6 @@ export default function MembershipsPage() {
           title: String(plan.title || plan.slug || '').trim(),
           status: String(plan.status || 'draft'),
           displayOrder: Number(plan.displayOrder || 0),
-          badgeColor: plan?.metadata?.badgeColor,
         }))
         .filter((plan: PlanInfo) => Boolean(plan.slug) && plan.slug !== 'free');
 
@@ -329,20 +325,6 @@ export default function MembershipsPage() {
   const getPlanLabel = (planSlug: string) => {
     const slug = normalize(planSlug || 'free');
     return planLookup[slug]?.title || (slug.charAt(0).toUpperCase() + slug.slice(1));
-  };
-
-  const getPlanBadgeStyle = (planSlug: string) => {
-    const slug = normalize(planSlug || 'free');
-    const badgeColor = planLookup[slug]?.badgeColor;
-    if (!badgeColor || !isHexColor(badgeColor)) {
-      return undefined;
-    }
-
-    return {
-      color: badgeColor,
-      borderColor: `${badgeColor}66`,
-      backgroundColor: `${badgeColor}1A`,
-    };
   };
 
   const getStatusColor = (status: string) => {
@@ -731,7 +713,6 @@ export default function MembershipsPage() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border bg-gray-100 text-gray-700 border-gray-200"
-                      style={getPlanBadgeStyle(user.subscriptionPlan)}
                     >
                       {getPlanLabel(user.subscriptionPlan)}
                     </span>

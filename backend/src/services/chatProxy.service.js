@@ -105,3 +105,19 @@ export const generateRecommendationExplanation = async (payload) => {
     throw error;
   }
 };
+
+export const generateBatchRecommendationExplanations = async (payload) => {
+  const { baseUrl, sharedSecret, timeoutMs } = getAiServiceConfig();
+
+  try {
+    const response = await axios.post(`${baseUrl}/recommendations/explain-batch`, payload, {
+      timeout: timeoutMs * 3,
+      headers: buildHeaders(sharedSecret),
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('generateBatchRecommendationExplanations error:', error.message);
+    return { explanations: {} };
+  }
+};

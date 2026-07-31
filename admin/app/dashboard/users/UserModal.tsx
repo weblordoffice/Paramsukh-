@@ -12,7 +12,6 @@ interface User {
     email?: string;
     phone?: string;
     subscriptionPlan?: string;
-    subscriptionPlanVariant?: string | null;
     subscriptionStatus?: string;
     isActive?: boolean;
     tags?: string[];
@@ -55,19 +54,13 @@ export default function UserModal({ isOpen, onClose, user, onSuccess }: UserModa
             .join(' ');
     };
 
-    const toSelectionValue = (plan?: string, variant?: string | null) => {
-        const parent = String(plan || 'free').toLowerCase().trim();
-        const child = String(variant || '').toLowerCase().trim();
-        return child ? `${parent}::${child}` : parent;
-    };
-
     useEffect(() => {
         if (user) {
             setFormData({
                 displayName: user.displayName || user.name || '',
                 email: user.email || '',
                 phone: user.phone || '',
-                subscriptionPlan: toSelectionValue(user.subscriptionPlan, user.subscriptionPlanVariant),
+                subscriptionPlan: user.subscriptionPlan || 'free',
                 tags: Array.isArray(user.tags) ? user.tags.join(', ') : '',
                 isActive: user.isActive ?? true
             });
@@ -96,30 +89,13 @@ export default function UserModal({ isOpen, onClose, user, onSuccess }: UserModa
 
                 const mapped = plans
                     .filter((plan: any) => plan?.status === 'published')
-                    .flatMap((plan: any) => {
+                    .map((plan: any) => {
                         const slug = String(plan?.slug || '').toLowerCase().trim();
-                        if (!slug) return [];
-
-                        const baseOption: PlanOption = {
+                        if (!slug) return null;
+                        return {
                             value: slug,
                             label: String(plan?.title || '').trim() || toPlanLabel(slug),
-                        };
-
-                        const variantOptions: PlanOption[] = !!plan?.planVariantsEnabled && Array.isArray(plan?.planVariants)
-                            ? plan.planVariants
-                                .filter((variant: any) => variant && variant.isActive !== false)
-                                .map((variant: any) => {
-                                    const variantSlug = String(variant?.slug || '').toLowerCase().trim();
-                                    if (!variantSlug) return null;
-                                    return {
-                                        value: `${slug}::${variantSlug}`,
-                                        label: `${baseOption.label} - ${String(variant?.title || toPlanLabel(variantSlug)).trim()}`,
-                                    } as PlanOption;
-                                })
-                                .filter(Boolean) as PlanOption[]
-                            : [];
-
-                        return [baseOption, ...variantOptions];
+                        } as PlanOption;
                     })
                     .filter(Boolean) as PlanOption[];
 

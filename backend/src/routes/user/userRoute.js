@@ -16,9 +16,8 @@ import {
   generateCertificate
 } from '../../controller/user/certificate.controller.js';
 import {
-  getUserReferralDashboard,
-  getAdminReferralConfig,
-  updateAdminReferralConfig
+  getUserReferralDashboard, getPointsHistory, handleRedeemPoints,
+  regenerateReferralCode, applyReferralCode
 } from '../../controller/user/referral.controller.js';
 import {
   getAllUsers,
@@ -61,6 +60,10 @@ router.get('/stats', protectedRoutes, getUserStats);
 router.get('/profile/certificates', protectedRoutes, getUserCertificates);
 router.post('/profile/certificates/claim/:courseId', protectedRoutes, generateCertificate);
 router.get('/profile/referrals', protectedRoutes, getUserReferralDashboard);
+router.get('/profile/referrals/history', protectedRoutes, getPointsHistory);
+router.post('/profile/referrals/redeem', protectedRoutes, handleRedeemPoints);
+router.post('/profile/referrals/regenerate-code', protectedRoutes, regenerateReferralCode);
+router.post('/profile/referrals/apply', protectedRoutes, applyReferralCode);
 router.post('/deactivate', protectedRoutes, deactivateAccount);
 router.delete('/account', protectedRoutes, deleteAccount);
 
@@ -74,8 +77,6 @@ router.post('/create', adminAuth, createUserAdmin);
 router.get('/import/template', adminAuth, getUserImportTemplate);
 router.post('/import/preview', adminAuth, uploadLimiter, uploadSingleSpreadsheet, handleMulterError, previewUserImport);
 router.post('/import/commit', adminAuth, commitUserImport);
-router.get('/referral-config', adminAuth, getAdminReferralConfig);
-router.put('/referral-config', adminAuth, updateAdminReferralConfig);
 
 // Admin parameterized routes (must be after specific user paths)
 router.get('/:id', adminAuth, getUserById);

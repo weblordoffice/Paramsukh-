@@ -31,7 +31,7 @@ test.describe('Operations Management (F09/F10/F11)', () => {
     // 2. Mock counseling bookings list
     await mockApi(page, '**/api/counseling/all', {
       success: true,
-      data: {
+      data: {      
         bookings: [
           {
             _id: 'booking-123',

@@ -1,15 +1,20 @@
 import express from 'express';
 import { sendOTPController, verifyOTPController } from '../controller/auth/authOTP.controller.js';
-import { logout, getCurrentUser } from '../controller/auth/auth.controller.js';
-import { refreshToken } from '../controller/auth/authController.js';
+import { logout, getCurrentUser, refreshToken } from '../controller/auth/authController.js';
 import { clerkSyncController } from '../controller/auth/clerkAuth.controller.js';
 import { clerkWebhookHandler } from '../controller/auth/clerkWebhook.controller.js';
 import { protectedRoutes } from '../middleware/protectedRoutes.js';
 import { validateSendOTP, validateVerifyOTP } from '../middleware/validators.js';
 import { otpLimiter } from '../middleware/rateLimiter.js';
 import deviceRoute from './device/deviceRoute.js';
+import { verifyByCertificateId } from '../controller/user/certificate.controller.js';
 
 const router = express.Router();
+
+// ========================================
+// Public Certificate Verification
+// ========================================
+router.get('/certificates/verify/:certificateId', verifyByCertificateId);
 
 // ========================================
 // Authentication Routes

@@ -45,11 +45,6 @@ const userMembershipSchema = new mongoose.Schema({
   planSnapshot: {
     title: { type: String, required: true },
     slug: { type: String, required: true, lowercase: true },
-    variant: {
-      slug: { type: String, default: null, lowercase: true },
-      title: { type: String, default: null },
-      selectionKey: { type: String, default: null, lowercase: true },
-    },
     pricing: {
       amount: { type: Number, required: true, min: 0 },
       currency: { type: String, default: 'INR' },
@@ -60,7 +55,6 @@ const userMembershipSchema = new mongoose.Schema({
     type: String,
     enum: ['active', 'expired', 'cancelled', 'paused', 'pending'],
     default: 'active',
-    index: true,
   },
   source: {
     type: String,
@@ -88,6 +82,19 @@ const userMembershipSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.Mixed,
     default: {},
   },
+  courseSelectionEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  selectedCourseCredits: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  selectedCourseIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Course',
+  }],
 }, {
   timestamps: true,
 });

@@ -26,6 +26,10 @@ export default function MyMembershipScreen() {
     const scrollRef = useRef<ScrollView>(null);
     const [plansY, setPlansY] = useState<number>(0);
     const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
+    const [activeMembership, setActiveMembership] = useState<{
+        membershipId: string;
+        courseSelection: { enabled: boolean; maxSelectable: number; remaining: number; used: number };
+    } | null>(null);
 
     const { currentSubscription, fetchCurrentSubscription, isLoading } = useMembershipStore();
     const { token } = useAuthStore();
@@ -36,7 +40,6 @@ export default function MyMembershipScreen() {
             paymentId: string;
             amount: number;
             plan: string;
-            planVariant?: string | null;
             status: string;
             date: string;
         }[]
@@ -46,7 +49,7 @@ export default function MyMembershipScreen() {
     const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
 
     const loadPublicPlans = useCallback(async () => {
-        const dynamicPlans = await fetchPublicMembershipPlans({ includeVariants: true });
+        const dynamicPlans = await fetchPublicMembershipPlans();
         setPlans(dynamicPlans);
     }, []);
 
@@ -67,12 +70,27 @@ export default function MyMembershipScreen() {
         if (token) {
             fetchCurrentSubscription();
             loadPurchases();
+            fetchActiveMembershipInfo();
         } else {
             setLoadingPurchases(false);
         }
 
         loadPublicPlans();
     }, [token, fetchCurrentSubscription, loadPurchases, loadPublicPlans]);
+
+    const fetchActiveMembershipInfo = async () => {
+        try {
+            const { data } = await apiClient.get('/membership/active');
+            if (data.success && data.hasActiveMembership) {
+                setActiveMembership({
+                    membershipId: data.membershipId,
+                    courseSelection: data.courseSelection,
+                });
+            }
+        } catch {
+            // silently fail
+        }
+    };
 
     // If user paid and came back later, confirm any pending payment link
     useEffect(() => {
@@ -329,6 +347,34 @@ export default function MyMembershipScreen() {
                             <Ionicons name="arrow-up-circle" size={17} color="#fff" />
                             <Text style={styles.manageBtnText}>Upgrade / Manage Plan</Text>
                         </TouchableOpacity>
+
+                        {activeMembership?.courseSelection?.enabled && activeMembership.courseSelection.remaining > 0 && (
+                            <TouchableOpacity
+                                style={styles.courseSelectBtn}
+                                onPress={() => router.push({
+                                    pathname: '/(home)/choose-courses',
+                                    params: {
+                                        membershipId: activeMembership.membershipId,
+                                        maxSelectable: String(activeMembership.courseSelection.maxSelectable),
+                                    },
+                                })}
+                                activeOpacity={0.85}
+                            >
+                                <Ionicons name="book-outline" size={17} color="#8B5CF6" />
+                                <Text style={styles.courseSelectBtnText}>
+                                    Choose Your Courses ({activeMembership.courseSelection.remaining} credits left)
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+
+                        {activeMembership?.courseSelection?.enabled && activeMembership.courseSelection.remaining === 0 && (
+                            <View style={styles.courseSelectDone}>
+                                <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
+                                <Text style={styles.courseSelectDoneText}>
+                                    All {activeMembership.courseSelection.used} courses selected
+                                </Text>
+                            </View>
+                        )}
                     </View>
                 )}
 
@@ -353,9 +399,7 @@ export default function MyMembershipScreen() {
                     const isCurrentPlan = currentPlanId === planId && isActive;
                     const isAlreadyPurchased = purchases.some(p => {
                         const purchasePlan = p.plan ? p.plan.toLowerCase().trim() : '';
-                        const purchaseVariant = p.planVariant ? p.planVariant.toLowerCase().trim() : '';
-                        const purchaseKey = purchaseVariant ? `${purchasePlan}::${purchaseVariant}` : purchasePlan;
-                        return purchaseKey === planId && p.status === 'completed';
+                        return purchasePlan === planId && p.status === 'completed';
                     });
                     
                     return (
@@ -375,13 +419,6 @@ export default function MyMembershipScreen() {
                             )}
                             
                             
-                            {/* Popular ribbon */}
-                            {plan.popular && (
-                                <View style={[styles.popularRibbon, { backgroundColor: plan.color }]}>
-                                    <Ionicons name="star" size={10} color="#fff" />
-                                    <Text style={styles.popularText}>MOST POPULAR</Text>
-                                </View>
-                            )}
 
                             {/* Plan header row */}
                             <View style={styles.planHeaderRow}>
@@ -619,6 +656,30 @@ const styles = StyleSheet.create({
     },
     manageBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 
+    courseSelectBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: '#8B5CF6',
+        backgroundColor: '#F5F3FF',
+        marginTop: 10,
+    },
+    courseSelectBtnText: { fontSize: 14, fontWeight: '600', color: '#8B5CF6' },
+    courseSelectDone: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 10,
+        marginTop: 8,
+    },
+    courseSelectDoneText: { fontSize: 13, color: '#22C55E', fontWeight: '500' },
+
     /* ── Section title ── */
     sectionTitle: { fontSize: 19, fontWeight: '700', color: '#1F2937', marginBottom: 14 },
     noPlansCard: {
@@ -650,13 +711,6 @@ const styles = StyleSheet.create({
         shadowRadius: 6,
         elevation: 2,
     },
-    popularRibbon: {
-        position: 'absolute', top: 14, right: -1,
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        paddingHorizontal: 10, paddingVertical: 4,
-        borderTopLeftRadius: 8, borderBottomLeftRadius: 8,
-    },
-    popularText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
     activeBadge: {
         position: 'absolute',
         top: 14,

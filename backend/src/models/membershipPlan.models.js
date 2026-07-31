@@ -74,7 +74,7 @@ const accessSchema = new mongoose.Schema({
   },
   accessMode: {
     type: String,
-    enum: ['entitlement_only', 'auto_enroll', 'hybrid'],
+    enum: ['entitlement_only'],
     default: 'entitlement_only',
   },
   communityAccess: {
@@ -89,6 +89,31 @@ const accessSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  courseSelection: {
+    enabled: {
+      type: Boolean,
+      default: false,
+    },
+    maxSelectableCourses: {
+      type: Number,
+      default: 3,
+      min: 1,
+    },
+    eligibleCoursesMode: {
+      type: String,
+      enum: ['all_published', 'specific', 'categories'],
+      default: 'all_published',
+    },
+    eligibleCourseIds: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Course',
+    }],
+    eligibleCategories: [{
+      type: String,
+      trim: true,
+      lowercase: true,
+    }],
+  },
 }, { _id: false });
 
 const benefitSchema = new mongoose.Schema({
@@ -102,69 +127,6 @@ const benefitSchema = new mongoose.Schema({
     default: true,
   },
 }, { _id: false });
-
-const planVariantSchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: true,
-    trim: true,
-  },
-  slug: {
-    type: String,
-    required: true,
-    lowercase: true,
-    trim: true,
-  },
-  shortDescription: {
-    type: String,
-    default: '',
-    trim: true,
-  },
-  longDescription: {
-    type: String,
-    default: '',
-    trim: true,
-  },
-  isActive: {
-    type: Boolean,
-    default: true,
-  },
-  displayOrder: {
-    type: Number,
-    default: 0,
-  },
-  useCustomPricingAndValidity: {
-    type: Boolean,
-    default: false,
-  },
-  customPricing: {
-    amount: {
-      type: Number,
-      default: null,
-      min: 0,
-    },
-    currency: {
-      type: String,
-      default: 'INR',
-      uppercase: true,
-      trim: true,
-    },
-  },
-  customValidityDays: {
-    type: Number,
-    default: null,
-    min: 1,
-  },
-  benefits: {
-    type: [benefitSchema],
-    default: [],
-  },
-  metadata: {
-    badgeColor: { type: String, default: null },
-    icon: { type: String, default: null },
-    popular: { type: Boolean, default: false },
-  },
-}, { _id: true });
 
 const membershipPlanSchema = new mongoose.Schema({
   title: {
@@ -194,7 +156,6 @@ const membershipPlanSchema = new mongoose.Schema({
     type: String,
     enum: ['draft', 'published', 'archived'],
     default: 'draft',
-    index: true,
   },
   displayOrder: {
     type: Number,
@@ -210,13 +171,9 @@ const membershipPlanSchema = new mongoose.Schema({
     default: 365,
     min: 1,
   },
-  planVariantsEnabled: {
+  isLifetime: {
     type: Boolean,
     default: false,
-  },
-  planVariants: {
-    type: [planVariantSchema],
-    default: [],
   },
   access: {
     type: accessSchema,
@@ -226,11 +183,7 @@ const membershipPlanSchema = new mongoose.Schema({
     type: [benefitSchema],
     default: [],
   },
-  metadata: {
-    badgeColor: { type: String, default: '#64748B' },
-    icon: { type: String, default: 'star' },
-    popular: { type: Boolean, default: false },
-  },
+
 }, {
   timestamps: true,
 });

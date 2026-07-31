@@ -42,14 +42,31 @@ export const protectedRoutes = async(req, res, next) => {
             });
         }
 
+        if (decoded.v !== undefined && user.tokenVersion !== undefined && decoded.v < user.tokenVersion) {
+            return res.status(401).json({
+                success: false,
+                code: 'TOKEN_STALE',
+                message: 'Session invalidated. Please log in again.'
+            });
+        }
+
         // If plan records were deleted manually, downgrade stale plan slugs to free.
         const reconciliation = await reconcileUserSubscriptionPlanIntegrity(user, { save: true });
         if (reconciliation?.reconciled) {
-            console.warn(`⚠️ Reconciled orphan plan for user ${user._id}: ${reconciliation.previousPlan} -> free`);
+            console.warn(`Reconciled orphan plan for user ${user._id}: ${reconciliation.previousPlan} -> free`);
         }
 
         // Validate active device session
         const { deviceId } = getDeviceDetails(req);
+
+        if (decoded.deviceId && decoded.deviceId !== deviceId) {
+            return res.status(401).json({
+                success: false,
+                code: 'TOKEN_DEVICE_MISMATCH',
+                message: 'Token bound to a different device.'
+            });
+        }
+
         const session = await DeviceSession.findOne({
             user: user._id,
             deviceId,

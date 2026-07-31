@@ -56,8 +56,7 @@ const orderSchema = new mongoose.Schema({
   orderNumber: {
     type: String,
     required: true,
-    unique: true,
-    index: true
+    unique: true
   },
   // User
   user: {
@@ -93,6 +92,12 @@ const orderSchema = new mongoose.Schema({
     code: String,
     discount: Number,
     discountType: String
+  },
+  // Referral points applied
+  referralPoints: {
+    points: { type: Number, default: 0 },
+    discount: { type: Number, default: 0 },
+    transactionId: String
   },
   // Payment
   payment: {
@@ -177,8 +182,6 @@ const orderSchema = new mongoose.Schema({
 
 // Indexes
 orderSchema.index({ user: 1, createdAt: -1 });
-orderSchema.index({ orderNumber: 1 });
-orderSchema.index({ status: 1 });
 orderSchema.index({ 'payment.status': 1 });
 
 // Generate order number

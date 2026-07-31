@@ -8,11 +8,9 @@ const assessmentSchema = new mongoose.Schema({
     unique: true // One assessment per user
   },
   // Personal Information
-  age: {
-    type: Number,
-    required: true,
-    min: 1,
-    max: 120
+  birthDate: {
+    type: Date,
+    required: true
   },
   occupation: {
     type: String,

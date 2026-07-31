@@ -1,23 +1,51 @@
 import { User } from '../../models/user.models.js';
 import { generateTokens } from '../../lib/generateTokens.js';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { registerOrValidateDevice } from '../../lib/deviceSessionManager.js';
+import { getDeviceDetails } from '../../lib/deviceHelper.js';
+import { sendWelcomeEmail } from '../../services/emailService.js';
 
-const CLERK_JWKS_URL = 'https://api.clerk.com/v1/jwks';
+function getClerkJwksUrl() {
+    if (process.env.CLERK_JWKS_URL) {
+        return process.env.CLERK_JWKS_URL;
+    }
+    const publishableKey = process.env.CLERK_PUBLISHABLE_KEY || '';
+    if (publishableKey) {
+        const parts = publishableKey.split('_');
+        if (parts.length >= 3) {
+            const encoded = parts.slice(2).join('_');
+            try {
+                const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+                const fapi = decoded.replace(/\$$/, '');
+                if (fapi) {
+                    return `https://${fapi}/.well-known/jwks.json`;
+                }
+            } catch (_) { /* fall through */ }
+        }
+    }
+    return 'https://api.clerk.com/v1/jwks';
+}
 
 let cachedJwks = null;
 let jwksLastFetched = 0;
-const JWKS_CACHE_TTL = 60 * 60 * 1000; // 1 hour
+const JWKS_CACHE_TTL = 60 * 60 * 1000;
 
 async function getClerkJwks() {
     if (cachedJwks && Date.now() - jwksLastFetched < JWKS_CACHE_TTL) {
         return cachedJwks;
     }
     try {
+        const jwksUrl = getClerkJwksUrl();
         const { default: axios } = await import('axios');
-        const response = await axios.get(CLERK_JWKS_URL, { timeout: 5000 });
+        const headers = {};
+        if (process.env.CLERK_SECRET_KEY) {
+            headers.Authorization = `Bearer ${process.env.CLERK_SECRET_KEY}`;
+        }
+        const response = await axios.get(jwksUrl, { timeout: 5000, headers });
         cachedJwks = response.data;
         jwksLastFetched = Date.now();
+        console.log(` Clerk JWKS fetched successfully from ${jwksUrl}`);
         return cachedJwks;
     } catch (error) {
         console.error('Failed to fetch Clerk JWKS:', error.message);
@@ -25,9 +53,16 @@ async function getClerkJwks() {
     }
 }
 
-function pemToBytes(pem) {
-    const b64 = pem.replace(/-----[^-]+-----/g, '').replace(/\s/g, '');
-    return Buffer.from(b64, 'base64');
+function jwkToPem(jwk) {
+    const keyObject = crypto.createPublicKey({
+        key: {
+            kty: jwk.kty || 'RSA',
+            n: jwk.n,
+            e: jwk.e,
+        },
+        format: 'jwk',
+    });
+    return keyObject.export({ type: 'spki', format: 'pem' });
 }
 
 async function verifyClerkToken(clerkToken) {
@@ -36,7 +71,7 @@ async function verifyClerkToken(clerkToken) {
     try {
         const jwks = await getClerkJwks();
         if (!jwks || !jwks.keys) {
-            console.warn('Clerk JWKS unavailable, falling back to direct clerkId');
+            console.warn('Clerk JWKS unavailable');
             return null;
         }
 
@@ -48,12 +83,10 @@ async function verifyClerkToken(clerkToken) {
             return null;
         }
 
-        const publicKeyPem = `-----BEGIN PUBLIC KEY-----\n${matchingKey.n}\n-----END PUBLIC KEY-----`;
+        const publicKeyPem = jwkToPem(matchingKey);
 
         const decoded = jwt.verify(clerkToken, publicKeyPem, {
             algorithms: [matchingKey.alg || 'RS256'],
-            issuer: 'https://clerk.paramsukh.com', // will match any clerk issuer
-            // Use dynamic issuer: Clerk tokens have iss like https://clerk.YOUR_DOMAIN
         });
 
         return decoded.sub || decoded.user_id || null;
@@ -106,10 +139,14 @@ export const clerkSyncController = async (req, res) => {
 
         const { email, displayName, photoURL, referralCode } = req.body || {};
 
+        console.log('[clerkSync] START — clerkId:', clerkId, 'email:', email);
+
         let user = await User.findOne({ clerkId });
+        console.log('[clerkSync] Branch 1 (findByClerkId):', user ? `FOUND user ${user._id} phone=${user.phone}` : 'NOT FOUND');
 
         if (!user && email) {
             user = await User.findOne({ email: email.toLowerCase().trim() });
+            console.log('[clerkSync] Branch 2 (findByEmail):', user ? `FOUND user ${user._id} phone=${user.phone} — LINKING` : 'NOT FOUND');
             if (user) {
                 user.clerkId = clerkId;
                 user.authProvider = 'clerk';
@@ -121,6 +158,7 @@ export const clerkSyncController = async (req, res) => {
         }
 
         if (!user) {
+            console.log('[clerkSync] Branch 3 (CREATE) — no existing user found, creating new one');
             const { generateUniqueReferralCode } = await import('../../lib/referralHelper.js');
             const refCode = await generateUniqueReferralCode();
 
@@ -137,32 +175,58 @@ export const clerkSyncController = async (req, res) => {
                 referralCode: refCode
             });
 
+            let referralHandled = false;
             if (referralCode) {
-                const referrer = await User.findOne({ referralCode: referralCode.trim() });
-                if (referrer) {
-                    user.referredBy = referrer._id;
-                }
-            }
-
-            await user.save();
-            console.log(`✨ Created new Clerk-authenticated user with Clerk ID ${clerkId}`);
-
-            if (user.referredBy) {
                 try {
-                    const { Referral } = await import('../../models/referral.models.js');
-                    await Referral.create({
-                        referrer: user.referredBy,
-                        referredUser: user._id,
-                        status: 'joined'
+                    const { validateReferral } = await import('../../services/referral.service.js');
+                    const validation = await validateReferral({
+                        referralCode,
+                        newUserId: user._id,
+                        ip: req.ip
                     });
-                } catch (refError) {
-                    console.error('❌ Failed to log referral connection:', refError);
+
+                    if (!validation.valid) {
+                        console.warn(`Referral validation failed for Clerk user ${user._id}: ${validation.reason}`);
+                    } else {
+                        user.referredBy = validation.referrer._id;
+                        await user.save();
+                        referralHandled = true;
+
+                        try {
+                            const { Referral } = await import('../../models/referral.models.js');
+                            await Referral.create({
+                                referrer: validation.referrer._id,
+                                referredUser: user._id,
+                                referralCode: referralCode,
+                                metadata: { ip: req.ip, userAgent: req.headers['user-agent'] || '', channel: 'app' }
+                            });
+
+                            const { fireTrigger } = await import('../../services/referral.service.js');
+                            fireTrigger('user.signup', { referrerId: validation.referrer._id, referredUserId: user._id });
+                        } catch (refError) {
+                            user.referredBy = null;
+                            await user.save();
+                            console.error('Failed to log referral connection, reverted:', refError.message);
+                        }
+                    }
+                } catch (validationError) {
+                    console.error('Referral validation error:', validationError.message);
                 }
             }
+
+            if (!referralHandled) {
+                await user.save();
+            }
+            console.log(`Created new Clerk-authenticated user with Clerk ID ${clerkId}`);
+            sendWelcomeEmail(user);
         }
 
         user.loginCount = (user.loginCount || 0) + 1;
         user.lastLoginAt = new Date();
+
+        const tokenFamily = crypto.randomUUID();
+        user.tokenFamily = tokenFamily;
+        user.tokenVersion = (user.tokenVersion || 0) + 1;
         await user.save();
 
         const deviceGuard = await registerOrValidateDevice(user._id, req, 'clerk', clerkSessionId);
@@ -177,9 +241,10 @@ export const clerkSyncController = async (req, res) => {
             });
         }
 
-        const token = generateTokens(user._id, res);
+        const { deviceId } = getDeviceDetails(req);
+        const token = generateTokens(user._id, deviceId, user.tokenVersion, res);
         const refreshToken = jwt.sign(
-            { id: user._id },
+            { id: user._id, family: tokenFamily },
             process.env.JWT_SECRET,
             { expiresIn: '30d' }
         );
@@ -190,6 +255,8 @@ export const clerkSyncController = async (req, res) => {
         } catch (badgeError) {
             console.error('❌ Failed to update achievements on login:', badgeError);
         }
+
+        console.log('[clerkSync] RESPONSE — user._id:', user._id, 'phone:', user.phone, 'email:', user.email, 'onboardingCompleted:', user.onboardingCompleted, 'needsPhoneVerification:', !user.phone);
 
         return res.status(200).json({
             success: true,
@@ -206,7 +273,8 @@ export const clerkSyncController = async (req, res) => {
                 subscriptionStatus: user.subscriptionStatus,
                 authProvider: user.authProvider,
                 assessmentCompleted: user.assessmentCompleted || false,
-                assessmentCompletedAt: user.assessmentCompletedAt || null
+                assessmentCompletedAt: user.assessmentCompletedAt || null,
+                onboardingCompleted: user.onboardingCompleted || false
             },
             needsPhoneVerification: !user.phone
         });

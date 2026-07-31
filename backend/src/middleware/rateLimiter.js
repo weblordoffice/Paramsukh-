@@ -74,9 +74,10 @@ export const otpLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Use IP address for rate limiting to prevent phone-rotation bypass
+  // Key by phone number to prevent targeted OTP bombing; fall back to IP
   keyGenerator: (req) => {
-    return `otp:${req.ip}`;
+    const phone = (req.body?.phone || '').replace(/\D/g, '').slice(-10);
+    return phone ? `otp:${phone}` : `otp:ip:${req.ip}`;
   },
   // Log rate limit hits in development
   handler: (req, res) => {
@@ -175,6 +176,23 @@ export const bookingLimiter = rateLimit({
   }
 });
 
+/**
+ * Progress update rate limiter - 30 progress actions per minute per user
+ */
+export const progressLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30,
+  message: {
+    success: false,
+    message: 'Too many progress updates. Please slow down.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return `progress:${req.user?._id || req.ip}`;
+  }
+});
+
 export default {
   generalLimiter,
   authLimiter,
@@ -185,5 +203,6 @@ export default {
   communityPostLimiter,
   communityCommentLimiter,
   communityLikeLimiter,
-  bookingLimiter
+  bookingLimiter,
+  progressLimiter
 };

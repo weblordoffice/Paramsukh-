@@ -4,15 +4,29 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCartStore } from '../store/cartStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import apiClient from '../utils/apiClient';
+import { API_URL } from '../config/api';
 
 export default function CartScreen() {
     const router = useRouter();
     const { cart, fetchCart, updateCartItem, removeFromCart, clearCart, isLoading } = useCartStore();
     const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
+    const [referralPoints, setReferralPoints] = useState(0);
     const insets = useSafeAreaInsets();
 
     useEffect(() => {
         fetchCart();
+        const fetchReferralPoints = async () => {
+            try {
+                const response = await apiClient.get(`${API_URL}/user/profile/referrals`);
+                if (response.data?.success) {
+                    setReferralPoints(response.data.points || 0);
+                }
+            } catch (error) {
+                // Silently fail
+            }
+        };
+        fetchReferralPoints();
     }, [fetchCart]);
 
     const handleUpdateQuantity = async (itemId: string, newQuantity: number) => {
@@ -155,6 +169,20 @@ export default function CartScreen() {
                         <Text style={styles.totalValue}>₹{cart.total}</Text>
                     </View>
                 </View>
+
+                {/* Referral Points Banner */}
+                {referralPoints > 0 && (
+                    <TouchableOpacity
+                        style={styles.referralBanner}
+                        onPress={() => router.push('/checkout')}
+                    >
+                        <Ionicons name="gift-outline" size={18} color="#EAB308" />
+                        <Text style={styles.referralBannerText}>
+                            You have <Text style={styles.referralBannerValue}>{referralPoints} referral points</Text> — redeem at checkout
+                        </Text>
+                        <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                    </TouchableOpacity>
+                )}
             </ScrollView>
 
             {/* Checkout Button */}
@@ -327,6 +355,26 @@ const styles = StyleSheet.create({
     },
     totalValue: {
         fontSize: 18,
+        fontWeight: '700',
+        color: '#EAB308',
+    },
+    referralBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFBEB',
+        borderRadius: 12,
+        padding: 12,
+        marginTop: 12,
+        gap: 8,
+        borderWidth: 1,
+        borderColor: '#FDE68A',
+    },
+    referralBannerText: {
+        flex: 1,
+        fontSize: 13,
+        color: '#92400E',
+    },
+    referralBannerValue: {
         fontWeight: '700',
         color: '#EAB308',
     },

@@ -145,8 +145,6 @@ const shopSchema = new mongoose.Schema({
 });
 
 // Indexes
-shopSchema.index({ slug: 1 });
-shopSchema.index({ owner: 1 });
 shopSchema.index({ status: 1 });
 shopSchema.index({ 'rating.average': -1 });
 shopSchema.index({ location: '2dsphere' });

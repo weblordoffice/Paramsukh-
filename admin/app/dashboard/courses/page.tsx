@@ -15,11 +15,11 @@ interface Course {
     thumbnailUrl: string;
     bannerUrl: string;
     color: string;
-    icon: string;
     duration: number;
     category?: string;
     tags: string[];
     status: string;
+    includedInPlans?: string[];
     videos?: any[];
     totalVideos?: number;
     totalPdfs?: number;
@@ -28,6 +28,13 @@ interface Course {
     averageRating?: number;
     reviewCount?: number;
     createdAt: string;
+}
+
+interface MembershipPlan {
+    _id: string;
+    slug: string;
+    name: string;
+    color?: string;
 }
 
 interface EnrollmentStats {
@@ -44,9 +51,11 @@ export default function CoursesPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
+    const [planLookup, setPlanLookup] = useState<Record<string, { name: string; color: string }>>({});
 
     useEffect(() => {
         fetchCourses();
+        fetchPlans();
     }, []);
 
     const fetchCourses = async () => {
@@ -85,6 +94,27 @@ export default function CoursesPage() {
             setCourses([]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchPlans = async () => {
+        try {
+            const response = await apiClient.get('/api/membership-plans');
+            if (response.data?.data) {
+                const plans: MembershipPlan[] = Array.isArray(response.data.data)
+                    ? response.data.data
+                    : response.data.data.plans || [];
+                const lookup: Record<string, { name: string; color: string }> = {};
+                plans.forEach((plan) => {
+                    const slug = (plan.slug || '').trim().toLowerCase();
+                    if (slug) {
+                        lookup[slug] = { name: plan.name || slug, color: plan.color || '#64748B' };
+                    }
+                });
+                setPlanLookup(lookup);
+            }
+        } catch {
+            // non-critical
         }
     };
 
@@ -198,6 +228,36 @@ export default function CoursesPage() {
                             {/* Course Info */}
                             <div className="p-6 space-y-4">
                                 <div>
+                                    {course.category && (
+                                        <span className="inline-block px-2.5 py-0.5 mb-2 bg-blue-50 text-blue-700 text-xs font-semibold uppercase tracking-wider rounded">
+                                            {course.category}
+                                        </span>
+                                    )}
+                                    {course.includedInPlans && course.includedInPlans.length > 0 && (
+                                        <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                                            <span className="text-xs text-gray-500 font-medium mr-0.5">Plans:</span>
+                                            {course.includedInPlans.map((planSlug) => {
+                                                const plan = planLookup[planSlug.toLowerCase()];
+                                                return (
+                                                    <span
+                                                        key={planSlug}
+                                                        className="inline-block px-2 py-0.5 text-xs font-semibold rounded-full"
+                                                        style={{
+                                                            backgroundColor: plan ? `${plan.color}20` : '#F3F4F6',
+                                                            color: plan?.color || '#6B7280',
+                                                        }}
+                                                    >
+                                                        {plan?.name || planSlug}
+                                                    </span>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    {(!course.includedInPlans || course.includedInPlans.length === 0) && (
+                                        <span className="inline-block px-2.5 py-0.5 mb-2 bg-green-50 text-green-700 text-xs font-semibold uppercase tracking-wider rounded">
+                                            Free
+                                        </span>
+                                    )}
                                     <h3 className="text-xl font-bold text-secondary mb-2 line-clamp-1">
                                         {course.title}
                                     </h3>

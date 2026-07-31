@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import connectDatabase from './config/database.js';
 import apiRoutes from './routes/index.js';
 import coursesRoutes from './routes/courses/courseRoute.js';
@@ -22,6 +24,7 @@ import orderRoutes from './routes/orders/ordersRoute.js';
 import addressRoutes from './routes/address/addressRoute.js';
 import paymentRoutes from './routes/payments/paymentsRoute.js';
 import membershipPlanRoutes from './routes/membership/membershipPlanRoute.js';
+import courseSelectionRoutes from './routes/membership/courseSelectionRoute.js';
 import uploadRoutes from './routes/upload/uploadRoute.js';
 import podcastRoutes from './routes/podcast/podcastRoute.js';
 import adminRoutes from './routes/admin/adminRoute.js';
@@ -81,8 +84,6 @@ const corsOptions = {
         origin.startsWith('http://192.168.');
       if (isLocal) return callback(null, true);
     }
-      if (isLocal) return callback(null, true);
-    }
 
     return callback(new Error(`CORS blocked for origin: ${origin}`));
   },
@@ -120,6 +121,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads')));
+
 // Routes
 app.use('/api/auth', apiRoutes);
 app.use('/api/admin/coupons', adminCouponRoutes);
@@ -140,6 +145,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/membership-plans', membershipPlanRoutes);
+app.use('/api/membership', courseSelectionRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/podcasts', podcastRoutes);
 app.use('/api/chat', chatRoutes);

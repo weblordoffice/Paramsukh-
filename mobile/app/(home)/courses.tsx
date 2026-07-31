@@ -115,6 +115,7 @@ export default function CoursesScreen() {
   const [planLookup, setPlanLookup] = useState<Record<string, PlanVisual>>({});
   const [planAliases, setPlanAliases] = useState<Record<string, string>>({});
   const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<'free' | 'paid'>('free');
   const bottomTabHeight = useBottomTabBarHeight();
 
   const loadPlanMetadata = useCallback(async () => {
@@ -216,6 +217,21 @@ export default function CoursesScreen() {
     [courses, planLookup, planAliases]
   );
 
+  const { freeCourses, paidCourses } = useMemo(() => {
+    const free: typeof enrichedCourses = [];
+    const paid: typeof enrichedCourses = [];
+    enrichedCourses.forEach((course) => {
+      if (!course.includedInPlans || course.includedInPlans.length === 0) {
+        free.push(course);
+      } else {
+        paid.push(course);
+      }
+    });
+    return { freeCourses: free, paidCourses: paid };
+  }, [enrichedCourses]);
+
+  const displayCourses = activeTab === 'free' ? freeCourses : paidCourses;
+
   return (
     <View style={styles.container}>
       <Header />
@@ -235,6 +251,38 @@ export default function CoursesScreen() {
             </Text>
           </View>
 
+          {/* Free / Paid Tabs */}
+          <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'free' && styles.tabActive]}
+              onPress={() => setActiveTab('free')}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={activeTab === 'free' ? 'lock-open' : 'lock-open-outline'}
+                size={16}
+                color={activeTab === 'free' ? '#FFFFFF' : '#6B7280'}
+              />
+              <Text style={[styles.tabText, activeTab === 'free' && styles.tabTextActive]}>
+                Free
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'paid' && styles.tabActive]}
+              onPress={() => setActiveTab('paid')}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={activeTab === 'paid' ? 'lock-closed' : 'lock-closed-outline'}
+                size={16}
+                color={activeTab === 'paid' ? '#FFFFFF' : '#6B7280'}
+              />
+              <Text style={[styles.tabText, activeTab === 'paid' && styles.tabTextActive]}>
+                Paid
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           {isLoading ? (
             <ActivityIndicator size="large" color="#EAB308" style={{ marginTop: 20 }} />
           ) : enrichedCourses.length === 0 ? (
@@ -243,8 +291,24 @@ export default function CoursesScreen() {
               <Text style={styles.emptyTitle}>No courses available</Text>
               <Text style={styles.emptySubtitle}>Check back soon for new content</Text>
             </View>
+          ) : displayCourses.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons
+                name={activeTab === 'free' ? 'lock-open-outline' : 'lock-closed-outline'}
+                size={64}
+                color="#D1D5DB"
+              />
+              <Text style={styles.emptyTitle}>
+                No {activeTab === 'free' ? 'free' : 'paid'} courses
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {activeTab === 'free'
+                  ? 'Check back soon for free content'
+                  : 'Explore membership plans to access paid courses'}
+              </Text>
+            </View>
           ) : (
-            enrichedCourses.map((course) => {
+            displayCourses.map((course) => {
               const accessible = isCourseAccessible(
                 course.includedInPlans,
                 effectivePlans,
@@ -363,6 +427,34 @@ const styles = StyleSheet.create({
   sectionSubtitle: {
     fontSize: 15,
     color: '#6B7280',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 6,
+  },
+  tabActive: {
+    backgroundColor: '#EAB308',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  tabTextActive: {
+    color: '#FFFFFF',
   },
   card: {
     backgroundColor: '#FFFFFF',

@@ -1,9 +1,12 @@
 import { Group, GroupMember, Post, Comment } from '../../models/community.models.js';
 import { evaluateCommunityAccess } from '../../services/entitlement.service.js';
 import { syncUserCommunityMembershipsByPlan } from '../../services/planUpgrade.service.js';
+import { UserMembership } from '../../models/userMembership.models.js';
+
+const normalizeCategory = (value) => String(value || '').trim().toLowerCase();
 
 /**
- * Check if user has community access (any paid membership)
+ * Check if user has community access (free users get General group, paid users get plan groups)
  * GET /api/community/check-access
  */
 export const checkCommunityAccess = async (req, res) => {
@@ -24,6 +27,7 @@ export const checkCommunityAccess = async (req, res) => {
       subscriptionPlan: access.plan,
       subscriptionStatus: access.status,
       reason: access.reason,
+      isFreeUser: access.isFreeUser || false,
     });
 
   } catch (error) {
@@ -36,23 +40,59 @@ export const checkCommunityAccess = async (req, res) => {
   }
 };
 
-const ensureGlobalGroup = async () => {
-  let globalGroup = await Group.findOne({ groupType: 'plan', planSlug: 'global' });
-  if (!globalGroup) {
-    globalGroup = await Group.create({
-      name: 'Global Community',
-      description: 'The general discussion space for all active members.',
+const ensureGeneralGroup = async () => {
+  let generalGroup = await Group.findOne({ groupType: 'plan', planSlug: 'general' });
+  if (!generalGroup) {
+    generalGroup = await Group.create({
+      name: 'General Community',
+      description: 'A public space for all users. Join the conversation!',
       groupType: 'plan',
-      planSlug: 'global',
+      planSlug: 'general',
       isActive: true,
     });
-    console.log('✨ Created Global Community Group');
+    console.log('✨ Created General Community Group');
   }
-  return globalGroup;
+  return generalGroup;
+};
+
+const enrollUserInGroup = async (groupId, userId) => {
+  let membership = await GroupMember.findOne({ groupId, userId });
+  if (!membership) {
+    membership = await GroupMember.create({
+      groupId,
+      userId,
+      role: 'member',
+      isActive: true,
+    });
+    await Group.findByIdAndUpdate(groupId, { $inc: { memberCount: 1 } });
+    console.log(`👤 Enrolled user ${userId} in group ${groupId}`);
+  } else if (!membership.isActive) {
+    membership.isActive = true;
+    await membership.save();
+    await Group.findByIdAndUpdate(groupId, { $inc: { memberCount: 1 } });
+  }
+  return membership;
+};
+
+const formatPlanLabel = (planSlug) => {
+  const normalized = String(planSlug || '').trim().toLowerCase();
+  if (!normalized) return 'Plan';
+  return normalized
+    .split(/[-_\s]+/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
+const formatCategoryLabel = (category) => {
+  const normalized = normalizeCategory(category);
+  const labels = { physical: 'Physical', mental: 'Mental', financial: 'Financial', relationship: 'Relationship', spiritual: 'Spiritual', general: 'General' };
+  return labels[normalized] || (normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'General');
 };
 
 /**
- * Get user's groups (based on enrolled courses) - returns hierarchical plan -> subgroup tree
+ * Get user's groups - returns hierarchical plan -> subgroup tree for paid users,
+ * or General group for free users.
  * GET /api/community/my-groups
  */
 export const getMyGroups = async (req, res) => {
@@ -67,49 +107,146 @@ export const getMyGroups = async (req, res) => {
       });
     }
 
-    // 1. Ensure Global Community group exists
-    const globalGroup = await ensureGlobalGroup();
+    const isFreeUser = access.isFreeUser === true;
 
-    // 2. Ensure user is enrolled in this group
-    let membership = await GroupMember.findOne({ groupId: globalGroup._id, userId });
-    if (!membership) {
-      membership = await GroupMember.create({
-        groupId: globalGroup._id,
-        userId,
-        role: 'member',
-        isActive: true,
+    if (isFreeUser) {
+      const generalGroup = await ensureGeneralGroup();
+      await enrollUserInGroup(generalGroup._id, userId);
+      const reFetched = await Group.findById(generalGroup._id).select('memberCount').lean();
+      const membership = await GroupMember.findOne({ groupId: generalGroup._id, userId, isActive: true }).lean();
+
+      const formatted = {
+        _id: generalGroup._id,
+        name: generalGroup.name,
+        description: generalGroup.description,
+        memberCount: reFetched?.memberCount || 0,
+        coverImage: generalGroup.coverImage || null,
+        groupType: 'plan',
+        planSlug: 'general',
+        category: null,
+        parentGroupId: null,
+        course: null,
+        joinedAt: membership?.joinedAt || new Date(),
+        role: membership?.role || 'member',
+      };
+
+      return res.status(200).json({
+        success: true,
+        planGroups: [{ ...formatted, subgroups: [] }],
+        groups: [formatted],
+        otherGroups: [],
+        totalGroups: 1,
       });
-      // Increment memberCount on the group
-      globalGroup.memberCount = (globalGroup.memberCount || 0) + 1;
-      await globalGroup.save();
     }
 
-    // 3. Format the group structure just like the client expects
-    const formattedGroup = {
-      _id: globalGroup._id,
-      name: globalGroup.name,
-      description: globalGroup.description,
-      memberCount: globalGroup.memberCount || 1,
-      coverImage: globalGroup.coverImage || null,
-      groupType: 'plan',
-      planSlug: 'global',
-      category: null,
-      parentGroupId: null,
-      course: null,
-      joinedAt: membership.joinedAt,
-      role: membership.role,
+    const activeMembership = await UserMembership.findOne({
+      userId,
+      status: 'active',
+      endDate: { $gte: new Date() },
+    })
+      .populate('planId')
+      .sort({ endDate: -1 })
+      .lean();
+
+    const planSlug = activeMembership?.planId?.slug || access.planSlug;
+
+    if (!planSlug || planSlug === 'free') {
+      const generalGroup = await ensureGeneralGroup();
+      await enrollUserInGroup(generalGroup._id, userId);
+      const reFetched = await Group.findById(generalGroup._id).select('memberCount').lean();
+      const membership = await GroupMember.findOne({ groupId: generalGroup._id, userId, isActive: true }).lean();
+
+      const formatted = {
+        _id: generalGroup._id,
+        name: generalGroup.name,
+        description: generalGroup.description,
+        memberCount: reFetched?.memberCount || 0,
+        coverImage: generalGroup.coverImage || null,
+        groupType: 'plan',
+        planSlug: 'general',
+        category: null,
+        parentGroupId: null,
+        course: null,
+        joinedAt: membership?.joinedAt || new Date(),
+        role: membership?.role || 'member',
+      };
+
+      return res.status(200).json({
+        success: true,
+        planGroups: [{ ...formatted, subgroups: [] }],
+        groups: [formatted],
+        otherGroups: [],
+        totalGroups: 1,
+      });
+    }
+
+    await syncUserCommunityMembershipsByPlan({
+      userId,
+      planSlug,
+      membershipActive: true,
+    });
+
+    const planParentGroup = await Group.findOne({ groupType: 'plan', planSlug, isActive: true }).lean();
+    const categorySubgroups = await Group.find({
+      groupType: 'category',
+      planSlug,
+      isActive: true,
+    })
+      .sort({ name: 1 })
+      .lean();
+
+    const userMemberships = await GroupMember.find({
+      userId,
+      isActive: true,
+      groupId: { $in: [planParentGroup?._id, ...categorySubgroups.map((g) => g._id)].filter(Boolean) },
+    })
+      .select('groupId joinedAt role')
+      .lean();
+
+    const membershipByGroupId = new Map(
+      userMemberships.map((m) => [String(m.groupId), m])
+    );
+
+    const formatGroup = (group) => {
+      const mem = membershipByGroupId.get(String(group._id));
+      return {
+        _id: group._id,
+        name: group.name,
+        description: group.description,
+        memberCount: group.memberCount || 0,
+        coverImage: group.coverImage || null,
+        groupType: group.groupType,
+        planSlug: group.planSlug,
+        category: group.category || null,
+        parentGroupId: group.parentGroupId || null,
+        course: group.courseId || null,
+        joinedAt: mem?.joinedAt || new Date(),
+        role: mem?.role || 'member',
+      };
     };
 
-    // Return the response structure that the client expects
+    const planGroupFormatted = {
+      ...formatGroup(planParentGroup || {
+        _id: null,
+        name: `${formatPlanLabel(planSlug)} Community`,
+        description: `Community for ${formatPlanLabel(planSlug)} plan members`,
+        memberCount: 0,
+        groupType: 'plan',
+        planSlug,
+        category: null,
+        parentGroupId: null,
+      }),
+      subgroups: categorySubgroups.map(formatGroup),
+    };
+
+    const allGroups = [planGroupFormatted, ...categorySubgroups.map(formatGroup)];
+
     return res.status(200).json({
       success: true,
-      planGroups: [{
-        ...formattedGroup,
-        subgroups: [] // No subgroups for simplicity
-      }],
-      groups: [formattedGroup],
+      planGroups: [planGroupFormatted],
+      groups: allGroups.filter((g) => g._id),
       otherGroups: [],
-      totalGroups: 1
+      totalGroups: 1 + categorySubgroups.length,
     });
 
   } catch (error) {

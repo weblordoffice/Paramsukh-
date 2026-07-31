@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+   import React, { useState, useRef } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -41,9 +41,9 @@ export default function BookCounselingScreen() {
   React.useEffect(() => {
     if (usesCalendly === 'true' && calendlyUri) {
       WebBrowser.openBrowserAsync(calendlyUri as string, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-        enableBarCollapsing: true,
-        showTitle: true,
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,  
+        enableBarCollapsing: true,   
+        showTitle: true,   
       });
       // Go back after opening Calendly
       backTimerRef.current = setTimeout(() => {
@@ -109,7 +109,7 @@ export default function BookCounselingScreen() {
         Alert.alert('Booking Failed', result.message || 'Please try again.');
         setProcessing(false);
         return;
-      }
+      }        
 
       // Free service: booking is already confirmed
       if (free) {

@@ -7,6 +7,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { useCartStore } from '../store/cartStore';
 import { useOrderStore } from '../store/orderStore';
 import { useAddressStore } from '../store/addressStore';
+import apiClient from '../utils/apiClient';
+import { API_URL } from '../config/api';
 
 export default function CheckoutScreen() {
     const router = useRouter();
@@ -20,6 +22,27 @@ export default function CheckoutScreen() {
     const [paymentMethod, setPaymentMethod] = useState('cod');
     const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
     const [isAddingAddress, setIsAddingAddress] = useState(false);
+
+    // Referral Points State
+    const [referralPoints, setReferralPoints] = useState(0);
+    const [pointValue, setPointValue] = useState(1);
+    const [usePoints, setUsePoints] = useState(0);
+
+    // Fetch referral points on mount
+    useEffect(() => {
+        const fetchReferralData = async () => {
+            try {
+                const response = await apiClient.get(`${API_URL}/user/profile/referrals`);
+                if (response.data?.success) {
+                    setReferralPoints(response.data.points || 0);
+                    setPointValue(response.data.pointValue || 1);
+                }
+            } catch (error) {
+                // Silently fail - referral is optional
+            }
+        };
+        fetchReferralData();
+    }, []);
 
     // New Address Form State
     const [newAddress, setNewAddress] = useState({
@@ -57,10 +80,13 @@ export default function CheckoutScreen() {
             return;
         }
 
-        const orderData = {
+        const orderData: any = {
             addressId: selectedAddressId,
             paymentMethod
         };
+        if (usePoints > 0) {
+            orderData.useReferralPoints = usePoints;
+        }
 
         // 1. Create Order (get Order ID + Razorpay Order ID)
         const result = await createOrder(orderData);
@@ -68,7 +94,7 @@ export default function CheckoutScreen() {
         if (!result.success) {
             Alert.alert("Order Failed", result.message || "Something went wrong.");
             return;
-        }
+        }                                 
 
         // 2. Handle Payment Flow
         if (paymentMethod === 'razorpay' && result.orderId) {
@@ -85,7 +111,7 @@ export default function CheckoutScreen() {
                 Alert.alert("Success", "Payment successful! Order confirmed.", [
                     { text: "OK", onPress: () => { clearCart(); router.replace('/orders'); } }
                 ]);
-            } else {
+            } else {       
                 Alert.alert("Payment Verification", confirmResult.message || "Payment may still be processing. Check My Orders.");
             }
         } else if (paymentMethod === 'razorpay') {
@@ -118,7 +144,7 @@ export default function CheckoutScreen() {
             setIsAddingAddress(false);
             // Verify fetch to ensure sync
             fetchAddresses();
-        }
+        }         
     };
 
     if (!cart) {
@@ -185,7 +211,7 @@ export default function CheckoutScreen() {
                                 placeholder="Address Line 1 (House No, Street)"
                                 value={newAddress.addressLine1}
                                 onChangeText={t => setNewAddress({ ...newAddress, addressLine1: t })}
-                            />
+                            />       
                             <View style={styles.row}>
                                 <TextInput
                                     style={[styles.input, { flex: 1, marginRight: 8 }]}
@@ -198,7 +224,7 @@ export default function CheckoutScreen() {
                                     placeholder="State"
                                     value={newAddress.state}
                                     onChangeText={t => setNewAddress({ ...newAddress, state: t })}
-                                />
+                                />    
                             </View>
                             <View style={styles.row}>
                                 <TextInput
@@ -236,7 +262,7 @@ export default function CheckoutScreen() {
                                         <Text style={styles.saveButtonText}>Save & Use</Text>
                                     )}
                                 </TouchableOpacity>
-                            </View>
+                            </View>   
                         </View>
                     ) : (
                         <View style={styles.card}>
@@ -244,7 +270,7 @@ export default function CheckoutScreen() {
                                 <>
                                     <View style={styles.addressHeader}>
                                         <Text style={styles.addressType}>{selectedAddress.type}</Text>
-                                        {selectedAddress.isDefault && <Text style={styles.defaultBadge}>Default</Text>}
+                                   {selectedAddress.isDefault && <Text style={styles.defaultBadge}>Default</Text>}
                                     </View>
                                     <Text style={styles.addressName}>{selectedAddress.fullName}</Text>
                                     <Text style={styles.addressText}>{selectedAddress.addressLine1}</Text>
@@ -308,7 +334,53 @@ export default function CheckoutScreen() {
                         </View>
                         <Text style={styles.paymentText}>Online Payment (Razorpay)</Text>
                     </TouchableOpacity>
-                </View>
+                </View>    
+
+                {/* Use Referral Points */}
+                {referralPoints > 0 && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Ionicons name="gift-outline" size={20} color="#111827" />
+                            <Text style={styles.sectionTitle}>Use Referral Points</Text>
+                        </View>
+                        <View style={styles.card}>
+                            <View style={styles.referralBalanceRow}>
+                                <Text style={styles.referralBalanceText}>
+                                    Available: <Text style={styles.referralBalanceValue}>{referralPoints} points</Text>
+                                </Text>
+                                <Text style={styles.referralRateText}>(1 point = ₹{pointValue})</Text>
+                            </View>
+                            <View style={styles.referralInputRow}>
+                                <TextInput
+                                    style={styles.referralInput}
+                                    placeholder="Enter points to redeem"
+                                    keyboardType="numeric"
+                                    value={usePoints > 0 ? String(usePoints) : ''}
+                                    onChangeText={(text) => {
+                                        const num = parseInt(text) || 0;
+                                        setUsePoints(Math.min(Math.max(0, num), referralPoints));
+                                    }}
+                                />
+                                {usePoints > 0 && (
+                                    <TouchableOpacity
+                                        style={styles.referralClearButton}
+                                        onPress={() => setUsePoints(0)}
+                                    >
+                                        <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                            {usePoints > 0 && (
+                                <View style={styles.referralDiscountRow}>
+                                    <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                                    <Text style={styles.referralDiscountText}>
+                                        You'll save ₹{usePoints * pointValue} on this order
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+                )}
 
                 {/* Order Summary */}
                 <View style={styles.section}>
@@ -322,10 +394,16 @@ export default function CheckoutScreen() {
                             <Text style={styles.summaryLabel}>Shipping</Text>
                             <Text style={styles.summaryValue}>₹{cart.shippingCost}</Text>
                         </View>
+                        {usePoints > 0 && (
+                            <View style={styles.summaryRow}>
+                                <Text style={[styles.summaryLabel, { color: '#10B981' }]}>Referral Discount</Text>
+                                <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₹{usePoints * pointValue}</Text>
+                            </View>
+                        )}
                         <View style={styles.divider} />
                         <View style={styles.summaryRow}>
                             <Text style={styles.totalLabel}>Total Amount</Text>
-                            <Text style={styles.totalValue}>₹{cart.total}</Text>
+                            <Text style={styles.totalValue}>₹{Math.max(0, cart.total - (usePoints * pointValue))}</Text>
                         </View>
                     </View>
                 </View>
@@ -349,7 +427,7 @@ export default function CheckoutScreen() {
             </View>
         </View>
     );
-}
+}     
 
 const styles = StyleSheet.create({
     container: {
@@ -382,7 +460,7 @@ const styles = StyleSheet.create({
     section: {
         marginBottom: 24,
     },
-    sectionHeader: {
+    sectionHeader: {      
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: 12,
@@ -469,7 +547,7 @@ const styles = StyleSheet.create({
         paddingVertical: 2,
         borderRadius: 4,
     },
-    defaultBadge: {
+    defaultBadge: {      
         fontSize: 12,
         color: '#10B981',
         fontWeight: '600',
@@ -556,6 +634,53 @@ const styles = StyleSheet.create({
         fontWeight: '500',
         color: '#111827',
     },
+    referralBalanceRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    referralBalanceText: {
+        fontSize: 14,
+        color: '#4B5563',
+    },
+    referralBalanceValue: {
+        fontWeight: '700',
+        color: '#EAB308',
+    },
+    referralRateText: {
+        fontSize: 12,
+        color: '#9CA3AF',
+    },
+    referralInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    referralInput: {
+        flex: 1,
+        backgroundColor: '#F9FAFB',
+        borderWidth: 1,
+        borderColor: '#E5E7EB',
+        borderRadius: 8,
+        padding: 12,
+        fontSize: 14,
+        color: '#111827',
+    },
+    referralClearButton: {
+        marginLeft: 8,
+        padding: 8,
+    },
+    referralDiscountRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 12,
+        gap: 6,
+    },
+    referralDiscountText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#10B981',
+    },
     summaryRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -580,7 +705,7 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#111827',
     },
-    totalValue: {
+    totalValue: {    
         fontSize: 18,
         fontWeight: '700',
         color: '#EAB308',
