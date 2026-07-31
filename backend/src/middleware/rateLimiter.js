@@ -49,7 +49,7 @@ export const uploadLimiter = rateLimit({
  */
 export const paymentLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10,
+  max: process.env.NODE_ENV === 'production' ? 10 : 100,
   message: {
     success: false,
     message: 'Too many payment attempts, please try again later.'

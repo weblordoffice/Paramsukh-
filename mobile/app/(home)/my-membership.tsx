@@ -67,8 +67,11 @@ export default function MyMembershipScreen() {
     const openPreview = async (plan: UIMembershipPlan) => {
         setPreviewPlan(plan);
         setPreviewLoading(true);
-        const courses = await fetchEligibleCoursePreviews(plan.courseSelection);
-        setPreviewCourses(courses);
+        setPreviewCourses([]);
+        try {
+            const courses = await fetchEligibleCoursePreviews(plan.courseSelection);
+            setPreviewCourses(courses);
+        } catch {}
         setPreviewLoading(false);
     };
 
@@ -80,12 +83,15 @@ export default function MyMembershipScreen() {
     const openPreSelect = async (plan: UIMembershipPlan) => {
         if (!plan.courseSelection?.enabled) return;
         setPreSelectingPlanId(plan.id);
-        setPreSelectLoading(true);
         setPreSelectedCourseIds([]);
-        const courses = await fetchEligibleCoursePreviews(plan.courseSelection);
-        setPreSelectCourses(courses);
-        setPreSelectLoading(false);
+        setPreSelectCourses([]);
+        setPreSelectLoading(true);
         setShowPreSelectModal(true);
+        try {
+            const courses = await fetchEligibleCoursePreviews(plan.courseSelection);
+            setPreSelectCourses(courses);
+        } catch {}
+        setPreSelectLoading(false);
     };
 
     const togglePreSelectCourse = (courseId: string) => {
@@ -102,16 +108,17 @@ export default function MyMembershipScreen() {
 
     const confirmPreSelect = async () => {
         if (!preSelectingPlanId) return;
-        setShowPreSelectModal(false);
         const plan = plans.find((p) => p.id === preSelectingPlanId);
         if (!plan) return;
+
+        setShowPreSelectModal(false);
 
         await AsyncStorage.setItem(PRE_SELECT_KEY, JSON.stringify({
             planSlug: plan.parentSlug,
             courseIds: preSelectedCourseIds,
         }));
 
-        handlePurchase(plan);
+        await handlePurchase(plan);
     };
 
     const loadPublicPlans = useCallback(async () => {
@@ -243,6 +250,7 @@ export default function MyMembershipScreen() {
             });
 
             if (!linkRes.data?.success || !linkRes.data?.data?.url) {
+                console.warn('[Membership] Payment link creation failed', linkRes.data);
                 setPurchasingPlanId(null);
                 return;
             }
@@ -264,67 +272,67 @@ export default function MyMembershipScreen() {
                 showTitle: true,
             });
 
+            // Retry confirm a few times — webhook may not have fired yet
+            let paymentConfirmed = false;
             if (paymentLinkId) {
-                const confirmRes = await apiClient.post('/payments/membership-link/confirm', {
-                    paymentLinkId,
-                    plan: plan.parentSlug,
-                    variantSlug: plan.variantSlug || null,
-                });
-                if (confirmRes.data?.success) {
-                    await AsyncStorage.removeItem(PENDING_LINK_KEY);
+                for (let attempt = 0; attempt < 5; attempt++) {
+                    if (attempt > 0) await new Promise((r) => setTimeout(r, 2000));
+                    const confirmRes = await apiClient.post('/payments/membership-link/confirm', {
+                        paymentLinkId,
+                        plan: plan.parentSlug,
+                        variantSlug: plan.variantSlug || null,
+                    });
+                    if (confirmRes.data?.data?.status === 'active' || confirmRes.data?.data?.status === 'paid') {
+                        await AsyncStorage.removeItem(PENDING_LINK_KEY);
+                        paymentConfirmed = true;
+                        break;
+                    }
                 }
             }
 
+            // Refresh all state
             await fetchCurrentSubscription();
             await loadPurchases();
+            await fetchActiveMembershipInfo();
 
-            // #1: Auto-redirect to course picker after payment
             // #7: Auto-select pre-selected courses after payment
-            const preSelectRaw = await AsyncStorage.getItem(PRE_SELECT_KEY);
-            if (preSelectRaw && plan.courseSelection?.enabled) {
-                try {
-                    const preSelect = JSON.parse(preSelectRaw);
-                    if (preSelect.planSlug === plan.parentSlug && preSelect.courseIds?.length > 0) {
-                        // Refresh membership info to get membershipId
-                        const { data: membershipData } = await apiClient.get('/membership/active');
-                        if (membershipData?.success && membershipData?.membershipId) {
-                            const membershipId = membershipData.membershipId;
-                            for (const courseId of preSelect.courseIds) {
-                                await apiClient.post(`/membership/${membershipId}/select-course`, { courseId }).catch(() => {});
+            if (paymentConfirmed) {
+                const preSelectRaw = await AsyncStorage.getItem(PRE_SELECT_KEY);
+                if (preSelectRaw && plan.courseSelection?.enabled) {
+                    try {
+                        const preSelect = JSON.parse(preSelectRaw);
+                        if (preSelect.planSlug === plan.parentSlug && preSelect.courseIds?.length > 0) {
+                            const { data: membershipData } = await apiClient.get('/membership/active');
+                            if (membershipData?.success && membershipData?.membershipId) {
+                                const membershipId = membershipData.membershipId;
+                                for (const courseId of preSelect.courseIds) {
+                                    await apiClient.post(`/membership/${membershipId}/select-course`, { courseId }).catch(() => {});
+                                }
+                                setActiveMembership({
+                                    membershipId,
+                                    courseSelection: membershipData.courseSelection,
+                                });
                             }
-                            setActiveMembership({
-                                membershipId,
-                                courseSelection: membershipData.courseSelection,
-                            });
                         }
-                    }
-                } catch {}
-                await AsyncStorage.removeItem(PRE_SELECT_KEY);
-                setPreSelectingPlanId(null);
-                setPreSelectedCourseIds([]);
-                return;
-            }
+                    } catch {}
+                    await AsyncStorage.removeItem(PRE_SELECT_KEY);
+                    setPreSelectingPlanId(null);
+                    setPreSelectedCourseIds([]);
+                }
 
-            // #1: Auto-redirect to course picker if plan has courseSelection
-            if (plan.courseSelection?.enabled) {
-                const { data: membershipData } = await apiClient.get('/membership/active');
-                if (membershipData?.success && membershipData?.courseSelection?.remaining > 0) {
-                    setActiveMembership({
-                        membershipId: membershipData.membershipId,
-                        courseSelection: membershipData.courseSelection,
-                    });
+                // #1: Auto-redirect to course picker if plan has courseSelection
+                if (plan.courseSelection?.enabled && activeMembership?.courseSelection?.remaining && activeMembership.courseSelection.remaining > 0) {
                     router.push({
                         pathname: '/(home)/choose-courses',
                         params: {
-                            membershipId: membershipData.membershipId,
-                            maxSelectable: String(membershipData.courseSelection.maxSelectable),
+                            membershipId: activeMembership!.membershipId,
+                            maxSelectable: String(activeMembership!.courseSelection.maxSelectable),
                         },
                     });
-                    return;
                 }
             }
-        } catch {
-            // ignore
+        } catch (err: any) {
+            console.warn('[Membership] Purchase error:', err?.message || err);
         } finally {
             setPurchasingPlanId(null);
         }
