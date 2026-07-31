@@ -18,8 +18,8 @@ interface Course {
     thumbnailUrl: string;
     bannerUrl: string;
     color: string;
-    icon: string;
     duration: number;
+    category?: string;
     tags: string[];
     status: string;
     videos?: any[];
@@ -121,6 +121,11 @@ export default function CourseDetailsPage() {
                             <h1 className="text-2xl font-bold text-gray-900 mb-2">{course.title}</h1>
                             <p className="text-gray-600 mb-3">{course.description}</p>
                             <div className="flex items-center gap-4 text-sm">
+                                {course.category && (
+                                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full font-medium text-xs uppercase tracking-wider">
+                                        {course.category}
+                                    </span>
+                                )}
                                 <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full">
                                     {course.status}
                                 </span>

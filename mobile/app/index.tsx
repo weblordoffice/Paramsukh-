@@ -3,8 +3,11 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuthStore } from '../store/authStore';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-                            
+
+const dlog = (...args: any[]) => {
+  if (__DEV__) console.log('[index]', ...args);
+};
+
 export default function Home() {
   const router = useRouter();
   const [hasChecked, setHasChecked] = useState(false);
@@ -24,28 +27,55 @@ export default function Home() {
         const currentUser = useAuthStore.getState().user;
         const currentToken = useAuthStore.getState().token;
 
+        dlog('loadUser done — user:', !!currentUser, 'token:', !!currentToken, 'phone:', currentUser?.phone);
+
         if (!currentUser || !currentToken) {
+          dlog('→ /signin');
           setHasChecked(true);
           hasCheckedRef.current = true;
           router.replace('/signin');
           return;
         }
 
-        const assessmentCompleted = await AsyncStorage.getItem('assessment_completed');
+        const serverResult = await useAuthStore.getState().fetchCurrentUser();
         if (!isMounted) return;
+
+        const user = serverResult?.user || currentUser;
+        const hasOnboarded = user?.onboardingCompleted || !!user?.phone;
+        const assessmentCompleted = user?.assessmentCompleted === true;
+
+        dlog('hasOnboarded:', hasOnboarded, 'assessmentCompleted:', assessmentCompleted);
 
         setHasChecked(true);
         hasCheckedRef.current = true;
-        if (assessmentCompleted === 'true') {
+
+        if (!hasOnboarded) {
+          dlog('→ /verify-phone');
+          router.replace('/verify-phone');
+        } else if (assessmentCompleted) {
+          dlog('→ /(home)/menu');
           router.replace('/(home)/menu');
         } else {
+          dlog('→ /assessment');
           router.replace('/assessment');
         }
-      } catch (error: any) {
+      } catch (_error: any) {
+        if (__DEV__) console.error('[index] fetchCurrentUser error:', _error?.message);
         if (isMounted) {
+          const currentUser = useAuthStore.getState().user;
+          const currentToken = useAuthStore.getState().token;
           setHasChecked(true);
           hasCheckedRef.current = true;
-          router.replace('/signin');
+          if (currentUser && currentToken) {
+            const hasOnboarded = currentUser?.onboardingCompleted || !!currentUser?.phone;
+            if (!hasOnboarded) {
+              router.replace('/verify-phone');
+            } else {
+              router.replace('/assessment');
+            }
+          } else {
+            router.replace('/signin');
+          }
         }
       }
     };
@@ -66,7 +96,6 @@ export default function Home() {
     };
   }, []);
 
-  // Show loading screen while checking
   if (!hasChecked) {
     return (
       <View className="flex-1 justify-center items-center bg-white">
@@ -75,7 +104,6 @@ export default function Home() {
     );
   }
 
-  // Return null while redirecting
   return null;
 }
 

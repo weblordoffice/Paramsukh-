@@ -31,11 +31,9 @@ interface User {
 interface PlanInfo {
   slug: string;
   title: string;
-  badgeColor?: string;
 }
 
 const normalize = (value: string) => String(value || '').trim().toLowerCase();
-const isHexColor = (value: string) => /^#[0-9a-fA-F]{6}$/.test(value || '');
 
 export default function MembershipDetailsPage() {
   const params = useParams();
@@ -86,7 +84,6 @@ export default function MembershipDetailsPage() {
           lookup[slug] = {
             slug,
             title: String(plan.title || plan.slug || '').trim(),
-            badgeColor: plan?.metadata?.badgeColor,
           };
         });
 
@@ -103,20 +100,6 @@ export default function MembershipDetailsPage() {
   const getPlanLabel = (planSlug: string) => {
     const slug = normalize(planSlug || 'free');
     return planLookup[slug]?.title || slug.toUpperCase();
-  };
-
-  const getPlanBadgeStyle = (planSlug: string) => {
-    const slug = normalize(planSlug || 'free');
-    const badgeColor = planLookup[slug]?.badgeColor;
-    if (!badgeColor || !isHexColor(badgeColor)) {
-      return undefined;
-    }
-
-    return {
-      color: badgeColor,
-      borderColor: `${badgeColor}66`,
-      backgroundColor: `${badgeColor}1A`,
-    };
   };
 
   const getStatusColor = (status: string) => {
@@ -205,7 +188,6 @@ export default function MembershipDetailsPage() {
           <div className="flex flex-col items-end gap-2">
             <span
               className="px-4 py-2 inline-flex text-sm font-semibold rounded-full bg-gray-100 text-gray-700 border border-gray-200"
-              style={getPlanBadgeStyle(user.subscriptionPlan)}
             >
               <Crown className="w-4 h-4 mr-2" />
               {getPlanLabel(user.subscriptionPlan)}

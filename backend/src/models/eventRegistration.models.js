@@ -88,7 +88,6 @@ eventRegistrationSchema.index({ userId: 1, eventId: 1 }, { unique: true });
 eventRegistrationSchema.index({ eventId: 1, status: 1 });
 eventRegistrationSchema.index({ userId: 1, status: 1 });
 eventRegistrationSchema.index({ registeredAt: -1 });
-eventRegistrationSchema.index({ ticketId: 1 });
 
 eventRegistrationSchema.pre('save', function(next) {
   if (this.status === 'confirmed' && !this.ticketId) {

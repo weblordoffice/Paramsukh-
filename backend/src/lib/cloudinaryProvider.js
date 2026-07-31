@@ -24,19 +24,16 @@ export class CloudinaryProvider extends BaseProvider {
 
     async upload(file, key) {
         try {
-            // Create a unique public ID based on filename and timestamp to avoid collisions
             const filename = path.parse(file.name).name;
             const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
             const publicId = `${this.folder}/${filename}-${uniqueSuffix}`;
 
-            // Upload to Cloudinary
             const result = await cloudinary.uploader.upload(file.path, {
                 public_id: publicId,
                 resource_type: 'auto',
                 overwrite: true
             });
 
-            // Clean up temp file
             try {
                 await fs.unlink(file.path);
             } catch (err) {
@@ -44,7 +41,7 @@ export class CloudinaryProvider extends BaseProvider {
             }
 
             return {
-                key: result.secure_url, // Store full URL as the key (for compatibility with existing model)
+                key: result.secure_url,
                 bucket: this.options.bucket,
                 size: result.bytes,
                 mime_type: result.format ? `image/${result.format}` : file.type,
@@ -59,14 +56,12 @@ export class CloudinaryProvider extends BaseProvider {
         try {
             let publicId = key;
 
-            // Extract public ID from URL if key is a URL
             if (key && key.match(/^http/)) {
                 const regex = /\/upload\/(?:v\d+\/)?(.+)\.[^.]+$/;
                 const match = key.match(regex);
                 if (match && match[1]) {
                     publicId = match[1];
                 } else {
-                    // Cannot deduce public ID (might be external URL), skip delete
                     return;
                 }
             }
@@ -78,6 +73,6 @@ export class CloudinaryProvider extends BaseProvider {
     }
 
     async path(key, bucket) {
-        return key; // Key is the full URL
+        return key;
     }
 }

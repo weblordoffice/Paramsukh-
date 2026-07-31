@@ -24,6 +24,7 @@ import {
 } from '../../controller/courses/progress.controller.js';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { progressLimiter } from '../../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -63,9 +64,9 @@ router.get('/:courseId/videos/:videoId/assignments', getVideoAssignments);
 router.put('/:courseId/assignments/:assignmentId', adminAuth, updateAssignment);
 router.delete('/:courseId/assignments/:assignmentId', adminAuth, deleteAssignment);
 
-// Progress tracking routes (require authentication)
+// Progress tracking routes (require authentication + rate limiting)
 router.get('/:courseId/progress', protectedRoutes, getEnrollmentProgress);
-router.post('/:courseId/progress/video/:videoId', protectedRoutes, markVideoComplete);
-router.post('/:courseId/progress/pdf/:pdfId', protectedRoutes, markPdfComplete);
+router.post('/:courseId/progress/video/:videoId', protectedRoutes, progressLimiter, markVideoComplete);
+router.post('/:courseId/progress/pdf/:pdfId', protectedRoutes, progressLimiter, markPdfComplete);
 
 export default router;

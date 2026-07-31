@@ -1,14 +1,16 @@
-import { Referral } from '../../models/referral.models.js';
-import { ReferralConfig } from '../../models/referralConfig.models.js';
 import { User } from '../../models/user.models.js';
+import { Referral } from '../../models/referral.models.js';
+import ReferralConfig from '../../models/referralConfig.models.js';
+import ReferralEarningRule from '../../models/referralEarningRule.models.js';
+import PointTransaction from '../../models/pointTransaction.models.js';
 import { generateUniqueReferralCode } from '../../lib/referralHelper.js';
+import { redeemPoints, getReferralValidation } from '../../services/referral.service.js';
 
-/**
- * Returns referrer's details, dynamic promotion text copies, and list of referred friends
- */
 export const getUserReferralDashboard = async (req, res) => {
   try {
     const userId = req.user._id;
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
     let user = req.user;
     if (!user.referralCode) {
@@ -16,105 +18,115 @@ export const getUserReferralDashboard = async (req, res) => {
       user = await User.findByIdAndUpdate(userId, { referralCode: code }, { new: true });
     }
 
-    const referralsRaw = await Referral.find({ referrer: userId })
-      .populate('referredUser', 'displayName createdAt')
-      .lean();
+    const config = await ReferralConfig.findOne();
 
-    const referrals = referralsRaw.map(ref => ({
-      _id: ref._id,
-      displayName: ref.referredUser?.displayName || 'Gurukul Learner',
-      joinedAt: ref.createdAt,
-      status: ref.status
-    }));
-
-    let config = await ReferralConfig.findOne({ isActive: true });
-    if (!config) {
-      config = {
-        referrerRewardText: "Get 15 days of Premium Gurukul Access!",
-        refereeRewardText: "Start your scientific wellness journey!"
-      };
-    }
+    const [referrals, total, pointTxns, totalEarnedAgg] = await Promise.all([
+      Referral.find({ referrer: userId })
+        .populate('referredUser', 'displayName createdAt')
+        .sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).lean(),
+      Referral.countDocuments({ referrer: userId }),
+      PointTransaction.find({ userId, type: { $in: ['user.signup', 'user.first_purchase', 'user.course_complete', 'user.monthly_active'] } })
+        .sort({ createdAt: -1 }).limit(20).lean(),
+      PointTransaction.aggregate([
+        { $match: { userId, status: { $in: ['active', 'redeemed'] } } },
+        { $group: { _id: null, total: { $sum: '$rupeeValue' } } }
+      ]),
+    ]);
 
     return res.status(200).json({
       success: true,
       referralCode: user.referralCode,
-      referrerRewardText: config.referrerRewardText,
-      refereeRewardText: config.refereeRewardText,
-      referrals
+      points: user.referralPoints || 0,
+      totalPointsEarned: user.totalPointsEarned || 0,
+      lifetimeValue: totalEarnedAgg[0]?.total || 0,
+      pointValue: config ? config.pointValueInRupees : 1,
+      referrals: referrals.map(r => ({
+        _id: r._id,
+        displayName: r.referredUser?.displayName || 'Member',
+        joinedAt: r.createdAt,
+      })),
+      recentActivity: pointTxns.map(t => ({
+        type: t.type,
+        points: t.points,
+        rupeeValue: t.rupeeValue,
+        createdAt: t.createdAt,
+        description: t.metadata?.description || '',
+      })),
+      pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / limit) },
     });
   } catch (error) {
-    console.error('❌ Get user referral dashboard error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error loading referral info.',
-      error: error.message
-    });
+    console.error('Referral dashboard error:', error);
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-/**
- * Get active referral config for Admin panel
- */
-export const getAdminReferralConfig = async (req, res) => {
+export const getPointsHistory = async (req, res) => {
   try {
-    let config = await ReferralConfig.findOne({ isActive: true });
-    if (!config) {
-      config = await ReferralConfig.create({
-        campaignName: 'Default Launch Promo',
-        isActive: true,
-        rewardType: 'premium_extension',
-        rewardValue: 15,
-        referrerRewardText: 'Get 15 days of Premium Gurukul Access!',
-        refereeRewardText: 'Start your scientific wellness journey!'
-      });
-    }
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    return res.status(200).json({
+    const [txns, total] = await Promise.all([
+      PointTransaction.find({ userId: req.user._id })
+        .sort({ createdAt: -1 }).skip(skip).limit(parseInt(limit)).lean(),
+      PointTransaction.countDocuments({ userId: req.user._id }),
+    ]);
+
+    return res.json({
       success: true,
-      config
+      data: txns,
+      pagination: { page: parseInt(page), limit: parseInt(limit), total, pages: Math.ceil(total / limit) },
     });
   } catch (error) {
-    console.error('❌ Get admin config error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error loading configuration.',
-      error: error.message
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
-/**
- * Create or update referral configuration settings
- */
-export const updateAdminReferralConfig = async (req, res) => {
+export const handleRedeemPoints = async (req, res) => {
   try {
-    const { campaignName, rewardType, rewardValue, referrerRewardText, refereeRewardText, isActive } = req.body;
+    const { points, orderId } = req.body;
+    if (!points || points <= 0) return res.status(400).json({ success: false, message: 'Points required' });
 
-    let config = await ReferralConfig.findOne({ isActive: true });
-    if (!config) {
-      config = new ReferralConfig({ isActive: true });
-    }
+    const result = await redeemPoints(req.user._id, parseInt(points), orderId);
+    if (!result.success) return res.status(400).json({ success: false, message: result.message });
 
-    if (campaignName !== undefined) config.campaignName = campaignName;
-    if (rewardType !== undefined) config.rewardType = rewardType;
-    if (rewardValue !== undefined) config.rewardValue = rewardValue;
-    if (referrerRewardText !== undefined) config.referrerRewardText = referrerRewardText;
-    if (refereeRewardText !== undefined) config.refereeRewardText = refereeRewardText;
-    if (isActive !== undefined) config.isActive = isActive;
-
-    await config.save();
-
-    return res.status(200).json({
-      success: true,
-      message: 'Referral configuration updated successfully.',
-      config
-    });
+    return res.json({ success: true, ...result });
   } catch (error) {
-    console.error('❌ Update admin config error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Internal server error updating configuration.',
-      error: error.message
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const regenerateReferralCode = async (req, res) => {
+  try {
+    const code = await generateUniqueReferralCode();
+    await User.findByIdAndUpdate(req.user._id, { referralCode: code });
+    return res.json({ success: true, referralCode: code });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const applyReferralCode = async (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ success: false, message: 'Code required' });
+
+    const validation = await getReferralValidation(code, req.user._id, req.ip);
+    if (!validation.valid) return res.status(400).json({ success: false, message: validation.reason });
+
+    await User.findByIdAndUpdate(req.user._id, { referredBy: validation.referrer._id });
+    await Referral.create({
+      referrer: validation.referrer._id,
+      referredUser: req.user._id,
+      referralCode: code,
+      metadata: { ip: req.ip, userAgent: req.headers['user-agent'] || '', channel: 'app' },
     });
+
+    const { fireTrigger } = await import('../../services/referral.service.js');
+    fireTrigger('user.signup', { referrerId: validation.referrer._id, referredUserId: req.user._id });
+
+    return res.json({ success: true, message: 'Referral code applied!' });
+  } catch (error) {
+    if (error.code === 11000) return res.status(400).json({ success: false, message: 'Already referred' });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

@@ -27,13 +27,6 @@ const adminPaymentLinkSchema = new mongoose.Schema(
       lowercase: true,
       index: true,
     },
-    planVariantSlug: {
-      type: String,
-      default: null,
-      trim: true,
-      lowercase: true,
-      index: true,
-    },
     planSelectionKey: {
       type: String,
       default: null,
@@ -61,7 +54,6 @@ const adminPaymentLinkSchema = new mongoose.Schema(
       type: String,
       enum: ['created', 'paid', 'expired', 'cancelled', 'failed'],
       default: 'created',
-      index: true,
     },
     adminId: {
       type: mongoose.Schema.Types.ObjectId,

@@ -30,7 +30,7 @@ export interface IssueDetails {
 
 interface AssessmentState {
     answers: AssessmentAnswers;
-    textInputs: { age: string; occupation: string };
+    textInputs: { birthDate: string; occupation: string };
     scales: WellnessScales;
     issueDetails: IssueDetails;
     selectedCountryCode: string;
@@ -50,7 +50,7 @@ interface AssessmentState {
 
 const initialState = {
     answers: {} as AssessmentAnswers,
-    textInputs: { age: '', occupation: '' },
+    textInputs: { birthDate: '', occupation: '' },
     scales: {
         stressLevel: 5,
         sleepQuality: 5,
@@ -122,7 +122,7 @@ export const useAssessmentStore = create<AssessmentState>((set, get) => ({
                         spiritual_issue: parsed.spiritual_issue || '',
                     },
                     textInputs: {
-                        age: parsed.age || '',
+                        birthDate: parsed.birthDate || parsed.age || '',
                         occupation: parsed.occupation || '',
                     },
                     selectedCountryCode: parsed.countryCode || '',

@@ -3,10 +3,11 @@ import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, Keyb
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuthStore } from '../store/authStore';
-import { useOAuth } from '@clerk/clerk-expo';
+import { useOAuth, useAuth } from '@clerk/clerk-expo';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceSwapModal from '../components/DeviceSwapModal';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -21,6 +22,7 @@ export default function SignInScreen() {
   const router = useRouter();
   const { sendOTP, verifyOTP, isLoading } = useAuthStore();
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
+  const { isSignedIn: isClerkSignedIn, signOut: clerkSignOut } = useAuth();
   const scrollViewRef = useRef<ScrollView>(null);
   const otpInputRef = useRef<TextInput>(null);
 
@@ -29,10 +31,14 @@ export default function SignInScreen() {
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const resendIntervalRef = useRef<any>(null);
+  const [referralCode, setReferralCode] = useState('');
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [activeDevices, setActiveDevices] = useState<any[]>([]);
 
   useEffect(() => {
+    if (isClerkSignedIn) {
+      clerkSignOut();
+    }
     return () => {
       if (resendIntervalRef.current) {
         clearInterval(resendIntervalRef.current);
@@ -42,9 +48,15 @@ export default function SignInScreen() {
 
   const handleGoogleSignIn = async () => {
     try {
+      if (isClerkSignedIn) {
+        await clerkSignOut();
+      }
+      if (referralCode.trim()) {
+        await AsyncStorage.setItem('pending_referral_code', referralCode.trim());
+      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const { createdSessionId, setActive } = await startOAuthFlow({
-        redirectUrl: Linking.createURL('/oauth-redirect', { scheme: 'paramsukh' }),
+        redirectUrl: Linking.createURL('/'),
       });
 
       if (createdSessionId && setActive) {
@@ -75,11 +87,15 @@ export default function SignInScreen() {
       if (result.isNewUser === true) {
         Alert.alert(
           'Account Not Found',
-          'This number is not registered. Please sign up first.',
+          'This number is not registered. If you previously signed up with Google, use Google to sign in and then link this number.',
           [
             {
-              text: 'Go to Sign Up',
+              text: 'Sign Up Now',
               onPress: () => router.replace('/signup')
+            },
+            {
+              text: 'Try Google',
+              onPress: () => handleGoogleSignIn()
             },
             {
               text: 'Cancel',
@@ -193,6 +209,18 @@ export default function SignInScreen() {
                 <Text className="text-blue-700 text-xs text-center">
                   ℹ️ For security, you can request OTP up to 3 times per 10 minutes
                 </Text>
+              </View>
+
+              <View className="mt-4">
+                <Text className="text-gray-700 font-medium mb-2">Referral Code (Optional)</Text>
+                <TextInput
+                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-base shadow-sm"
+                  placeholder="PARAM-XXXXXXXX"
+                  value={referralCode}
+                  onChangeText={(text) => setReferralCode(text.toUpperCase().replace(/[^A-Z0-9-]/g, ''))}
+                  autoCapitalize="characters"
+                  placeholderTextColor="#9CA3AF"
+                />
               </View>
 
               {/* Divider */}

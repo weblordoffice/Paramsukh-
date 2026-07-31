@@ -36,8 +36,7 @@ const productSchema = new mongoose.Schema({
   category: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category',
-    required: true,
-    index: true
+    required: true
   },
   subcategory: {
     type: mongoose.Schema.Types.ObjectId,
@@ -134,7 +133,6 @@ const productSchema = new mongoose.Schema({
 });
 
 // Indexes
-productSchema.index({ slug: 1 });
 productSchema.index({ shop: 1, isActive: 1 });
 productSchema.index({ category: 1, isActive: 1 });
 productSchema.index({ 'pricing.sellingPrice': 1 });

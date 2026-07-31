@@ -16,13 +16,14 @@ import { Course } from '../../models/course.models.js';
 import { Enrollment } from '../../models/enrollment.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import {
-  buildMembershipSelectionKey,
   resolveMembershipPlanChargeAmount,
 } from '../../services/membershipPlan.service.js';
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
 import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
+import { recordTransaction } from '../../services/transaction.service.js';
 import { AdminPaymentLink } from '../../models/adminPaymentLink.models.js';
+import { sendMembershipPurchaseEmail } from '../../services/emailService.js';
 
 const MAX_ADMIN_LINK_EXPIRY_HOURS = 24 * 30;
 
@@ -44,7 +45,7 @@ const resolveMembershipValidityDays = ({ notes = {}, planConfig = null } = {}) =
   return Number(planConfig?.validityDays || planConfig?.plan?.validityDays || 365);
 };
 
-const upsertUserPaymentEntry = ({ user, orderId, paymentId, amount, plan, planVariant = null, metadata = {} }) => {
+const upsertUserPaymentEntry = ({ user, orderId, paymentId, amount, plan, metadata = {} }) => {
   user.payments = user.payments || [];
 
   const alreadyRecorded = user.payments.some(
@@ -59,7 +60,6 @@ const upsertUserPaymentEntry = ({ user, orderId, paymentId, amount, plan, planVa
     paymentId,
     amount,
     plan,
-    planVariant,
     status: 'completed',
     date: new Date(),
     metadata,
@@ -215,9 +215,9 @@ export const confirmBookingPaymentLink = async (req, res) => {
 export const createMembershipOrder = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { plan, variantSlug } = req.body;
+    const { plan } = req.body;
 
-    const planConfig = await resolveMembershipPlanChargeAmount({ plan, variantSlug });
+    const planConfig = await resolveMembershipPlanChargeAmount(plan);
     if (!planConfig.isValid) {
       return res.status(400).json({
         success: false,
@@ -226,8 +226,6 @@ export const createMembershipOrder = async (req, res) => {
     }
 
     const finalPlan = planConfig.slug;
-    const finalVariant = planConfig.variantSlug || null;
-    const finalSelectionKey = planConfig.selectionKey || buildMembershipSelectionKey(finalPlan, finalVariant);
     const amount = Number(planConfig.amount || 0);
     const validityDays = Number(planConfig.validityDays || planConfig.plan?.validityDays || 365);
 
@@ -247,14 +245,12 @@ export const createMembershipOrder = async (req, res) => {
       notes: {
         type: 'membership',
         plan: finalPlan,
-        planVariant: finalVariant,
-        planSelectionKey: finalSelectionKey,
         userId: userId.toString(),
         validityDays: String(validityDays),
       }
     });
 
-    console.log(`✅ Payment order created for user ${userId}, plan: ${finalSelectionKey}`);
+    console.log(`✅ Payment order created for user ${userId}, plan: ${finalPlan}`);
 
     return res.status(200).json({
       success: true,
@@ -285,16 +281,14 @@ export const createMembershipOrder = async (req, res) => {
 export const createMembershipPaymentLink = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { plan, variantSlug } = req.body;
+    const { plan } = req.body;
 
-    const planConfig = await resolveMembershipPlanChargeAmount({ plan, variantSlug });
+    const planConfig = await resolveMembershipPlanChargeAmount(plan);
     if (!planConfig.isValid) {
       return res.status(400).json({ success: false, message: 'Invalid membership plan' });
     }
 
     const finalPlan = planConfig.slug;
-    const finalVariant = planConfig.variantSlug || null;
-    const finalSelectionKey = planConfig.selectionKey || buildMembershipSelectionKey(finalPlan, finalVariant);
     const amount = Number(planConfig.amount || 0);
     const validityDays = Number(planConfig.validityDays || planConfig.plan?.validityDays || 365);
 
@@ -316,13 +310,11 @@ export const createMembershipPaymentLink = async (req, res) => {
     const link = await createRazorpayPaymentLink({
       amount,
       currency: planConfig.currency || 'INR',
-      description: `${String(planConfig.displayTitle || finalSelectionKey).toUpperCase()} Membership · ParamSukh`,
+      description: `${String(planConfig.displayTitle || finalPlan).toUpperCase()} Membership · ParamSukh`,
       customer,
       notes: {
         type: 'membership',
         plan: finalPlan,
-        planVariant: finalVariant,
-        planSelectionKey: finalSelectionKey,
         userId: userId.toString(),
         validityDays: String(validityDays),
       },
@@ -358,7 +350,6 @@ export const createAdminMembershipPaymentLink = async (req, res) => {
       targetEmail,
       targetPhone,
       plan,
-      variantSlug,
       amount,
       expiresInHours,
     } = req.body;
@@ -379,14 +370,12 @@ export const createAdminMembershipPaymentLink = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Target user not found' });
     }
 
-    const planConfig = await resolveMembershipPlanChargeAmount({ plan, variantSlug });
+    const planConfig = await resolveMembershipPlanChargeAmount(plan);
     if (!planConfig.isValid) {
       return res.status(400).json({ success: false, message: 'Invalid membership plan' });
     }
 
     const finalPlan = planConfig.slug;
-    const finalVariant = planConfig.variantSlug || null;
-    const finalSelectionKey = planConfig.selectionKey || buildMembershipSelectionKey(finalPlan, finalVariant);
     const finalAmount = Number(amount || planConfig.amount || 0);
     if (!Number.isFinite(finalAmount) || finalAmount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' });
@@ -414,13 +403,11 @@ export const createAdminMembershipPaymentLink = async (req, res) => {
     const link = await createRazorpayPaymentLink({
       amount: finalAmount,
       currency: planConfig.currency || 'INR',
-      description: `${String(planConfig.displayTitle || finalSelectionKey).toUpperCase()} Membership · ParamSukh`,
+      description: `${String(planConfig.displayTitle || finalPlan).toUpperCase()} Membership · ParamSukh`,
       customer,
       notes: {
         type: 'membership',
         plan: finalPlan,
-        planVariant: finalVariant,
-        planSelectionKey: finalSelectionKey,
         userId: String(targetUser._id),
         adminCreated: 'true',
         adminId: adminIdentifier,
@@ -434,8 +421,6 @@ export const createAdminMembershipPaymentLink = async (req, res) => {
       shortUrl: link.short_url,
       userId: targetUser._id,
       planSlug: finalPlan,
-      planVariantSlug: finalVariant,
-      planSelectionKey: finalSelectionKey,
       amount: finalAmount,
       currency: planConfig.currency || 'INR',
       validityDays: finalValidityDays,
@@ -462,8 +447,6 @@ export const createAdminMembershipPaymentLink = async (req, res) => {
           phone: targetUser.phone || null,
         },
         plan: finalPlan,
-        variant: finalVariant,
-        selectionKey: finalSelectionKey,
         amount: finalAmount,
         currency: planConfig.currency || 'INR',
         validityDays: finalValidityDays,
@@ -548,9 +531,9 @@ export const getAdminMembershipPaymentLinks = async (req, res) => {
 export const confirmMembershipPaymentLink = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { paymentLinkId, plan, variantSlug } = req.body;
+    const { paymentLinkId, plan } = req.body;
 
-    const requestedPlanConfig = await resolveMembershipPlanChargeAmount({ plan, variantSlug });
+    const requestedPlanConfig = await resolveMembershipPlanChargeAmount(plan);
     if (!requestedPlanConfig.isValid) {
       return res.status(400).json({ success: false, message: 'Invalid membership plan' });
     }
@@ -558,7 +541,7 @@ export const confirmMembershipPaymentLink = async (req, res) => {
       return res.status(400).json({ success: false, message: 'paymentLinkId is required' });
     }
 
-    console.log(`📩 Confirm payment link: ${paymentLinkId}, plan: ${requestedPlanConfig.selectionKey || plan}, userId: ${userId}`);
+    console.log(`📩 Confirm payment link: ${paymentLinkId}, plan: ${plan}, userId: ${userId}`);
 
     let link;
     try {
@@ -597,21 +580,18 @@ export const confirmMembershipPaymentLink = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    const finalPlanConfig = await resolveMembershipPlanChargeAmount({
-      plan: String(notes?.plan || requestedPlanConfig.slug).toLowerCase(),
-      variantSlug: notes?.planVariant || requestedPlanConfig.variantSlug || null,
-    });
+    const finalPlanConfig = await resolveMembershipPlanChargeAmount(
+      String(notes?.plan || requestedPlanConfig.slug).toLowerCase()
+    );
     if (!finalPlanConfig.isValid) {
       return res.status(400).json({ success: false, message: 'Invalid membership plan' });
     }
 
     const finalPlan = finalPlanConfig.slug;
-    const finalVariant = finalPlanConfig.variantSlug || null;
 
     const validityDays = resolveMembershipValidityDays({ notes, planConfig: finalPlanConfig });
 
     user.subscriptionPlan = finalPlan;
-    user.subscriptionPlanVariant = finalVariant;
     user.subscriptionStatus = 'active';
     user.subscriptionStartDate = new Date();
     user.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
@@ -628,12 +608,10 @@ export const confirmMembershipPaymentLink = async (req, res) => {
       paymentId,
       amount: Number(amountPaise) / 100,
       plan: finalPlan,
-      planVariant: finalVariant,
       metadata: {
         sourceController: 'payments.confirmMembershipPaymentLink',
         adminCreated: isAdminCreated,
         trackingId: notes?.trackingId || null,
-        planSelectionKey: finalPlanConfig.selectionKey,
       },
     });
 
@@ -641,7 +619,6 @@ export const confirmMembershipPaymentLink = async (req, res) => {
     await upsertActiveUserMembership({
       userId: targetUserId,
       planSlug: finalPlan,
-      planVariantSlug: finalVariant,
       planConfig: finalPlanConfig,
       startDate: user.subscriptionStartDate,
       endDate: user.subscriptionEndDate,
@@ -657,11 +634,9 @@ export const confirmMembershipPaymentLink = async (req, res) => {
         sourceController: 'payments.confirmMembershipPaymentLink',
         adminCreated: isAdminCreated,
         trackingId: notes?.trackingId || null,
-        planVariantSlug: finalVariant,
-        planSelectionKey: finalPlanConfig.selectionKey,
       },
     });
-    console.log(`✅ Membership activated for user ${targetUserId}: ${finalPlanConfig.selectionKey || finalPlan}`);
+    console.log(`✅ Membership activated for user ${targetUserId}: ${finalPlan}`);
 
     if (isAdminCreated) {
       await AdminPaymentLink.findOneAndUpdate(
@@ -705,8 +680,7 @@ export const confirmMembershipPaymentLink = async (req, res) => {
       message: 'Membership activated',
       data: {
         plan: user.subscriptionPlan,
-        variant: user.subscriptionPlanVariant || null,
-        selectedPlan: finalPlanConfig.selectionKey || user.subscriptionPlan,
+        selectedPlan: user.subscriptionPlan,
         status: user.subscriptionStatus,
         paymentLinkStatus: link?.status
       }
@@ -753,14 +727,12 @@ export const syncMembershipFromRazorpay = async (req, res) => {
       const orderId = full.id;
       if ((user.payments || []).some(p => p.orderId === orderId)) continue;
 
-      const finalPlanConfig = await resolveMembershipPlanChargeAmount({
-        plan: String(notes.plan || '').toLowerCase().trim(),
-        variantSlug: notes?.planVariant || null,
-      });
+      const finalPlanConfig = await resolveMembershipPlanChargeAmount(
+        String(notes.plan || '').toLowerCase().trim()
+      );
       if (!finalPlanConfig.isValid) continue;
 
       const finalPlan = finalPlanConfig.slug;
-      const finalVariant = finalPlanConfig.variantSlug || null;
 
       const validityDays = resolveMembershipValidityDays({ notes, planConfig: finalPlanConfig });
 
@@ -770,7 +742,6 @@ export const syncMembershipFromRazorpay = async (req, res) => {
       const amountPaise = full?.amount ?? firstPayment?.amount ?? 0;
 
       user.subscriptionPlan = finalPlan;
-      user.subscriptionPlanVariant = finalVariant;
       user.subscriptionStatus = 'active';
       user.subscriptionStartDate = new Date();
       user.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
@@ -781,12 +752,10 @@ export const syncMembershipFromRazorpay = async (req, res) => {
         paymentId,
         amount: Number(amountPaise) / 100,
         plan: finalPlan,
-        planVariant: finalVariant,
         metadata: {
           sourceController: 'payments.syncMembershipFromRazorpay',
           adminCreated: String(notes?.adminCreated || '').toLowerCase() === 'true',
           trackingId: notes?.trackingId || null,
-          planSelectionKey: finalPlanConfig.selectionKey,
         },
       });
 
@@ -794,7 +763,6 @@ export const syncMembershipFromRazorpay = async (req, res) => {
       await upsertActiveUserMembership({
         userId,
         planSlug: finalPlan,
-        planVariantSlug: finalVariant,
         planConfig: finalPlanConfig,
         startDate: user.subscriptionStartDate,
         endDate: user.subscriptionEndDate,
@@ -810,8 +778,6 @@ export const syncMembershipFromRazorpay = async (req, res) => {
           sourceController: 'payments.syncMembershipFromRazorpay',
           adminCreated: String(notes?.adminCreated || '').toLowerCase() === 'true',
           trackingId: notes?.trackingId || null,
-          planVariantSlug: finalVariant,
-          planSelectionKey: finalPlanConfig.selectionKey,
         },
       });
 
@@ -840,15 +806,14 @@ export const syncMembershipFromRazorpay = async (req, res) => {
         }
       }
       await handlePlanUpgrade(userId, finalPlan);
-      console.log(`✅ Sync: Membership activated for user ${userId}: ${finalPlanConfig.selectionKey || finalPlan} (from payment link ${orderId})`);
+      console.log(`✅ Sync: Membership activated for user ${userId}: ${finalPlan} (from payment link ${orderId})`);
       return res.status(200).json({
         success: true,
         activated: true,
         message: 'Membership activated',
         data: {
           plan: user.subscriptionPlan,
-          variant: user.subscriptionPlanVariant || null,
-          selectedPlan: finalPlanConfig.selectionKey || user.subscriptionPlan,
+          selectedPlan: user.subscriptionPlan,
           status: user.subscriptionStatus,
         }
       });
@@ -877,7 +842,6 @@ export const verifyMembershipPayment = async (req, res) => {
       razorpay_payment_id, 
       razorpay_signature,
       plan,
-      variantSlug,
     } = req.body;
 
     // Validate required fields
@@ -888,7 +852,7 @@ export const verifyMembershipPayment = async (req, res) => {
       });
     }
 
-    const planConfig = await resolveMembershipPlanChargeAmount({ plan, variantSlug });
+    const planConfig = await resolveMembershipPlanChargeAmount(plan);
     if (!planConfig.isValid) {
       return res.status(400).json({
         success: false,
@@ -932,7 +896,6 @@ export const verifyMembershipPayment = async (req, res) => {
     const validityDays = Number(planConfig.validityDays || planConfig.plan?.validityDays || 365);
 
     user.subscriptionPlan = planConfig.slug;
-    user.subscriptionPlanVariant = planConfig.variantSlug || null;
     user.subscriptionStatus = 'active';
     user.subscriptionStartDate = new Date();
     user.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
@@ -944,7 +907,6 @@ export const verifyMembershipPayment = async (req, res) => {
       paymentId: razorpay_payment_id,
       amount: paymentDetails.amount / 100, // Convert from paise
       plan: planConfig.slug,
-      planVariant: planConfig.variantSlug || null,
       status: 'completed',
       date: new Date()
     });
@@ -953,7 +915,6 @@ export const verifyMembershipPayment = async (req, res) => {
     await upsertActiveUserMembership({
       userId,
       planSlug: planConfig.slug,
-      planVariantSlug: planConfig.variantSlug || null,
       planConfig,
       startDate: user.subscriptionStartDate,
       endDate: user.subscriptionEndDate,
@@ -975,8 +936,7 @@ export const verifyMembershipPayment = async (req, res) => {
       message: `${planConfig.slug} membership activated successfully!`,
       data: {
         plan: user.subscriptionPlan,
-        variant: user.subscriptionPlanVariant || null,
-        selectedPlan: planConfig.selectionKey || user.subscriptionPlan,
+        selectedPlan: user.subscriptionPlan,
         status: user.subscriptionStatus,
         validUntil: user.subscriptionEndDate,
         paymentId: razorpay_payment_id
@@ -1101,16 +1061,14 @@ export const handleWebhook = async (req, res) => {
         if (pNotes.type === 'membership' && pNotes.userId && pNotes.plan) {
           const mUser = await User.findById(pNotes.userId);
           if (mUser) {
-            const planConfig = await resolveMembershipPlanChargeAmount({
-              plan: String(pNotes.plan).toLowerCase(),
-              variantSlug: pNotes?.planVariant || null,
-            });
+            const planConfig = await resolveMembershipPlanChargeAmount(
+              String(pNotes.plan).toLowerCase()
+            );
             if (!planConfig.isValid) {
               break;
             }
             const validityDays = resolveMembershipValidityDays({ notes: pNotes, planConfig });
             mUser.subscriptionPlan = planConfig.slug;
-            mUser.subscriptionPlanVariant = planConfig.variantSlug || null;
             mUser.subscriptionStatus = 'active';
             mUser.subscriptionStartDate = new Date();
             mUser.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
@@ -1121,12 +1079,10 @@ export const handleWebhook = async (req, res) => {
               paymentId: payment.id,
               amount: payment.amount / 100,
               plan: planConfig.slug,
-              planVariant: planConfig.variantSlug || null,
               metadata: {
                 sourceController: 'payments.webhook.payment.captured',
                 adminCreated: String(pNotes?.adminCreated || '').toLowerCase() === 'true',
                 trackingId: pNotes?.trackingId || null,
-                planSelectionKey: planConfig.selectionKey,
               },
             });
 
@@ -1134,7 +1090,6 @@ export const handleWebhook = async (req, res) => {
             await upsertActiveUserMembership({
               userId: pNotes.userId,
               planSlug: planConfig.slug,
-              planVariantSlug: planConfig.variantSlug || null,
               planConfig,
               startDate: mUser.subscriptionStartDate,
               endDate: mUser.subscriptionEndDate,
@@ -1150,11 +1105,28 @@ export const handleWebhook = async (req, res) => {
                 sourceController: 'payments.webhook.payment.captured',
                 adminCreated: String(pNotes?.adminCreated || '').toLowerCase() === 'true',
                 trackingId: pNotes?.trackingId || null,
-                planVariantSlug: planConfig.variantSlug || null,
-                planSelectionKey: planConfig.selectionKey,
               },
             });
-            console.log(`✅ Membership activated via payment.captured for user ${pNotes.userId}: ${planConfig.selectionKey || planConfig.slug}`);
+            console.log(`✅ Membership activated via payment.captured for user ${pNotes.userId}: ${planConfig.slug}`);
+
+            recordTransaction({
+              userId: pNotes.userId,
+              source: 'membership',
+              sourceId: payment.order_id || payment.id,
+              amount: payment.amount / 100,
+              provider: 'razorpay',
+              providerRef: payment.id,
+              metadata: { planName: planConfig.slug, orderId: payment.order_id, paymentId: payment.id },
+            }).catch(err => console.error('Transaction recording failed:', err.message));
+
+            const { User } = await import('../../models/user.models.js');
+            const mUserForEmail = await User.findById(pNotes.userId).select('email displayName subscriptionPlan referredBy');
+            sendMembershipPurchaseEmail(mUserForEmail);
+
+            if (mUserForEmail && mUserForEmail.referredBy) {
+              const { fireTrigger } = await import('../../services/referral.service.js');
+              fireTrigger('user.first_purchase', { referrerId: mUserForEmail.referredBy, referredUserId: pNotes.userId, amount: payment.amount / 100, source: 'membership' });
+            }
 
             if (String(pNotes?.adminCreated || '').toLowerCase() === 'true') {
               await AdminPaymentLink.findOneAndUpdate(
@@ -1187,6 +1159,15 @@ export const handleWebhook = async (req, res) => {
             booking.status = 'confirmed';
             await booking.save();
             console.log(`✅ Booking ${pNotes.bookingId} confirmed via payment.captured`);
+            recordTransaction({
+              userId: booking.userId,
+              source: 'counseling',
+              sourceId: booking._id.toString(),
+              amount: booking.amount || 0,
+              provider: 'razorpay',
+              providerRef: payment.id,
+              metadata: { eventName: `Counseling Booking ${booking._id}` },
+            }).catch(err => console.error('Transaction recording failed:', err.message));
           }
         }
 
@@ -1199,6 +1180,15 @@ export const handleWebhook = async (req, res) => {
             order.status = 'confirmed';
             await order.save();
             console.log(`✅ Order ${pNotes.orderId} confirmed via payment.captured`);
+            recordTransaction({
+              userId: order.userId,
+              source: 'order',
+              sourceId: order._id.toString(),
+              amount: order.totalAmount || 0,
+              provider: 'razorpay',
+              providerRef: payment.id,
+              metadata: { paymentId: payment.id },
+            }).catch(err => console.error('Transaction recording failed:', err.message));
           }
         }
         break;
@@ -1215,17 +1205,15 @@ export const handleWebhook = async (req, res) => {
         if (plUserId && plPlan) {
           const plUser = await User.findById(plUserId);
           if (plUser) {
-            const planConfig = await resolveMembershipPlanChargeAmount({
-              plan: String(plPlan).toLowerCase(),
-              variantSlug: notes?.planVariant || null,
-            });
+            const planConfig = await resolveMembershipPlanChargeAmount(
+              String(plPlan).toLowerCase()
+            );
             if (!planConfig.isValid) {
               break;
             }
             const validityDays = resolveMembershipValidityDays({ notes, planConfig });
 
             plUser.subscriptionPlan = planConfig.slug;
-            plUser.subscriptionPlanVariant = planConfig.variantSlug || null;
             plUser.subscriptionStatus = 'active';
             plUser.subscriptionStartDate = new Date();
             plUser.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
@@ -1237,12 +1225,10 @@ export const handleWebhook = async (req, res) => {
               paymentId: plPaymentId,
               amount: pl?.amount ? pl.amount / 100 : 0,
               plan: planConfig.slug,
-              planVariant: planConfig.variantSlug || null,
               metadata: {
                 sourceController: 'payments.webhook.payment_link.paid',
                 adminCreated: String(notes?.adminCreated || '').toLowerCase() === 'true',
                 trackingId: notes?.trackingId || null,
-                planSelectionKey: planConfig.selectionKey,
               },
             });
 
@@ -1251,7 +1237,6 @@ export const handleWebhook = async (req, res) => {
               await upsertActiveUserMembership({
                 userId: plUserId,
                 planSlug: planConfig.slug,
-                planVariantSlug: planConfig.variantSlug || null,
                 planConfig,
                 startDate: plUser.subscriptionStartDate,
                 endDate: plUser.subscriptionEndDate,
@@ -1267,11 +1252,23 @@ export const handleWebhook = async (req, res) => {
                   sourceController: 'payments.webhook.payment_link.paid',
                   adminCreated: String(notes?.adminCreated || '').toLowerCase() === 'true',
                   trackingId: notes?.trackingId || null,
-                  planVariantSlug: planConfig.variantSlug || null,
-                  planSelectionKey: planConfig.selectionKey,
                 },
               });
-              console.log(`✅ Membership activated via payment_link.paid for user ${plUserId}: ${planConfig.selectionKey || planConfig.slug}`);
+              console.log(`✅ Membership activated via payment_link.paid for user ${plUserId}: ${planConfig.slug}`);
+
+              recordTransaction({
+                userId: plUserId,
+                source: 'membership',
+                sourceId: orderId,
+                amount: pl?.amount ? pl.amount / 100 : 0,
+                provider: 'razorpay',
+                providerRef: plPaymentId,
+                metadata: { planName: planConfig.slug, orderId, paymentId: plPaymentId },
+              }).catch(err => console.error('Transaction recording failed:', err.message));
+
+              const { User: UserModel2 } = await import('../../models/user.models.js');
+              const plUserForEmail = await UserModel2.findById(plUserId).select('email displayName subscriptionPlan');
+              sendMembershipPurchaseEmail(plUserForEmail);
 
               if (String(notes?.adminCreated || '').toLowerCase() === 'true') {
                 await AdminPaymentLink.findOneAndUpdate(

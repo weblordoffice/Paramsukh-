@@ -40,7 +40,6 @@ const userImportSessionSchema = new mongoose.Schema({
     type: Date,
     required: true,
     default: () => new Date(Date.now() + 30 * 60 * 1000),
-    index: true,
   },
 }, {
   timestamps: true,

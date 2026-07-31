@@ -3,11 +3,15 @@ import Cart from '../../models/cart.models.js';
 import Product from '../../models/product.models.js';
 import Address from '../../models/address.models.js';
 import crypto from 'crypto';
+import { recordTransaction } from '../../services/transaction.service.js';
 import { escapeRegex } from '../../utils/sanitizeUtils.js';
 import mongoose from 'mongoose';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { createRazorpayOrder, verifyRazorpaySignature, createRazorpayPaymentLink, fetchPaymentLink } from '../../services/razorpayService.js';
 import { sendOrderConfirmationEmail } from '../../services/emailService.js';
+import { redeemPoints } from '../../services/referral.service.js';
+import ReferralConfig from '../../models/referralConfig.models.js';
+import { User } from '../../models/user.models.js';
 
 
 // @desc    Create order from cart
@@ -16,7 +20,7 @@ import { sendOrderConfirmationEmail } from '../../services/emailService.js';
 export const createOrder = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { addressId, paymentMethod, customerNotes } = req.body;
+    const { addressId, paymentMethod, customerNotes, useReferralPoints } = req.body;
 
     console.log('[CreateOrder] Request:', { userId, addressId, paymentMethod });
 
@@ -134,6 +138,31 @@ export const createOrder = async (req, res) => {
       orderItems.push(orderItem);
     }
 
+    // Validate referral points (but don't redeem yet - wait for inventory check)
+    let referralPointsDiscount = 0;
+    let referralPointsRedeemed = 0;
+    if (useReferralPoints && parseInt(useReferralPoints) > 0) {
+      const pointsToRedeem = parseInt(useReferralPoints);
+      const refConfig = await ReferralConfig.findOne();
+      if (!refConfig || !refConfig.isActive) {
+        return res.status(400).json({ success: false, message: 'Referral system is currently inactive' });
+      }
+      if (pointsToRedeem < refConfig.minRedemptionPoints) {
+        return res.status(400).json({ success: false, message: `Minimum ${refConfig.minRedemptionPoints} points required for redemption` });
+      }
+      const currentUser = await User.findById(userId);
+      if (!currentUser || (currentUser.referralPoints || 0) < pointsToRedeem) {
+        return res.status(400).json({ success: false, message: 'Insufficient referral points' });
+      }
+      const pointValue = refConfig.pointValueInRupees || 1;
+      referralPointsDiscount = pointsToRedeem * pointValue;
+      referralPointsRedeemed = pointsToRedeem;
+    }
+
+    // Adjust pricing with referral points discount
+    const adjustedDiscount = (cart.discount || 0) + referralPointsDiscount;
+    const adjustedTotal = Math.max(0, cart.total - referralPointsDiscount);
+
     // Manually generate random Order Number to ensure it exists
     const date = new Date();
     const year = date.getFullYear().toString().slice(-2);
@@ -159,12 +188,16 @@ export const createOrder = async (req, res) => {
       },
       pricing: {
         subtotal: cart.subtotal,
-        discount: cart.discount,
+        discount: adjustedDiscount,
         shippingCharge: cart.shippingCharge,
         tax: cart.tax,
-        total: cart.total
+        total: adjustedTotal
       },
       coupon: cart.coupon,
+      referralPoints: referralPointsRedeemed > 0 ? {
+        points: referralPointsRedeemed,
+        discount: referralPointsDiscount
+      } : undefined,
       payment: {
         method: paymentMethod,
         status: 'pending'
@@ -198,6 +231,7 @@ export const createOrder = async (req, res) => {
     await order.save();
 
     // Atomic inventory update with oversell protection
+    let inventoryFailed = false;
     for (const item of cart.items) {
       if (item.product && item.product.inventory && !item.product.inventory.isUnlimited) {
         const result = await Product.findOneAndUpdate(
@@ -206,6 +240,7 @@ export const createOrder = async (req, res) => {
           { new: true }
         );
         if (!result) {
+          inventoryFailed = true;
           await Order.findByIdAndDelete(order._id);
           return res.status(400).json({
             success: false,
@@ -214,6 +249,19 @@ export const createOrder = async (req, res) => {
         }
       } else if (item.product) {
         await Product.findByIdAndUpdate(item.product._id, { $inc: { 'stats.soldCount': item.quantity } });
+      }
+    }
+
+    // Redeem referral points only after inventory check passes
+    if (referralPointsRedeemed > 0) {
+      try {
+        const redemption = await redeemPoints(userId, referralPointsRedeemed, order._id.toString());
+        if (redemption.success && redemption.transactionId) {
+          order.referralPoints.transactionId = redemption.transactionId;
+          await order.save();
+        }
+      } catch (refErr) {
+        console.error('Failed to redeem referral points:', refErr);
       }
     }
 
@@ -661,6 +709,16 @@ export const verifyOrderPayment = async (req, res) => {
       await order.save();
 
       console.log(`✅ Order #${order.orderNumber} confirmed via Razorpay`);
+
+      recordTransaction({
+        userId: order.userId,
+        source: 'order',
+        sourceId: order._id.toString(),
+        amount: order.totalAmount,
+        provider: 'razorpay',
+        providerRef: razorpayPaymentId,
+        metadata: { orderId: order.orderNumber, paymentId: razorpayPaymentId },
+      }).catch(err => console.error('Transaction recording failed:', err.message));
 
       // 4. Send Email Confirmation
       try {

@@ -18,9 +18,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Picker } from '@react-native-picker/picker';
 import { Country, State } from 'country-state-city';
 import Constants from 'expo-constants';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import apiClient from '../utils/apiClient';
 import { useAssessmentStore } from '../store/assessmentStore';
+import { useAuthStore } from '../store/authStore';
 
 function ScaleInput({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
   return (
@@ -79,6 +82,7 @@ const ACTIVITY_LEVELS = [
 export default function AssessmentScreen() {
   const router = useRouter();
   const store = useAssessmentStore();
+  const insets = useSafeAreaInsets();
 
   const {
     answers, textInputs, scales, issueDetails,
@@ -88,11 +92,37 @@ export default function AssessmentScreen() {
   } = store;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [birthDate, setBirthDate] = useState<Date | null>(null);
 
   const textFields = [
-    { id: 'age', label: 'Age', placeholder: 'Enter your age', keyboardType: 'numeric' as const, required: true },
     { id: 'occupation', label: 'Occupation', placeholder: 'Enter your occupation', keyboardType: 'default' as const, required: true },
   ];
+
+  const formatBirthDate = (date: Date | null): string => {
+    if (!date) return '';
+    return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const handleDateChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+    }
+    if (selectedDate) {
+      setBirthDate(selectedDate);
+      setTextInput('birthDate', selectedDate.toISOString().split('T')[0]);
+    }
+  };
+
+  const calculateAge = (date: Date): number => {
+    const today = new Date();
+    let age = today.getFullYear() - date.getFullYear();
+    const m = today.getMonth() - date.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < date.getDate())) {
+      age--;
+    }
+    return age;
+  };
 
   const [countries, setCountries] = useState<ReturnType<typeof Country.getAllCountries>>([]);
   const [countriesLoading, setCountriesLoading] = useState(true);
@@ -130,16 +160,20 @@ export default function AssessmentScreen() {
   };
 
   const handleSubmit = async () => {
-    const ageValue = parseInt(textInputs.age);
-    if (isNaN(ageValue) || ageValue < 1 || ageValue > 150) {
-      Alert.alert('Invalid Age', 'Please enter a valid age between 1 and 150.');
+    if (!birthDate) {
+      Alert.alert('Missing Birth Date', 'Please select your birth date.');
+      return;
+    }
+    const age = calculateAge(birthDate);
+    if (age < 1 || age > 150) {
+      Alert.alert('Invalid Birth Date', 'Please select a valid birth date.');
       return;
     }
 
     const answeredCount = Object.keys(answers).length;
     const filledTextInputs = Object.values(textInputs).filter(val => val.trim() !== '').length;
     const locationSelections = (selectedCountryCode ? 1 : 0) + (selectedStateCode ? 1 : 0);
-    const totalFields = questions.length + textFields.length + 2;
+    const totalFields = questions.length + Object.keys(textInputs).length + 2;
     const totalAnswered = answeredCount + filledTextInputs + locationSelections;
 
     if (totalAnswered < totalFields) {
@@ -156,7 +190,8 @@ export default function AssessmentScreen() {
 
     try {
       const assessmentData = {
-        age: parseInt(textInputs.age),
+        birthDate: birthDate.toISOString(),
+        age,
         occupation: textInputs.occupation,
         countryCode: selectedCountry?.isoCode || '',
         countryName: selectedCountry?.name || '',
@@ -186,9 +221,13 @@ export default function AssessmentScreen() {
 
       if (response.data.success) {
         await AsyncStorage.setItem('assessment_completed', 'true');
+        useAuthStore.setState((state) => ({
+          user: state.user ? { ...state.user, assessmentCompleted: true, assessmentCompletedAt: new Date().toISOString() } : null,
+        }));
         const allAnswers = {
           ...answers,
-          ...textInputs,
+          birthDate: birthDate.toISOString(),
+          occupation: textInputs.occupation,
           countryCode: selectedCountry?.isoCode || '',
           countryName: selectedCountry?.name || '',
           stateCode: selectedState?.isoCode || '',
@@ -212,7 +251,7 @@ export default function AssessmentScreen() {
   const answeredCount = Object.keys(answers).length;
   const filledTextInputs = Object.values(textInputs).filter(val => val.trim() !== '').length;
   const locationSelections = (selectedCountryCode ? 1 : 0) + (selectedStateCode ? 1 : 0);
-  const totalFields = questions.length + textFields.length + 2;
+  const totalFields = questions.length + Object.keys(textInputs).length + 2;
   const totalAnswered = answeredCount + filledTextInputs + locationSelections;
   const progressPercentage = (totalAnswered / totalFields) * 100;
   const isComplete = totalAnswered === totalFields;
@@ -274,6 +313,41 @@ export default function AssessmentScreen() {
 
           {/* Section: Personal Info */}
           <Text style={styles.sectionHeading}>Personal Information</Text>
+
+          <View style={styles.inputBlock}>
+            <Text style={styles.inputLabel}>
+              Birth Date <Text style={styles.required}>*</Text>
+            </Text>
+            <TouchableOpacity
+              style={[styles.textInput, birthDate && styles.textInputFilled, styles.datePickerButton]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={18} color={birthDate ? '#3B82F6' : '#9CA3AF'} style={{ marginRight: 8 }} />
+              <Text style={birthDate ? styles.dateTextFilled : styles.dateTextPlaceholder}>
+                {birthDate ? formatBirthDate(birthDate) : 'Select your birth date'}
+              </Text>
+            </TouchableOpacity>
+            {showDatePicker && (
+              <View style={styles.datePickerContainer}>
+                <DateTimePicker
+                  value={birthDate || new Date(2000, 0, 1)}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleDateChange}
+                  maximumDate={new Date()}
+                  minimumDate={new Date(1900, 0, 1)}
+                />
+                {Platform.OS === 'ios' && (
+                  <TouchableOpacity
+                    style={styles.datePickerDoneButton}
+                    onPress={() => setShowDatePicker(false)}
+                  >
+                    <Text style={styles.datePickerDoneText}>Done</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+          </View>
 
           {textFields.map((field) => (
             <View key={field.id} style={styles.inputBlock}>
@@ -422,7 +496,7 @@ export default function AssessmentScreen() {
           ))}
         </ScrollView>
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <TouchableOpacity
             style={[styles.submitButton, (!isComplete || isSubmitting) && styles.submitButtonDisabled]}
             onPress={handleSubmit}
@@ -751,7 +825,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
     borderTopWidth: 1,
     borderTopColor: '#F3F4F6',
   },
@@ -771,5 +844,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateTextFilled: {
+    fontSize: 15,
+    color: '#111827',
+  },
+  dateTextPlaceholder: {
+    fontSize: 15,
+    color: '#9CA3AF',
+  },
+  datePickerContainer: {
+    marginTop: 8,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    overflow: 'hidden',
+  },
+  datePickerDoneButton: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  datePickerDoneText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#3B82F6',
   },
 });

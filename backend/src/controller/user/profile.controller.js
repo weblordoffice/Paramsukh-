@@ -5,8 +5,6 @@ import {
   resolveMembershipPlanChargeAmount,
   resolveMembershipPlanInheritanceBySlug,
   normalizePlanSlug,
-  normalizePlanVariantSlug,
-  buildMembershipSelectionKey,
 } from '../../services/membershipPlan.service.js';
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
@@ -358,7 +356,7 @@ export const getSubscription = async (req, res) => {
     const userId = req.user._id;
 
     const user = await User.findById(userId)
-      .select('subscriptionPlan subscriptionPlanVariant subscriptionStatus');
+      .select('subscriptionPlan subscriptionStatus');
 
     if (!user) {
       return res.status(404).json({
@@ -370,16 +368,12 @@ export const getSubscription = async (req, res) => {
     const normalizedStatus = user.subscriptionStatus === 'trial' ? 'inactive' : user.subscriptionStatus;
 
     const normalizedPlan = normalizePlanSlug(user.subscriptionPlan || 'free');
-    const normalizedVariant = normalizePlanVariantSlug(user.subscriptionPlanVariant || null) || null;
     let effectivePlans = normalizedPlan ? [normalizedPlan] : [];
-    const selectedPlan = buildMembershipSelectionKey(normalizedPlan, normalizedVariant);
+    const selectedPlan = normalizedPlan;
 
     let selectedPlanLabel = normalizedPlan;
     if (normalizedPlan && normalizedPlan !== 'free') {
-      const selectedPlanConfig = await resolveMembershipPlanChargeAmount({
-        plan: normalizedPlan,
-        variantSlug: normalizedVariant,
-      });
+      const selectedPlanConfig = await resolveMembershipPlanChargeAmount(normalizedPlan);
       if (selectedPlanConfig?.isValid) {
         selectedPlanLabel = selectedPlanConfig.displayTitle || normalizedPlan;
       }
@@ -396,7 +390,6 @@ export const getSubscription = async (req, res) => {
       success: true,
       subscription: {
         plan: user.subscriptionPlan,
-        variant: normalizedVariant,
         selectedPlan,
         selectedPlanLabel,
         status: normalizedStatus,
@@ -566,7 +559,7 @@ export const deleteAccount = async (req, res) => {
 export const purchaseMembership = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { plan, variantSlug, razorpayPaymentId, razorpayOrderId, razorpaySignature } = req.body;
+    const { plan, razorpayPaymentId, razorpayOrderId, razorpaySignature } = req.body;
 
     // Require payment verification — no free activation
     if (!razorpayPaymentId || !razorpayOrderId || !razorpaySignature) {
@@ -576,7 +569,7 @@ export const purchaseMembership = async (req, res) => {
       });
     }
 
-    const planConfig = await resolveMembershipPlanChargeAmount({ plan, variantSlug });
+    const planConfig = await resolveMembershipPlanChargeAmount(plan);
     if (!planConfig.isValid) {
       return res.status(400).json({
         success: false,
@@ -603,14 +596,18 @@ export const purchaseMembership = async (req, res) => {
     }
 
     const finalPlan = planConfig.slug;
-    const finalVariant = planConfig.variantSlug || null;
 
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    const courses = await getAutoEnrollCoursesForPlan(finalPlan);
+    const courseSelectionEnabled = planConfig?.plan?.access?.courseSelection?.enabled || false;
+    const maxSelectableCourses = planConfig?.plan?.access?.courseSelection?.maxSelectableCourses || 0;
+
+    const courses = courseSelectionEnabled
+      ? []
+      : await getAutoEnrollCoursesForPlan(finalPlan);
 
     if (courses.length === 0) {
       console.warn(`⚠️ No courses found for ${finalPlan} plan in database configuration.`);
@@ -619,7 +616,6 @@ export const purchaseMembership = async (req, res) => {
     }
 
     user.subscriptionPlan = finalPlan;
-    user.subscriptionPlanVariant = finalVariant;
     user.subscriptionStatus = 'active';
     if (!user.subscriptionStartDate) {
       user.subscriptionStartDate = new Date();
@@ -633,7 +629,6 @@ export const purchaseMembership = async (req, res) => {
     await upsertActiveUserMembership({
       userId,
       planSlug: finalPlan,
-      planVariantSlug: finalVariant,
       planConfig,
       startDate: user.subscriptionStartDate,
       endDate: user.subscriptionEndDate,
@@ -642,51 +637,66 @@ export const purchaseMembership = async (req, res) => {
         sourceController: 'profile.purchaseMembership',
         razorpayPaymentId,
         razorpayOrderId,
-        planVariantSlug: finalVariant,
-        planSelectionKey: planConfig.selectionKey,
       },
     });
 
-    // Auto-enroll in courses (skip if already enrolled)
-    const enrollmentPromises = courses.map(async (course) => {
-      const existingEnrollment = await Enrollment.findOne({ userId, courseId: course._id });
-      if (!existingEnrollment) {
-        const enrollment = await Enrollment.create({
-          userId,
-          courseId: course._id,
-          currentVideoId: course.videos.length > 0 ? course.videos[0]._id : null
-        });
-
-        // Atomically update course enrollment count
-        await Course.findByIdAndUpdate(course._id, { $inc: { enrollmentCount: 1 } });
-
-        return enrollment;
-      }
-      return existingEnrollment;
-    });
-
-    const enrollments = await Promise.all(enrollmentPromises);
+    // Auto-enroll in courses (skip if already enrolled) — only for legacy plans without course selection
+    let enrollments = [];
+    let enrolledCount = 0;
+    if (courses.length > 0) {
+      const enrollmentPromises = courses.map(async (course) => {
+        const existingEnrollment = await Enrollment.findOne({ userId, courseId: course._id });
+        if (!existingEnrollment) {
+          const enrollment = await Enrollment.create({
+            userId,
+            courseId: course._id,
+            currentVideoId: course.videos.length > 0 ? course.videos[0]._id : null
+          });
+          await Course.findByIdAndUpdate(course._id, { $inc: { enrollmentCount: 1 } });
+          return enrollment;
+        }
+        return existingEnrollment;
+      });
+      enrollments = await Promise.all(enrollmentPromises);
+      enrolledCount = enrollments.filter((e) => e?.isNew !== false).length;
+    }
 
     const communitySync = await handlePlanUpgrade(userId, finalPlan);
 
     console.log(`✅ User ${user.displayName} purchased ${finalPlan} membership`);
-    console.log(`   - Created ${enrollments.length} enrollment(s) for courses: ${courses.map(c => c.title).join(', ')}`);
+    if (courseSelectionEnabled) {
+      console.log(`   🔢 Course selection enabled — ${maxSelectableCourses} credits available`);
+    } else {
+      console.log(`   - Created ${enrolledCount} enrollment(s) for courses: ${courses.map(c => c.title).join(', ')}`);
+    }
     console.log(`   - Category groups synced: ${communitySync.totalCategories}`);
+
+    const membership = await UserMembership.findOne({ userId, status: 'active', endDate: { $gte: new Date() } })
+      .sort({ endDate: -1 })
+      .lean();
 
     return res.status(200).json({
       success: true,
-      message: `Successfully purchased ${finalPlan} membership`,
+      message: courseSelectionEnabled
+        ? `Successfully purchased ${finalPlan} membership. Select your ${maxSelectableCourses} course(s)!`
+        : `Successfully purchased ${finalPlan} membership`,
       subscription: {
         plan: user.subscriptionPlan,
-        variant: user.subscriptionPlanVariant || null,
-        selectedPlan: buildMembershipSelectionKey(user.subscriptionPlan, user.subscriptionPlanVariant || null),
-        status: user.subscriptionStatus
+        selectedPlan: user.subscriptionPlan,
+        status: user.subscriptionStatus,
+        membershipId: membership?._id,
       },
+      courseSelection: courseSelectionEnabled ? {
+        enabled: true,
+        maxSelectable: maxSelectableCourses,
+        remaining: maxSelectableCourses,
+        membershipId: membership?._id,
+      } : null,
       enrolledCourses: courses.map(c => ({
         _id: c._id,
         title: c.title
       })),
-      enrollmentCount: enrollments.length,
+      enrollmentCount: enrolledCount,
       communityGroups: [],
       communityGroupsCount: communitySync.totalCategories,
       communityAccess: true

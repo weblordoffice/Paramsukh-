@@ -31,7 +31,7 @@ export function usePushNotifications() {
 
   const notificationListener = useRef<any>(null);
   const responseListener = useRef<any>(null);
-
+           
   useEffect(() => {
     // Only run when the user is logged in
     if (!authToken) return;
@@ -114,7 +114,7 @@ export function usePushNotifications() {
       }
     };
 
-    setup();
+    setup();    
 
     return () => {
       cancelled = true;

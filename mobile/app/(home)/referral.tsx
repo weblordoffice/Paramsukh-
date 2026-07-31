@@ -12,9 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import axios from 'axios';
-import { API_URL } from '../../config/api';
-import { useAuthStore } from '../../store/authStore';
+import apiClient from '../../utils/apiClient';
 
 interface ReferredFriend {
   _id: string;
@@ -25,7 +23,6 @@ interface ReferredFriend {
 
 export default function ReferralScreen() {
   const router = useRouter();
-  const { token } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [referralCode, setReferralCode] = useState('');
   const [referrerRewardText, setReferrerRewardText] = useState('Get 15 days of Premium Gurukul Access!');
@@ -35,8 +32,7 @@ export default function ReferralScreen() {
 
   const fetchReferralDetails = async () => {
     try {
-      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const response = await axios.get(`${API_URL}/user/profile/referrals`, { headers });
+      const response = await apiClient.get('/user/profile/referrals');
       
       if (!isMountedRef.current) return;
       
@@ -59,7 +55,7 @@ export default function ReferralScreen() {
     return () => {
       isMountedRef.current = false;
     };
-  }, [token]);
+  }, []);
 
   const handleCopyCode = () => {
     Clipboard.setString(referralCode);

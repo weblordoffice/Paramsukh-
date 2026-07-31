@@ -1,4 +1,5 @@
 import { Donation } from '../../models/donation.models.js';
+import { recordTransaction } from '../../services/transaction.service.js';
 
 // @desc    Record a new donation
 // @route   POST /api/donations/record
@@ -27,6 +28,17 @@ export const recordDonation = async (req, res) => {
             message: 'Donation recorded successfully',
             data: donation
         });
+
+        recordTransaction({
+          userId,
+          userName: isAnonymous ? 'Anonymous' : userName,
+          source: 'donation',
+          sourceId: donation._id.toString(),
+          amount,
+          provider: paymentMethod || 'unknown',
+          providerRef: transactionId,
+          metadata: { paymentMethod, isAnonymous: !!isAnonymous },
+        }).catch(err => console.error('Transaction recording failed:', err.message));
     } catch (error) {
         console.error('Record Donation Error:', error);
         res.status(500).json({

@@ -1,13 +1,11 @@
 import { MembershipPlan } from '../models/membershipPlan.models.js';
 import { UserMembership } from '../models/userMembership.models.js';
-import { buildMembershipSelectionKey, normalizePlanVariantSlug } from './membershipPlan.service.js';
 
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
 export const upsertActiveUserMembership = async ({
   userId,
   planSlug,
-  planVariantSlug = null,
   planConfig = null,
   startDate,
   endDate,
@@ -25,23 +23,12 @@ export const upsertActiveUserMembership = async ({
     return null;
   }
 
-  const resolvedVariantSlug = normalizePlanVariantSlug(planConfig?.variantSlug || planVariantSlug || null) || null;
-  const selectedVariant = resolvedVariantSlug && Array.isArray(plan?.planVariants)
-    ? plan.planVariants.find((variant) => normalizePlanVariantSlug(variant.slug) === resolvedVariantSlug) || null
-    : null;
-
-  const selectionKey = buildMembershipSelectionKey(slug, resolvedVariantSlug);
   const snapshotAmount = Number(planConfig?.amount ?? plan.pricing?.oneTime?.amount ?? 0);
   const snapshotCurrency = planConfig?.currency || plan.pricing?.oneTime?.currency || 'INR';
 
   const planSnapshot = {
     title: planConfig?.displayTitle || plan.title,
     slug: plan.slug,
-    variant: {
-      slug: resolvedVariantSlug,
-      title: selectedVariant?.title || null,
-      selectionKey,
-    },
     pricing: {
       amount: snapshotAmount,
       currency: snapshotCurrency,
@@ -49,6 +36,7 @@ export const upsertActiveUserMembership = async ({
     },
   };
 
+  const isLifetime = planConfig?.isLifetime || plan.isLifetime || false;
   const payload = {
     userId,
     planId: plan._id,
@@ -56,12 +44,15 @@ export const upsertActiveUserMembership = async ({
     status: 'active',
     source,
     startDate: startDate || new Date(),
-    endDate: endDate || new Date(Date.now() + Number(planConfig?.validityDays || plan.validityDays || 365) * 24 * 60 * 60 * 1000),
+    endDate: endDate || (isLifetime ? null : new Date(Date.now() + Number(planConfig?.validityDays || plan.validityDays || 365) * 24 * 60 * 60 * 1000)),
     autoRenew: false,
+    courseSelectionEnabled: plan.access?.courseSelection?.enabled || false,
+    selectedCourseCredits: plan.access?.courseSelection?.enabled
+      ? (plan.access?.courseSelection?.maxSelectableCourses || 0)
+      : 0,
+    selectedCourseIds: [],
     metadata: {
       ...metadata,
-      planVariantSlug: resolvedVariantSlug,
-      planSelectionKey: selectionKey,
     },
   };
 
@@ -92,6 +83,15 @@ export const upsertActiveUserMembership = async ({
     existingActive.metadata = { ...(existingActive.metadata || {}), ...metadata };
     if (payload.payment) {
       existingActive.payment = payload.payment;
+    }
+    if (plan.access?.courseSelection?.enabled) {
+      existingActive.courseSelectionEnabled = true;
+      existingActive.selectedCourseCredits = plan.access.courseSelection.maxSelectableCourses || 0;
+      existingActive.selectedCourseIds = [];
+    } else {
+      existingActive.courseSelectionEnabled = false;
+      existingActive.selectedCourseCredits = 0;
+      existingActive.selectedCourseIds = [];
     }
     await existingActive.save();
     return existingActive;

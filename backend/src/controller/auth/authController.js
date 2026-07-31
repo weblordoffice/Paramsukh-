@@ -1,7 +1,10 @@
 import { User } from '../../models/user.models.js';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { reconcileUserSubscriptionPlanIntegrity } from '../../services/membershipPlan.service.js';
-import { registerOrValidateDevice } from '../../lib/deviceSessionManager.js';
+import { getDeviceDetails } from '../../lib/deviceHelper.js';
+import { DeviceSession } from '../../models/deviceSession.models.js';
+import { generateTokens } from '../../lib/generateTokens.js';
 
 /**
  * Refresh access token using refresh token
@@ -18,7 +21,6 @@ export const refreshToken = async (req, res) => {
       });
     }
 
-    // Verify refresh token
     const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
 
     if (!decoded.id) {
@@ -28,7 +30,6 @@ export const refreshToken = async (req, res) => {
       });
     }
 
-    // Find user
     const user = await User.findById(decoded.id).select('-__v');
 
     if (!user) {
@@ -45,43 +46,43 @@ export const refreshToken = async (req, res) => {
       });
     }
 
-    const reconciliation = await reconcileUserSubscriptionPlanIntegrity(user, { save: true });
-    if (reconciliation?.reconciled) {
-      console.warn(`⚠️ Reconciled orphan plan for user ${user._id}: ${reconciliation.previousPlan} -> free`);
+    if (decoded.family !== undefined && (!user.tokenFamily || decoded.family !== user.tokenFamily)) {
+      user.tokenFamily = null;
+      user.tokenVersion += 1;
+      await DeviceSession.updateMany(
+        { user: user._id, isRevoked: false },
+        { isRevoked: true }
+      );
+      await user.save();
+      console.warn(`REPLAY DETECTED for user ${user._id} — all sessions revoked`);
+      return res.status(401).json({
+        success: false,
+        code: 'TOKEN_REPLAY',
+        message: 'Token replay detected. All sessions have been revoked.'
+      });
     }
 
-    // Update login count
+    const reconciliation = await reconcileUserSubscriptionPlanIntegrity(user, { save: true });
+    if (reconciliation?.reconciled) {
+      console.warn(`Reconciled orphan plan for user ${user._id}: ${reconciliation.previousPlan} -> free`);
+    }
+
+    const newFamily = crypto.randomUUID();
+    user.tokenFamily = newFamily;
+    user.tokenVersion += 1;
     user.loginCount = (user.loginCount || 0) + 1;
     user.lastLoginAt = new Date();
     await user.save();
 
-    const deviceGuard = await registerOrValidateDevice(user._id, req, user.authProvider || 'phone');
-    if (!deviceGuard.success) {
-      return res.status(deviceGuard.cooldown ? 403 : (deviceGuard.deviceLimitExceeded ? 403 : 400)).json({
-        success: false,
-        deviceLimitExceeded: deviceGuard.deviceLimitExceeded || false,
-        cooldown: deviceGuard.cooldown || false,
-        cooldownRemaining: deviceGuard.cooldownRemaining || 0,
-        activeDevices: deviceGuard.activeDevices || [],
-        message: deviceGuard.message
-      });
-    }
-
-    // Generate new access token
-    const token = jwt.sign(
-      { id: user._id, phone: user.phone },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    // Optionally generate new refresh token
+    const { deviceId } = getDeviceDetails(req);
+    const token = generateTokens(user._id, deviceId, user.tokenVersion, res);
     const newRefreshToken = jwt.sign(
-      { id: user._id },
+      { id: user._id, family: newFamily },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
 
-    console.log(`✅ Token refreshed for user: ${user.displayName}`);
+    console.log(`Token refreshed for user: ${user.displayName}`);
 
     return res.status(200).json({
       success: true,
@@ -99,8 +100,8 @@ export const refreshToken = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('❌ Token refresh error:', error);
-    
+    console.error('Token refresh error:', error);
+
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
       return res.status(401).json({
         success: false,
@@ -122,8 +123,13 @@ export const refreshToken = async (req, res) => {
  */
 export const logout = async (req, res) => {
   try {
-    // If using database-stored refresh tokens, invalidate them here
-    // For now, just clear the cookie
+    if (req.deviceSession) {
+      req.deviceSession.isRevoked = true;
+      await req.deviceSession.save();
+    }
+    req.user.tokenFamily = null;
+    req.user.tokenVersion += 1;
+    await req.user.save();
     res.clearCookie('token');
     
     return res.status(200).json({
@@ -131,10 +137,40 @@ export const logout = async (req, res) => {
       message: 'Logged out successfully'
     });
   } catch (error) {
-    console.error('❌ Logout error:', error);
+    console.error('Logout error:', error);
     return res.status(500).json({
       success: false,
       message: 'Internal server error'
+    });
+  }
+};
+
+export const getCurrentUser = async (req, res) => {
+  try {
+    const user = req.user;
+    return res.json({
+      success: true,
+      user: {
+        _id: user._id,
+        displayName: user.displayName,
+        email: user.email || null,
+        phone: user.phone || null,
+        photoURL: user.photoURL,
+        authProvider: user.authProvider,
+        subscriptionPlan: user.subscriptionPlan,
+        subscriptionStatus: user.subscriptionStatus,
+        trialEndsAt: user.trialEndsAt,
+        lastLoginAt: user.lastLoginAt,
+        loginCount: user.loginCount,
+        assessmentCompleted: user.assessmentCompleted || false,
+        assessmentCompletedAt: user.assessmentCompletedAt || null,
+        onboardingCompleted: user.onboardingCompleted || false
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
     });
   }
 };

@@ -7,20 +7,23 @@ import {
   getMyEnrollments,
   getEnrollmentByCourse,
   unenrollFromCourse,
-  markVideoComplete,
-  markPdfComplete,
-  getCourseProgress,
   updateVideoPosition,
   checkEnrollmentStatus,
   getContinueLearning,
   markCourseComplete
 } from '../../controller/enrollment/enrollment.controller.js';
 import {
+  markVideoComplete,
+  markPdfComplete,
+  getEnrollmentProgress
+} from '../../controller/courses/progress.controller.js';
+import {
   getEnrollmentStats,
   getEnrollmentStatsByCourse,
   getRecentEnrollments
 } from '../../controller/enrollment/enrollmentStats.controller.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { progressLimiter } from '../../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -61,16 +64,16 @@ router.get('/check/:courseId', checkEnrollmentStatus);
 router.get('/course/:courseId', getEnrollmentByCourse);
 
 // Get course progress
-router.get('/course/:courseId/progress', getCourseProgress);
+router.get('/course/:courseId/progress', getEnrollmentProgress);
 
 // Update current video position
 router.patch('/course/:courseId/position', updateVideoPosition);
 
 // Mark video as complete
-router.post('/course/:courseId/video/:videoId/complete', markVideoComplete);
+router.post('/course/:courseId/video/:videoId/complete', progressLimiter, markVideoComplete);
 
 // Mark PDF as complete
-router.post('/course/:courseId/pdf/:pdfId/complete', markPdfComplete);
+router.post('/course/:courseId/pdf/:pdfId/complete', progressLimiter, markPdfComplete);
 
 // Mark entire course as complete
 router.post('/course/:courseId/complete', markCourseComplete);

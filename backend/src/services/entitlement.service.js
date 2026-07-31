@@ -16,7 +16,10 @@ export const getUserEntitlementContext = async (userId) => {
   const activeMembership = await UserMembership.findOne({
     userId,
     status: 'active',
-    endDate: { $gte: new Date() },
+    $or: [
+      { endDate: { $gte: new Date() } },
+      { endDate: null },
+    ],
   })
     .populate('planId')
     .sort({ endDate: -1 })
@@ -44,6 +47,9 @@ export const getUserEntitlementContext = async (userId) => {
       accessMode: plan.access?.accessMode || 'entitlement_only',
       communityAccess,
       isPaid: normalize(plan.slug) !== 'free',
+      membershipId: String(activeMembership._id),
+      courseSelectionEnabled: plan.access?.courseSelection?.enabled || false,
+      membership: activeMembership,
     };
   }
 
@@ -72,6 +78,7 @@ export const getUserEntitlementContext = async (userId) => {
           accessMode: 'entitlement_only',
           communityAccess,
           isPaid: true,
+          courseSelectionEnabled: false,
         };
       } catch (err) {
         // ignore and continue to default fallback below
@@ -87,6 +94,7 @@ export const getUserEntitlementContext = async (userId) => {
     accessMode: 'entitlement_only',
     communityAccess: false,
     isPaid: false,
+    courseSelectionEnabled: false,
   };
 };
 
@@ -122,17 +130,34 @@ export const evaluateCourseEnrollmentAccess = async ({
   }
 
   // course.includedInPlans may contain slugs (new) or ObjectIds (legacy from old admin UI)
-  // We handle both: slugs are compared to planSlugs, ObjectIds are compared to the active plan's _id
   const isObjectId = (v) => /^[a-f\d]{24}$/i.test(String(v));
   const matchesPlanTag = isCourseFree || (course.includedInPlans || []).some((tag) => {
     const t = normalize(tag);
     if (isObjectId(t)) {
-      // legacy ObjectId stored in includedInPlans — compare against active plan _id
       return entitlement.planId && t === entitlement.planId.toLowerCase();
     }
-    // new format — compare slug
     return (entitlement.planSlugs || [entitlement.planSlug]).map(normalize).includes(t);
   });
+
+  if (entitlement.courseSelectionEnabled && !isCourseFree) {
+    const selectedCourseIds = (entitlement.membership?.selectedCourseIds || []).map(String);
+    if (!selectedCourseIds.includes(String(course._id))) {
+      return {
+        allowed: false,
+        reason: 'requires_selection',
+        message: 'Use your membership credits to select this course.',
+        statusCode: 403,
+        needsCourseSelection: true,
+        membershipId: entitlement.membershipId,
+        remainingCredits: entitlement.membership?.selectedCourseCredits || 0,
+      };
+    }
+    return {
+      allowed: true,
+      reason: 'selected_via_credits',
+      entitlement,
+    };
+  }
 
   if (!matchesPlanTag) {
     return {
@@ -141,16 +166,6 @@ export const evaluateCourseEnrollmentAccess = async ({
       message: `Your ${entitlement.planSlug} plan does not include this course.`,
       statusCode: 403,
       upgradeRequired: true,
-    };
-  }
-
-  if (entitlement.accessMode === 'auto_enroll') {
-    return {
-      allowed: false,
-      reason: 'auto_enroll_only',
-      message: `Your ${entitlement.planSlug} membership includes pre-selected courses. Manual enrollment is not available.`,
-      statusCode: 403,
-      restrictedPlan: true,
     };
   }
 
@@ -187,9 +202,10 @@ export const evaluateCommunityAccess = async (userId) => {
   }
 
   return {
-    hasAccess: false,
-    reason: 'no_active_membership',
+    hasAccess: true,
+    reason: 'general_access',
     plan: 'free',
     status: entitlement.user.subscriptionStatus,
+    isFreeUser: true,
   };
 };

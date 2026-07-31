@@ -21,8 +21,8 @@ export const generateCertificateRecord = async (userId, courseId) => {
     }
 
     // Generate unique verifiable certificate code
-    const randomHex = crypto.randomBytes(4).toString('hex').toUpperCase();
-    const certificateId = `PS-CERT-${randomHex}-${Date.now().toString().slice(-4)}`;
+    const randomHex = crypto.randomBytes(8).toString('hex').toUpperCase();
+    const certificateId = `PS-CERT-${randomHex}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
 
     certificate = new Certificate({
       certificateId,

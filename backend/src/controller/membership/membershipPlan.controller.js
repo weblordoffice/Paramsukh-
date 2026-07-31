@@ -36,48 +36,6 @@ const normalizeStringList = (values = []) => {
   )];
 };
 
-const normalizeVariantPayload = (variant = {}, index = 0) => {
-  const normalizedTitle = String(variant?.title || '').trim();
-  const derivedSlugSource = variant?.slug || normalizedTitle || `variant-${index + 1}`;
-  const normalizedSlug = normalizeSlug(derivedSlugSource);
-  const useCustomPricingAndValidity = toBoolean(variant?.useCustomPricingAndValidity, false);
-
-  const benefits = Array.isArray(variant?.benefits)
-    ? variant.benefits
-      .map((benefit) => ({
-        text: String(benefit?.text || '').trim(),
-        included: benefit?.included !== false,
-      }))
-      .filter((benefit) => benefit.text)
-    : [];
-
-  return {
-    ...variant,
-    title: normalizedTitle,
-    slug: normalizedSlug,
-    shortDescription: String(variant?.shortDescription || '').trim(),
-    longDescription: String(variant?.longDescription || '').trim(),
-    isActive: toBoolean(variant?.isActive, true),
-    displayOrder: Number(variant?.displayOrder || 0),
-    useCustomPricingAndValidity,
-    customPricing: {
-      amount: variant?.customPricing?.amount === undefined || variant?.customPricing?.amount === null
-        ? null
-        : Number(variant?.customPricing?.amount),
-      currency: String(variant?.customPricing?.currency || 'INR').trim().toUpperCase(),
-    },
-    customValidityDays: variant?.customValidityDays === undefined || variant?.customValidityDays === null
-      ? null
-      : Number(variant?.customValidityDays),
-    metadata: {
-      badgeColor: variant?.metadata?.badgeColor ? String(variant.metadata.badgeColor).trim() : null,
-      icon: variant?.metadata?.icon ? String(variant.metadata.icon).trim() : null,
-      popular: toBoolean(variant?.metadata?.popular, false),
-    },
-    benefits,
-  };
-};
-
 const sanitizePlanPayload = (body = {}) => {
   const payload = { ...body };
 
@@ -114,16 +72,6 @@ const sanitizePlanPayload = (body = {}) => {
 
   if (payload.longDescription !== undefined) {
     payload.longDescription = String(payload.longDescription || '').trim();
-  }
-
-  if (payload.planVariantsEnabled !== undefined) {
-    payload.planVariantsEnabled = toBoolean(payload.planVariantsEnabled, false);
-  }
-
-  if (payload.planVariants !== undefined) {
-    payload.planVariants = Array.isArray(payload.planVariants)
-      ? payload.planVariants.map((variant, index) => normalizeVariantPayload(variant, index))
-      : [];
   }
 
   return payload;
@@ -164,58 +112,13 @@ const validatePlanPayload = (payload = {}) => {
   }
 
   const validityDays = Number(payload.validityDays ?? 365);
-  if (Number.isNaN(validityDays) || validityDays < 1) {
+  if (!payload.isLifetime && (Number.isNaN(validityDays) || validityDays < 1)) {
     return 'validityDays must be at least 1';
   }
 
   const accessMode = payload.access?.accessMode;
-  if (accessMode && !['entitlement_only', 'auto_enroll', 'hybrid'].includes(accessMode)) {
+  if (accessMode && accessMode !== 'entitlement_only') {
     return 'access.accessMode is invalid';
-  }
-
-  if (payload.planVariants !== undefined) {
-    if (!Array.isArray(payload.planVariants)) {
-      return 'planVariants must be an array';
-    }
-
-    const seenVariantSlugs = new Set();
-    const parentSlug = normalizeSlug(payload.slug || '');
-
-    for (let index = 0; index < payload.planVariants.length; index += 1) {
-      const variant = payload.planVariants[index] || {};
-      const title = String(variant.title || '').trim();
-      const slug = normalizeSlug(variant.slug || title);
-
-      if (!title) {
-        return `planVariants[${index}].title is required`;
-      }
-
-      if (!slug) {
-        return `planVariants[${index}].slug is required`;
-      }
-
-      if (slug === parentSlug) {
-        return `planVariants[${index}].slug cannot be same as plan slug`;
-      }
-
-      if (seenVariantSlugs.has(slug)) {
-        return `Duplicate variant slug: ${slug}`;
-      }
-      seenVariantSlugs.add(slug);
-
-      const useCustomPricingAndValidity = Boolean(variant.useCustomPricingAndValidity);
-      if (useCustomPricingAndValidity) {
-        const customAmount = Number(variant?.customPricing?.amount);
-        if (!Number.isFinite(customAmount) || customAmount < 0) {
-          return `planVariants[${index}].customPricing.amount must be a non-negative number`;
-        }
-
-        const customValidityDays = Number(variant?.customValidityDays);
-        if (!Number.isFinite(customValidityDays) || customValidityDays < 1) {
-          return `planVariants[${index}].customValidityDays must be at least 1`;
-        }
-      }
-    }
   }
 
   return null;
@@ -318,8 +221,7 @@ export const updateMembershipPlan = async (req, res) => {
       slug: payload.slug ?? existingPlan.slug,
       pricing: payload.pricing ?? existingPlan.pricing,
       validityDays: payload.validityDays ?? existingPlan.validityDays,
-      planVariantsEnabled: payload.planVariantsEnabled ?? existingPlan.planVariantsEnabled,
-      planVariants: payload.planVariants ?? existingPlan.planVariants,
+      isLifetime: payload.isLifetime ?? existingPlan.isLifetime,
       access: {
         ...(existingPlan.access?.toObject?.() || existingPlan.access || {}),
         ...(payload.access || {}),
@@ -437,25 +339,12 @@ export const listMembershipPlansPublic = async (req, res) => {
   try {
     const plans = await MembershipPlan.find({ status: 'published' })
       .sort({ displayOrder: 1, createdAt: -1 })
-      .select('title slug shortDescription longDescription pricing validityDays benefits metadata access planVariantsEnabled planVariants')
       .lean();
-
-    const publicPlans = plans.map((plan) => {
-      const variants = Array.isArray(plan?.planVariants)
-        ? plan.planVariants.filter((variant) => variant && variant.isActive !== false)
-        : [];
-
-      return {
-        ...plan,
-        planVariantsEnabled: Boolean(plan?.planVariantsEnabled),
-        planVariants: plan?.planVariantsEnabled ? variants : [],
-      };
-    });
 
     return res.status(200).json({
       success: true,
-      data: publicPlans,
-      total: publicPlans.length,
+      data: plans,
+      total: plans.length,
     });
   } catch (error) {
     console.error('Error fetching public membership plans:', error);

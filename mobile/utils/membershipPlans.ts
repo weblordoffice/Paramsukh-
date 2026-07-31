@@ -12,12 +12,7 @@ export interface UIMembershipPlan {
   color: string;
   gradient: string[];
   tagline: string;
-  popular: boolean;
   features: { text: string; included: boolean }[];
-}
-
-interface FetchPublicMembershipPlansOptions {
-  includeVariants?: boolean;
 }
 
 const defaultVisual = { emoji: '✨', color: '#64748B', gradient: ['#E2E8F0', '#CBD5E1'] };
@@ -27,11 +22,8 @@ const toTitle = (text: string) => {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
 };
 
-const buildPlanFeatures = (plan: any, variant: any = null) => {
-  const variantBenefits = Array.isArray(variant?.benefits) ? variant.benefits : [];
-  const apiBenefits = variantBenefits.length > 0
-    ? variantBenefits
-    : (Array.isArray(plan?.benefits) ? plan.benefits : []);
+const buildPlanFeatures = (plan: any) => {
+  const apiBenefits = Array.isArray(plan?.benefits) ? plan.benefits : [];
   if (apiBenefits.length > 0) {
     return apiBenefits.map((benefit: any) => ({
       text: String(benefit?.text || '').trim(),
@@ -59,8 +51,7 @@ const buildPlanFeatures = (plan: any, variant: any = null) => {
 
 const mapParentPlan = (plan: any): UIMembershipPlan => {
   const slug = String(plan?.slug || '').toLowerCase();
-  const metadataColor = plan?.metadata?.badgeColor;
-  const color = metadataColor || defaultVisual.color;
+  const color = defaultVisual.color;
 
   return {
     id: slug,
@@ -69,59 +60,16 @@ const mapParentPlan = (plan: any): UIMembershipPlan => {
     variantSlug: null,
     rawId: plan?._id ? String(plan._id) : undefined,
     name: plan?.title || toTitle(slug),
-    emoji: plan?.metadata?.icon || defaultVisual.emoji,
+    emoji: defaultVisual.emoji,
     price: Number(plan?.pricing?.oneTime?.amount || 0),
     color,
     gradient: defaultVisual.gradient,
-    tagline: plan?.shortDescription || `${Number(plan?.validityDays || 365)} days validity`,
-    popular: !!plan?.metadata?.popular,
+    tagline: plan?.shortDescription || (plan?.isLifetime ? 'Lifetime access' : `${Number(plan?.validityDays || 365)} days validity`),
     features: buildPlanFeatures(plan),
   };
 };
 
-const mapVariantPlan = (plan: any, variant: any): UIMembershipPlan | null => {
-  const parentSlug = String(plan?.slug || '').toLowerCase();
-  const variantSlug = String(variant?.slug || '').toLowerCase();
-  if (!parentSlug || !variantSlug) {
-    return null;
-  }
-
-  const useCustomPricingAndValidity = !!variant?.useCustomPricingAndValidity;
-  const parentAmount = Number(plan?.pricing?.oneTime?.amount || 0);
-  const parentValidityDays = Number(plan?.validityDays || 365);
-  const variantAmount = Number(variant?.customPricing?.amount);
-  const variantValidityDays = Number(variant?.customValidityDays);
-
-  const price = useCustomPricingAndValidity && Number.isFinite(variantAmount)
-    ? variantAmount
-    : parentAmount;
-  const validityDays = useCustomPricingAndValidity && Number.isFinite(variantValidityDays) && variantValidityDays > 0
-    ? variantValidityDays
-    : parentValidityDays;
-
-  const metadataColor = variant?.metadata?.badgeColor || plan?.metadata?.badgeColor;
-  const color = metadataColor || defaultVisual.color;
-
-  return {
-    id: `${parentSlug}::${variantSlug}`,
-    slug: `${parentSlug}::${variantSlug}`,
-    parentSlug,
-    variantSlug,
-    rawId: variant?._id ? String(variant._id) : undefined,
-    name: `${plan?.title || toTitle(parentSlug)} - ${variant?.title || toTitle(variantSlug)}`,
-    emoji: variant?.metadata?.icon || plan?.metadata?.icon || defaultVisual.emoji,
-    price,
-    color,
-    gradient: defaultVisual.gradient,
-    tagline: variant?.shortDescription || `${validityDays} days validity`,
-    popular: variant?.metadata?.popular === true || !!plan?.metadata?.popular,
-    features: buildPlanFeatures(plan, variant),
-  };
-};
-
-export const fetchPublicMembershipPlans = async (
-  options: FetchPublicMembershipPlansOptions = {}
-): Promise<UIMembershipPlan[]> => {
+export const fetchPublicMembershipPlans = async (): Promise<UIMembershipPlan[]> => {
   try {
     const response = await apiClient.get('/membership-plans/public');
     const plans = response.data?.data;
@@ -130,31 +78,11 @@ export const fetchPublicMembershipPlans = async (
       return [];
     }
 
-    const includeVariants = options.includeVariants === true;
-    const mapped: UIMembershipPlan[] = [];
+    const mapped = plans
+      .map((plan: any) => mapParentPlan(plan))
+      .filter((plan) => !!plan.id);
 
-    plans.forEach((plan: any) => {
-      const parent = mapParentPlan(plan);
-      if (parent.id) {
-        mapped.push(parent);
-      }
-
-      if (!includeVariants || !plan?.planVariantsEnabled || !Array.isArray(plan?.planVariants)) {
-        return;
-      }
-
-      plan.planVariants
-        .filter((variant: any) => variant && variant.isActive !== false)
-        .sort((a: any, b: any) => Number(a?.displayOrder || 0) - Number(b?.displayOrder || 0))
-        .forEach((variant: any) => {
-          const mappedVariant = mapVariantPlan(plan, variant);
-          if (mappedVariant?.id) {
-            mapped.push(mappedVariant);
-          }
-        });
-    });
-
-    return mapped.filter((plan) => !!plan.id);
+    return mapped;
   } catch {
     return [];
   }

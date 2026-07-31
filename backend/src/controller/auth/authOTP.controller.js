@@ -1,9 +1,11 @@
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { User } from "../../models/user.models.js";
 import { sendOTP, verifyOTP } from "../../services/otpService.js";
 import { generateTokens } from "../../lib/generateTokens.js";
 import { sendWelcomeEmail } from "../../services/emailService.js";
 import { registerOrValidateDevice } from "../../lib/deviceSessionManager.js";
+import { getDeviceDetails } from "../../lib/deviceHelper.js";
 
 // Helper function to extract and verify the JWT token from headers
 const getLoggedInUser = async (req) => {
@@ -144,6 +146,12 @@ export const verifyOTPController = async (req, res) => {
           }
           await existingPhoneUser.save({ session });
 
+          if (!existingPhoneUser.onboardingCompleted) {
+            existingPhoneUser.onboardingCompleted = true;
+            existingPhoneUser.onboardingCompletedAt = new Date();
+            await existingPhoneUser.save({ session });
+          }
+
           // Delete the temporary Google/Clerk user to avoid duplicates
           await User.findByIdAndDelete(loggedInUser._id, { session });
 
@@ -159,6 +167,10 @@ export const verifyOTPController = async (req, res) => {
       } else {
         // LINK: No user exists with this phone number yet. Simply assign it to the logged in user.
         loggedInUser.phone = formattedPhone;
+        if (!loggedInUser.onboardingCompleted) {
+          loggedInUser.onboardingCompleted = true;
+          loggedInUser.onboardingCompletedAt = new Date();
+        }
         await loggedInUser.save();
         
         user = loggedInUser;
@@ -211,26 +223,47 @@ export const verifyOTPController = async (req, res) => {
           referralCode: refCode
         });
 
+        let referralHandled = false;
         if (referralCode) {
-          const referrer = await User.findOne({ referralCode: referralCode.trim() });
-          if (referrer) {
-            user.referredBy = referrer._id;
+          try {
+            const { validateReferral } = await import('../../services/referral.service.js');
+            const validation = await validateReferral({
+              referralCode,
+              newUserId: user._id,
+              ip: req.ip
+            });
+
+            if (!validation.valid) {
+              console.warn(`Referral validation failed for user ${user._id}: ${validation.reason}`);
+            } else {
+              user.referredBy = validation.referrer._id;
+              await user.save();
+              referralHandled = true;
+
+              try {
+                const { Referral } = await import('../../models/referral.models.js');
+                await Referral.create({
+                  referrer: validation.referrer._id,
+                  referredUser: user._id,
+                  referralCode: referralCode,
+                  metadata: { ip: req.ip, userAgent: req.headers['user-agent'] || '', channel: 'app' }
+                });
+
+                const { fireTrigger } = await import('../../services/referral.service.js');
+                fireTrigger('user.signup', { referrerId: validation.referrer._id, referredUserId: user._id });
+              } catch (refError) {
+                user.referredBy = null;
+                await user.save();
+                console.error('Failed to log referral connection, reverted:', refError.message);
+              }
+            }
+          } catch (validationError) {
+            console.error('Referral validation error:', validationError.message);
           }
         }
 
-        await user.save();
-
-        if (user.referredBy) {
-          try {
-            const { Referral } = await import('../../models/referral.models.js');
-            await Referral.create({
-              referrer: user.referredBy,
-              referredUser: user._id,
-              status: 'joined'
-            });
-          } catch (refError) {
-            console.error('❌ Failed to log referral connection:', refError);
-          }
+        if (!referralHandled) {
+          await user.save();
         }
 
         if (process.env.NODE_ENV === 'development') {
@@ -256,9 +289,16 @@ export const verifyOTPController = async (req, res) => {
       });
     }
 
-    const token = generateTokens(user._id, res);
+    const { deviceId } = getDeviceDetails(req);
+
+    const tokenFamily = crypto.randomUUID();
+    user.tokenFamily = tokenFamily;
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+
+    const token = generateTokens(user._id, deviceId, user.tokenVersion, res);
     const refreshToken = jwt.sign(
-      { id: user._id },
+      { id: user._id, family: tokenFamily },
       process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
@@ -271,13 +311,8 @@ export const verifyOTPController = async (req, res) => {
       console.error('❌ Failed to update achievements on login:', badgeError);
     }
 
-    // Send welcome email if new user
     if (isNewUser && user.email) {
-      try {
-        sendWelcomeEmail(user).catch(err => console.error('Failed to send welcome email:', err));
-      } catch (e) {
-        console.error('Email error:', e);
-      }
+      sendWelcomeEmail(user);
     }
 
     return res.json({
@@ -297,7 +332,8 @@ export const verifyOTPController = async (req, res) => {
         trialEndsAt: user.trialEndsAt,
         authProvider: user.authProvider,
         assessmentCompleted: user.assessmentCompleted || false,
-        assessmentCompletedAt: user.assessmentCompletedAt || null
+        assessmentCompletedAt: user.assessmentCompletedAt || null,
+        onboardingCompleted: user.onboardingCompleted || false
       }
     });
 

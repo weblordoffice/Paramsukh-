@@ -7,7 +7,6 @@ const userSchema = new mongoose.Schema({
     unique: true,
     sparse: true,
     trim: true,
-    index: true
   },
 
   // Profile
@@ -58,12 +57,6 @@ const userSchema = new mongoose.Schema({
     lowercase: true,
     default: 'free'
   },
-  subscriptionPlanVariant: {
-    type: String,
-    trim: true,
-    lowercase: true,
-    default: null
-  },
   subscriptionStatus: {
     type: String,
     enum: ['active', 'inactive', 'trial', 'cancelled'],
@@ -99,12 +92,6 @@ const userSchema = new mongoose.Schema({
     plan: {
       type: String,
       required: true
-    },
-    planVariant: {
-      type: String,
-      trim: true,
-      lowercase: true,
-      default: null
     },
     status: {
       type: String,
@@ -156,6 +143,16 @@ const userSchema = new mongoose.Schema({
     default: null
   },
 
+  // Onboarding tracking
+  onboardingCompleted: {
+    type: Boolean,
+    default: false
+  },
+  onboardingCompletedAt: {
+    type: Date,
+    default: null
+  },
+
   // Account status
   isActive: {
     type: Boolean,
@@ -171,6 +168,17 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+
+  // Token security
+  tokenFamily: {
+    type: String,
+    default: null
+  },
+  tokenVersion: {
+    type: Number,
+    default: 0
+  },
+
   unlockedBadges: [{
     badgeId: {
       type: String,
@@ -197,8 +205,6 @@ const userSchema = new mongoose.Schema({
 });
 
 // Indexes
-userSchema.index({ phone: 1 });
-userSchema.index({ email: 1 });
 userSchema.index({ tags: 1 });
 
 // Methods

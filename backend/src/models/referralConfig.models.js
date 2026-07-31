@@ -1,36 +1,24 @@
 import mongoose from 'mongoose';
 
 const referralConfigSchema = new mongoose.Schema({
-  campaignName: {
-    type: String,
-    required: true
-  },
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  rewardType: {
-    type: String,
-    enum: ['premium_extension', 'unlock_course', 'badge_only'],
-    default: 'premium_extension'
-  },
-  rewardValue: {
-    type: mongoose.Schema.Types.Mixed,
-    required: true
-  },
-  referrerRewardText: {
-    type: String,
-    required: true,
-    default: "Get 15 days of Premium Gurukul Access!"
-  },
-  refereeRewardText: {
-    type: String,
-    required: true,
-    default: "Start your scientific wellness journey!"
-  }
-}, {
-  timestamps: true
-});
+  isActive:          { type: Boolean, default: true },
+  pointValueInRupees: { type: Number, default: 1, min: 0 },
+  referralCodeFormat: { type: String, enum: ['displayName', 'random8', 'random12'], default: 'displayName' },
+
+  minRedemptionPoints:     { type: Number, default: 50 },
+  maxRedemptionPercent:    { type: Number, default: 50, min: 0, max: 100 },
+  pointsExpireMonths:      { type: Number, default: 12, min: 0 },
+  maxPointsPerReferrerTotal: { type: Number, default: 50000, min: 0 },
+
+  minReferrerAccountAgeDays: { type: Number, default: 7 },
+  maxReferralsPerIP24h:      { type: Number, default: 5 },
+  purchasePointsHoldDays:    { type: Number, default: 7 },
+
+  notifyOnEarn:   { type: Boolean, default: true },
+  notifyOnRedeem: { type: Boolean, default: true },
+
+  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Admin' },
+}, { timestamps: true });
 
 export const ReferralConfig = mongoose.model('ReferralConfig', referralConfigSchema);
 export default ReferralConfig;

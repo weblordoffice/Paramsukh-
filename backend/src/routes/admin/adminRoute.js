@@ -12,6 +12,14 @@ import {
 } from '../../controller/auth/authAdmin.controller.js';
 import { getBasicAnalytics } from '../../controller/admin/analytics.controller.js';
 import {
+    getRevenueDashboard, getTransactions, exportTransactions, getTransactionById
+} from '../../controller/admin/revenue.controller.js';
+import {
+    getReferralConfig, updateReferralConfig,
+    getEarningRules, createEarningRule, updateEarningRule, deleteEarningRule,
+    getReferralStats
+} from '../../controller/admin/referral.controller.js';
+import {
     getAllSupportMessages,
     getSupportMessageById,
     replyToMessage,
@@ -40,6 +48,19 @@ router.use(protectAdmin);
 
 router.get('/me', getAdminMe);
 router.get('/analytics/basic', getBasicAnalytics);
+
+router.get('/revenue/dashboard', getRevenueDashboard);
+router.get('/revenue/transactions', getTransactions);
+router.get('/revenue/transactions/export', exportTransactions);
+router.get('/revenue/transactions/:id', getTransactionById);
+
+router.get('/referral/config', getReferralConfig);
+router.put('/referral/config', updateReferralConfig);
+router.get('/referral/rules', getEarningRules);
+router.post('/referral/rules', createEarningRule);
+router.put('/referral/rules/:id', updateEarningRule);
+router.delete('/referral/rules/:id', deleteEarningRule);
+router.get('/referral/stats', getReferralStats);
 
 // User AI Chat History & Memory logs (all admin roles can view)
 router.get('/chat/users/:userId/conversations', getUserConversations);

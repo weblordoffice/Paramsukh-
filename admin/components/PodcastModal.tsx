@@ -10,7 +10,6 @@ interface MembershipPlan {
     _id: string;
     title: string;
     slug: string;
-    badgeColor?: string;
 }
 
 interface Podcast {
@@ -143,9 +142,7 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
             formDataObj.append('video', file);
 
             try {
-                const response = await apiClient.post('/api/upload/video', formDataObj, {
-                    headers: { 'Content-Type': 'multipart/form-data' }
-                });
+                const response = await apiClient.post('/api/upload/video', formDataObj);
 
                 if (response.data?.success) {
                     const { url, duration } = response.data.data;

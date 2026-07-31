@@ -5,7 +5,7 @@ A comprehensive mobile and web platform for spiritual courses, community engagem
 ## 📁 Project Structure
 send to the weblord office
 
-```
+```  
 paramsukh/
 ├── backend/          # Node.js/Express API server
 ├── admin/            # Next.js admin dashboard
@@ -18,11 +18,11 @@ paramsukh/
 
 ### Prerequisites
 - Node.js 18+
-- MongoDB (local or Atlas)
+- MongoDB (local or Atlas) 
 - Expo CLI
 - Git
 
-### Setup Development Environment
+### Setup Development Environment   
 
 #### 1. Backend
 ```bash
@@ -72,7 +72,7 @@ Scan QR code with Expo Go app
 - 👥 User Management
 - 📚 Course Management (Videos, PDFs, Live Sessions)
 - 📅 Event Management
-- 👨‍💼 Membership Management
+- 👨‍💼 Membership Management  
 - 📊 Analytics Dashboard
 - 💬 Community Moderation
 - 📝 Assessment Review
@@ -128,7 +128,7 @@ FIREBASE_ADMIN_SDK_PATH=./serviceAccountKey.json
 ### Admin Panel (.env.local)
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3000
-```
+``` 
 
 ### Mobile App (mobile/config/api.ts)
 ```typescript

@@ -3,6 +3,7 @@ import { User } from '../../models/user.models.js';
 import CounselingService from '../../models/counselingService.model.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { verifyRazorpaySignature, createRefund } from '../../services/razorpayService.js';
+import { recordTransaction } from '../../services/transaction.service.js';
 import mongoose from 'mongoose';
 export const getAllServices = async (req, res) => {
   try {
@@ -501,6 +502,11 @@ export const cancelBooking = async (req, res) => {
 
     await booking.save();
 
+    const { recordRefund } = await import('../../services/transaction.service.js');
+    recordRefund({ sourceId: booking._id.toString(), refundAmount: booking.amount }).catch(err =>
+      console.error('Refund recording failed:', err.message)
+    );
+
     // Send notification
     await sendNotification(userId, {
       type: 'system',
@@ -678,6 +684,15 @@ export const updatePaymentStatus = async (req, res) => {
 
     await booking.save();
 
+    recordTransaction({
+      userId: booking.userId,
+      source: 'counseling',
+      sourceId: booking._id.toString(),
+      amount: booking.amount || 0,
+      provider: 'razorpay',
+      providerRef: booking.paymentId,
+      metadata: { paymentId: booking.paymentId },
+    }).catch(err => console.error('Transaction recording failed:', err.message));
     // Send notification
     await sendNotification(userId, {
       type: 'system',

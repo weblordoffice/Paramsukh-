@@ -3,10 +3,11 @@ import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, Keyb
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuthStore } from '../store/authStore';
-import { useOAuth } from '@clerk/clerk-expo';
+import { useOAuth, useAuth } from '@clerk/clerk-expo';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceSwapModal from '../components/DeviceSwapModal';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -21,6 +22,7 @@ export default function SignUpScreen() {
   const router = useRouter();     
   const { sendOTP, verifyOTP, isLoading } = useAuthStore();
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
+  const { isSignedIn: isClerkSignedIn, signOut: clerkSignOut } = useAuth();
   const scrollViewRef = useRef<ScrollView>(null);        
   const otpInputRef = useRef<TextInput>(null);
     
@@ -33,6 +35,9 @@ export default function SignUpScreen() {
   const [activeDevices, setActiveDevices] = useState<any[]>([]);
 
   useEffect(() => {
+    if (isClerkSignedIn) {
+      clerkSignOut();
+    }
     return () => {
       if (resendIntervalRef.current) {
         clearInterval(resendIntervalRef.current);
@@ -45,9 +50,15 @@ export default function SignUpScreen() {
 
   const handleGoogleSignIn = async () => {
     try {
+      if (isClerkSignedIn) {
+        await clerkSignOut();
+      }
+      if (referralCode.trim()) {
+        await AsyncStorage.setItem('pending_referral_code', referralCode.trim());
+      }
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const { createdSessionId, setActive } = await startOAuthFlow({
-        redirectUrl: Linking.createURL('/oauth-redirect', { scheme: 'paramsukh' }),
+        redirectUrl: Linking.createURL('/'),
       });
 
       if (createdSessionId && setActive) {
@@ -88,11 +99,19 @@ export default function SignUpScreen() {
       if (result.isNewUser === false) {
         Alert.alert(
           'Account Exists',
-          'This number is already registered. Please sign in instead.',
+          'This number is already registered. Sign in with OTP or use Google if you signed up that way.',
           [
             {
-              text: 'Go to Sign In',
+              text: 'Sign In with OTP',
               onPress: () => router.replace('/signin')
+            },
+            {
+              text: 'Try Google',
+              onPress: () => handleGoogleSignIn()
+            },
+            {
+              text: 'Cancel',
+              style: 'cancel'
             }
           ]
         );
@@ -223,7 +242,7 @@ export default function SignUpScreen() {
                 <Text className="text-gray-700 font-medium mb-2">Referral Code (Optional)</Text>
                 <TextInput
                   className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-base shadow-sm"
-                  placeholder="Enter referral code (e.g. PARAM-1234)"
+                  placeholder="Enter referral code (e.g. PARAM-ZK8WM4N2)"
                   value={referralCode}
                   onChangeText={setReferralCode}
                   autoCapitalize="characters"
