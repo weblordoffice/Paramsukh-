@@ -7,6 +7,9 @@ import {
     StyleSheet,
     ActivityIndicator,
     StatusBar,
+    Modal,
+    FlatList,
+    Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,9 +19,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMembershipStore } from '../../store/membershipStore';
 import { useAuthStore } from '../../store/authStore';
 import apiClient from '../../utils/apiClient';
-import { fetchPublicMembershipPlans, UIMembershipPlan } from '../../utils/membershipPlans';
+import { fetchPublicMembershipPlans, fetchEligibleCoursePreviews, UIMembershipPlan, EligibleCoursePreview } from '../../utils/membershipPlans';
 
 const PENDING_LINK_KEY = 'pending_membership_payment_link';
+const PRE_SELECT_KEY = 'preselected_courses';
 
 /* ─── Component ──────────────────────────────────────────────────────── */
 export default function MyMembershipScreen() {
@@ -47,6 +51,68 @@ export default function MyMembershipScreen() {
     const [loadingPurchases, setLoadingPurchases] = useState(true);
     const [syncingPayment, setSyncingPayment] = useState(false);
     const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
+
+    // Preview modal state
+    const [previewPlan, setPreviewPlan] = useState<UIMembershipPlan | null>(null);
+    const [previewCourses, setPreviewCourses] = useState<EligibleCoursePreview[]>([]);
+    const [previewLoading, setPreviewLoading] = useState(false);
+
+    // Pre-selection state (#7)
+    const [preSelectingPlanId, setPreSelectingPlanId] = useState<string | null>(null);
+    const [preSelectedCourseIds, setPreSelectedCourseIds] = useState<string[]>([]);
+    const [preSelectCourses, setPreSelectCourses] = useState<EligibleCoursePreview[]>([]);
+    const [preSelectLoading, setPreSelectLoading] = useState(false);
+    const [showPreSelectModal, setShowPreSelectModal] = useState(false);
+
+    const openPreview = async (plan: UIMembershipPlan) => {
+        setPreviewPlan(plan);
+        setPreviewLoading(true);
+        const courses = await fetchEligibleCoursePreviews(plan.courseSelection);
+        setPreviewCourses(courses);
+        setPreviewLoading(false);
+    };
+
+    const closePreview = () => {
+        setPreviewPlan(null);
+        setPreviewCourses([]);
+    };
+
+    const openPreSelect = async (plan: UIMembershipPlan) => {
+        if (!plan.courseSelection?.enabled) return;
+        setPreSelectingPlanId(plan.id);
+        setPreSelectLoading(true);
+        setPreSelectedCourseIds([]);
+        const courses = await fetchEligibleCoursePreviews(plan.courseSelection);
+        setPreSelectCourses(courses);
+        setPreSelectLoading(false);
+        setShowPreSelectModal(true);
+    };
+
+    const togglePreSelectCourse = (courseId: string) => {
+        setPreSelectedCourseIds((prev) => {
+            if (prev.includes(courseId)) {
+                return prev.filter((id) => id !== courseId);
+            }
+            const plan = plans.find((p) => p.id === preSelectingPlanId);
+            const max = plan?.courseSelection?.maxSelectableCourses || 3;
+            if (prev.length >= max) return prev;
+            return [...prev, courseId];
+        });
+    };
+
+    const confirmPreSelect = async () => {
+        if (!preSelectingPlanId) return;
+        setShowPreSelectModal(false);
+        const plan = plans.find((p) => p.id === preSelectingPlanId);
+        if (!plan) return;
+
+        await AsyncStorage.setItem(PRE_SELECT_KEY, JSON.stringify({
+            planSlug: plan.parentSlug,
+            courseIds: preSelectedCourseIds,
+        }));
+
+        handlePurchase(plan);
+    };
 
     const loadPublicPlans = useCallback(async () => {
         const dynamicPlans = await fetchPublicMembershipPlans();
@@ -170,7 +236,6 @@ export default function MyMembershipScreen() {
         setPurchasingPlanId(plan.id);
 
         try {
-            // Create Razorpay hosted checkout URL from backend
             const linkRes = await apiClient.post('/payments/membership-link', {
                 plan: plan.parentSlug,
                 variantSlug: plan.variantSlug || null,
@@ -212,6 +277,52 @@ export default function MyMembershipScreen() {
 
             await fetchCurrentSubscription();
             await loadPurchases();
+
+            // #1: Auto-redirect to course picker after payment
+            // #7: Auto-select pre-selected courses after payment
+            const preSelectRaw = await AsyncStorage.getItem(PRE_SELECT_KEY);
+            if (preSelectRaw && plan.courseSelection?.enabled) {
+                try {
+                    const preSelect = JSON.parse(preSelectRaw);
+                    if (preSelect.planSlug === plan.parentSlug && preSelect.courseIds?.length > 0) {
+                        // Refresh membership info to get membershipId
+                        const { data: membershipData } = await apiClient.get('/membership/active');
+                        if (membershipData?.success && membershipData?.membershipId) {
+                            const membershipId = membershipData.membershipId;
+                            for (const courseId of preSelect.courseIds) {
+                                await apiClient.post(`/membership/${membershipId}/select-course`, { courseId }).catch(() => {});
+                            }
+                            setActiveMembership({
+                                membershipId,
+                                courseSelection: membershipData.courseSelection,
+                            });
+                        }
+                    }
+                } catch {}
+                await AsyncStorage.removeItem(PRE_SELECT_KEY);
+                setPreSelectingPlanId(null);
+                setPreSelectedCourseIds([]);
+                return;
+            }
+
+            // #1: Auto-redirect to course picker if plan has courseSelection
+            if (plan.courseSelection?.enabled) {
+                const { data: membershipData } = await apiClient.get('/membership/active');
+                if (membershipData?.success && membershipData?.courseSelection?.remaining > 0) {
+                    setActiveMembership({
+                        membershipId: membershipData.membershipId,
+                        courseSelection: membershipData.courseSelection,
+                    });
+                    router.push({
+                        pathname: '/(home)/choose-courses',
+                        params: {
+                            membershipId: membershipData.membershipId,
+                            maxSelectable: String(membershipData.courseSelection.maxSelectable),
+                        },
+                    });
+                    return;
+                }
+            }
         } catch {
             // ignore
         } finally {
@@ -471,20 +582,60 @@ export default function MyMembershipScreen() {
 
                             {/* Buy button or Active indicator */}
                             {!isCurrentPlan && !isAlreadyPurchased && (
-                                <TouchableOpacity
-                                    style={[styles.buyBtn, { borderColor: plan.color }]}
-                                    onPress={() => handlePurchase(plan)}
-                                    activeOpacity={0.8}
-                                    disabled={purchasingPlanId !== null}
-                                >
-                                    {purchasingPlanId === plan.id ? (
-                                        <ActivityIndicator color={plan.color} />
-                                    ) : (
-                                        <Text style={[styles.buyBtnText, { color: plan.color }]}>
-                                            Get {plan.name} →
-                                        </Text>
+                                <View style={{ gap: 8 }}>
+                                    {/* #5: Preview eligible courses */}
+                                    {plan.courseSelection?.enabled && (
+                                        <TouchableOpacity
+                                            style={styles.previewBtn}
+                                            onPress={() => openPreview(plan)}
+                                            activeOpacity={0.7}
+                                        >
+                                            <Ionicons name="eye-outline" size={15} color="#6B7280" />
+                                            <Text style={styles.previewBtnText}>
+                                                See {plan.courseSelection.maxSelectableCourses} eligible courses
+                                            </Text>
+                                        </TouchableOpacity>
                                     )}
-                                </TouchableOpacity>
+
+                                    <View style={styles.buyRow}>
+                                        {/* #7: Pre-select courses before payment */}
+                                        {plan.courseSelection?.enabled && (
+                                            <TouchableOpacity
+                                                style={[styles.preSelectBtn, { borderColor: plan.color }]}
+                                                onPress={() => openPreSelect(plan)}
+                                                activeOpacity={0.7}
+                                                disabled={purchasingPlanId !== null}
+                                            >
+                                                {purchasingPlanId === plan.id ? (
+                                                    <ActivityIndicator color={plan.color} size="small" />
+                                                ) : (
+                                                    <Text style={[styles.preSelectBtnText, { color: plan.color }]}>
+                                                        Pick {plan.courseSelection.maxSelectableCourses} → Pay
+                                                    </Text>
+                                                )}
+                                            </TouchableOpacity>
+                                        )}
+
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.buyBtn,
+                                                { borderColor: plan.color },
+                                                plan.courseSelection?.enabled && { flex: 0.5 },
+                                            ]}
+                                            onPress={() => handlePurchase(plan)}
+                                            activeOpacity={0.8}
+                                            disabled={purchasingPlanId !== null}
+                                        >
+                                            {purchasingPlanId === plan.id ? (
+                                                <ActivityIndicator color={plan.color} />
+                                            ) : (
+                                                <Text style={[styles.buyBtnText, { color: plan.color }]}>
+                                                    Get {plan.name} →
+                                                </Text>
+                                            )}
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
                             )}
                             
                             {/* Show purchased indicator for non-current purchased plans */}
@@ -552,6 +703,124 @@ export default function MyMembershipScreen() {
 
                 <View style={{ height: 60 }} />
             </ScrollView>
+
+            {/* #5: Preview Eligible Courses Modal */}
+            <Modal visible={!!previewPlan} animationType="slide" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>
+                                Eligible Courses — {previewPlan?.name}
+                            </Text>
+                            <TouchableOpacity onPress={closePreview} style={styles.modalCloseBtn}>
+                                <Ionicons name="close" size={24} color="#1F2937" />
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={styles.modalSub}>
+                            Pick up to {previewPlan?.courseSelection?.maxSelectableCourses} courses after payment
+                        </Text>
+                        {previewLoading ? (
+                            <ActivityIndicator size="large" color="#8B5CF6" style={{ marginTop: 20 }} />
+                        ) : previewCourses.length === 0 ? (
+                            <Text style={styles.modalEmpty}>No eligible courses found.</Text>
+                        ) : (
+                            <FlatList
+                                data={previewCourses}
+                                keyExtractor={(item) => item._id}
+                                renderItem={({ item }) => (
+                                    <View style={styles.previewCourseRow}>
+                                        <View style={[styles.previewThumb, { backgroundColor: item.color || '#8B5CF6' }]}>
+                                            <Ionicons name="book-outline" size={18} color="#FFF" />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.previewCourseTitle} numberOfLines={1}>{item.title}</Text>
+                                            <Text style={styles.previewCourseMeta}>
+                                                {item.category ? `${item.category} · ` : ''}{item.duration || ''}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                )}
+                                style={{ maxHeight: 400 }}
+                            />
+                        )}
+                        <TouchableOpacity style={styles.modalDoneBtn} onPress={closePreview}>
+                            <Text style={styles.modalDoneBtnText}>Got it</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* #7: Pre-Select Courses Modal */}
+            <Modal visible={showPreSelectModal} animationType="slide" transparent>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>
+                                Pick Your Courses — {plans.find(p => p.id === preSelectingPlanId)?.name}
+                            </Text>
+                            <TouchableOpacity onPress={() => { setShowPreSelectModal(false); setPreSelectingPlanId(null); setPreSelectedCourseIds([]); }} style={styles.modalCloseBtn}>
+                                <Ionicons name="close" size={24} color="#1F2937" />
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={styles.modalSub}>
+                            Choose {plans.find(p => p.id === preSelectingPlanId)?.courseSelection?.maxSelectableCourses || 3} courses — selected: {preSelectedCourseIds.length}
+                        </Text>
+                        {preSelectLoading ? (
+                            <ActivityIndicator size="large" color="#8B5CF6" style={{ marginTop: 20 }} />
+                        ) : preSelectCourses.length === 0 ? (
+                            <Text style={styles.modalEmpty}>No eligible courses found.</Text>
+                        ) : (
+                            <FlatList
+                                data={preSelectCourses}
+                                keyExtractor={(item) => item._id}
+                                renderItem={({ item }) => {
+                                    const isSelected = preSelectedCourseIds.includes(item._id);
+                                    const plan = plans.find(p => p.id === preSelectingPlanId);
+                                    const maxReached = preSelectedCourseIds.length >= (plan?.courseSelection?.maxSelectableCourses || 3);
+                                    const disabled = !isSelected && maxReached;
+                                    return (
+                                        <TouchableOpacity
+                                            style={[styles.previewCourseRow, isSelected && styles.previewRowSelected, disabled && styles.previewRowDisabled]}
+                                            onPress={() => togglePreSelectCourse(item._id)}
+                                            disabled={disabled}
+                                            activeOpacity={0.7}
+                                        >
+                                            <View style={[styles.previewThumb, { backgroundColor: item.color || '#8B5CF6' }]}>
+                                                <Ionicons name="book-outline" size={18} color="#FFF" />
+                                            </View>
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={styles.previewCourseTitle} numberOfLines={1}>{item.title}</Text>
+                                                <Text style={styles.previewCourseMeta}>
+                                                    {item.category ? `${item.category} · ` : ''}{item.duration || ''}
+                                                </Text>
+                                            </View>
+                                            {isSelected ? (
+                                                <Ionicons name="checkmark-circle" size={24} color="#22C55E" />
+                                            ) : disabled ? (
+                                                <Ionicons name="lock-closed" size={20} color="#9CA3AF" />
+                                            ) : (
+                                                <Ionicons name="add-circle-outline" size={24} color="#8B5CF6" />
+                                            )}
+                                        </TouchableOpacity>
+                                    );
+                                }}
+                                style={{ maxHeight: 400 }}
+                            />
+                        )}
+                        <TouchableOpacity
+                            style={[styles.modalDoneBtn, preSelectedCourseIds.length === 0 && { opacity: 0.5 }]}
+                            onPress={confirmPreSelect}
+                            disabled={preSelectedCourseIds.length === 0}
+                        >
+                            <Text style={styles.modalDoneBtnText}>
+                                {preSelectedCourseIds.length > 0
+                                    ? `Continue to Payment (${preSelectedCourseIds.length} selected)`
+                                    : 'Select at least 1 course'}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
@@ -794,4 +1063,78 @@ const styles = StyleSheet.create({
     purchaseAmt: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
     purchaseStatusBadge: { marginTop: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
     purchaseStatusText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
+
+    // #5 / #7: Preview and pre-select
+    previewBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 8,
+        backgroundColor: '#F3F4F6',
+        borderRadius: 10,
+    },
+    previewBtnText: { fontSize: 13, color: '#6B7280', fontWeight: '500' },
+    buyRow: { flexDirection: 'row', gap: 8 },
+    preSelectBtn: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 14,
+        alignItems: 'center',
+        borderWidth: 1.5,
+        backgroundColor: '#FFFFFF',
+    },
+    preSelectBtnText: { fontSize: 13, fontWeight: '700' },
+
+    // Modal
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContainer: {
+        backgroundColor: '#FFFFFF',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 20,
+        maxHeight: '80%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    modalTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
+    modalSub: { fontSize: 13, color: '#6B7280', marginTop: 4, marginBottom: 12 },
+    modalCloseBtn: { padding: 4 },
+    modalEmpty: { textAlign: 'center', fontSize: 14, color: '#9CA3AF', marginTop: 20 },
+    modalDoneBtn: {
+        backgroundColor: '#8B5CF6',
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: 'center',
+        marginTop: 12,
+    },
+    modalDoneBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+    previewCourseRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 4,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F3F4F6',
+        gap: 10,
+    },
+    previewThumb: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    previewCourseTitle: { fontSize: 14, fontWeight: '600', color: '#1F2937' },
+    previewCourseMeta: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
+    previewRowSelected: { backgroundColor: '#F0FDF4' },
+    previewRowDisabled: { opacity: 0.4 },
 });

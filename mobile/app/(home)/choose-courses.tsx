@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Image,
   ActivityIndicator,
-  Alert,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -40,6 +40,19 @@ export default function ChooseCoursesScreen() {
   const [selecting, setSelecting] = useState<string | null>(null);
   const [selectedCount, setSelectedCount] = useState(0);
   const [remaining, setRemaining] = useState(maxSelectable);
+
+  // #3: Toast feedback
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const toastAnim = useRef(new Animated.Value(0)).current;
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    Animated.sequence([
+      Animated.timing(toastAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      Animated.delay(2000),
+      Animated.timing(toastAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
+    ]).start(() => setToast(null));
+  };
 
   useEffect(() => {
     if (membershipId) {
@@ -75,12 +88,12 @@ export default function ChooseCoursesScreen() {
 
   const handleSelect = async (course: EligibleCourse) => {
     if (remaining <= 0) {
-      Alert.alert('No Credits', 'You have used all your course credits.');
+      showToast('No credits remaining', 'error');
       return;
     }
 
     if (course.alreadySelected) {
-      Alert.alert('Already Selected', 'This course is already in your library.');
+      showToast('Already in your library', 'error');
       return;
     }
 
@@ -96,12 +109,43 @@ export default function ChooseCoursesScreen() {
         );
         setRemaining(data.remainingCredits);
         setSelectedCount((prev) => prev + 1);
-        Alert.alert('Course Selected', `"${course.title}" added to your library.`);
+        showToast(`"${course.title}" added to your library`);
       } else {
-        Alert.alert('Error', data.message || 'Failed to select course.');
+        showToast(data.message || 'Failed to select course', 'error');
       }
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to select course.');
+      showToast(error.response?.data?.message || 'Failed to select course', 'error');
+    } finally {
+      setSelecting(null);
+    }
+  };
+
+  // #4: Undo selection
+  const handleUndo = async (course: EligibleCourse) => {
+    setSelecting(course._id);
+    try {
+      const { data } = await apiClient.post(`${API_URL}/membership/${membershipId}/undo-selection`, {
+        courseId: course._id,
+      });
+      if (data.success) {
+        setCourses((prev) =>
+          prev.map((c) => (c._id === course._id ? { ...c, alreadySelected: false } : c))
+        );
+        setRemaining(data.remainingCredits);
+        setSelectedCount((prev) => prev - 1);
+        showToast(`Removed "${course.title}" — credit returned`);
+      } else {
+        const msg = data.reason === 'progress_made'
+          ? 'Cannot swap: you have already watched content in this course'
+          : data.message || 'Failed to undo selection';
+        showToast(msg, 'error');
+      }
+    } catch (error: any) {
+      const data = error.response?.data;
+      const msg = data?.reason === 'progress_made'
+        ? 'Cannot swap: you have already watched content in this course'
+        : data?.message || 'Failed to undo selection';
+      showToast(msg, 'error');
     } finally {
       setSelecting(null);
     }
@@ -132,6 +176,25 @@ export default function ChooseCoursesScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* #3: Toast feedback */}
+      {toast && (
+        <Animated.View
+          style={[
+            styles.toast,
+            toast.type === 'success' ? styles.toastSuccess : styles.toastError,
+            { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] },
+          ]}
+        >
+          <Ionicons
+            name={toast.type === 'success' ? 'checkmark-circle' : 'alert-circle'}
+            size={18}
+            color={toast.type === 'success' ? '#065F46' : '#991B1B'}
+          />
+          <Text style={[styles.toastText, toast.type === 'success' ? { color: '#065F46' } : { color: '#991B1B' }]}>
+            {toast.message}
+          </Text>
+        </Animated.View>
+      )}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
@@ -171,8 +234,8 @@ export default function ChooseCoursesScreen() {
               <TouchableOpacity
                 key={course._id}
                 style={[styles.card, course.alreadySelected && styles.cardSelected]}
-                onPress={() => handleSelect(course)}
-                disabled={selecting === course._id || course.alreadySelected}
+                onPress={() => course.alreadySelected ? handleUndo(course) : handleSelect(course)}
+                disabled={selecting === course._id || (!course.alreadySelected && remaining <= 0)}
                 activeOpacity={0.7}
               >
                 <View style={[styles.cardThumb, { backgroundColor: course.color || '#8B5CF6' }]}>
@@ -212,7 +275,10 @@ export default function ChooseCoursesScreen() {
                   {selecting === course._id ? (
                     <ActivityIndicator size="small" color="#8B5CF6" />
                   ) : course.alreadySelected ? (
-                    <Ionicons name="checkmark-circle" size={28} color="#22C55E" />
+                    <View style={styles.undoBtn}>
+                      <Ionicons name="close-circle" size={24} color="#EF4444" />
+                      <Text style={styles.undoText}>Tap to remove</Text>
+                    </View>
                   ) : remaining <= 0 ? (
                     <Ionicons name="lock-closed" size={24} color="#9CA3AF" />
                   ) : (
@@ -255,6 +321,27 @@ const styles = StyleSheet.create({
   loadingText: { marginTop: 12, fontSize: 14, color: '#64748B' },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A', marginTop: 16 },
   emptySub: { fontSize: 14, color: '#64748B', marginTop: 4 },
+  toast: {
+    position: 'absolute',
+    top: 8,
+    left: 16,
+    right: 16,
+    zIndex: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  toastSuccess: { backgroundColor: '#ECFDF5' },
+  toastError: { backgroundColor: '#FEF2F2' },
+  toastText: { fontSize: 13, fontWeight: '600', flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -307,8 +394,10 @@ const styles = StyleSheet.create({
   categoryText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
   durationText: { fontSize: 11, color: '#94A3B8' },
   metaText: { fontSize: 11, color: '#94A3B8' },
-  cardAction: { marginLeft: 12, width: 36, alignItems: 'center' },
+  cardAction: { marginLeft: 12, width: 70, alignItems: 'center' },
   selectBtn: { padding: 4 },
+  undoBtn: { alignItems: 'center', gap: 2 },
+  undoText: { fontSize: 10, color: '#EF4444', fontWeight: '500' },
   footer: {
     padding: 16,
     borderTopWidth: 1,
