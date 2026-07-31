@@ -252,6 +252,19 @@ export const undoCourseSelection = async ({ userId, membershipId, courseId, ip =
     return { success: false, reason: 'credits_full', message: 'All credits are already available' };
   }
 
+  const enrollment = await Enrollment.findOne({ userId, courseId }).lean();
+  if (enrollment) {
+    const watchedCount = (enrollment.completedVideos || []).length;
+    const readCount = (enrollment.completedPdfs || []).length;
+    if (watchedCount > 0 || readCount > 0) {
+      return {
+        success: false,
+        reason: 'progress_made',
+        message: `You've already watched ${watchedCount} video(s) and read ${readCount} PDF(s) in this course. Cannot swap after consuming content.`,
+      };
+    }
+  }
+
   const session = await mongoose.startSession();
 
   try {

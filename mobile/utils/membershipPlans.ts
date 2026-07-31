@@ -13,6 +13,24 @@ export interface UIMembershipPlan {
   gradient: string[];
   tagline: string;
   features: { text: string; included: boolean }[];
+  courseSelection?: {
+    enabled: boolean;
+    maxSelectableCourses: number;
+    eligibleCoursesMode: string;
+    eligibleCourseIds: string[];
+    eligibleCategories: string[];
+  };
+}
+
+export interface EligibleCoursePreview {
+  _id: string;
+  title: string;
+  description?: string;
+  thumbnailUrl?: string;
+  color?: string;
+  duration?: string;
+  category?: string;
+  totalVideos?: number;
 }
 
 const defaultVisual = { emoji: '✨', color: '#64748B', gradient: ['#E2E8F0', '#CBD5E1'] };
@@ -66,6 +84,15 @@ const mapParentPlan = (plan: any): UIMembershipPlan => {
     gradient: defaultVisual.gradient,
     tagline: plan?.shortDescription || (plan?.isLifetime ? 'Lifetime access' : `${Number(plan?.validityDays || 365)} days validity`),
     features: buildPlanFeatures(plan),
+    courseSelection: plan?.access?.courseSelection?.enabled
+      ? {
+          enabled: true,
+          maxSelectableCourses: plan.access.courseSelection.maxSelectableCourses || 3,
+          eligibleCoursesMode: plan.access.courseSelection.eligibleCoursesMode || 'all_published',
+          eligibleCourseIds: (plan.access.courseSelection.eligibleCourseIds || []).map((id: any) => String(id)),
+          eligibleCategories: plan.access.courseSelection.eligibleCategories || [],
+        }
+      : undefined,
   };
 };
 
@@ -87,3 +114,47 @@ export const fetchPublicMembershipPlans = async (): Promise<UIMembershipPlan[]> 
     return [];
   }
 };
+
+export const fetchEligibleCoursePreviews = async (
+  courseSelection: UIMembershipPlan['courseSelection']
+): Promise<EligibleCoursePreview[]> => {
+  if (!courseSelection?.enabled) return [];
+
+  try {
+    const response = await apiClient.get('/courses/all');
+    const allCourses: any[] = response.data?.courses || [];
+
+    const published = allCourses.filter((c: any) => c.status === 'published');
+
+    if (courseSelection.eligibleCoursesMode === 'all_published') {
+      return published.map(mapCoursePreview);
+    }
+
+    if (courseSelection.eligibleCoursesMode === 'specific') {
+      const idSet = new Set(courseSelection.eligibleCourseIds.map((id) => String(id)));
+      return published.filter((c) => idSet.has(String(c._id))).map(mapCoursePreview);
+    }
+
+    if (courseSelection.eligibleCoursesMode === 'categories') {
+      const catSet = new Set(courseSelection.eligibleCategories.map((c) => c.toLowerCase()));
+      return published
+        .filter((c) => catSet.has(String(c.category || '').toLowerCase()))
+        .map(mapCoursePreview);
+    }
+
+    return [];
+  } catch {
+    return [];
+  }
+};
+
+const mapCoursePreview = (course: any): EligibleCoursePreview => ({
+  _id: course._id,
+  title: course.title,
+  description: course.description,
+  thumbnailUrl: course.thumbnailUrl,
+  color: course.color,
+  duration: course.duration,
+  category: course.category,
+  totalVideos: course.totalVideos,
+});

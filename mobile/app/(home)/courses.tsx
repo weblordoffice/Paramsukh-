@@ -16,6 +16,7 @@ import { Course, useCourseStore } from '../../store/courseStore';
 import { useMembershipStore } from '../../store/membershipStore';
 import { fetchPublicMembershipPlans, UIMembershipPlan } from '../../utils/membershipPlans';
 import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
+import apiClient from '../../utils/apiClient';
 
 /* ─── Category badge config ──────────────────────────────────────────── */
 const CATEGORY_CONFIG: Record<
@@ -117,6 +118,40 @@ export default function CoursesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'free' | 'paid'>('free');
   const bottomTabHeight = useBottomTabBarHeight();
+  const [membershipCredits, setMembershipCredits] = useState<{
+    membershipId: string;
+    remaining: number;
+    maxSelectable: number;
+    enabled: boolean;
+  } | null>(null);
+  const [eligibleCourseIds, setEligibleCourseIds] = useState<Set<string>>(new Set());
+
+  const fetchMembershipCredits = useCallback(async () => {
+    try {
+      const { data } = await apiClient.get('/membership/active');
+      if (data?.success && data?.courseSelection?.enabled && data.courseSelection.remaining > 0) {
+        setMembershipCredits({
+          membershipId: data.membershipId,
+          remaining: data.courseSelection.remaining,
+          maxSelectable: data.courseSelection.maxSelectable,
+          enabled: true,
+        });
+        // Also fetch eligible courses for the unlock-from-courses feature
+        const eligibleRes = await apiClient.get(`/membership/${data.membershipId}/eligible-courses`);
+        if (eligibleRes.data?.success && eligibleRes.data?.courses) {
+          setEligibleCourseIds(new Set(
+            eligibleRes.data.courses.map((c: any) => String(c._id))
+          ));
+        }
+      } else {
+        setMembershipCredits(null);
+        setEligibleCourseIds(new Set());
+      }
+    } catch {
+      setMembershipCredits(null);
+      setEligibleCourseIds(new Set());
+    }
+  }, []);
 
   const loadPlanMetadata = useCallback(async () => {
     const plans = await fetchPublicMembershipPlans();
@@ -159,7 +194,8 @@ export default function CoursesScreen() {
     fetchCourses();
     fetchCurrentSubscription();
     loadPlanMetadata();
-  }, [fetchCourses, fetchCurrentSubscription, loadPlanMetadata]);
+    fetchMembershipCredits();
+  }, [fetchCourses, fetchCurrentSubscription, loadPlanMetadata, fetchMembershipCredits]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -167,9 +203,10 @@ export default function CoursesScreen() {
       fetchCourses(),
       fetchCurrentSubscription(),
       loadPlanMetadata(),
+      fetchMembershipCredits(),
     ]);
     setRefreshing(false);
-  }, [fetchCourses, fetchCurrentSubscription, loadPlanMetadata]);
+  }, [fetchCourses, fetchCurrentSubscription, loadPlanMetadata, fetchMembershipCredits]);
 
   // Refresh subscription when screen comes into focus (e.g., after purchase)
   useFocusEffect(
@@ -283,6 +320,29 @@ export default function CoursesScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* #2: Credits banner */}
+          {membershipCredits && membershipCredits.remaining > 0 && (
+            <TouchableOpacity
+              style={styles.creditsBanner}
+              onPress={() => router.push({
+                pathname: '/(home)/choose-courses',
+                params: {
+                  membershipId: membershipCredits.membershipId,
+                  maxSelectable: String(membershipCredits.maxSelectable),
+                },
+              })}
+              activeOpacity={0.85}
+            >
+              <View style={styles.creditsBannerLeft}>
+                <Ionicons name="gift-outline" size={20} color="#8B5CF6" />
+                <Text style={styles.creditsBannerText}>
+                  You have <Text style={styles.creditsBannerBold}>{membershipCredits.remaining} course credits</Text> remaining
+                </Text>
+              </View>
+              <Text style={styles.creditsBannerLink}>Pick Courses →</Text>
+            </TouchableOpacity>
+          )}
+
           {isLoading ? (
             <ActivityIndicator size="large" color="#EAB308" style={{ marginTop: 20 }} />
           ) : enrichedCourses.length === 0 ? (
@@ -353,11 +413,38 @@ export default function CoursesScreen() {
                     )}
 
                     {/* Lock Overlay */}
-                    {locked && (
+                    {locked && membershipCredits && eligibleCourseIds.has(String(course._id)) ? (
+                      <TouchableOpacity
+                        style={styles.unlockOverlay}
+                        onPress={async () => {
+                          try {
+                            await apiClient.post(`/membership/${membershipCredits.membershipId}/select-course`, {
+                              courseId: course._id,
+                            });
+                            setMembershipCredits((prev) => prev ? {
+                              ...prev,
+                              remaining: prev.remaining - 1,
+                            } : null);
+                            if (membershipCredits.remaining <= 1) {
+                              setMembershipCredits(null);
+                            }
+                            setEligibleCourseIds((prev) => {
+                              const next = new Set(prev);
+                              next.delete(String(course._id));
+                              return next;
+                            });
+                          } catch {}
+                        }}
+                        activeOpacity={0.8}
+                      >
+                        <Ionicons name="lock-open-outline" size={20} color="#FFFFFF" />
+                        <Text style={styles.unlockOverlayText}>Use 1 credit</Text>
+                      </TouchableOpacity>
+                    ) : locked ? (
                       <View style={styles.lockOverlay}>
                         <Ionicons name="lock-closed" size={32} color="#FFFFFF" />
                       </View>
-                    )}
+                    ) : null}
                   </View>
 
                   {/* Course Info */}
@@ -456,6 +543,26 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: '#FFFFFF',
   },
+  creditsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F5F3FF',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 20,
+  },
+  creditsBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  creditsBannerText: { fontSize: 14, color: '#4C1D95' },
+  creditsBannerBold: { fontWeight: '700' },
+  creditsBannerLink: { fontSize: 13, fontWeight: '700', color: '#7C3AED' },
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
@@ -504,6 +611,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  unlockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(139, 92, 246, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  unlockOverlayText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
   courseInfo: {
     padding: 16,
