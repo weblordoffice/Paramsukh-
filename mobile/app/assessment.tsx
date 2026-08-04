@@ -455,7 +455,7 @@ export default function AssessmentScreen() {
 
           {/* Section: Wellness Areas */}
           <Text style={styles.sectionHeading}>Wellness Areas</Text>
-          <Text style={styles.sectionSubheading}>Tell us about any challenges you're facing</Text>
+          <Text style={styles.sectionSubheading}>Tell us about any challenges you&apos;re facing</Text>
 
           {questions.map((question) => (
             <View key={question.id} style={styles.questionBlock}>
