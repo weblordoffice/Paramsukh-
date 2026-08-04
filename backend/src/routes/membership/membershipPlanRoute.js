@@ -8,6 +8,7 @@ import {
   listMembershipPlansPublic,
   updateMembershipPlan,
   updateMembershipPlanStatus,
+  getPlanEligibleCourses,
 } from '../../controller/membership/membershipPlan.controller.js';
 import {
   grantMembershipByAdmin,
@@ -20,6 +21,7 @@ const router = express.Router();
 
 // Public plans for app/web purchase screens
 router.get('/public', listMembershipPlansPublic);
+router.get('/:planSlug/eligible-courses', getPlanEligibleCourses);
 
 // Admin plan management
 router.get('/', adminAuth, listMembershipPlansAdmin);

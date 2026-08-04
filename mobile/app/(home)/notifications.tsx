@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useNotificationStore, type NotificationItem } from '../../store/notificationStore';
+import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
 
 // Map backend type to icon and color for UI
 const TYPE_STYLE: Record<string, { icon: string; color: string }> = {
@@ -73,6 +74,7 @@ function formatTime(createdAt: string): string {
 
 export default function NotificationsScreen() {
   const router = useRouter();
+  const bottomTabHeight = useBottomTabBarHeight();
   const {
     notifications,
     unreadCount,
@@ -203,7 +205,7 @@ export default function NotificationsScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomTabHeight }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />

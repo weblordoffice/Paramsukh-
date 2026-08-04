@@ -8,6 +8,7 @@ import { setClerkSignOut } from '../store/authStore';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import AIAssistantWidget from '../components/AIAssistantWidget';
 import { ClerkProvider, useUser, useAuth } from '@clerk/clerk-expo';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -251,15 +252,17 @@ export default function RootLayout() {
   const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || '';
 
   return (
-    <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-      <AuthGuard>
-        <View style={{ flex: 1 }}>
-          <ErrorBoundary>
-            <RootNavigator />
-          </ErrorBoundary>
-          <AIAssistantWidget />
-        </View>
-      </AuthGuard>
-    </ClerkProvider>
+    <SafeAreaProvider>
+      <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+        <AuthGuard>
+          <View style={{ flex: 1 }}>
+            <ErrorBoundary>
+              <RootNavigator />
+            </ErrorBoundary>
+            <AIAssistantWidget />
+          </View>
+        </AuthGuard>
+      </ClerkProvider>
+    </SafeAreaProvider>
   );
 }

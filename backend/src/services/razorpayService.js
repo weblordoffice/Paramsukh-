@@ -105,11 +105,14 @@ export const createRazorpayPaymentLink = async ({
     }
 
     const payload = {
-      amount: amount * 100, // paise
+      amount: amount * 100,
       currency,
-      description,
-      customer,
-      notes,
+      accept_partial: false,
+      description: (description || 'Payment').substring(0, 2048),
+      customer: customer || undefined,
+      notes: Object.fromEntries(
+        Object.entries(notes || {}).map(([k, v]) => [k, String(v || '')])
+      ),
       ...(callback_url ? { callback_url, callback_method } : {}),
     };
 

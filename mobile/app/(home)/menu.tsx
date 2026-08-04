@@ -281,7 +281,7 @@ export default function HomeTab() {
             </View>
 
             <Text style={styles.heroDescription}>
-              Your spiritual companion for meditation, learning & community
+              Your Lifetime Companion for Life Education, Life Skills, Lifelong Guidance, Mentorship and Handholding
             </Text>
 
             <TouchableOpacity

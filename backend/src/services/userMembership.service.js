@@ -12,6 +12,7 @@ export const upsertActiveUserMembership = async ({
   source = 'purchase',
   payment = null,
   metadata = {},
+  selectedCourseIds = [],
 }) => {
   const slug = normalize(planSlug);
   if (!userId || !slug || slug === 'free') {
@@ -72,6 +73,8 @@ export const upsertActiveUserMembership = async ({
     endDate: { $gte: new Date() },
   }).sort({ endDate: -1 });
 
+  const courseIdsToStore = Array.isArray(selectedCourseIds) ? selectedCourseIds.filter(Boolean).map(String) : [];
+
   if (existingActive) {
     existingActive.planId = payload.planId;
     existingActive.planSnapshot = payload.planSnapshot;
@@ -86,8 +89,10 @@ export const upsertActiveUserMembership = async ({
     }
     if (plan.access?.courseSelection?.enabled) {
       existingActive.courseSelectionEnabled = true;
-      existingActive.selectedCourseCredits = plan.access.courseSelection.maxSelectableCourses || 0;
-      existingActive.selectedCourseIds = [];
+      const currentSelected = (existingActive.selectedCourseIds || []).map(String);
+      const newIds = courseIdsToStore.filter((id) => !currentSelected.includes(id));
+      existingActive.selectedCourseIds = [...currentSelected, ...newIds];
+      existingActive.selectedCourseCredits = (existingActive.selectedCourseCredits || 0) + plan.access.courseSelection.maxSelectableCourses || 0;
     } else {
       existingActive.courseSelectionEnabled = false;
       existingActive.selectedCourseCredits = 0;
@@ -97,5 +102,6 @@ export const upsertActiveUserMembership = async ({
     return existingActive;
   }
 
+  payload.selectedCourseIds = courseIdsToStore;
   return UserMembership.create(payload);
 };
