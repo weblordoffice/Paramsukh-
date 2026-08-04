@@ -414,7 +414,7 @@ export default function AssessmentScreen() {
 
           {/* Section: Wellness State */}
           <Text style={styles.sectionHeading}>Your Current State</Text>
-          <Text style={styles.sectionSubheading}>Rate how you've been feeling recently (1 = low, 10 = high)</Text>
+          <Text style={styles.sectionSubheading}>Rate how you&apos;ve been feeling recently (1 = low, 10 = high)</Text>
 
           {scaleQuestions.map((sq) => (
             <ScaleInput
