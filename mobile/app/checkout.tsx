@@ -374,7 +374,7 @@ export default function CheckoutScreen() {
                                 <View style={styles.referralDiscountRow}>
                                     <Ionicons name="checkmark-circle" size={16} color="#10B981" />
                                     <Text style={styles.referralDiscountText}>
-                                        You'll save ₹{usePoints * pointValue} on this order
+                                        You&apos;ll save ₹{usePoints * pointValue} on this order
                                     </Text>
                                 </View>
                             )}

@@ -99,7 +99,7 @@ export default function ReferralScreen() {
                 <View className="flex-1 pr-3">
                   <Text className="text-white text-xs font-bold uppercase tracking-wider opacity-90">Referral Reward</Text>
                   <Text className="text-white text-xl font-extrabold mt-1">{referrerRewardText}</Text>
-                  <Text className="text-white text-sm mt-2 opacity-85">Plus, unlock the exclusive "Wellness Guide" badge on your profile!</Text>
+                  <Text className="text-white text-sm mt-2 opacity-85">Plus, unlock the exclusive &quot;Wellness Guide&quot; badge on your profile!</Text>
                 </View>
                 <Ionicons name="gift" size={56} color="#FFFFFF" style={{ opacity: 0.85 }} />
               </View>
