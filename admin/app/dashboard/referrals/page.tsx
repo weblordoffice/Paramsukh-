@@ -89,7 +89,7 @@ export default function ReferralsPage() {
           <p className="text-sm text-accent mt-1">Manage earning rules, settings, and view stats</p>
         </div>
         <div className="flex gap-2">
-          {[['settings', Settings], ['rules', Award], ['stats', TrendingUp]].map(([t, Icon]) => (
+          {([['settings', Settings], ['rules', Award], ['stats', TrendingUp]] as [string, React.ComponentType<any>][]).map(([t, Icon]) => (
             <Button key={t} variant={tab === t ? 'default' : 'outline'} onClick={() => setTab(t as any)} size="sm">
               <Icon className="w-4 h-4 mr-2" />{t.charAt(0).toUpperCase() + t.slice(1)}
             </Button>
