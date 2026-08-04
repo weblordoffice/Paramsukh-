@@ -83,41 +83,53 @@ jobs:
     needs: build-and-push
     if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
     steps:
-      - name: Verify SSH private key fingerprint
+      - name: Diagnose SSH private key from GitHub Secret
         shell: bash
         run: |
-          set -e
+          set +e
           mkdir -p /tmp/ssh-debug
-          printf "%s" "${{ secrets.VPS_SSH_KEY }}" > /tmp/ssh-debug/id_ed25519
-          chmod 600 /tmp/ssh-debug/id_ed25519
 
-          echo "====== Key fingerprint verification ======"
-          echo "SHA256 fingerprint:"
-          ssh-keygen -lf /tmp/ssh-debug/id_ed25519
+          # Write using printf (preserves content without adding newlines)
+          printf "%s" "${{ secrets.VPS_SSH_KEY }}" > /tmp/ssh-debug/key_raw
+          chmod 600 /tmp/ssh-debug/key_raw
+
+          echo "====== SSH Key Diagnostic ======"
+          echo ""
+
+          echo "--- Raw file ---"
+          echo "File size (bytes): $(wc -c < /tmp/ssh-debug/key_raw)"
+          echo "Line count: $(wc -l < /tmp/ssh-debug/key_raw)"
+          echo ""
+
+          echo "--- File structure ---"
+          echo "First 3 bytes (hex):"
+          head -c 3 /tmp/ssh-debug/key_raw | xxd | head -1
+          echo "First line:"
+          head -1 /tmp/ssh-debug/key_raw
+          echo "Last line:"
+          tail -1 /tmp/ssh-debug/key_raw
+          echo "Contains BEGIN marker: $(grep -c 'BEGIN' /tmp/ssh-debug/key_raw || echo 0)"
+          echo "Contains END marker: $(grep -c 'END' /tmp/ssh-debug/key_raw || echo 0)"
+          echo "Has CRLF (\\r\\n): $(grep -c $'\r' /tmp/ssh-debug/key_raw || echo 0)"
+          echo "Trailing newline present: $(tail -c 1 /tmp/ssh-debug/key_raw | xxd | grep -c '0a' || echo 0)"
+          echo ""
+
+          echo "--- ssh-keygen test ---"
+          if ssh-keygen -lf /tmp/ssh-debug/key_raw 2>/tmp/ssh-debug/err; then
+            echo "FINGERPRINT: $(ssh-keygen -lf /tmp/ssh-debug/key_raw)"
+          else
+            echo "ssh-keygen FAILED. Error:"
+            cat /tmp/ssh-debug/err
+            echo ""
+            echo "Trying to detect what this file is..."
+            echo "Is it a public key? $(ssh-keygen -lf /tmp/ssh-debug/key_raw 2>&1 | grep -c 'not a public key' || echo 'unknown')"
+            echo "File content starts with:"
+            head -c 50 /tmp/ssh-debug/key_raw
+            echo ""
+          fi
 
           echo ""
-          echo "MD5 fingerprint:"
-          ssh-keygen -l -E md5 -f /tmp/ssh-debug/id_ed25519
-
-          echo ""
-          echo "Key type validation:"
-          ssh-keygen -yf /tmp/ssh-debug/id_ed25519 >/dev/null 2>&1 && echo "PASS: Private key is valid" || echo "FAIL: Private key is corrupted"
-
-          echo ""
-          echo "Byte count:"
-          wc -c /tmp/ssh-debug/id_ed25519
-
-          echo ""
-          echo "First line of key:"
-          head -n1 /tmp/ssh-debug/id_ed25519
-
-          echo ""
-          echo "Last line of key:"
-          tail -n1 /tmp/ssh-debug/id_ed25519
-
-          echo ""
-          echo "Line count:"
-          wc -l /tmp/ssh-debug/id_ed25519
+          echo "====== Diagnostic complete ======"
 
       - name: Deploy stack over SSH
         uses: appleboy/ssh-action@v1.2.0
