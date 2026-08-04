@@ -7,7 +7,7 @@ from app.core.config import get_settings
 from app.core.exceptions import ConfigurationError, ToolExecutionError
 from app.core.logging import get_logger
 from app.models.chat import ChatRequest, ChatResponse, ResponseNarrative, ToolExecution
-from app.services.openai_service import OpenAIService
+from app.services.gemini_service import GeminiService
 from app.tools.registry import ToolRegistry
 
 logger = get_logger(__name__)
@@ -216,7 +216,7 @@ class ChatOrchestrator:
         arguments: dict[str, Any],
         answer: str,
         memory_items: list[Any],
-        service: OpenAIService,
+        service: GeminiService,
     ) -> ChatResponse | None:
         try:
             result = await self.registry.execute(tool_name, arguments, payload)
@@ -237,7 +237,7 @@ class ChatOrchestrator:
         ]
         return ChatResponse(
             answer=answer,
-            model=self.settings.openai_model,
+            model=self.settings.gemini_model,
             session_id=payload.session_id or str(uuid4()),
             tools_used=tool_history,
             memory_items=memory_items,
@@ -375,23 +375,23 @@ class ChatOrchestrator:
                 response_narrative=self.build_response_narrative(lightweight_response, has_structured_results=False),
             )
 
-        if not self.settings.openai_api_key:
+        if not self.settings.gemini_api_key:
             return ChatResponse(
                 answer=(
-                    "AI service is scaffolded, but OPENAI_API_KEY is not configured yet. "
+                    "AI service is scaffolded, but GEMINI_API_KEY is not configured yet. "
                     "Add it to ai-service/.env before enabling chat responses."
                 ),
-                model=self.settings.openai_model,
+                model=self.settings.gemini_model,
                 session_id=payload.session_id or str(uuid4()),
                 tools_used=[],
                 memory_items=[],
                 response_narrative=self.build_response_narrative(
-                    "AI service is scaffolded, but OPENAI_API_KEY is not configured yet. Add it to ai-service/.env before enabling chat responses.",
+                    "AI service is scaffolded, but GEMINI_API_KEY is not configured yet. Add it to ai-service/.env before enabling chat responses.",
                     has_structured_results=False,
                 ),
             )
 
-        service = OpenAIService()
+        service = GeminiService()
         extracted_memory = service.extract_memory_items(payload)
         initial_response = service.create_initial_response(payload)
         tool_calls = [item for item in initial_response.output if item.type == "function_call"]
@@ -537,7 +537,7 @@ class ChatOrchestrator:
                         ]
                         return ChatResponse(
                             answer=answer,
-                            model=self.settings.openai_model,
+                            model=self.settings.gemini_model,
                             session_id=payload.session_id or str(uuid4()),
                             tools_used=tool_history,
                             memory_items=extracted_memory,
@@ -552,7 +552,7 @@ class ChatOrchestrator:
                     logger.exception("Compare-events fallback failed")
             return ChatResponse(
                 answer=initial_response.output_text,
-                model=self.settings.openai_model,
+                model=self.settings.gemini_model,
                 session_id=payload.session_id or str(uuid4()),
                 tools_used=[],
                 memory_items=extracted_memory,
@@ -606,7 +606,7 @@ class ChatOrchestrator:
 
         return ChatResponse(
             answer=final_response.output_text,
-            model=self.settings.openai_model,
+            model=self.settings.gemini_model,
             session_id=payload.session_id or str(uuid4()),
             tools_used=tool_history,
             memory_items=extracted_memory,
