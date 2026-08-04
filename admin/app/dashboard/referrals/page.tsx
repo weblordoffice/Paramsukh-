@@ -30,22 +30,26 @@ export default function ReferralsPage() {
 
   const defaultRule = (): Rule => ({ name: '', slug: '', description: '', triggerEvent: 'user.signup', pointsValue: 100, isActive: true, cooldownPerUser: 1, holdDays: 0, displayOrder: 0 });
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [cfgRes, rulesRes, statsRes] = await Promise.all([
-        apiClient.get('/api/admin/referral/config'),
-        apiClient.get('/api/admin/referral/rules'),
-        apiClient.get('/api/admin/referral/stats'),
-      ]);
-      if (cfgRes.data.success) setConfig(cfgRes.data.config);
-      if (rulesRes.data.success) setRules(rulesRes.data.rules);
-      if (statsRes.data.success) setStats(statsRes.data);
-    } catch (_) {}
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [cfgRes, rulesRes, statsRes] = await Promise.all([
+          apiClient.get('/api/admin/referral/config'),
+          apiClient.get('/api/admin/referral/rules'),
+          apiClient.get('/api/admin/referral/stats'),
+        ]);
+        if (cancelled) return;
+        if (cfgRes.data.success) setConfig(cfgRes.data.config);
+        if (rulesRes.data.success) setRules(rulesRes.data.rules);
+        if (statsRes.data.success) setStats(statsRes.data);
+      } catch (_) {}
+      if (!cancelled) setLoading(false);
+    };
+    load();
+    return () => { cancelled = true; };
+  }, []);
 
   const saveConfig = async () => {
     try {
