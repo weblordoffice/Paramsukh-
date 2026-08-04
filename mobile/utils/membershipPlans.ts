@@ -116,33 +116,13 @@ export const fetchPublicMembershipPlans = async (): Promise<UIMembershipPlan[]> 
 };
 
 export const fetchEligibleCoursePreviews = async (
-  courseSelection: UIMembershipPlan['courseSelection']
+  planSlug: string
 ): Promise<EligibleCoursePreview[]> => {
-  if (!courseSelection?.enabled) return [];
+  if (!planSlug) return [];
 
   try {
-    const response = await apiClient.get('/courses/all');
-    const allCourses: any[] = response.data?.courses || [];
-
-    const published = allCourses.filter((c: any) => c.status === 'published');
-
-    if (courseSelection.eligibleCoursesMode === 'all_published') {
-      return published.map(mapCoursePreview);
-    }
-
-    if (courseSelection.eligibleCoursesMode === 'specific') {
-      const idSet = new Set(courseSelection.eligibleCourseIds.map((id) => String(id)));
-      return published.filter((c) => idSet.has(String(c._id))).map(mapCoursePreview);
-    }
-
-    if (courseSelection.eligibleCoursesMode === 'categories') {
-      const catSet = new Set(courseSelection.eligibleCategories.map((c) => c.toLowerCase()));
-      return published
-        .filter((c) => catSet.has(String(c.category || '').toLowerCase()))
-        .map(mapCoursePreview);
-    }
-
-    return [];
+    const response = await apiClient.get(`/membership-plans/${planSlug}/eligible-courses`);
+    return (response.data?.courses || []).map(mapCoursePreview);
   } catch {
     return [];
   }

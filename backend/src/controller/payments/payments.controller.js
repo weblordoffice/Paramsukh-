@@ -14,6 +14,7 @@ import Booking from '../../models/booking.models.js';
 import Order from '../../models/order.models.js';
 import { Course } from '../../models/course.models.js';
 import { Enrollment } from '../../models/enrollment.models.js';
+import { MembershipPlan } from '../../models/membershipPlan.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import {
   resolveMembershipPlanChargeAmount,
@@ -101,6 +102,39 @@ const resolveTargetUserForAdminLink = async ({ targetUserId, targetEmail, target
   }
 
   return null;
+};
+
+const parseSelectedCourseIds = (notes = {}) => {
+  try {
+    const raw = notes?.selectedCourseIds;
+    if (!raw) return [];
+    if (Array.isArray(raw)) return raw.filter(Boolean).map(String);
+    if (typeof raw === 'string' && raw.trim()) return JSON.parse(raw).filter(Boolean).map(String);
+    return [];
+  } catch {
+    return [];
+  }
+};
+
+const enrollSelectedCourses = async (userId, courseIds, planSlug) => {
+  const courses = await Course.find({ _id: { $in: courseIds }, status: 'published' }).select('_id title videos enrollmentCount').lean();
+  let enrolled = 0;
+
+  for (const course of courses) {
+    const existingEnrollment = await Enrollment.findOne({ userId, courseId: course._id });
+    if (!existingEnrollment) {
+      await Enrollment.create({
+        userId,
+        courseId: course._id,
+        currentVideoId: course.videos?.length > 0 ? course.videos[0]._id : null,
+      });
+      await Course.findByIdAndUpdate(course._id, { $inc: { enrollmentCount: 1 } });
+      enrolled++;
+    }
+  }
+
+  console.log(`   Enrolled in ${enrolled} selected course(s) for plan ${planSlug}`);
+  return enrolled;
 };
 
 /**
@@ -281,7 +315,7 @@ export const createMembershipOrder = async (req, res) => {
 export const createMembershipPaymentLink = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { plan } = req.body;
+    const { plan, selectedCourseIds, callbackUrl } = req.body;
 
     const planConfig = await resolveMembershipPlanChargeAmount(plan);
     if (!planConfig.isValid) {
@@ -295,6 +329,8 @@ export const createMembershipPaymentLink = async (req, res) => {
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' });
     }
+
+    const courseIds = Array.isArray(selectedCourseIds) ? selectedCourseIds.filter(Boolean) : [];
 
     const user = await User.findById(userId).select('email phone displayName name');
     if (!user) {
@@ -317,7 +353,10 @@ export const createMembershipPaymentLink = async (req, res) => {
         plan: finalPlan,
         userId: userId.toString(),
         validityDays: String(validityDays),
+        selectedCourseIds: courseIds.length > 0 ? JSON.stringify(courseIds) : '',
       },
+      callback_url: callbackUrl || undefined,
+      callback_method: callbackUrl ? 'get' : undefined,
     });
 
     return res.status(200).json({
@@ -635,6 +674,7 @@ export const confirmMembershipPaymentLink = async (req, res) => {
         adminCreated: isAdminCreated,
         trackingId: notes?.trackingId || null,
       },
+      selectedCourseIds: parseSelectedCourseIds(notes),
     });
     console.log(`✅ Membership activated for user ${targetUserId}: ${finalPlan}`);
 
@@ -649,22 +689,31 @@ export const confirmMembershipPaymentLink = async (req, res) => {
       );
     }
 
-    // Enroll in courses for this plan (same as purchaseMembership)
-    const courses = await getAutoEnrollCoursesForPlan(finalPlan);
+    // Enroll in selected courses if provided, otherwise auto-enroll
+    const planDoc = await MembershipPlan.findOne({ slug: finalPlan }).select('access.courseSelection').lean();
+    const hasCourseSelection = planDoc?.access?.courseSelection?.enabled === true;
+    const parsedSelectedIds = parseSelectedCourseIds(notes);
 
-    for (const course of courses) {
-      const existingEnrollment = await Enrollment.findOne({ userId: targetUserId, courseId: course._id });
-      if (!existingEnrollment) {
-        await Enrollment.create({
-          userId: targetUserId,
-          courseId: course._id,
-          currentVideoId: course.videos?.length > 0 ? course.videos[0]._id : null
-        });
-        course.enrollmentCount = (course.enrollmentCount || 0) + 1;
-        await course.save();
+    if (hasCourseSelection && parsedSelectedIds.length > 0) {
+      await enrollSelectedCourses(targetUserId, parsedSelectedIds, finalPlan);
+    } else if (!hasCourseSelection) {
+      const courses = await getAutoEnrollCoursesForPlan(finalPlan);
+      for (const course of courses) {
+        const existingEnrollment = await Enrollment.findOne({ userId: targetUserId, courseId: course._id });
+        if (!existingEnrollment) {
+          await Enrollment.create({
+            userId: targetUserId,
+            courseId: course._id,
+            currentVideoId: course.videos?.length > 0 ? course.videos[0]._id : null
+          });
+          course.enrollmentCount = (course.enrollmentCount || 0) + 1;
+          await course.save();
+        }
       }
+      console.log(`   Enrolled in ${courses.length} course(s) for plan ${finalPlan}`);
+    } else {
+      console.log(`   Skipped auto-enroll — plan ${finalPlan} uses credit-based courseSelection`);
     }
-    console.log(`   Enrolled in ${courses.length} course(s) for plan ${finalPlan}`);
 
     // Sync plan-category groups after enrollments are created.
     try {
@@ -779,6 +828,7 @@ export const syncMembershipFromRazorpay = async (req, res) => {
           adminCreated: String(notes?.adminCreated || '').toLowerCase() === 'true',
           trackingId: notes?.trackingId || null,
         },
+        selectedCourseIds: parseSelectedCourseIds(notes),
       });
 
       if (String(notes?.adminCreated || '').toLowerCase() === 'true') {
@@ -792,17 +842,25 @@ export const syncMembershipFromRazorpay = async (req, res) => {
         );
       }
 
-      const courses = await getAutoEnrollCoursesForPlan(finalPlan);
-      for (const course of courses) {
-        const existingEnrollment = await Enrollment.findOne({ userId, courseId: course._id });
-        if (!existingEnrollment) {
-          await Enrollment.create({
-            userId,
-            courseId: course._id,
-            currentVideoId: course.videos?.length > 0 ? course.videos[0]._id : null
-          });
-          course.enrollmentCount = (course.enrollmentCount || 0) + 1;
-          await course.save();
+      const planDoc = await MembershipPlan.findOne({ slug: finalPlan }).select('access.courseSelection').lean();
+      const hasCourseSelection = planDoc?.access?.courseSelection?.enabled === true;
+      const parsedSelectedIds = parseSelectedCourseIds(notes);
+
+      if (hasCourseSelection && parsedSelectedIds.length > 0) {
+        await enrollSelectedCourses(userId, parsedSelectedIds, finalPlan);
+      } else if (!hasCourseSelection) {
+        const courses = await getAutoEnrollCoursesForPlan(finalPlan);
+        for (const course of courses) {
+          const existingEnrollment = await Enrollment.findOne({ userId, courseId: course._id });
+          if (!existingEnrollment) {
+            await Enrollment.create({
+              userId,
+              courseId: course._id,
+              currentVideoId: course.videos?.length > 0 ? course.videos[0]._id : null
+            });
+            course.enrollmentCount = (course.enrollmentCount || 0) + 1;
+            await course.save();
+          }
         }
       }
       await handlePlanUpgrade(userId, finalPlan);
@@ -1106,6 +1164,7 @@ export const handleWebhook = async (req, res) => {
                 adminCreated: String(pNotes?.adminCreated || '').toLowerCase() === 'true',
                 trackingId: pNotes?.trackingId || null,
               },
+              selectedCourseIds: parseSelectedCourseIds(pNotes),
             });
             console.log(`✅ Membership activated via payment.captured for user ${pNotes.userId}: ${planConfig.slug}`);
 
@@ -1137,6 +1196,12 @@ export const handleWebhook = async (req, res) => {
                   paidAt: new Date(),
                 }
               );
+            }
+
+            // Enroll in selected courses if provided
+            const selectedIds = parseSelectedCourseIds(pNotes);
+            if (selectedIds.length > 0) {
+              await enrollSelectedCourses(pNotes.userId, selectedIds, planConfig.slug);
             }
 
             // Handle plan upgrade - enroll in new community groups
@@ -1253,6 +1318,7 @@ export const handleWebhook = async (req, res) => {
                   adminCreated: String(notes?.adminCreated || '').toLowerCase() === 'true',
                   trackingId: notes?.trackingId || null,
                 },
+                selectedCourseIds: parseSelectedCourseIds(notes),
               });
               console.log(`✅ Membership activated via payment_link.paid for user ${plUserId}: ${planConfig.slug}`);
 
@@ -1279,6 +1345,12 @@ export const handleWebhook = async (req, res) => {
                     paidAt: new Date(),
                   }
                 );
+              }
+
+              // Enroll in selected courses if provided
+              const selectedIds = parseSelectedCourseIds(notes);
+              if (selectedIds.length > 0) {
+                await enrollSelectedCourses(plUserId, selectedIds, planConfig.slug);
               }
 
               // Handle plan upgrade - enroll in new community groups

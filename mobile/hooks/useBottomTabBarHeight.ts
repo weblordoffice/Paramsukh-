@@ -1,17 +1,7 @@
-import { useMemo } from 'react';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Platform } from 'react-native';
-
 /**
- * Returns the total bottom space needed to avoid tab bar overlap
- * Tab bar height (60) + safe area inset + extra padding (16)
+ * Returns a standard breathing padding at the bottom of tab screen ScrollViews
+ * since the relative bottom tab bar is positioned in-flow.
  */
 export function useBottomTabBarHeight(): number {
-  const insets = useSafeAreaInsets();
-  
-  return useMemo(() => {
-    const tabBarHeight = 60; // Matches the tab bar height in _layout.tsx
-    const extraPadding = 16; // Extra spacing for better UX
-    return tabBarHeight + insets.bottom + extraPadding;
-  }, [insets.bottom]);
+  return 24;
 }

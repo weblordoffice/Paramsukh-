@@ -2,6 +2,7 @@ import { MembershipPlan } from '../../models/membershipPlan.models.js';
 import { User } from '../../models/user.models.js';
 import { UserMembership } from '../../models/userMembership.models.js';
 import { CoursePlan } from '../../models/coursePlan.models.js';
+import { Course } from '../../models/course.models.js';
 
 const normalizeSlug = (value) => {
   return String(value || '')
@@ -349,5 +350,81 @@ export const listMembershipPlansPublic = async (req, res) => {
   } catch (error) {
     console.error('Error fetching public membership plans:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch plans', error: error.message });
+  }
+};
+
+export const getPlanEligibleCourses = async (req, res) => {
+  try {
+    const { planSlug } = req.params;
+    const slug = normalizeSlug(planSlug);
+    if (!slug) {
+      return res.status(400).json({ success: false, message: 'planSlug is required' });
+    }
+
+    const plan = await MembershipPlan.findOne({ slug, status: 'published' }).lean();
+    if (!plan) {
+      return res.status(404).json({ success: false, message: 'Plan not found' });
+    }
+
+    if (!plan.access?.courseSelection?.enabled) {
+      return res.status(200).json({
+        success: true,
+        courses: [],
+        maxSelectableCourses: 0,
+        message: 'Course selection not enabled for this plan',
+      });
+    }
+
+    const selectionConfig = plan.access.courseSelection;
+    const mode = selectionConfig.eligibleCoursesMode || 'all_published';
+    const eligibleCategories = (selectionConfig.eligibleCategories || []).map((c) => normalizeSlug(c));
+    const eligibleCourseIds = (selectionConfig.eligibleCourseIds || []).map((id) => String(id));
+
+    let courseQuery = { status: 'published' };
+
+    if (mode === 'specific' && eligibleCourseIds.length > 0) {
+      courseQuery._id = { $in: eligibleCourseIds };
+    } else if (mode === 'categories' && eligibleCategories.length > 0) {
+      courseQuery.category = { $in: eligibleCategories };
+    } else {
+      const planCourseIds = new Set(eligibleCourseIds);
+      const junctionMappings = await CoursePlan.find({ planId: plan._id }).lean();
+      junctionMappings.forEach((m) => planCourseIds.add(String(m.courseId)));
+
+      const legacyCourses = await Course.find({ includedInPlans: slug, status: 'published' }).select('_id').lean();
+      legacyCourses.forEach((c) => planCourseIds.add(String(c._id)));
+
+      if (plan.access?.includedCourseIds?.length) {
+        plan.access.includedCourseIds.forEach((id) => planCourseIds.add(String(id)));
+      }
+
+      if (plan.access?.includedCategories?.length) {
+        const catCourses = await Course.find({
+          status: 'published',
+          category: { $in: plan.access.includedCategories.map((c) => normalizeSlug(c)) },
+        }).select('_id').lean();
+        catCourses.forEach((c) => planCourseIds.add(String(c._id)));
+      }
+
+      const resolvedIds = Array.from(planCourseIds).filter(Boolean);
+      if (resolvedIds.length > 0) {
+        courseQuery._id = { $in: resolvedIds };
+      }
+    }
+
+    const courses = await Course.find(courseQuery)
+      .select('title description shortDescription thumbnailUrl bannerUrl icon color duration category tags totalVideos totalPdfs status')
+      .sort({ title: 1 })
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      courses,
+      maxSelectableCourses: selectionConfig.maxSelectableCourses || 3,
+      planTitle: plan.title,
+    });
+  } catch (error) {
+    console.error('Error fetching plan eligible courses:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch eligible courses', error: error.message });
   }
 };

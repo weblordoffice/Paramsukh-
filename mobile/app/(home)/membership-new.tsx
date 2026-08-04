@@ -1,29 +1,43 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ScrollView, Text, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View, Alert, ActivityIndicator, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Header from '../../components/Header';
 import { useMembershipStore } from '../../store/membershipStore';
-
 import apiClient from '../../utils/apiClient';
 import { fetchPublicMembershipPlans, UIMembershipPlan } from '../../utils/membershipPlans';
 
 const PENDING_LINK_KEY = 'pending_membership_payment_link';
 
+interface EligibleCourse {
+  _id: string;
+  title: string;
+  thumbnailUrl?: string;
+  icon?: string;
+  color?: string;
+  duration?: string;
+  category?: string;
+  totalVideos?: number;
+  totalPdfs?: number;
+  shortDescription?: string;
+}
+
 export default function MembershipScreen() {
+  const { currentSubscription, isLoading, fetchCurrentSubscription } = useMembershipStore();
 
-  const { currentSubscription, isLoading, fetchCurrentSubscription, clearError } = useMembershipStore();
-
-  const [selectedPlan, setSelectedPlan] = useState('');
-  const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
   const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
+  const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
+  const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
+  const [planCourses, setPlanCourses] = useState<Record<string, EligibleCourse[]>>({});
+  const [selectedCourses, setSelectedCourses] = useState<Record<string, string[]>>({});
+  const [loadingCourses, setLoadingCourses] = useState<Record<string, boolean>>({});
 
   const loadPublicPlans = useCallback(async () => {
     const dynamicPlans = await fetchPublicMembershipPlans();
     setPlans(dynamicPlans);
-    if (dynamicPlans.length > 0) {
-      setSelectedPlan(dynamicPlans[0].id);
+    if (dynamicPlans.length > 0 && !expandedPlanId) {
+      setExpandedPlanId(dynamicPlans[0].id);
     }
   }, []);
 
@@ -32,7 +46,6 @@ export default function MembershipScreen() {
     loadPublicPlans();
   }, [fetchCurrentSubscription, loadPublicPlans]);
 
-  // If user paid and came back later (or app was closed), confirm any pending payment link
   useEffect(() => {
     if (!currentSubscription || currentSubscription.status === 'active') return;
     let cancelled = false;
@@ -40,42 +53,89 @@ export default function MembershipScreen() {
       try {
         const raw = await AsyncStorage.getItem(PENDING_LINK_KEY);
         if (!raw || cancelled) return;
-        const { paymentLinkId, plan, variantSlug: pendingVariantSlug } = JSON.parse(raw);
+        const { paymentLinkId, plan } = JSON.parse(raw);
         if (!paymentLinkId || !plan) return;
-        const res = await apiClient.post('/payments/membership-link/confirm', {
-          paymentLinkId,
-          plan,
-          variantSlug: pendingVariantSlug || null,
-        });
+        const res = await apiClient.post('/payments/membership-link/confirm', { paymentLinkId, plan });
         if (res.data?.success && res.data?.data?.status === 'active') {
           await AsyncStorage.removeItem(PENDING_LINK_KEY);
           await fetchCurrentSubscription();
         }
-      } catch {
-        // ignore
-      }
+      } catch { /* ignore */ }
     })();
     return () => { cancelled = true; };
   }, [currentSubscription, fetchCurrentSubscription]);
 
+  const fetchEligibleCourses = async (planSlug: string) => {
+    if (planCourses[planSlug]) return;
+    setLoadingCourses((prev) => ({ ...prev, [planSlug]: true }));
+    try {
+      const { data } = await apiClient.get(`/membership-plans/${planSlug}/eligible-courses`);
+      if (data.success) {
+        setPlanCourses((prev) => ({ ...prev, [planSlug]: data.courses || [] }));
+      }
+    } catch {
+      setPlanCourses((prev) => ({ ...prev, [planSlug]: [] }));
+    } finally {
+      setLoadingCourses((prev) => ({ ...prev, [planSlug]: false }));
+    }
+  };
+
+  const togglePlan = (planId: string, planSlug: string) => {
+    if (expandedPlanId === planId) {
+      setExpandedPlanId(null);
+    } else {
+      setExpandedPlanId(planId);
+      fetchEligibleCourses(planSlug);
+    }
+  };
+
+  const toggleCourseSelection = (planId: string, courseId: string, maxSelectable: number) => {
+    setSelectedCourses((prev) => {
+      const current = prev[planId] || [];
+      if (current.includes(courseId)) {
+        return { ...prev, [planId]: current.filter((id) => id !== courseId) };
+      }
+      if (current.length >= maxSelectable) {
+        Alert.alert('Limit Reached', `You can only select up to ${maxSelectable} courses for this plan.`);
+        return prev;
+      }
+      return { ...prev, [planId]: [...current, courseId] };
+    });
+  };
+
+  const getSelectedCount = (planId: string) => (selectedCourses[planId] || []).length;
+
   const getDisplayPrice = (plan: UIMembershipPlan) => `₹${plan.price.toLocaleString('en-IN')}`;
 
+  const getCategoryBadge = (category: string = '') => {
+    const configs: Record<string, { color: string; bg: string }> = {
+      physical: { color: '#FFF', bg: '#EF4444' },
+      mental: { color: '#FFF', bg: '#8B5CF6' },
+      financial: { color: '#1A1A1A', bg: '#22C55E' },
+      relationship: { color: '#FFF', bg: '#EC4899' },
+      spiritual: { color: '#FFF', bg: '#F59E0B' },
+      general: { color: '#FFF', bg: '#64748B' },
+    };
+    return configs[category.toLowerCase()] || { color: '#FFF', bg: '#8B5CF6' };
+  };
+
   const handlePurchase = async (plan: UIMembershipPlan) => {
-    const currentSelection = currentSubscription?.selectedPlan || currentSubscription?.plan;
-    if (currentSelection === plan.id && currentSubscription?.status === 'active') {
-      Alert.alert('Already Subscribed', `You already have the ${plan.name} plan!`);
+    const selected = selectedCourses[plan.id] || [];
+    const maxSelectable = plan.courseSelection?.maxSelectableCourses || 0;
+
+    if (maxSelectable > 0 && selected.length === 0) {
+      Alert.alert('Select Courses', `Please select up to ${maxSelectable} courses before purchasing.`);
       return;
     }
 
     setPurchasingPlanId(plan.id);
-    clearError();
 
     try {
-      // Create Razorpay hosted checkout URL from backend
       const linkRes = await apiClient.post('/payments/membership-link', {
         plan: plan.parentSlug,
-        variantSlug: plan.variantSlug || null,
-        amount: plan.price
+        amount: plan.price,
+        selectedCourseIds: selected,
+        callbackUrl: 'paramsukh://payment-done',
       });
 
       if (!linkRes.data?.success || !linkRes.data?.data?.url) {
@@ -88,18 +148,11 @@ export default function MembershipScreen() {
       const paymentLinkId = linkRes.data.data.paymentLinkId as string | undefined;
 
       if (paymentLinkId) {
-        await AsyncStorage.setItem(PENDING_LINK_KEY, JSON.stringify({
-          paymentLinkId,
-          plan: plan.parentSlug,
-          variantSlug: plan.variantSlug || null,
-        }));
+        await AsyncStorage.setItem(PENDING_LINK_KEY, JSON.stringify({ paymentLinkId, plan: plan.parentSlug }));
       }
 
-      // Open Razorpay payment page (hosted checkout)
-      await WebBrowser.openBrowserAsync(url, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-        enableBarCollapsing: true,
-        showTitle: true,
+      await WebBrowser.openAuthSessionAsync(url, 'paramsukh://payment-done', {
+        createTask: false,
       });
 
       let activated = false;
@@ -107,7 +160,6 @@ export default function MembershipScreen() {
         const confirmRes = await apiClient.post('/payments/membership-link/confirm', {
           paymentLinkId,
           plan: plan.parentSlug,
-          variantSlug: plan.variantSlug || null,
         });
         if (confirmRes.data?.success) {
           await AsyncStorage.removeItem(PENDING_LINK_KEY);
@@ -116,14 +168,14 @@ export default function MembershipScreen() {
       }
 
       await fetchCurrentSubscription();
-      Alert.alert(
-        'Payment',
-        activated
-          ? `${plan.name} membership is now active. You can access your courses.`
-          : 'If you completed payment, your plan will activate shortly. Pull down to refresh or reopen this screen.'
-      );
+      if (activated) {
+        Alert.alert('Success', `${plan.name} membership is now active with ${selected.length} course(s).`);
+        setSelectedCourses((prev) => ({ ...prev, [plan.id]: [] }));
+      } else {
+        Alert.alert('Payment', 'If you completed payment, your plan will activate shortly. Pull down to refresh.');
+      }
     } catch (err: any) {
-      Alert.alert('Payment Failed', err?.description || err?.message || 'Could not complete payment. Please try again.');
+      Alert.alert('Payment Failed', err?.message || 'Could not complete payment.');
     } finally {
       setPurchasingPlanId(null);
     }
@@ -144,10 +196,9 @@ export default function MembershipScreen() {
             <Text className="text-5xl mb-3">🙏</Text>
             <Text className="text-[28px] font-extrabold text-gray-900 mb-2">Namo Jinanam</Text>
             <Text className="text-[15px] text-gray-500 text-center leading-[22px] px-5">
-              Choose your membership tier and unlock your spiritual potential
+              Pick your courses, then pay — only what you choose gets unlocked
             </Text>
 
-            {/* Current Subscription Badge */}
             {isLoading ? (
               <ActivityIndicator size="small" color="#3B82F6" style={{ marginTop: 12 }} />
             ) : currentSubscription?.status === 'active' && (
@@ -161,7 +212,7 @@ export default function MembershipScreen() {
           </View>
 
           {/* Special Features Banner */}
-          <View className="bg-gradient-to-r from-purple-500 to-pink-500 bg-purple-100 rounded-2xl p-4 mb-5 border-2 border-purple-300">
+          <View className="bg-purple-100 rounded-2xl p-4 mb-5 border-2 border-purple-300">
             <View className="flex-row items-center gap-2 mb-2">
               <Ionicons name="gift" size={20} color="#8B5CF6" />
               <Text className="text-base font-bold text-purple-900">Membership Benefits</Text>
@@ -173,108 +224,211 @@ export default function MembershipScreen() {
             </Text>
           </View>
 
-          {/* Plan Cards */}
+          {/* Plan Cards with Course Selection */}
           {plans.length === 0 && (
             <View className="bg-white rounded-2xl p-4 mb-4 border border-gray-200 flex-row items-center gap-2">
               <Ionicons name="information-circle-outline" size={18} color="#64748B" />
               <Text className="text-sm text-gray-600 flex-1">
-                No membership plans are available right now. Please check again later.
+                No membership plans are available right now.
               </Text>
             </View>
           )}
 
           {plans.map((plan) => {
-            const isSelected = selectedPlan === plan.id;
+            const isExpanded = expandedPlanId === plan.id;
             const displayPrice = getDisplayPrice(plan);
+            const maxSelectable = plan.courseSelection?.maxSelectableCourses || 0;
+            const hasCourseSelection = plan.courseSelection?.enabled && maxSelectable > 0;
+            const courses = planCourses[plan.slug] || [];
+            const selectedCount = getSelectedCount(plan.id);
+            const isCoursesLoading = loadingCourses[plan.slug];
 
             return (
-              <TouchableOpacity
-                key={plan.id}
-                activeOpacity={0.9}
-                onPress={() => setSelectedPlan(plan.id)}
-                className={`rounded-[20px] p-5 mb-4 shadow-lg relative ${isSelected ? 'border-[3px] scale-[1.02]' : ''
-                  }`}
-                style={{
-                  backgroundColor: plan.gradient[0],
-                  borderColor: isSelected ? plan.color : undefined,
-                }}
-              >
-
-
-                {/* Plan Header */}
-                <View className="flex-row justify-between items-center mb-4">
-                  <View className="flex-row items-center gap-3">
-                    <Text className="text-4xl">{plan.emoji}</Text>
-                    <View>
-                      <Text className="text-[22px] font-extrabold text-gray-900">{plan.name}</Text>
-                      <Text className="text-xs text-gray-500 mt-0.5">{plan.tagline}</Text>
-                    </View>
-                  </View>
-                  {isSelected && (
-                    <View
-                      className="w-8 h-8 rounded-full items-center justify-center"
-                      style={{ backgroundColor: plan.color }}
-                    >
-                      <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                    </View>
-                  )}
-                </View>
-
-                {/* Price */}
-                <View className="mb-5">
-                  <Text className="text-3xl font-black" style={{ color: plan.color }}>{displayPrice}</Text>
-                </View>
-
-                {/* Features */}
-                <View className="gap-2.5 mb-5">
-                  {plan.features.map((feature, idx) => (
-                    <View key={idx} className="flex-row items-center gap-2.5">
-                      <View
-                        className="w-5 h-5 rounded-full items-center justify-center"
-                        style={{ backgroundColor: feature.included ? plan.color : '#E5E7EB' }}
-                      >
-                        <Ionicons
-                          name={feature.included ? "checkmark" : "close"}
-                          size={12}
-                          color="#FFFFFF"
-                        />
-                      </View>
-                      <Text className={`text-sm flex-1 ${!feature.included ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                        {feature.text}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-
-                {/* Action Button */}
+              <View key={plan.id} className="mb-4">
+                {/* Plan Card */}
                 <TouchableOpacity
-                  className={`flex-row items-center justify-center gap-2 py-4 rounded-xl ${isPlanActive(plan.id) ? 'bg-green-500' : isSelected ? '' : 'bg-white border-2'
-                    }`}
-                  style={isPlanActive(plan.id) ? {} : isSelected ? { backgroundColor: plan.color } : { borderColor: plan.color }}
-                  onPress={() => isPlanActive(plan.id) ? null : handlePurchase(plan)}
-                  disabled={purchasingPlanId !== null || isPlanActive(plan.id)}
+                  activeOpacity={0.9}
+                  onPress={() => hasCourseSelection ? togglePlan(plan.id, plan.slug) : null}
+                  className={`rounded-[20px] p-5 shadow-lg ${isExpanded ? 'rounded-b-none' : ''}`}
+                  style={{ backgroundColor: plan.gradient[0] }}
                 >
-                  {purchasingPlanId === plan.id ? (
-                    <ActivityIndicator color="#FFFFFF" />
-                  ) : (
-                    <>
-                      <Text
-                        className="text-base font-bold"
-                        style={{ color: isPlanActive(plan.id) ? '#FFFFFF' : isSelected ? '#FFFFFF' : plan.color }}
-                      >
-                        {isPlanActive(plan.id)
-                          ? '✓ Active Plan'
-                          : isSelected
-                            ? 'Purchase Now'
-                            : 'Select Plan'}
+                  <View className="flex-row justify-between items-center mb-4">
+                    <View className="flex-row items-center gap-3">
+                      <Text className="text-4xl">{plan.emoji}</Text>
+                      <View>
+                        <Text className="text-[22px] font-extrabold text-gray-900">{plan.name}</Text>
+                        <Text className="text-xs text-gray-500 mt-0.5">{plan.tagline}</Text>
+                      </View>
+                    </View>
+                    {isExpanded && (
+                      <Ionicons name="chevron-up" size={22} color="#6B7280" />
+                    )}
+                    {!isExpanded && hasCourseSelection && (
+                      <View className="flex-row items-center gap-1">
+                        <Text className="text-xs text-gray-500">Pick courses</Text>
+                        <Ionicons name="chevron-down" size={22} color="#6B7280" />
+                      </View>
+                    )}
+                  </View>
+
+                  <View className="mb-3">
+                    <Text className="text-3xl font-black" style={{ color: plan.color }}>{displayPrice}</Text>
+                    {hasCourseSelection && (
+                      <Text className="text-sm text-gray-600 mt-1">
+                        Select up to {maxSelectable} course{maxSelectable > 1 ? 's' : ''}
                       </Text>
-                      {isSelected && !isPlanActive(plan.id) && (
-                        <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+                    )}
+                  </View>
+
+                  <View className="gap-2.5 mb-3">
+                    {plan.features.slice(0, 4).map((feature, idx) => (
+                      <View key={idx} className="flex-row items-center gap-2.5">
+                        <View
+                          className="w-5 h-5 rounded-full items-center justify-center"
+                          style={{ backgroundColor: feature.included ? plan.color : '#E5E7EB' }}
+                        >
+                          <Ionicons
+                            name={feature.included ? "checkmark" : "close"}
+                            size={12} color="#FFFFFF"
+                          />
+                        </View>
+                        <Text className={`text-sm flex-1 ${!feature.included ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                          {feature.text}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Purchase Button (outside expanded area) */}
+                  {!hasCourseSelection ? (
+                    <TouchableOpacity
+                      className={`flex-row items-center justify-center gap-2 py-4 rounded-xl ${isPlanActive(plan.id) ? 'bg-green-500' : ''}`}
+                      style={isPlanActive(plan.id) ? {} : { backgroundColor: plan.color }}
+                      onPress={() => isPlanActive(plan.id) ? null : handlePurchase(plan)}
+                      disabled={purchasingPlanId !== null || isPlanActive(plan.id)}
+                    >
+                      {purchasingPlanId === plan.id ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                      ) : (
+                        <Text className="text-base font-bold text-white">
+                          {isPlanActive(plan.id) ? '✓ Active Plan' : 'Purchase Now'}
+                        </Text>
                       )}
-                    </>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      className="py-2 items-center"
+                      onPress={() => togglePlan(plan.id, plan.slug)}
+                    >
+                      <Text className="text-sm font-semibold text-gray-600">
+                        {isExpanded ? 'Hide courses ▲' : 'Pick your courses ▼'}
+                      </Text>
+                    </TouchableOpacity>
                   )}
                 </TouchableOpacity>
-              </TouchableOpacity>
+
+                {/* Expanded Course Selection */}
+                {isExpanded && hasCourseSelection && (
+                  <View className="bg-white rounded-b-[20px] border-t border-gray-200 p-4 shadow-lg">
+                    {/* Selection counter */}
+                    <View className="flex-row items-center justify-between mb-3 px-2">
+                      <Text className="text-sm font-semibold text-gray-700">
+                        {selectedCount === 0
+                          ? `Pick up to ${maxSelectable} courses`
+                          : `Selected ${selectedCount}/${maxSelectable}`}
+                      </Text>
+                      {selectedCount > 0 && (
+                        <TouchableOpacity onPress={() => setSelectedCourses((prev) => ({ ...prev, [plan.id]: [] }))}>
+                          <Text className="text-xs text-red-500 font-medium">Clear</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {isCoursesLoading ? (
+                      <ActivityIndicator color="#8B5CF6" style={{ padding: 20 }} />
+                    ) : courses.length === 0 ? (
+                      <Text className="text-sm text-gray-400 text-center py-4">No courses available for this plan</Text>
+                    ) : (
+                      <View className="gap-3">
+                        {courses.map((course) => {
+                          const isSelected = (selectedCourses[plan.id] || []).includes(course._id);
+                          const badge = getCategoryBadge(course.category);
+                          return (
+                            <TouchableOpacity
+                              key={course._id}
+                              onPress={() => toggleCourseSelection(plan.id, course._id, maxSelectable)}
+                              activeOpacity={0.7}
+                              className={`flex-row items-center p-3 rounded-xl border ${
+                                isSelected ? 'border-purple-400 bg-purple-50' : 'border-gray-200 bg-gray-50'
+                              }`}
+                            >
+                              <View
+                                className="w-12 h-12 rounded-xl items-center justify-center mr-3"
+                                style={{ backgroundColor: course.color || '#8B5CF6' }}
+                              >
+                                {course.thumbnailUrl ? (
+                                  <Image source={{ uri: course.thumbnailUrl }} className="w-12 h-12 rounded-xl" />
+                                ) : (
+                                  <Ionicons name={(course.icon as any) || 'book-outline'} size={20} color="#FFF" />
+                                )}
+                              </View>
+                              <View className="flex-1">
+                                <Text className="text-sm font-semibold text-gray-900" numberOfLines={2}>
+                                  {course.title}
+                                </Text>
+                                <View className="flex-row items-center gap-2 mt-1">
+                                  {course.category && (
+                                    <View className="px-2 py-0.5 rounded-md" style={{ backgroundColor: badge.bg }}>
+                                      <Text className="text-[10px] font-semibold" style={{ color: badge.color }}>
+                                        {course.category}
+                                      </Text>
+                                    </View>
+                                  )}
+                                  {(course.totalVideos || 0) > 0 && (
+                                    <Text className="text-[10px] text-gray-400">
+                                      {course.totalVideos} videos
+                                    </Text>
+                                  )}
+                                </View>
+                              </View>
+                              <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ml-2 ${
+                                isSelected ? 'bg-purple-500 border-purple-500' : 'border-gray-300'
+                              }`}>
+                                {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                              </View>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    )}
+
+                    {/* Purchase Button */}
+                    <TouchableOpacity
+                      className={`flex-row items-center justify-center gap-2 py-4 rounded-xl mt-4 ${
+                        isPlanActive(plan.id) ? 'bg-green-500' : ''
+                      } ${selectedCount === 0 ? 'opacity-40' : ''}`}
+                      style={isPlanActive(plan.id) ? {} : { backgroundColor: plan.color }}
+                      onPress={() => handlePurchase(plan)}
+                      disabled={purchasingPlanId !== null || isPlanActive(plan.id) || selectedCount === 0}
+                    >
+                      {purchasingPlanId === plan.id ? (
+                        <ActivityIndicator color="#FFFFFF" />
+                      ) : (
+                        <>
+                          <Ionicons name="lock-open-outline" size={18} color="#FFF" />
+                          <Text className="text-base font-bold text-white">
+                            {isPlanActive(plan.id)
+                              ? '✓ Active Plan'
+                              : selectedCount === 0
+                                ? 'Select courses to purchase'
+                                : `Purchase (${selectedCount} course${selectedCount > 1 ? 's' : ''}) — ${displayPrice}`}
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
             );
           })}
 
@@ -292,31 +446,10 @@ export default function MembershipScreen() {
                 </Text>
               </View>
               <View className="flex-row items-start gap-2">
-                <Text className="text-green-600 font-bold">✓</Text>
-                <Text className="text-sm text-gray-700 flex-1">
-                  <Text className="font-semibold">Physical/Financial/Relationship Wellness</Text> - As required
-                </Text>
-              </View>
-              <View className="flex-row items-start gap-2">
                 <Text className="text-purple-600 font-bold">⭐</Text>
                 <Text className="text-sm text-gray-700 flex-1">
                   <Text className="font-semibold">Counseling with Gurudev</Text> - ₹999/-
                 </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Benefits Section */}
-          <View className="bg-white rounded-2xl p-5 mt-3">
-            <Text className="text-lg font-bold text-gray-900 mb-4 text-center">All Memberships Include</Text>
-            <View className="flex-row flex-wrap gap-4">
-              <View className="w-[47%] items-center gap-2 p-3 bg-gray-50 rounded-xl">
-                <Ionicons name="people" size={24} color="#3B82F6" />
-                <Text className="text-xs font-semibold text-gray-500 text-center">Group Follow-up</Text>
-              </View>
-              <View className="w-[47%] items-center gap-2 p-3 bg-gray-50 rounded-xl">
-                <Ionicons name="chatbubbles" size={24} color="#10B981" />
-                <Text className="text-xs font-semibold text-gray-500 text-center">Free Counseling</Text>
               </View>
             </View>
           </View>

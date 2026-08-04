@@ -26,6 +26,7 @@ import AssessmentModal from '@/components/AssessmentModal';
 import CommentsModal from '@/components/CommentsModal';
 import * as ImagePicker from 'expo-image-picker';
 import { useCommunityStore, Group, PlanGroup } from '@/store/communityStore';
+import { useBottomTabBarHeight } from '@/hooks/useBottomTabBarHeight';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.75;
@@ -47,6 +48,7 @@ type ViewType = 'feed' | 'groups' | 'message';
 
 export default function CommunityScreen() {
   const router = useRouter();
+  const bottomTabHeight = useBottomTabBarHeight();
   const { user, token } = useAuthStore();
   const { unreadCount, fetchUnreadCount } = useNotificationStore();
   const {
@@ -591,7 +593,7 @@ export default function CommunityScreen() {
           <FlatList
             data={getFilteredPosts()}
             keyExtractor={(item) => item._id}
-            contentContainerStyle={{ paddingBottom: 100 }}
+            contentContainerStyle={{ paddingBottom: bottomTabHeight }}
             showsVerticalScrollIndicator={false}
             refreshing={isStoreLoading}
             onRefresh={() => activeGroup && fetchGroupPosts(activeGroup._id)}

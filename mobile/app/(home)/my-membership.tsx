@@ -10,8 +10,9 @@ import {
     Modal,
     FlatList,
     Image,
+    Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
@@ -20,6 +21,7 @@ import { useMembershipStore } from '../../store/membershipStore';
 import { useAuthStore } from '../../store/authStore';
 import apiClient from '../../utils/apiClient';
 import { fetchPublicMembershipPlans, fetchEligibleCoursePreviews, UIMembershipPlan, EligibleCoursePreview } from '../../utils/membershipPlans';
+import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
 
 const PENDING_LINK_KEY = 'pending_membership_payment_link';
 const PRE_SELECT_KEY = 'preselected_courses';
@@ -27,6 +29,8 @@ const PRE_SELECT_KEY = 'preselected_courses';
 /* ─── Component ──────────────────────────────────────────────────────── */
 export default function MyMembershipScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
+    const bottomTabHeight = useBottomTabBarHeight();
     const scrollRef = useRef<ScrollView>(null);
     const [plansY, setPlansY] = useState<number>(0);
     const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
@@ -69,7 +73,7 @@ export default function MyMembershipScreen() {
         setPreviewLoading(true);
         setPreviewCourses([]);
         try {
-            const courses = await fetchEligibleCoursePreviews(plan.courseSelection);
+            const courses = await fetchEligibleCoursePreviews(plan.parentSlug);
             setPreviewCourses(courses);
         } catch {}
         setPreviewLoading(false);
@@ -88,7 +92,7 @@ export default function MyMembershipScreen() {
         setPreSelectLoading(true);
         setShowPreSelectModal(true);
         try {
-            const courses = await fetchEligibleCoursePreviews(plan.courseSelection);
+            const courses = await fetchEligibleCoursePreviews(plan.parentSlug);
             setPreSelectCourses(courses);
         } catch {}
         setPreSelectLoading(false);
@@ -243,10 +247,12 @@ export default function MyMembershipScreen() {
         setPurchasingPlanId(plan.id);
 
         try {
+            const callbackUrl = 'paramsukh://payment-done';
             const linkRes = await apiClient.post('/payments/membership-link', {
                 plan: plan.parentSlug,
                 variantSlug: plan.variantSlug || null,
-                amount: plan.price
+                amount: plan.price,
+                callbackUrl,
             });
 
             if (!linkRes.data?.success || !linkRes.data?.data?.url) {
@@ -266,17 +272,12 @@ export default function MyMembershipScreen() {
                 }));
             }
 
-            await WebBrowser.openBrowserAsync(url, {
-                presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-                enableBarCollapsing: true,
-                showTitle: true,
+            const result = await WebBrowser.openAuthSessionAsync(url, callbackUrl, {
+                createTask: false,
             });
 
-            // Retry confirm a few times — webhook may not have fired yet
-            let paymentConfirmed = false;
-            if (paymentLinkId) {
-                for (let attempt = 0; attempt < 5; attempt++) {
-                    if (attempt > 0) await new Promise((r) => setTimeout(r, 2000));
+            if (result.type === 'success') {
+                if (paymentLinkId) {
                     const confirmRes = await apiClient.post('/payments/membership-link/confirm', {
                         paymentLinkId,
                         plan: plan.parentSlug,
@@ -284,43 +285,15 @@ export default function MyMembershipScreen() {
                     });
                     if (confirmRes.data?.data?.status === 'active' || confirmRes.data?.data?.status === 'paid') {
                         await AsyncStorage.removeItem(PENDING_LINK_KEY);
-                        paymentConfirmed = true;
-                        break;
                     }
                 }
             }
 
-            // Refresh all state
             await fetchCurrentSubscription();
             await loadPurchases();
             await fetchActiveMembershipInfo();
 
-            // #7: Auto-select pre-selected courses after payment
-            if (paymentConfirmed) {
-                const preSelectRaw = await AsyncStorage.getItem(PRE_SELECT_KEY);
-                if (preSelectRaw && plan.courseSelection?.enabled) {
-                    try {
-                        const preSelect = JSON.parse(preSelectRaw);
-                        if (preSelect.planSlug === plan.parentSlug && preSelect.courseIds?.length > 0) {
-                            const { data: membershipData } = await apiClient.get('/membership/active');
-                            if (membershipData?.success && membershipData?.membershipId) {
-                                const membershipId = membershipData.membershipId;
-                                for (const courseId of preSelect.courseIds) {
-                                    await apiClient.post(`/membership/${membershipId}/select-course`, { courseId }).catch(() => {});
-                                }
-                                setActiveMembership({
-                                    membershipId,
-                                    courseSelection: membershipData.courseSelection,
-                                });
-                            }
-                        }
-                    } catch {}
-                    await AsyncStorage.removeItem(PRE_SELECT_KEY);
-                    setPreSelectingPlanId(null);
-                    setPreSelectedCourseIds([]);
-                }
-
-                // #1: Auto-redirect to course picker if plan has courseSelection
+            if (result.type === 'success') {
                 if (plan.courseSelection?.enabled && activeMembership?.courseSelection?.remaining && activeMembership.courseSelection.remaining > 0) {
                     router.push({
                         pathname: '/(home)/choose-courses',
@@ -360,7 +333,7 @@ export default function MyMembershipScreen() {
                 <View style={{ width: 38 }} />
             </View>
 
-            <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+            <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: bottomTabHeight }]}>
 
                 {/* ── Current status hero ── */}
                 {isLoading ? (
@@ -396,17 +369,17 @@ export default function MyMembershipScreen() {
                             <Text style={styles.upgradeCtaText}>View & Buy Plans</Text>
                         </TouchableOpacity>
                         <TouchableOpacity
-                            style={[styles.upgradeCta, { marginTop: 10, backgroundColor: 'rgba(148,163,184,0.3)' }]}
+                            style={[styles.upgradeCtaSecondary, { marginTop: 12 }]}
                             onPress={syncPayment}
                             disabled={syncingPayment}
                             activeOpacity={0.85}
                         >
                             {syncingPayment ? (
-                                <ActivityIndicator size="small" color="#fff" />
+                                <ActivityIndicator size="small" color="#6B7280" />
                             ) : (
                                 <>
-                                    <Ionicons name="refresh" size={18} color="#fff" />
-                                    <Text style={styles.upgradeCtaText}>I already paid – sync</Text>
+                                    <Ionicons name="refresh" size={18} color="#6B7280" />
+                                    <Text style={styles.upgradeCtaSecondaryText}>I already paid – sync</Text>
                                 </>
                             )}
                         </TouchableOpacity>
@@ -628,16 +601,18 @@ export default function MyMembershipScreen() {
                                             style={[
                                                 styles.buyBtn,
                                                 { borderColor: plan.color },
-                                                plan.courseSelection?.enabled && { flex: 0.5 },
+                                                plan.courseSelection?.enabled
+                                                    ? { flex: 1 }
+                                                    : { backgroundColor: plan.color, borderWidth: 0 },
                                             ]}
                                             onPress={() => handlePurchase(plan)}
-                                            activeOpacity={0.8}
+                                            activeOpacity={0.85}
                                             disabled={purchasingPlanId !== null}
                                         >
                                             {purchasingPlanId === plan.id ? (
-                                                <ActivityIndicator color={plan.color} />
+                                                <ActivityIndicator color={plan.courseSelection?.enabled ? plan.color : '#fff'} />
                                             ) : (
-                                                <Text style={[styles.buyBtnText, { color: plan.color }]}>
+                                                <Text style={[styles.buyBtnText, { color: plan.courseSelection?.enabled ? plan.color : '#fff' }]}>
                                                     Get {plan.name} →
                                                 </Text>
                                             )}
@@ -754,6 +729,7 @@ export default function MyMembershipScreen() {
                         <TouchableOpacity style={styles.modalDoneBtn} onPress={closePreview}>
                             <Text style={styles.modalDoneBtnText}>Got it</Text>
                         </TouchableOpacity>
+                        <View style={{ height: insets.bottom }} />
                     </View>
                 </View>
             </Modal>
@@ -826,6 +802,7 @@ export default function MyMembershipScreen() {
                                     : 'Select at least 1 course'}
                             </Text>
                         </TouchableOpacity>
+                        <View style={{ height: insets.bottom }} />
                     </View>
                 </View>
             </Modal>
@@ -880,8 +857,23 @@ const styles = StyleSheet.create({
     upgradeCta: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
         gap: 8, backgroundColor: '#7C3AED',
-        paddingVertical: 13, paddingHorizontal: 28, borderRadius: 14,
+        paddingVertical: 14, paddingHorizontal: 28, borderRadius: 14,
+        shadowColor: '#7C3AED',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+        width: '100%',
     },
+    upgradeCtaSecondary: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 12, paddingHorizontal: 28, borderRadius: 14,
+        borderWidth: 1.5, borderColor: '#D1D5DB',
+        backgroundColor: '#F9FAFB',
+        width: '100%',
+    },
+    upgradeCtaSecondaryText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
     upgradeCtaText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 
     /* ── Active plan card ── */
@@ -926,10 +918,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
         gap: 8, paddingVertical: 14, borderRadius: 14,
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 6,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.18,
+        shadowRadius: 8,
+        elevation: 4,
     },
     manageBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 
@@ -938,13 +930,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        paddingVertical: 12,
+        paddingVertical: 13,
         paddingHorizontal: 16,
-        borderRadius: 12,
-        borderWidth: 2,
+        borderRadius: 14,
+        borderWidth: 1.5,
         borderColor: '#8B5CF6',
         backgroundColor: '#F5F3FF',
-        marginTop: 10,
+        marginTop: 12,
     },
     courseSelectBtnText: { fontSize: 14, fontWeight: '600', color: '#8B5CF6' },
     courseSelectDone: {
@@ -1028,8 +1020,8 @@ const styles = StyleSheet.create({
     planFeatureText: { fontSize: 14, color: '#374151', flex: 1, fontWeight: '500' },
     planFeatureTextMuted: { color: '#9CA3AF', textDecorationLine: 'line-through' },
     buyBtn: {
-        marginTop: 14, paddingVertical: 11, borderRadius: 12,
-        borderWidth: 1.5, alignItems: 'center',
+        paddingVertical: 14, borderRadius: 14,
+        borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
     },
     buyBtnText: { fontSize: 14, fontWeight: '700' },
     purchasedIndicator: {
@@ -1078,9 +1070,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
-        paddingVertical: 8,
+        paddingVertical: 10,
         backgroundColor: '#F3F4F6',
-        borderRadius: 10,
+        borderRadius: 12,
     },
     previewBtnText: { fontSize: 13, color: '#6B7280', fontWeight: '500' },
     buyRow: { flexDirection: 'row', gap: 8 },
@@ -1089,10 +1081,11 @@ const styles = StyleSheet.create({
         paddingVertical: 14,
         borderRadius: 14,
         alignItems: 'center',
+        justifyContent: 'center',
         borderWidth: 1.5,
         backgroundColor: '#FFFFFF',
     },
-    preSelectBtnText: { fontSize: 13, fontWeight: '700' },
+    preSelectBtnText: { fontSize: 14, fontWeight: '700' },
 
     // Modal
     modalOverlay: {

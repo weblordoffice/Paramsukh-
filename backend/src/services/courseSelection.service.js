@@ -101,6 +101,7 @@ export const getSelectionStatus = async (userId, membershipId) => {
     remaining,
     used,
     selectedCourses,
+    selectedCourseIds,
   };
 };
 

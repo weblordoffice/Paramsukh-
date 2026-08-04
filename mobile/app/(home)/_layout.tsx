@@ -1,10 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, useRouter } from 'expo-router';
-import { Platform, View, TouchableOpacity, Modal, ScrollView, Text, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, Modal, ScrollView, Text, StyleSheet } from 'react-native';
 import { useState, useRef, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 
 
@@ -13,8 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HomeLayout() {
   const [menuModalVisible, setMenuModalVisible] = useState(false);
-  const insets = useSafeAreaInsets();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const timersRef = useRef<any[]>([]);
 
@@ -37,22 +36,15 @@ export default function HomeLayout() {
           tabBarStyle: {
             backgroundColor: '#FFFFFF',
             borderTopWidth: 0,
-            height: 60 + insets.bottom,
-            paddingBottom: insets.bottom,
-            paddingTop: 8,
             paddingHorizontal: 0,
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            right: 0,
+            paddingBottom: insets.bottom,
+            height: 56 + insets.bottom,
             elevation: 0,
             shadowOpacity: 0,
           },
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '600',
-            marginTop: 4,
-            marginBottom: 0,
             letterSpacing: 0.3,
           },
           tabBarItemStyle: {
@@ -285,7 +277,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     paddingHorizontal: 24,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
     maxHeight: '85%',
     shadowColor: '#F1842D',
     shadowOffset: { width: 0, height: -8 },
