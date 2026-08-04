@@ -256,7 +256,7 @@ export default function RevenuePage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="_id" tick={{ fontSize: 11 }} interval={Math.ceil(charts.daily.length / 8)} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(v: number) => [formatCurrency(v), 'Revenue']} labelFormatter={(l) => `Date: ${l}`} />
+                  <Tooltip formatter={(v: any) => [`₹${Number(v).toLocaleString('en-IN')}`, 'Revenue']} labelFormatter={(l) => `Date: ${l}`} />
                   <Area type="monotone" dataKey="total" stroke="#8B5CF6" strokeWidth={2} fill="url(#revenueGradient)" />
                 </AreaChart>
               </ResponsiveContainer>
