@@ -45,28 +45,27 @@ Important for admin auth:
 ## 4) First local container start
 
 ```bash
-docker compose build backend admin
-docker compose up -d backend admin
+docker compose build backend ai-service admin
+docker compose up -d ai-service backend admin
 docker compose ps
 curl http://127.0.0.1:3000/health
+curl http://127.0.0.1:8011/health
 ```
 
 ## 5) Configure Nginx vhosts
 
 ```bash
-sudo cp infra/vps/nginx/api.example.com.conf /etc/nginx/sites-available/api.example.com
-sudo cp infra/vps/nginx/admin.example.com.conf /etc/nginx/sites-available/admin.example.com
+sudo cp infra/vps/nginx/api.paramsukhonlinegurukul.com.conf /etc/nginx/sites-available/api.paramsukhonlinegurukul.com
+sudo cp infra/vps/nginx/admin.paramsukhonlinegurukul.com.conf /etc/nginx/sites-available/admin.paramsukhonlinegurukul.com
 ```
 
-Open both files and replace domains:
-- api.example.com -> your API domain
-- admin.example.com -> your admin domain
+The nginx configs already contain the correct server_name values — no manual domain replacement needed.
 
 Enable sites:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/api.example.com /etc/nginx/sites-enabled/api.example.com
-sudo ln -s /etc/nginx/sites-available/admin.example.com /etc/nginx/sites-enabled/admin.example.com
+sudo ln -s /etc/nginx/sites-available/api.paramsukhonlinegurukul.com /etc/nginx/sites-enabled/api.paramsukhonlinegurukul.com
+sudo ln -s /etc/nginx/sites-available/admin.paramsukhonlinegurukul.com /etc/nginx/sites-enabled/admin.paramsukhonlinegurukul.com
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -74,7 +73,7 @@ sudo systemctl reload nginx
 ## 6) Issue SSL certificates
 
 ```bash
-sudo certbot --nginx -d api.example.com -d admin.example.com
+sudo certbot --nginx -d api.paramsukhonlinegurukul.com -d admin.paramsukhonlinegurukul.com
 sudo systemctl status certbot.timer
 ```
 

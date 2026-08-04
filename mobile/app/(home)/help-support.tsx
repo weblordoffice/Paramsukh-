@@ -67,10 +67,10 @@ export default function HelpSupportScreen() {
   ];
 
   const contactOptions = [
-    { title: 'Email', icon: 'mail-outline', action: () => Linking.openURL('mailto:support@paramsukh.com').catch(() => {}) },
+    { title: 'Email', icon: 'mail-outline', action: () => Linking.openURL('mailto:support@paramsukhonlinegurukul.com').catch(() => {}) },
     { title: 'Phone', icon: 'call-outline', action: () => Linking.openURL('tel:+919045504444').catch(() => {}) },
     { title: 'WhatsApp', icon: 'logo-whatsapp', action: () => Linking.openURL('whatsapp://send?phone=919045504444').catch(() => {}) },
-    { title: 'Help Center', icon: 'help-circle-outline', action: () => Linking.openURL('https://paramsukh.com/help').catch(() => {}) },
+    { title: 'Help Center', icon: 'help-circle-outline', action: () => Linking.openURL('https://paramsukhonlinegurukul.com/help').catch(() => {}) },
   ];
 
   const formatDateTime = (value?: string) => {

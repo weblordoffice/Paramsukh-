@@ -26,7 +26,7 @@ const getBaseUrl = () => {
     return normalizeBaseUrl(configUrl);
   }
 
-  return 'https://api.getbill.in';
+  return 'https://api.paramsukhonlinegurukul.com';
 };
 
 export const BASE_URL = getBaseUrl();

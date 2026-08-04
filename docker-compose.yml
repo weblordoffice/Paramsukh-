@@ -9,10 +9,14 @@ services:
       - ./backend/.env    
     environment:
       NODE_ENV: production 
-      PORT: 3000 
+      PORT: 3000
+      AI_SERVICE_BASE_URL: http://ai-service:8011
     ports:
       - "127.0.0.1:3000:3000"
     restart: unless-stopped
+    depends_on:
+      ai-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
@@ -20,11 +24,30 @@ services:
       retries: 5
       start_period: 120s
 
+  ai-service:
+    build:
+      context: ./ai-service
+    image: ${AI_SERVICE_IMAGE:-saas-native/ai-service:local}
+    env_file:
+      - ./ai-service/.env
+    environment:
+      AI_SERVICE_ENV: production
+      BACKEND_BASE_URL: http://backend:3000
+    ports:
+      - "127.0.0.1:8011:8011"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8011/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
   admin:
     build:
       context: ./admin
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.example.com}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.paramsukhonlinegurukul.com}
         NEXT_PUBLIC_ADMIN_API_KEY: ${NEXT_PUBLIC_ADMIN_API_KEY:-dev-admin-key-123}
     image: ${ADMIN_IMAGE:-saas-native/admin:local}               
     env_file:       
@@ -35,7 +58,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 3001
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.example.com}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.paramsukhonlinegurukul.com}
       NODE_OPTIONS: --dns-result-order=ipv4first
     ports:
       - "127.0.0.1:3001:3001"

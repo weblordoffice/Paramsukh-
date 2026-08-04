@@ -19,6 +19,7 @@ env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE_NAME: saas-native-backend
   ADMIN_IMAGE_NAME: saas-native-admin
+  AI_SERVICE_IMAGE_NAME: saas-native-ai-service
 
 jobs:
   build-and-push:
@@ -27,6 +28,7 @@ jobs:
     outputs:
       backend_image: ${{ steps.export.outputs.backend_image }}
       admin_image: ${{ steps.export.outputs.admin_image }}
+      ai_service_image: ${{ steps.export.outputs.ai_service_image }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -59,11 +61,21 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.ADMIN_IMAGE_NAME }}:latest
             ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.ADMIN_IMAGE_NAME }}:${{ github.sha }}
 
+      - name: Build and push ai-service image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ai-service
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.AI_SERVICE_IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.AI_SERVICE_IMAGE_NAME }}:${{ github.sha }}
+
       - name: Export image names
         id: export
         run: |
           echo "backend_image=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
           echo "admin_image=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.ADMIN_IMAGE_NAME }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          echo "ai_service_image=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.AI_SERVICE_IMAGE_NAME }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy on VPS
@@ -119,12 +131,12 @@ jobs:
             fi
 
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
-            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" docker compose pull backend
-            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" NEXT_PUBLIC_ADMIN_API_KEY="${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" docker compose build --no-cache admin
+            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" AI_SERVICE_IMAGE="${{ needs.build-and-push.outputs.ai_service_image }}" docker compose pull backend ai-service
+            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" AI_SERVICE_IMAGE="${{ needs.build-and-push.outputs.ai_service_image }}" NEXT_PUBLIC_ADMIN_API_KEY="${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" docker compose build --no-cache admin
 
-            if ! BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" NEXT_PUBLIC_ADMIN_API_KEY="${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" docker compose up -d backend admin; then
-              echo "docker compose up failed; dumping backend/admin logs"
-              docker compose logs --no-color --tail=200 backend admin || true
+            if ! BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" NEXT_PUBLIC_ADMIN_API_KEY="${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" docker compose up -d ai-service backend admin; then
+              echo "docker compose up failed; dumping ai-service/backend/admin logs"
+              docker compose logs --no-color --tail=200 ai-service backend admin || true
               exit 1
             fi
 

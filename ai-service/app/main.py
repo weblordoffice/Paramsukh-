@@ -21,3 +21,8 @@ async def root() -> dict[str, str]:
         "environment": settings.ai_service_env,
         "docs": "/docs",
     }
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
