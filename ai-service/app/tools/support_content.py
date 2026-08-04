@@ -43,7 +43,7 @@ SUPPORT_CONTENT: tuple[dict[str, Any], ...] = (
         "id": "contact_email",
         "type": "contact",
         "title": "Support Email",
-        "content": "Email support@paramsukh.com for help from the support team.",
+        "content": "Email support@paramsukhonlinegurukul.com for help from the support team.",
         "keywords": ("email", "support", "contact", "help"),
     },
     {
@@ -64,7 +64,7 @@ SUPPORT_CONTENT: tuple[dict[str, Any], ...] = (
         "id": "resource_help_center",
         "type": "resource",
         "title": "Help Center",
-        "content": "The Help Center is available at https://paramsukh.com/help for broader help resources.",
+        "content": "The Help Center is available at https://paramsukhonlinegurukul.com/help for broader help resources.",
         "keywords": ("help center", "help", "guide", "resource"),
     },
     {

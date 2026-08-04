@@ -158,7 +158,7 @@ After deploying backend, update:
 {
   "expo": {
     "extra": {
-      "apiUrl": "https://api.paramsukh.com/api"
+      "apiUrl": "https://api.paramsukhonlinegurukul.com"
     }
   }
 }
