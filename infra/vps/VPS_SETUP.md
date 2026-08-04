@@ -34,6 +34,7 @@ cd /var/www/saas-native
 cp infra/vps/backend.env.example backend/.env
 cp infra/vps/admin.env.production.example admin/.env.production
 cp infra/vps/compose.env.example .env
+cp ai-service/.env.example ai-service/.env
 ```
 
 Edit values with production credentials and domains.

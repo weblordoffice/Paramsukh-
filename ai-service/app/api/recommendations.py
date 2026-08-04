@@ -1,6 +1,8 @@
+import json
+import re
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
-from openai import AsyncOpenAI
+import google.generativeai as genai
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from typing import List, Optional
@@ -44,13 +46,31 @@ def verify_internal_secret(x_ai_service_secret: str | None) -> None:
     if x_ai_service_secret != configured_secret:
         raise HTTPException(status_code=401, detail="Invalid AI service secret.")
 
+
+def _configure_genai() -> genai.GenerativeModel:
+    genai.configure(api_key=settings.gemini_api_key)
+    return genai.GenerativeModel(
+        model_name=settings.gemini_model,
+        generation_config=genai.types.GenerationConfig(max_output_tokens=150),
+    )
+
+
+def _extract_text(response) -> str:
+    if not response.candidates:
+        return ""
+    c = response.candidates[0]
+    if not c.content or not c.content.parts:
+        return ""
+    return "".join(p.text for p in c.content.parts if hasattr(p, "text") and p.text)
+
+
 @router.post("/recommendations/explain", response_model=RecommendationExplainResponse)
 async def explain_recommendation(
     payload: RecommendationExplainRequest,
     x_ai_service_secret: str | None = Header(default=None),
 ) -> RecommendationExplainResponse:
     verify_internal_secret(x_ai_service_secret)
-    
+
     system_prompt = (
         "You are a compassionate, professional wellness advisor at the ParamSukh Scientific Online Gurukul. "
         "Your task is to write a highly personalized, empathetic 1-to-2 sentence explanation of why a specific "
@@ -70,24 +90,21 @@ async def explain_recommendation(
         f"Instruction: Write a warm, compassionate 1-to-2 sentence explanation addressed directly to the user (using 'you'/'your') "
         f"explaining how this specific course will help them address their wellness concern, taking their profile into account. "
         f"Keep it concise, empathetic, and encouraging."
-    )                                                                   
+    )
 
     try:
-        client = AsyncOpenAI(api_key=settings.openai_api_key, base_url=settings.openai_api_base)
-        response = await client.chat.completions.create(
-            model=settings.openai_model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ],
-            max_tokens=150,
-            temperature=0.7            
+        model = genai.GenerativeModel(
+            model_name=settings.gemini_model,
+            system_instruction=system_prompt,
+            generation_config=genai.types.GenerationConfig(max_output_tokens=150),
         )
-        explanation = response.choices[0].message.content.strip()
+        response = model.generate_content(contents=[user_message])
+        explanation = _extract_text(response).strip()
         return RecommendationExplainResponse(explanation=explanation)
     except Exception as e:
         logger.error(f"Failed to generate recommendation explanation: {str(e)}")
         raise HTTPException(status_code=500, detail=f"LLM generation failed: {str(e)}")
+
 
 @router.post("/recommendations/explain-batch", response_model=BatchExplainResponse)
 async def explain_recommendation_batch(
@@ -122,18 +139,13 @@ async def explain_recommendation_batch(
     )
 
     try:
-        client = AsyncOpenAI(api_key=settings.openai_api_key, base_url=settings.openai_api_base)
-        response = await client.chat.completions.create(
-            model=settings.openai_model,
-            messages=[
-                {"role": "system", "content": "You are a compassionate wellness advisor. Respond ONLY with valid JSON."},
-                {"role": "user", "content": user_message}
-            ],
-            max_tokens=1000,
-            temperature=0.7
+        model = genai.GenerativeModel(
+            model_name=settings.gemini_model,
+            system_instruction="You are a compassionate wellness advisor. Respond ONLY with valid JSON.",
+            generation_config=genai.types.GenerationConfig(max_output_tokens=1000),
         )
-        raw = response.choices[0].message.content.strip()
-        import json, re
+        response = model.generate_content(contents=[user_message])
+        raw = _extract_text(response).strip()
         match = re.search(r'\{.*\}', raw, re.DOTALL)
         explanations = json.loads(match.group(0)) if match else {}
         return BatchExplainResponse(explanations=explanations)
