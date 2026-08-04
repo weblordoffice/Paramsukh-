@@ -83,6 +83,42 @@ jobs:
     needs: build-and-push
     if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
     steps:
+      - name: Verify SSH private key fingerprint
+        shell: bash
+        run: |
+          set -e
+          mkdir -p /tmp/ssh-debug
+          printf "%s" "${{ secrets.VPS_SSH_KEY }}" > /tmp/ssh-debug/id_ed25519
+          chmod 600 /tmp/ssh-debug/id_ed25519
+
+          echo "====== Key fingerprint verification ======"
+          echo "SHA256 fingerprint:"
+          ssh-keygen -lf /tmp/ssh-debug/id_ed25519
+
+          echo ""
+          echo "MD5 fingerprint:"
+          ssh-keygen -l -E md5 -f /tmp/ssh-debug/id_ed25519
+
+          echo ""
+          echo "Key type validation:"
+          ssh-keygen -yf /tmp/ssh-debug/id_ed25519 >/dev/null 2>&1 && echo "PASS: Private key is valid" || echo "FAIL: Private key is corrupted"
+
+          echo ""
+          echo "Byte count:"
+          wc -c /tmp/ssh-debug/id_ed25519
+
+          echo ""
+          echo "First line of key:"
+          head -n1 /tmp/ssh-debug/id_ed25519
+
+          echo ""
+          echo "Last line of key:"
+          tail -n1 /tmp/ssh-debug/id_ed25519
+
+          echo ""
+          echo "Line count:"
+          wc -l /tmp/ssh-debug/id_ed25519
+
       - name: Deploy stack over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
