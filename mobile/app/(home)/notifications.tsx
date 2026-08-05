@@ -76,7 +76,7 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const bottomTabHeight = useBottomTabBarHeight();
   const {
-    notifications,
+    notifications,     
     unreadCount,
     isLoading,
     error,
