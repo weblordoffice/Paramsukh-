@@ -60,8 +60,9 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 const allowedOrigins = [
-  'https://getbill.in',
-  'https://www.getbill.in',
+  'https://paramsukhonlinegurukul.com',
+  'https://www.paramsukhonlinegurukul.com',
+  'https://admin.paramsukhonlinegurukul.com',
   // local development
   'http://localhost:3000',
   'http://localhost:3001',
