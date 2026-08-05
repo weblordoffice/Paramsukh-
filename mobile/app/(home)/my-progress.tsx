@@ -93,7 +93,7 @@ export default function MyProgressScreen() {
   const handleBadgePress = (badge: typeof achievements[0]) => {
     const unlocked = isBadgeUnlocked(badge.id);
     if (unlocked) {
-      const match = user.unlockedBadges.find((b: any) => b.badgeId === badge.id);
+      const match = user?.unlockedBadges?.find((b: any) => b.badgeId === badge.id);
       const unlockDate = match?.unlockedAt 
         ? new Date(match.unlockedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
         : 'recently';
