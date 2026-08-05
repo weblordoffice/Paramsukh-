@@ -402,10 +402,9 @@ process.on('uncaughtException', (err) => {
   process.exit(1); // Exit gracefully
 });
 
-// In development, bind to all interfaces for LAN device testing.
-// In production, bind only to loopback (Nginx handles external connections).
-const listenHost = process.env.NODE_ENV === 'production' ? '127.0.0.1' : '0.0.0.0';
-app.listen(PORT, listenHost, () => {
-  console.log(`🚀 Server is running on http://${listenHost}:${PORT}`);
-  console.log(`   → Use in browser: http://127.0.0.1:${PORT}/health`);
+// Bind to all interfaces inside the container so Docker's virtual network can reach it.
+// The host firewall / Docker port mapping controls external access, not loopback.
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server is running on http://0.0.0.0:${PORT}`);
+  console.log(`   → Health check: http://127.0.0.1:${PORT}/health`);
 });
