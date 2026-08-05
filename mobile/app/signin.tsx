@@ -276,7 +276,7 @@ export default function SignInScreen() {
 
               <TouchableOpacity
                 className={`${isLoading || otp.length !== 6 ? 'bg-purple-400' : 'bg-purple-600'} rounded-xl py-4 mb-3 shadow-md`}
-                onPress={handleVerifyOTP}
+                onPress={() => handleVerifyOTP()}
                 disabled={isLoading || otp.length !== 6}
               >
                 {isLoading ? (

@@ -28,6 +28,7 @@ interface User {
   assessmentCompleted?: boolean;
   assessmentCompletedAt?: string | null;
   onboardingCompleted?: boolean;
+  unlockedBadges?: Array<{ badgeId: string; unlockedAt: string }>;
 }
 
 interface AuthState {
