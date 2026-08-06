@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, Alert, ActivityIndicator, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../../utils/paymentBrowser';
 import Header from '../../components/Header';
 import { useMembershipStore } from '../../store/membershipStore';
 import apiClient from '../../utils/apiClient';
@@ -120,6 +120,7 @@ export default function MembershipScreen() {
   };
 
   const handlePurchase = async (plan: UIMembershipPlan) => {
+    if (purchasingPlanId) return;
     const selected = selectedCourses[plan.id] || [];
     const maxSelectable = plan.courseSelection?.maxSelectableCourses || 0;
 
@@ -140,35 +141,48 @@ export default function MembershipScreen() {
 
       if (!linkRes.data?.success || !linkRes.data?.data?.url) {
         Alert.alert('Error', linkRes.data?.message || 'Failed to create payment link.');
-        setPurchasingPlanId(null);
         return;
       }
 
       const url = linkRes.data.data.url as string;
       const paymentLinkId = linkRes.data.data.paymentLinkId as string | undefined;
+      const expiresAt = linkRes.data.data.expiresAt as string | undefined;
 
       if (paymentLinkId) {
-        await AsyncStorage.setItem(PENDING_LINK_KEY, JSON.stringify({ paymentLinkId, plan: plan.parentSlug }));
+        const pending = { paymentLinkId, plan: plan.parentSlug };
+        await AsyncStorage.setItem(PENDING_LINK_KEY, JSON.stringify(pending));
+        await savePendingPaymentLink({
+          type: 'membership',
+          id: plan.parentSlug,
+          paymentLinkId,
+          url,
+          expiresAt,
+          confirmPayload: pending,
+        });
       }
 
-      await WebBrowser.openAuthSessionAsync(url, 'paramsukh://payment-done', {
-        createTask: false,
+      const openResult = await openPaymentLink({
+        url,
+        useAuthSession: true,
+        callbackUrl: 'paramsukh://payment-done',
+        confirm: async () => {
+          const res = await apiClient.post('/payments/membership-link/confirm', {
+            paymentLinkId,
+            plan: plan.parentSlug,
+          });
+          return { success: !!res.data?.success, data: res.data?.data, message: res.data?.message };
+        },
       });
 
-      let activated = false;
       if (paymentLinkId) {
-        const confirmRes = await apiClient.post('/payments/membership-link/confirm', {
-          paymentLinkId,
-          plan: plan.parentSlug,
-        });
-        if (confirmRes.data?.success) {
+        if (openResult.success && openResult.result?.data?.status === 'active') {
           await AsyncStorage.removeItem(PENDING_LINK_KEY);
-          activated = confirmRes.data?.data?.status === 'active';
+          await clearPendingPaymentLinks('membership', plan.parentSlug, paymentLinkId);
         }
       }
 
       await fetchCurrentSubscription();
-      if (activated) {
+      if (openResult.success && openResult.result?.data?.status === 'active') {
         Alert.alert('Success', `${plan.name} membership is now active with ${selected.length} course(s).`);
         setSelectedCourses((prev) => ({ ...prev, [plan.id]: [] }));
       } else {

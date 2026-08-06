@@ -77,6 +77,18 @@ const bookingSchema = new mongoose.Schema({
   paymentId: {
     type: String
   },
+  razorpayOrderId: {
+    type: String
+  },
+  paymentLinkId: {
+    type: String
+  },
+  paymentLinkUrl: {
+    type: String
+  },
+  paymentLinkExpiresAt: {
+    type: Date
+  },
   paymentMethod: {
     type: String,
     enum: ['upi', 'card', 'netbanking', 'wallet', 'cash', 'free', 'razorpay']

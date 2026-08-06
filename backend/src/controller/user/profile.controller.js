@@ -9,6 +9,7 @@ import {
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
 import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
+import { verifyRazorpaySignature, fetchPaymentDetails } from '../../services/razorpayService.js';
 
 /**
  * Get user profile
@@ -577,15 +578,26 @@ export const purchaseMembership = async (req, res) => {
       });
     }
 
-    // Verify Razorpay signature
+    // Verify Razorpay signature and payment details
+    const isValid = verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
+    if (!isValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment verification failed. Signature mismatch.'
+      });
+    }
+
+    let paymentDetails;
     try {
-      const { verifyMembershipPaymentInternal } = await import('../../services/razorpayService.js');
-      const isValid = await verifyMembershipPaymentInternal(razorpayOrderId, razorpayPaymentId, razorpaySignature);
-      if (!isValid) {
-        return res.status(400).json({
-          success: false,
-          message: 'Payment verification failed. Signature mismatch.'
-        });
+      paymentDetails = await fetchPaymentDetails(razorpayPaymentId);
+      if (paymentDetails.status !== 'captured') {
+        return res.status(400).json({ success: false, message: 'Payment not captured' });
+      }
+      if (paymentDetails.order_id !== razorpayOrderId) {
+        return res.status(400).json({ success: false, message: 'Payment order mismatch' });
+      }
+      if (Number(paymentDetails.amount) !== Number(planConfig.amount * 100)) {
+        return res.status(400).json({ success: false, message: 'Payment amount mismatch' });
       }
     } catch (paymentError) {
       console.error('Payment verification error:', paymentError);

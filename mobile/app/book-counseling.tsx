@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../utils/paymentBrowser';
 import { useCounselingStore } from '../store/counselingStore';
 import { Calendar } from 'react-native-calendars';
 
@@ -77,10 +78,7 @@ export default function BookCounselingScreen() {
 
 
   const handleBooking = async () => {
-    if (!selectedDate || !selectedTime) {
-      Alert.alert('Incomplete Selection', 'Please select date and time slot');
-      return;
-    }
+    if (!selectedDate || !selectedTime || processing) return;
 
     const formattedDateString = new Date(selectedDate).toLocaleDateString('en-IN', {
       weekday: 'short',
@@ -90,9 +88,8 @@ export default function BookCounselingScreen() {
     const numericPrice = Number(price) || 0;
     const free = isFree === 'true';
 
+    setProcessing(true);
     try {
-      setProcessing(true);
-
       // Step 1: Create booking (pending for paid, confirmed for free)
       const result = await bookSession({
         counselorType: title, // Use service title as type
@@ -107,9 +104,8 @@ export default function BookCounselingScreen() {
 
       if (!result.success) {
         Alert.alert('Booking Failed', result.message || 'Please try again.');
-        setProcessing(false);
         return;
-      }        
+      }
 
       // Free service: booking is already confirmed
       if (free) {
@@ -118,7 +114,6 @@ export default function BookCounselingScreen() {
           `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${selectedTime} has been booked.`,
           [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
         );
-        setProcessing(false);
         return;
       }
 
@@ -126,39 +121,43 @@ export default function BookCounselingScreen() {
       const bookingId = result.bookingId;
       if (!bookingId) {
         Alert.alert('Error', 'Could not create booking. Please try again.');
-        setProcessing(false);
         return;
       }
 
       const linkResult = await createBookingPaymentLink(bookingId);
-      if (!linkResult.success || !linkResult.url) {
+      if (!linkResult.success || !linkResult.url || !linkResult.paymentLinkId) {
         Alert.alert('Payment Error', linkResult.message || 'Could not start payment.');
-        setProcessing(false);
         return;
       }
 
-      await WebBrowser.openBrowserAsync(linkResult.url, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-        enableBarCollapsing: true,
-        showTitle: true,
+      const { url, paymentLinkId, expiresAt } = linkResult;
+      await savePendingPaymentLink({
+        type: 'counseling',
+        id: bookingId,
+        paymentLinkId,
+        url,
+        expiresAt,
       });
 
-      if (linkResult.paymentLinkId) {
-        const confirmResult = await confirmBookingPaymentLink(linkResult.paymentLinkId, bookingId);
-        if (confirmResult.success) {
-          Alert.alert(
-            'Booking Confirmed! 🎉',
-            `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${selectedTime} has been booked. Payment received.`,
-            [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
-          );
-        } else {
-          Alert.alert('Payment', confirmResult.message || 'If you paid, your booking will be confirmed shortly. Otherwise please try again.');
-        }
+      const openResult = await openPaymentLink({
+        url,
+        confirm: async () => confirmBookingPaymentLink(paymentLinkId, bookingId),
+      });
+
+      if (openResult.success) {
+        await clearPendingPaymentLinks('counseling', bookingId, paymentLinkId);
+        Alert.alert(
+          'Booking Confirmed! 🎉',
+          `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${selectedTime} has been booked. Payment received.`,
+          [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
+        );
+      } else {
+        Alert.alert('Payment', openResult.result?.message || 'If you paid, your booking will be confirmed shortly. Otherwise please try again.');
       }
-      setProcessing(false);
     } catch (e: any) {
-      setProcessing(false);
       Alert.alert('Error', e?.message || 'An unexpected error occurred.');
+    } finally {
+      setProcessing(false);
     }
   };
 

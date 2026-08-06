@@ -3,12 +3,12 @@ import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, ActivityIn
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import * as WebBrowser from 'expo-web-browser';
 import { useCartStore } from '../store/cartStore';
 import { useOrderStore } from '../store/orderStore';
 import { useAddressStore } from '../store/addressStore';
 import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
+import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../utils/paymentBrowser';
 
 export default function CheckoutScreen() {
     const router = useRouter();
@@ -27,6 +27,7 @@ export default function CheckoutScreen() {
     const [referralPoints, setReferralPoints] = useState(0);
     const [pointValue, setPointValue] = useState(1);
     const [usePoints, setUsePoints] = useState(0);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     // Fetch referral points on mount
     useEffect(() => {
@@ -79,53 +80,72 @@ export default function CheckoutScreen() {
             Alert.alert("Error", "Please select a shipping address");
             return;
         }
+        if (isProcessing) return;
+        setIsProcessing(true);
 
-        const orderData: any = {
-            addressId: selectedAddressId,
-            paymentMethod
-        };
-        if (usePoints > 0) {
-            orderData.useReferralPoints = usePoints;
-        }
+        try {
+            const orderData: any = {
+                addressId: selectedAddressId,
+                paymentMethod
+            };
+            if (usePoints > 0) {
+                orderData.useReferralPoints = usePoints;
+            }
 
-        // 1. Create Order (get Order ID + Razorpay Order ID)
-        const result = await createOrder(orderData);
+            // 1. Create Order (get Order ID + Razorpay Order ID)
+            const result = await createOrder(orderData);
 
-        if (!result.success) {
-            Alert.alert("Order Failed", result.message || "Something went wrong.");
-            return;
-        }                                 
-
-        // 2. Handle Payment Flow
-        if (paymentMethod === 'razorpay' && result.orderId) {
-            const orderId = result.orderId;
-            const linkResult = await createOrderPaymentLink(orderId);
-            if (!linkResult.success || !linkResult.url || !linkResult.paymentLinkId) {
-                Alert.alert("Error", linkResult.message || "Could not create payment link.");
+            if (!result.success) {
+                Alert.alert("Order Failed", result.message || "Something went wrong.");
                 return;
             }
-            const { url, paymentLinkId } = linkResult;
-            await WebBrowser.openBrowserAsync(url, { presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN });
-            const confirmResult = await confirmOrderPaymentLink(orderId, paymentLinkId);
-            if (confirmResult.success) {
-                Alert.alert("Success", "Payment successful! Order confirmed.", [
-                    { text: "OK", onPress: () => { clearCart(); router.replace('/orders'); } }
-                ]);
-            } else {       
-                Alert.alert("Payment Verification", confirmResult.message || "Payment may still be processing. Check My Orders.");
-            }
-        } else if (paymentMethod === 'razorpay') {
-            Alert.alert("Error", "Could not create order for online payment.");
-        } else {
-            // COD or other methods
-            Alert.alert("Success", "Order placed successfully!", [
-                {
-                    text: "OK", onPress: () => {
-                        clearCart();
-                        router.replace('/orders');
-                    }
+
+            // 2. Handle Payment Flow
+            if (paymentMethod === 'razorpay' && result.orderId) {
+                const orderId = result.orderId;
+                const linkResult = await createOrderPaymentLink(orderId);
+                if (!linkResult.success || !linkResult.url || !linkResult.paymentLinkId) {
+                    Alert.alert("Error", linkResult.message || "Could not create payment link.");
+                    return;
                 }
-            ]);
+                const { url, paymentLinkId, expiresAt } = linkResult;
+
+                await savePendingPaymentLink({
+                    type: 'order',
+                    id: orderId,
+                    paymentLinkId,
+                    url,
+                    expiresAt,
+                });
+
+                const openResult = await openPaymentLink({
+                    url,
+                    confirm: async () => confirmOrderPaymentLink(orderId, paymentLinkId),
+                });
+
+                if (openResult.success) {
+                    await clearPendingPaymentLinks('order', orderId, paymentLinkId);
+                    Alert.alert("Success", "Payment successful! Order confirmed.", [
+                        { text: "OK", onPress: () => { clearCart(); router.replace('/orders'); } }
+                    ]);
+                } else {
+                    Alert.alert("Payment Verification", openResult.result?.message || "Payment may still be processing. Check My Orders.");
+                }
+            } else if (paymentMethod === 'razorpay') {
+                Alert.alert("Error", "Could not create order for online payment.");
+            } else {
+                // COD or other methods
+                Alert.alert("Success", "Order placed successfully!", [
+                    {
+                        text: "OK", onPress: () => {
+                            clearCart();
+                            router.replace('/orders');
+                        }
+                    }
+                ]);
+            }
+        } finally {
+            setIsProcessing(false);
         }
     };
 
@@ -411,11 +431,11 @@ export default function CheckoutScreen() {
 
             <View style={[styles.footer, { paddingBottom: 16 + insets.bottom }]}>
                 <TouchableOpacity
-                    style={[styles.placeOrderButton, (isOrderLoading || isAddingAddress) && styles.disabledButton]}
+                    style={[styles.placeOrderButton, (isOrderLoading || isAddingAddress || isProcessing) && styles.disabledButton]}
                     onPress={handlePlaceOrder}
-                    disabled={isOrderLoading || isAddingAddress}
+                    disabled={isOrderLoading || isAddingAddress || isProcessing}
                 >
-                    {isOrderLoading ? (
+                    {isOrderLoading || isProcessing ? (
                         <ActivityIndicator color="#FFFFFF" />
                     ) : (
                         <>

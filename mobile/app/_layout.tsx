@@ -6,6 +6,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { setClerkSignOut } from '../store/authStore';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { getPendingPaymentLinks, isPendingPaymentExpired, clearPendingPaymentLinks } from '../utils/paymentBrowser';
 import AIAssistantWidget from '../components/AIAssistantWidget';
 import { ClerkProvider, useUser, useAuth } from '@clerk/clerk-expo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -128,6 +129,25 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       fetchCurrentUser();
     }
   }, [user?._id, !!token, isSyncing]);
+
+  // Effect 2b: Clean up expired pending payment links so stale links don't block re-purchase
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const pending = await getPendingPaymentLinks();
+        for (const item of pending) {
+          if (cancelled) return;
+          if (isPendingPaymentExpired(item)) {
+            await clearPendingPaymentLinks(item.type, item.id, item.paymentLinkId);
+          }
+        }
+      } catch (e) {
+        console.warn('[AuthGuard] Failed to clean pending payment links', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Effect 3: Route guard — enforces auth-based navigation
   useEffect(() => {

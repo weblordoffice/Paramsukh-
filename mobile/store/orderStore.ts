@@ -48,7 +48,7 @@ interface OrderState {
         razorpayOrderId: string;
         razorpaySignature: string;
     }) => Promise<{ success: boolean; message?: string }>;
-    createOrderPaymentLink: (orderId: string) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; message?: string }>;
+    createOrderPaymentLink: (orderId: string) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; expiresAt?: string; message?: string }>;
     confirmOrderPaymentLink: (orderId: string, paymentLinkId: string) => Promise<{ success: boolean; message?: string }>;
     fetchOrderDetails: (orderId: string) => Promise<void>;
     cancelOrder: (orderId: string) => Promise<void>;
@@ -123,7 +123,8 @@ export const useOrderStore = create<OrderState>((set) => ({
                 return {
                     success: true,
                     url: response.data?.data?.url,
-                    paymentLinkId: response.data?.data?.paymentLinkId
+                    paymentLinkId: response.data?.data?.paymentLinkId,
+                    expiresAt: response.data?.data?.expiresAt,
                 };
             return { success: false, message: response.data?.message || 'Failed to create payment link' };
         } catch (error: any) {

@@ -2,7 +2,7 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 
 // Test mode flag - set to true to use without real Razorpay keys
-const TEST_MODE = !process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID === 'test';
+const TEST_MODE = process.env.RAZORPAY_TEST_MODE === 'true';
 export const isRazorpayTestMode = TEST_MODE;
 
 let razorpayInstance = null;
@@ -60,7 +60,7 @@ export const createRazorpayOrder = async ({ amount, currency = 'INR', receipt, n
     console.error('❌ Error creating Razorpay order:', error);
     const msg = error?.error?.description || error?.message || error?.statusCode || 'Unknown error';
     const hint = error?.statusCode === 401
-      ? ' Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in .env (Razorpay Dashboard → API Keys). Or set RAZORPAY_KEY_ID=test for mock mode.'
+      ? ' Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in .env (Razorpay Dashboard → API Keys). For local mock mode set RAZORPAY_TEST_MODE=true.'
       : '';
     throw new Error('Failed to create payment order: ' + msg + hint);
   }
@@ -77,11 +77,19 @@ export const createRazorpayPaymentLink = async ({
   notes = {},
   callback_url,
   callback_method = 'get',
+  expiresInMinutes,
 }) => {
   try {
     if (!amount || amount <= 0) {
       throw new Error('Invalid amount');
     }
+
+    // Default expiry: use provided value, env var, or 24 hours
+    const defaultExpiryMinutes = Number(process.env.RAZORPAY_PAYMENT_LINK_EXPIRY_MINUTES || 24 * 60);
+    const expiryMinutes = Number.isFinite(expiresInMinutes) && expiresInMinutes > 0
+      ? expiresInMinutes
+      : defaultExpiryMinutes;
+    const expireBy = Math.floor(Date.now() / 1000) + Math.ceil(expiryMinutes * 60);
 
     // Test mode - return mock link
     if (TEST_MODE) {
@@ -97,6 +105,7 @@ export const createRazorpayPaymentLink = async ({
         customer: customer || null,
         callback_url: callback_url || null,
         callback_method,
+        expire_by: expireBy,
       };
     }
 
@@ -113,6 +122,7 @@ export const createRazorpayPaymentLink = async ({
       notes: Object.fromEntries(
         Object.entries(notes || {}).map(([k, v]) => [k, String(v || '')])
       ),
+      expire_by: expireBy,
       ...(callback_url ? { callback_url, callback_method } : {}),
     };
 
@@ -123,7 +133,7 @@ export const createRazorpayPaymentLink = async ({
     console.error('❌ Error creating Razorpay payment link:', error);
     const msg = error?.error?.description || error?.message || error?.statusCode || 'Unknown error';
     const hint = error?.statusCode === 401
-      ? ' Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in .env (Razorpay Dashboard → API Keys).'
+      ? ' Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in .env (Razorpay Dashboard → API Keys). For local mock mode set RAZORPAY_TEST_MODE=true.'
       : '';
     throw new Error('Failed to create payment link: ' + msg + hint);
   }
@@ -227,12 +237,17 @@ export const verifyRazorpayWebhookSignature = (payload, signature) => {
       return true;
     }
 
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET;
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
     if (!webhookSecret || !signature) {
+      console.error('❌ Razorpay webhook secret missing or no signature provided');
       return false;
     }
 
-    const body = typeof payload === 'string' ? payload : JSON.stringify(payload);
+    const body = Buffer.isBuffer(payload)
+      ? payload.toString('utf8')
+      : typeof payload === 'string'
+        ? payload
+        : JSON.stringify(payload);
     const expectedSignature = crypto
       .createHmac('sha256', webhookSecret)
       .update(body)
@@ -326,9 +341,20 @@ export const verifyWebhookSignature = (body, signature) => {
       return true;
     }
 
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (!webhookSecret || !signature) {
+      console.error('❌ Razorpay webhook secret missing or no signature provided');
+      return false;
+    }
+
+    const rawBody = Buffer.isBuffer(body)
+      ? body.toString('utf8')
+      : typeof body === 'string'
+        ? body
+        : JSON.stringify(body);
     const expectedSignature = crypto
-      .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET || process.env.RAZORPAY_KEY_SECRET)
-      .update(JSON.stringify(body))
+      .createHmac('sha256', webhookSecret)
+      .update(rawBody)
       .digest('hex');
 
     return expectedSignature === signature;

@@ -45,6 +45,22 @@ const eventRegistrationSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  razorpayOrderId: {
+    type: String,
+    default: null
+  },
+  paymentLinkId: {
+    type: String,
+    default: null
+  },
+  paymentLinkUrl: {
+    type: String,
+    default: null
+  },
+  paymentLinkExpiresAt: {
+    type: Date,
+    default: null
+  },
   paidAt: {
     type: Date,
     default: null

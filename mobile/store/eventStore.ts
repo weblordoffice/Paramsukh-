@@ -102,7 +102,7 @@ interface EventState {
         paymentAmount?: number;
     }>;
     createEventOrder: (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string }) => Promise<{ success: boolean; data?: { registrationId: string; razorpay: { orderId: string; amount: number; currency: string; keyId: string } }; message?: string }>;
-    createEventPaymentLink: (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string }) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; registrationId?: string; message?: string }>;
+    createEventPaymentLink: (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string }) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; registrationId?: string; expiresAt?: string; message?: string }>;
     confirmEventPaymentByLink: (eventId: string, paymentLinkId: string) => Promise<{ success: boolean; message?: string }>;
     confirmEventPayment: (eventId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => Promise<{ success: boolean; message?: string }>;
     cancelEventRegistration: (eventId: string) => Promise<boolean>;
@@ -313,6 +313,7 @@ export const useEventStore = create<EventState>((set, get) => ({
                     url: response.data?.data?.url,
                     paymentLinkId: response.data?.data?.paymentLinkId,
                     registrationId: response.data?.data?.registrationId,
+                    expiresAt: response.data?.data?.expiresAt,
                 };
             return { success: false, message: response.data?.message || 'Failed to create payment link' };
         } catch (error: any) {
