@@ -133,6 +133,9 @@ export default function AnalyticsPage() {
     green: 'bg-green-50 text-green-600',
     purple: 'bg-purple-50 text-purple-600',
   };
+
+  return (
+    <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800">Platform Analytics</h1>
         <p className="text-gray-500">Real-time health indicators and performance metrics.</p>
