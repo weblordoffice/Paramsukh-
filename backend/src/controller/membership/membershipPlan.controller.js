@@ -37,8 +37,19 @@ const normalizeStringList = (values = []) => {
   )];
 };
 
+const ALLOWED_PLAN_FIELDS = [
+  'title', 'slug', 'shortDescription', 'longDescription',
+  'status', 'displayOrder', 'validityDays', 'isLifetime',
+  'pricing', 'access', 'benefits', 'metadata'
+];
+
 const sanitizePlanPayload = (body = {}) => {
-  const payload = { ...body };
+  const payload = {};
+  for (const field of ALLOWED_PLAN_FIELDS) {
+    if (body[field] !== undefined) {
+      payload[field] = body[field];
+    }
+  }
 
   if (payload.title) {
     payload.title = String(payload.title).trim();
@@ -53,14 +64,6 @@ const sanitizePlanPayload = (body = {}) => {
   if (payload.access) {
     payload.access.includedCategories = normalizeStringList(payload.access.includedCategories);
     payload.access.includedSubcategories = normalizeStringList(payload.access.includedSubcategories);
-
-    // Feature removed: keep these neutral regardless of incoming payload.
-    payload.access.includedCourseIds = [];
-    payload.access.limits = {
-      maxCategories: null,
-      maxCoursesTotal: null,
-      perCategoryCourseLimit: null,
-    };
   }
 
   if (payload.access?.inheritedPlanIds && Array.isArray(payload.access.inheritedPlanIds)) {
@@ -73,6 +76,13 @@ const sanitizePlanPayload = (body = {}) => {
 
   if (payload.longDescription !== undefined) {
     payload.longDescription = String(payload.longDescription || '').trim();
+  }
+
+  if (payload.benefits && Array.isArray(payload.benefits)) {
+    payload.benefits = payload.benefits.map(b => ({
+      text: String((b && b.text) || '').trim(),
+      included: b && b.included !== false
+    })).filter(b => b.text.length > 0);
   }
 
   return payload;
@@ -238,7 +248,8 @@ export const updateMembershipPlan = async (req, res) => {
       return res.status(400).json({ success: false, message: validationError });
     }
 
-    Object.assign(existingPlan, mergedPayload);
+    // Save the validated candidate (not raw mergedPayload) using .set() for proper Mongoose validation
+    existingPlan.set(mergedPayload);
     await existingPlan.save();
 
     return res.status(200).json({
@@ -382,10 +393,18 @@ export const getPlanEligibleCourses = async (req, res) => {
 
     let courseQuery = { status: 'published' };
 
-    if (mode === 'specific' && eligibleCourseIds.length > 0) {
-      courseQuery._id = { $in: eligibleCourseIds };
-    } else if (mode === 'categories' && eligibleCategories.length > 0) {
-      courseQuery.category = { $in: eligibleCategories };
+    if (mode === 'specific') {
+      if (eligibleCourseIds.length > 0) {
+        courseQuery._id = { $in: eligibleCourseIds };
+      } else {
+        return res.status(200).json({ success: true, courses: [], maxSelectableCourses: selectionConfig.maxSelectableCourses || 0 });
+      }
+    } else if (mode === 'categories') {
+      if (eligibleCategories.length > 0) {
+        courseQuery.category = { $in: eligibleCategories };
+      } else {
+        return res.status(200).json({ success: true, courses: [], maxSelectableCourses: selectionConfig.maxSelectableCourses || 0 });
+      }
     } else {
       const planCourseIds = new Set(eligibleCourseIds);
       const junctionMappings = await CoursePlan.find({ planId: plan._id }).lean();

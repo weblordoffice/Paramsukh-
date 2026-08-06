@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 const normalizePlanIdentifier = (value) => String(value || '').trim();
 const normalizeText = (value) => String(value || '').trim();
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const resolveAdminApiKey = () => process.env.ADMIN_API_KEY || 'dev-admin-key-123';
+const resolveAdminApiKey = () => process.env.ADMIN_API_KEY || null;
 const isAdminRequest = (req) => String(req.headers['x-admin-api-key'] || '') === resolveAdminApiKey();
 const slugify = (value) =>
     normalizeText(value)
@@ -130,22 +130,34 @@ export const createCourse = async (req, res) => {
             });
         }
 
-        // creating a courses 
-        const course = await Course.create({
-            title: normalizedTitle,
-            description: normalizeText(description),
-            color: color || '#8B5CF6',
-            icon: normalizeText(icon || 'book'),
-            thumbnailUrl: thumbnailUrl || null,
-            bannerUrl: bannerUrl || null,
-            duration: normalizeText(duration),
-            category: normalizedCategory,
-            tags: tags || [],
-            status: status || 'draft',
-            slug,
-            includedInPlans: planSlugs,
-            strictVideoOrder: strictVideoOrder === true || strictVideoOrder === 'true'
-        });
+        // Retry on slug collision (concurrent requests)
+        let course;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                course = await Course.create({
+                    title: normalizedTitle,
+                    description: normalizeText(description),
+                    color: color || '#8B5CF6',
+                    icon: normalizeText(icon || 'book'),
+                    thumbnailUrl: thumbnailUrl || null,
+                    bannerUrl: bannerUrl || null,
+                    duration: normalizeText(duration),
+                    category: normalizedCategory,
+                    tags: tags || [],
+                    status: status || 'draft',
+                    slug,
+                    includedInPlans: planSlugs,
+                    strictVideoOrder: strictVideoOrder === true || strictVideoOrder === 'true'
+                });
+                break;
+            } catch (err) {
+                if (err.code === 11000 && attempt < 2) {
+                    slug = await resolveUniqueSlug(slug + '-' + (attempt + 1));
+                    continue;
+                }
+                throw err;
+            }
+        }
 
         // Sync junction table
         await syncCoursePlans(course._id, planIds);
@@ -176,17 +188,16 @@ export const deleteCourse = async (req, res) => {
             })
         }
 
-        // Clean up junction table
-        await CoursePlan.deleteMany({ courseId: id });
-
         const course = await Course.findByIdAndDelete(id);
-        // if course not found
         if (!course) {
             return res.status(404).json({
                 success: false,
                 message: "courses not found"
             })
         }
+
+        // Clean up junction table after course is deleted
+        await CoursePlan.deleteMany({ courseId: id });
 
         return res.status(200).json({
             success: true,
@@ -303,15 +314,13 @@ export const getAllCourses = async (req, res) => {
     try {
         const query = isAdminRequest(req) ? {} : { status: 'published' };
         const page = Math.max(1, Number(req.query.page || 1));
-        const limit = Number(req.query.limit);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
 
         let q = Course.find(query)
             .select('title description thumbnailUrl bannerUrl color icon duration category tags status totalVideos totalPdfs enrollmentCount completionCount averageRating reviewCount includedInPlans createdAt')
-            .sort({ createdAt: -1 });
-
-        if (limit && limit > 0) {
-            q = q.skip((page - 1) * limit).limit(limit);
-        }
+            .sort({ createdAt: -1 })
+            .skip((page - 1) * limit)
+            .limit(limit);
 
         const courses = await q;
 

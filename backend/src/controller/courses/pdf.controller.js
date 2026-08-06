@@ -26,7 +26,8 @@ export const addPdfToCourse = async(req ,res) =>{
                 message: "Course not found"
             });
         }
-        const nextOrder = typeof order === 'number' ? order : (course.pdfs?.length ?? 0);
+        const maxOrder = course.pdfs?.reduce((max, p) => Math.max(max, p.order || 0), -1) ?? -1;
+        const nextOrder = typeof order === 'number' ? order : maxOrder + 1;
         course.pdfs.push({
             title,
             description: description || '',
@@ -203,6 +204,13 @@ export const deletePdf = async(req , res) =>{
         }
         course.pdfs.pull(pdfId);
         await course.save();
+
+        // Remove dangling references from all enrollments
+        const { Enrollment } = await import('../../models/enrollment.models.js');
+        await Enrollment.updateMany(
+            { courseId },
+            { $pull: { completedPdfs: pdfId } }
+        );
         return res.status(200).json({
             success: true,
             message: "PDF deleted successfully"

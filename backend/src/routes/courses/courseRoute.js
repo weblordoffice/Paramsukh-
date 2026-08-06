@@ -37,30 +37,30 @@ router.get('/:id', getCourseById);
 
 
 router.post('/:courseId/videos', adminAuth, addVideoToCourse);
-router.get('/:courseId/videos', getCourseVideos);
-router.get('/:courseId/videos/:videoId', getVideoById); // Specific video route must come before update/delete
+router.get('/:courseId/videos', protectedRoutes, getCourseVideos);
+router.get('/:courseId/videos/:videoId', protectedRoutes, getVideoById);
 router.put('/:courseId/videos/:videoId', adminAuth, updateVideo);
 router.delete('/:courseId/videos/:videoId', adminAuth, deleteVideo);
 
 //pdf routes
 router.post('/:courseId/pdfs', adminAuth, addPdfToCourse);
-router.get('/:courseId/pdfs', getCoursePdfs);
-router.get('/:courseId/pdfs/:pdfId', getPdfById); // Specific pdf route must come before update/delete
+router.get('/:courseId/pdfs', protectedRoutes, getCoursePdfs);
+router.get('/:courseId/pdfs/:pdfId', protectedRoutes, getPdfById);
 router.put('/:courseId/pdfs/:pdfId', adminAuth, updatePdf);
 router.delete('/:courseId/pdfs/:pdfId', adminAuth, deletePdf);
 
 // livesession routes
 router.post('/:courseId/livesessions', adminAuth, addLiveSessionToCourse);
-router.get('/:courseId/livesessions', getCourseLiveSessions);
-router.get('/:courseId/livesessions/:liveSessionId', getLiveSessionById);
+router.get('/:courseId/livesessions', protectedRoutes, getCourseLiveSessions);
+router.get('/:courseId/livesessions/:liveSessionId', protectedRoutes, getLiveSessionById);
 router.put('/:courseId/livesessions/:liveSessionId', adminAuth, updateLiveSession);
 router.delete('/:courseId/livesessions/:liveSessionId', adminAuth, deleteLiveSession);
 router.patch('/:courseId/livesessions/:liveSessionId/recording', adminAuth, addSessionRecording);
 
 // assignment routes
 router.post('/:courseId/assignments', adminAuth, addAssignment);
-router.get('/:courseId/assignments', getCourseAssignments);
-router.get('/:courseId/videos/:videoId/assignments', getVideoAssignments);
+router.get('/:courseId/assignments', protectedRoutes, getCourseAssignments);
+router.get('/:courseId/videos/:videoId/assignments', protectedRoutes, getVideoAssignments);
 router.put('/:courseId/assignments/:assignmentId', adminAuth, updateAssignment);
 router.delete('/:courseId/assignments/:assignmentId', adminAuth, deleteAssignment);
 

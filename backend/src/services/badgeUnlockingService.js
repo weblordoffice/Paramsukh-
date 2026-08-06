@@ -28,7 +28,7 @@ export const unlockBadgesForUser = async (userId) => {
       Enrollment.countDocuments({ userId }),
       Enrollment.countDocuments({ userId, isCompleted: true }),
       EventRegistration ? EventRegistration.countDocuments({ userId }) : Promise.resolve(0),
-      EventRegistration ? EventRegistration.countDocuments({ userId, status: 'attended' }) : Promise.resolve(0)
+      EventRegistration ? EventRegistration.countDocuments({ userId, status: { $in: ['attended', 'confirmed'] } }) : Promise.resolve(0)
     ]);
 
     const loginCount = user.loginCount || 0;

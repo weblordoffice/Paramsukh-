@@ -37,7 +37,6 @@ export const createEvent = async (req, res) => {
       registrationRequired,
       registrationDeadline,
       organizer,
-      organizerId,
       requirements,
       whatToBring,
       additionalInfo,
@@ -45,6 +44,9 @@ export const createEvent = async (req, res) => {
       metaTitle,
       metaDescription
     } = req.body;
+
+    // organizerId must come from the authenticated admin, not the request body
+    const organizerId = req.admin?._id || null;
 
     // Validate required fields
     if (!title || !eventDate || !eventTime || !startTime || !location || !category) {
@@ -185,13 +187,16 @@ export const getAllEvents = async (req, res) => {
       ];
     }
 
-    // Pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const limitNum = parseInt(limit);
+    // Pagination — validate and sanitize
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
+    const skip = (pageNum - 1) * limitNum;
 
-    // Sort
-    const sortOptions = {};
-    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+    // Sort — whitelist allowed fields
+    const ALLOWED_SORTS = ['eventDate', 'startTime', 'createdAt', 'title', 'price', 'currentAttendees'];
+    const sortField = ALLOWED_SORTS.includes(sortBy) ? sortBy : 'eventDate';
+    const sortDirection = sortOrder === 'desc' ? -1 : 1;
+    const sortOptions = { [sortField]: sortDirection };
 
     // Execute query
     const [events, totalCount] = await Promise.all([
@@ -210,11 +215,11 @@ export const getAllEvents = async (req, res) => {
       message: "Events fetched successfully",
       events,
       pagination: {
-        currentPage: parseInt(page),
+        currentPage: pageNum,
         totalPages,
         totalEvents: totalCount,
-        hasNextPage: parseInt(page) < totalPages,
-        hasPrevPage: parseInt(page) > 1
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1
       }
     });
 
@@ -352,8 +357,27 @@ export const updateEvent = async (req, res) => {
       });
     }
 
-    // Fields that can be updated
-    const updateData = { ...req.body };
+    // Whitelist of allowed fields — prevents mass assignment of internal fields
+    const ALLOWED_FIELDS = [
+      'title', 'description', 'shortDescription', 'icon', 'color', 'emoji',
+      'thumbnailUrl', 'bannerUrl',
+      'eventDate', 'eventTime', 'startTime', 'endTime', 'timezone',
+      'location', 'locationType', 'address', 'onlineMeetingLink', 'coordinates',
+      'category', 'tags',
+      'isPaid', 'price', 'currency', 'earlyBirdPrice', 'earlyBirdEndDate',
+      'maxAttendees', 'registrationRequired', 'registrationDeadline',
+      'organizer',
+      'requirements', 'whatToBring', 'additionalInfo',
+      'slug', 'metaTitle', 'metaDescription',
+      'images', 'videos'
+    ];
+
+    const updateData = {};
+    for (const field of ALLOWED_FIELDS) {
+      if (req.body[field] !== undefined) {
+        updateData[field] = req.body[field];
+      }
+    }
 
     // Convert date strings to Date objects if provided
     if (updateData.eventDate) {
@@ -372,18 +396,17 @@ export const updateEvent = async (req, res) => {
       updateData.registrationDeadline = new Date(updateData.registrationDeadline);
     }
 
-    const event = await Event.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true }
-    ).select('-__v');
-
+    // Use findById + save to trigger pre-save hooks (slug regeneration, status update, imageCount)
+    const event = await Event.findById(id);
     if (!event) {
       return res.status(404).json({
         success: false,
         message: "Event not found"
       });
     }
+
+    Object.assign(event, updateData);
+    await event.save();
 
     console.log("✅ Event updated:", event.title);
 
@@ -591,6 +614,16 @@ export const cancelEvent = async (req, res) => {
 
     console.log("✅ Event cancelled:", event.title);
 
+    // Cascade to registrations — mark pending/confirmed as cancelled
+    const { EventRegistration } = await import('../../models/eventRegistration.models.js');
+    const regResult = await EventRegistration.updateMany(
+      { eventId: id, status: { $in: ['pending', 'confirmed', 'attended'] } },
+      { $set: { status: 'cancelled', notes: 'Event was cancelled by Admin' } }
+    );
+    if (regResult.modifiedCount > 0) {
+      console.log(`✅ Cancelled ${regResult.modifiedCount} registrations for cancelled event: ${id}`);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Event cancelled successfully",
@@ -630,18 +663,30 @@ export const addEventImages = async (req, res) => {
       });
     }
 
+    // Validate image URLs
+    const URL_REGEX = /^https?:\/\/.+\..+/i;
+    const validImages = images.filter(img => img.url && URL_REGEX.test(String(img.url).trim()));
+    if (validImages.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one valid image URL (http/https) is required"
+      });
+    }
+
+    // Single atomic operation — push images and set imageCount in one call
     const event = await Event.findByIdAndUpdate(
       id,
-      { 
-        $push: { 
-          images: { 
-            $each: images.map(img => ({
-              url: img.url,
-              caption: img.caption || '',
+      {
+        $push: {
+          images: {
+            $each: validImages.map(img => ({
+              url: String(img.url).trim(),
+              caption: String(img.caption || '').trim(),
               uploadedAt: new Date()
             }))
           }
-        }
+        },
+        $inc: { imageCount: validImages.length }
       },
       { new: true }
     ).select('-__v');
@@ -652,10 +697,6 @@ export const addEventImages = async (req, res) => {
         message: "Event not found"
       });
     }
-
-    // Update image count
-    event.imageCount = event.images.length;
-    await event.save();
 
     return res.status(200).json({
       success: true,
@@ -734,6 +775,85 @@ export const addEventVideo = async (req, res) => {
       message: "Internal server error",
       error: error.message
     });
+  }
+};
+
+/**
+ * Delete a single image from an event (by url or _id)
+ * DELETE /api/events/:id/images
+ */
+export const deleteEventImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { imageUrl, imageId } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ success: false, message: "Event ID is required" });
+    }
+
+    const pullCondition = imageId
+      ? { _id: imageId }
+      : (imageUrl ? { url: imageUrl } : null);
+
+    if (!pullCondition) {
+      return res.status(400).json({ success: false, message: "imageUrl or imageId is required" });
+    }
+
+    const event = await Event.findByIdAndUpdate(
+      id,
+      {
+        $pull: { images: pullCondition },
+        $inc: { imageCount: -1 }
+      },
+      { new: true }
+    ).select('-__v');
+
+    if (!event) {
+      return res.status(404).json({ success: false, message: "Event not found" });
+    }
+
+    return res.status(200).json({ success: true, message: "Image deleted", event });
+  } catch (error) {
+    console.error("❌ Error deleting image:", error);
+    return res.status(500).json({ success: false, message: "Internal server error", error: error.message });
+  }
+};
+
+/**
+ * Delete a single video from an event (by url or _id)
+ * DELETE /api/events/:id/videos
+ */
+export const deleteEventVideo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { videoUrl, videoId } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ success: false, message: "Event ID is required" });
+    }
+
+    const pullCondition = videoId
+      ? { _id: videoId }
+      : (videoUrl ? { url: videoUrl } : null);
+
+    if (!pullCondition) {
+      return res.status(400).json({ success: false, message: "videoUrl or videoId is required" });
+    }
+
+    const event = await Event.findByIdAndUpdate(
+      id,
+      { $pull: { videos: pullCondition } },
+      { new: true }
+    ).select('-__v');
+
+    if (!event) {
+      return res.status(404).json({ success: false, message: "Event not found" });
+    }
+
+    return res.status(200).json({ success: true, message: "Video deleted", event });
+  } catch (error) {
+    console.error("❌ Error deleting video:", error);
+    return res.status(500).json({ success: false, message: "Internal server error", error: error.message });
   }
 };
 

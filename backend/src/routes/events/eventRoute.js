@@ -10,7 +10,9 @@ import {
   getPastEvents,
   cancelEvent,
   addEventImages,
-  addEventVideo
+  addEventVideo,
+  deleteEventImage,
+  deleteEventVideo
 } from '../../controller/events/events.controller.js';
 import {
   registerForEvent,
@@ -27,6 +29,7 @@ import {
 } from '../../controller/events/eventRegistration.controller.js';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { validateCreateEvent } from '../../middleware/validators.js';
 
 const router = express.Router();
 
@@ -36,7 +39,7 @@ const router = express.Router();
 
 // Create new event
 // POST /api/events/create
-router.post('/create', adminAuth, createEvent);
+router.post('/create', adminAuth, validateCreateEvent, createEvent);
 
 // Get all events with filters
 // GET /api/events/all
@@ -86,6 +89,14 @@ router.post('/:id/images', adminAuth, addEventImages);
 // Add YouTube video to event (for recordings)
 // POST /api/events/:id/videos
 router.post('/:id/videos', adminAuth, addEventVideo);
+
+// Delete single image from event (by url or _id)
+// DELETE /api/events/:id/images
+router.delete('/:id/images', adminAuth, deleteEventImage);
+
+// Delete single video from event (by url or _id)
+// DELETE /api/events/:id/videos
+router.delete('/:id/videos', adminAuth, deleteEventVideo);
 
 // ========================================
 // Event Registration Routes (Protected)

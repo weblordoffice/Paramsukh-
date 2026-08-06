@@ -21,6 +21,7 @@ export default function MyProgressScreen() {
   const { token, user: authUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(authUser);
+  const authUserLive = useAuthStore(s => s.user); // Subscribe to auth store changes
   const [stats, setStats] = useState({
     totalEnrollments: 0,
     completedCourses: 0,
@@ -38,23 +39,21 @@ export default function MyProgressScreen() {
   const loadData = async () => {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
-      const [statsRes, profileRes, certsRes] = await Promise.all([
-        axios.get(`${API_URL}/user/stats`, { headers }),
-        axios.get(`${API_URL}/user/profile`, { headers }),
-        axios.get(`${API_URL}/user/profile/certificates`, { headers })
+      const [statsResult, profileResult, certsResult] = await Promise.allSettled([
+        axios.get(`${API_URL}/user/stats`, { headers }).catch(() => null),
+        axios.get(`${API_URL}/user/profile`, { headers }).catch(() => null),
+        axios.get(`${API_URL}/user/profile/certificates`, { headers }).catch(() => null)
       ]);
 
       if (!isMountedRef.current) return;
 
-      if (statsRes.data.success && statsRes.data.stats) {
-        setStats(statsRes.data.stats);
-      }
-      if (profileRes.data.success && profileRes.data.user) {
-        setUser(profileRes.data.user);
-      }
-      if (certsRes.data.success && certsRes.data.certificates) {
-        setCertificates(certsRes.data.certificates);
-      }
+      const statsRes = statsResult.status === 'fulfilled' ? statsResult.value : null;
+      const profileRes = profileResult.status === 'fulfilled' ? profileResult.value : null;
+      const certsRes = certsResult.status === 'fulfilled' ? certsResult.value : null;
+
+      if (statsRes?.data?.success && statsRes.data.stats) setStats(statsRes.data.stats);
+      if (profileRes?.data?.success && profileRes.data.user) setUser(profileRes.data.user);
+      if (certsRes?.data?.success && certsRes.data.certificates) setCertificates(certsRes.data.certificates);
     } catch (error) {
       console.error('❌ Failed to load progress details:', error);
     } finally {
@@ -71,10 +70,10 @@ export default function MyProgressScreen() {
   }, [token]);
 
   const displayStats = [      
-    { label: 'Courses Enrolled', value: stats.totalEnrollments.toString(), icon: 'book-outline', color: '#8B5CF6' },
-    { label: 'Courses Completed', value: stats.completedCourses.toString(), icon: 'checkmark-circle-outline', color: '#3B82F6' },
-    { label: 'Events Registered', value: stats.eventRegistrations.toString(), icon: 'calendar-outline', color: '#10B981' },
-    { label: 'Events Attended', value: stats.eventsAttended.toString(), icon: 'ticket-outline', color: '#EF4444' },
+    { label: 'Courses Enrolled', value: String(stats.totalEnrollments ?? 0), icon: 'book-outline', color: '#8B5CF6' },
+    { label: 'Courses Completed', value: String(stats.completedCourses ?? 0), icon: 'checkmark-circle-outline', color: '#3B82F6' },
+    { label: 'Events Registered', value: String(stats.eventRegistrations ?? 0), icon: 'calendar-outline', color: '#10B981' },
+    { label: 'Events Attended', value: String(stats.eventsAttended ?? 0), icon: 'ticket-outline', color: '#EF4444' },
   ];    
 
   const isBadgeUnlocked = (badgeId: string) => {
@@ -148,7 +147,6 @@ export default function MyProgressScreen() {
                 <Text className="text-sm text-gray-500 mt-1">Logged in {stats.loginCount} times to study</Text>
               </View>
               <View style={styles.circularContainer}>
-                <View style={[styles.circularFill, { transform: [{ rotate: `${(completionRate / 100) * 360}deg` }] }]} />
                 <View style={styles.circularInner}>
                   <Text className="text-xl font-extrabold text-blue-500">{completionRate}%</Text>
                   <Text className="text-[10px] text-gray-400 font-bold">Done</Text>

@@ -11,6 +11,7 @@ import {
     FlatList,
     Image,
     Platform,
+    Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,10 +21,10 @@ import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } fro
 import { useMembershipStore } from '../../store/membershipStore';
 import { useAuthStore } from '../../store/authStore';
 import apiClient from '../../utils/apiClient';
-import { fetchPublicMembershipPlans, fetchEligibleCoursePreviews, UIMembershipPlan, EligibleCoursePreview } from '../../utils/membershipPlans';
+import { fetchPublicMembershipPlans, fetchEligibleCoursePreviews, UIMembershipPlan, EligibleCoursePreview, PENDING_MEMBERSHIP_LINK_KEY } from '../../utils/membershipPlans';
 import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
 
-const PENDING_LINK_KEY = 'pending_membership_payment_link';
+const PENDING_LINK_KEY = PENDING_MEMBERSHIP_LINK_KEY;
 const PRE_SELECT_KEY = 'preselected_courses';
 
 /* ─── Component ──────────────────────────────────────────────────────── */
@@ -55,6 +56,7 @@ export default function MyMembershipScreen() {
     const [loadingPurchases, setLoadingPurchases] = useState(true);
     const [syncingPayment, setSyncingPayment] = useState(false);
     const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
+    const [plansLoading, setPlansLoading] = useState(true);
 
     // Preview modal state
     const [previewPlan, setPreviewPlan] = useState<UIMembershipPlan | null>(null);
@@ -126,8 +128,10 @@ export default function MyMembershipScreen() {
     };
 
     const loadPublicPlans = useCallback(async () => {
+        setPlansLoading(true);
         const dynamicPlans = await fetchPublicMembershipPlans();
         setPlans(dynamicPlans);
+        setPlansLoading(false);
     }, []);
 
     const loadPurchases = useCallback(async () => {
@@ -163,10 +167,12 @@ export default function MyMembershipScreen() {
                     membershipId: data.membershipId,
                     courseSelection: data.courseSelection,
                 });
+                return data.courseSelection;
             }
         } catch {
             // silently fail
         }
+        return null;
     };
 
     // If user paid and came back later, confirm any pending payment link
@@ -257,6 +263,7 @@ export default function MyMembershipScreen() {
 
             if (!linkRes.data?.success || !linkRes.data?.data?.url) {
                 console.warn('[Membership] Payment link creation failed', linkRes.data);
+                Alert.alert('Error', linkRes.data?.message || 'Could not create payment link. Please try again.');
                 return;
             }
 
@@ -297,26 +304,28 @@ export default function MyMembershipScreen() {
 
             if (openResult.success) {
                 await AsyncStorage.removeItem(PENDING_LINK_KEY);
+                await AsyncStorage.removeItem(PRE_SELECT_KEY);
                 await clearPendingPaymentLinks('membership', plan.parentSlug, paymentLinkId);
             }
 
             await fetchCurrentSubscription();
             await loadPurchases();
-            await fetchActiveMembershipInfo();
+            const courseSelection = await fetchActiveMembershipInfo();
 
             if (openResult.success) {
-                if (plan.courseSelection?.enabled && activeMembership?.courseSelection?.remaining && activeMembership.courseSelection.remaining > 0) {
+                if (plan.courseSelection?.enabled && courseSelection?.remaining && courseSelection.remaining > 0) {
                     router.push({
                         pathname: '/(home)/choose-courses',
                         params: {
-                            membershipId: activeMembership!.membershipId,
-                            maxSelectable: String(activeMembership!.courseSelection.maxSelectable),
+                            membershipId: activeMembership?.membershipId || '',
+                            maxSelectable: String(courseSelection.maxSelectable),
                         },
                     });
                 }
             }
         } catch (err: any) {
             console.warn('[Membership] Purchase error:', err?.message || err);
+            Alert.alert('Payment Failed', err?.message || 'Could not complete payment. Please try again.');
         } finally {
             setPurchasingPlanId(null);
         }
@@ -489,7 +498,12 @@ export default function MyMembershipScreen() {
                     All Plans
                 </Text>
 
-                {plans.length === 0 && (
+                {plansLoading ? (
+                    <View style={styles.noPlansCard}>
+                        <ActivityIndicator size="small" color="#8B5CF6" />
+                        <Text style={styles.noPlansText}>Loading plans...</Text>
+                    </View>
+                ) : plans.length === 0 && (
                     <View style={styles.noPlansCard}>
                         <Ionicons name="information-circle-outline" size={18} color="#6B7280" />
                         <Text style={styles.noPlansText}>No membership plans are available right now. Please check again later.</Text>
@@ -502,7 +516,7 @@ export default function MyMembershipScreen() {
                     const isCurrentPlan = currentPlanId === planId && isActive;
                     const isAlreadyPurchased = purchases.some(p => {
                         const purchasePlan = p.plan ? p.plan.toLowerCase().trim() : '';
-                        return purchasePlan === planId && p.status === 'completed';
+                        return (purchasePlan === planId || purchasePlan === plan.parentSlug || purchasePlan === plan.rawId) && p.status === 'completed';
                     });
                     
                     return (
@@ -751,7 +765,7 @@ export default function MyMembershipScreen() {
                     <View style={styles.modalContainer}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>
-                                Pick Your Courses — {plans.find(p => p.id === preSelectingPlanId)?.name}
+                                Pick Your Courses — {plans.find(p => p.id === preSelectingPlanId)?.name ?? 'Plan'}
                             </Text>
                             <TouchableOpacity onPress={() => { setShowPreSelectModal(false); setPreSelectingPlanId(null); setPreSelectedCourseIds([]); }} style={styles.modalCloseBtn}>
                                 <Ionicons name="close" size={24} color="#1F2937" />

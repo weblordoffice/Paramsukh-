@@ -15,7 +15,7 @@ export default function EventsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<EventTab>('upcoming');
-  const { events, fetchEvents, isLoading } = useEventStore();
+  const { events, fetchEvents, isLoading, error } = useEventStore();
   const [ticketModal, setTicketModal] = useState<{ visible: boolean; event: any }>({
     visible: false,
     event: null
@@ -30,8 +30,11 @@ export default function EventsScreen() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchEvents(activeTab);
-    setRefreshing(false);
+    try {
+      await fetchEvents(activeTab);
+    } finally {
+      setRefreshing(false);
+    }
   }, [activeTab, fetchEvents]);
 
   const formatDate = (dateString: string) => {
@@ -171,8 +174,7 @@ export default function EventsScreen() {
 
               <TouchableOpacity 
                 style={[styles.cardActionBtn, { backgroundColor: isRegistered ? (hasAttended ? '#3B82F6' : '#10B981') : cardColor }]}
-                onPress={(e) => {
-                  e.stopPropagation();
+                onPress={() => {
                   handlePress();
                 }}
               >
@@ -231,6 +233,17 @@ export default function EventsScreen() {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#F1842D" />
             <Text style={styles.loadingText}>Fetching events...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.emptyContainer}>
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="cloud-offline-outline" size={64} color="#EF4444" />
+            </View>
+            <Text style={styles.emptyTitle}>Failed to load events</Text>
+            <Text style={styles.emptySubtitle}>{error}</Text>
+            <TouchableOpacity style={styles.emptyAction} onPress={onRefresh}>
+              <Text style={styles.emptyActionText}>Tap to retry</Text>
+            </TouchableOpacity>
           </View>
         ) : events.length === 0 ? (
           <View style={styles.emptyContainer}>

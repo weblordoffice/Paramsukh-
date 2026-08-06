@@ -159,8 +159,7 @@ export const useEventStore = create<EventState>((set, get) => ({
                 set({ events: [], isLoading: false, error: null });
             }
         } catch (error: any) {
-            // Don't show error to user, show empty list
-            set({ events: [], isLoading: false, error: null });
+            set({ events: [], isLoading: false, error: error?.message || 'Failed to load events' });
         }
     },
 
@@ -188,21 +187,6 @@ export const useEventStore = create<EventState>((set, get) => ({
                     description: vid.description,
                     thumbnailUrl: vid.thumbnailUrl
                 }));
-
-                // Preserve isRegistered state if we already know it from the list or a parallel check
-                const state = get();
-                const existingEventInList = state.events.find(e => e._id === eventId);
-                const isAlreadyRegistered = state.currentEvent?._id === eventId 
-                    ? state.currentEvent.isRegistered 
-                    : (existingEventInList?.isRegistered || false);
-                const hasAlreadyAttended = state.currentEvent?._id === eventId
-                    ? state.currentEvent.hasAttended
-                    : (existingEventInList?.hasAttended || false);
-
-                if (isAlreadyRegistered) {
-                    event.isRegistered = true;
-                    event.hasAttended = hasAlreadyAttended;
-                }
 
                 set({ currentEvent: event, currentEventMeta: meta, photos, videos, isLoading: false });
             } else {
@@ -232,20 +216,12 @@ export const useEventStore = create<EventState>((set, get) => ({
                 set((state) => ({
                     events: state.events.map((event) =>
                         event._id === eventId
-                            ? {
-                                ...event,
-                                isRegistered: true,
-                                currentAttendees: (event.currentAttendees || 0) + 1
-                            }
+                            ? { ...event, isRegistered: true }
                             : event
                     ),
                     currentEvent:
                         state.currentEvent?._id === eventId
-                            ? {
-                                ...state.currentEvent,
-                                isRegistered: true,
-                                currentAttendees: (state.currentEvent.currentAttendees || 0) + 1
-                            }
+                            ? { ...state.currentEvent, isRegistered: true }
                             : state.currentEvent
                 }));
 
@@ -329,9 +305,9 @@ export const useEventStore = create<EventState>((set, get) => ({
             );
             if (response.data?.success) {
                 set((state) => ({
-                    events: state.events.map((e) => (e._id === eventId ? { ...e, isRegistered: true, currentAttendees: (e.currentAttendees || 0) + 1 } : e)),
+                    events: state.events.map((e) => (e._id === eventId ? { ...e, isRegistered: true } : e)),
                     currentEvent: state.currentEvent?._id === eventId
-                        ? { ...state.currentEvent, isRegistered: true, currentAttendees: (state.currentEvent.currentAttendees || 0) + 1 }
+                        ? { ...state.currentEvent, isRegistered: true }
                         : state.currentEvent
                 }));
                 return { success: true, message: response.data?.message };

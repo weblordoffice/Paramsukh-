@@ -327,17 +327,6 @@ courseSchema.pre('save', function (next) {
   next();
 });
 
-// Methods
-courseSchema.methods.calculateAverageRating = function () {
-  // This would typically query reviews and calculate
-  return this.averageRating;
-};
-
-courseSchema.methods.updateEnrollmentCount = async function () {
-  // This would typically count enrollments from a separate collection
-  return this.enrollmentCount;
-};
-
 
 export const Course = mongoose.model("Course", courseSchema);
 

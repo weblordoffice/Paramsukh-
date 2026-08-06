@@ -28,6 +28,7 @@ export default function CheckoutScreen() {
     const [pointValue, setPointValue] = useState(1);
     const [usePoints, setUsePoints] = useState(0);
     const [isProcessing, setIsProcessing] = useState(false);
+    const processingRef = useRef(false);
 
     // Fetch referral points on mount
     useEffect(() => {
@@ -80,7 +81,8 @@ export default function CheckoutScreen() {
             Alert.alert("Error", "Please select a shipping address");
             return;
         }
-        if (isProcessing) return;
+        if (isProcessing || processingRef.current) return;
+        processingRef.current = true;
         setIsProcessing(true);
 
         try {
@@ -145,6 +147,7 @@ export default function CheckoutScreen() {
                 ]);
             }
         } finally {
+            processingRef.current = false;
             setIsProcessing(false);
         }
     };

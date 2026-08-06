@@ -200,20 +200,22 @@ export default function CoursesScreen() {
 
   useEffect(() => {
     fetchCourses();
-    fetchCurrentSubscription();
     loadPlanMetadata();
     fetchMembershipCredits();
-  }, [fetchCourses, fetchCurrentSubscription, loadPlanMetadata, fetchMembershipCredits]);
+  }, [fetchCourses, loadPlanMetadata, fetchMembershipCredits]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([
-      fetchCourses(),
-      fetchCurrentSubscription(),
-      loadPlanMetadata(),
-      fetchMembershipCredits(),
-    ]);
-    setRefreshing(false);
+    try {
+      await Promise.all([
+        fetchCourses(),
+        fetchCurrentSubscription(),
+        loadPlanMetadata(),
+        fetchMembershipCredits(),
+      ]);
+    } finally {
+      setRefreshing(false);
+    }
   }, [fetchCourses, fetchCurrentSubscription, loadPlanMetadata, fetchMembershipCredits]);
 
   // Refresh subscription when screen comes into focus (e.g., after purchase)
@@ -403,7 +405,7 @@ export default function CoursesScreen() {
               const isCreditUnlocked = needsCreditSelection
                 ? selectedCourseIds.has(String(course._id))
                 : true;
-              const locked = !accessible || (needsCreditSelection && !isCreditUnlocked);
+              const locked = !accessible || (!accessible && needsCreditSelection && !isCreditUnlocked);
               const categoryConfig = getCategoryConfig(course.category);
 
               return (
@@ -462,14 +464,16 @@ export default function CoursesScreen() {
                             style={styles.unlockOverlay}
                             onPress={async () => {
                               try {
-                                await apiClient.post(`/membership/${membershipCredits!.membershipId}/select-course`, {
+                                const res = await apiClient.post(`/membership/${membershipCredits!.membershipId}/select-course`, {
                                   courseId: courseIdStr,
                                 });
-                                setSelectedCourseIds((prev) => new Set(prev).add(courseIdStr));
-                                setMembershipCredits((prev) => prev ? {
-                                  ...prev,
-                                  remaining: prev.remaining - 1,
-                                } : null);
+                                if (res.data?.success) {
+                                  setSelectedCourseIds((prev) => new Set(prev).add(courseIdStr));
+                                  setMembershipCredits((prev) => prev ? {
+                                    ...prev,
+                                    remaining: prev.remaining - 1,
+                                  } : null);
+                                }
                               } catch {}
                             }}
                             activeOpacity={0.8}

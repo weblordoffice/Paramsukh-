@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -64,6 +64,26 @@ export default function VideoPlayerScreen() {
   const courseId = params.courseId as string;
   const videoId = params.videoId as string;
 
+  // Block access if not enrolled (prevents deep-link bypass)
+  const [accessChecked, setAccessChecked] = useState(false);
+  useEffect(() => {
+    if (!courseId || !token) { setAccessChecked(true); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        await useCourseStore.getState().fetchEnrollmentProgress(courseId);
+        const progress = useCourseStore.getState().enrollmentProgress;
+        if (!cancelled && !progress) {
+          Alert.alert('Access Denied', 'Please enroll in this course first.', [
+            { text: 'OK', onPress: () => router.back() }
+          ]);
+        }
+      } catch { /* ignore */ }
+      if (!cancelled) setAccessChecked(true);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId, token]);
+
   // Find linked assignments
   const video = currentCourse?.videos?.find(v => v._id === videoId);
   const assignments = video?.assignments || [];
@@ -107,9 +127,18 @@ export default function VideoPlayerScreen() {
     if (ok) setMarked(true);
   }, [courseId, videoId, token, marked, markVideoComplete]);
 
+  // Mark video complete only when the user actually finishes watching
+  React.useEffect(() => {
+    if (!player || !useNativePlayer) return;
+    const sub = player.addListener('statusChange', (status: any) => {
+      if (status === 'readyToPlay') setLoading(false);
+      if (status === 'ended') markComplete();
+    });
+    return () => sub?.remove?.();
+  }, [player, useNativePlayer, markComplete]);
+
   const handleExternalPlay = async () => {
     if (!videoUrl) return;
-    markComplete();
     await WebBrowser.openBrowserAsync(videoUrl);
   };
 
@@ -197,7 +226,6 @@ export default function VideoPlayerScreen() {
               scrollEnabled={false}
               onLoad={() => {
                 setLoading(false);
-                markComplete();
               }}
             />
           </View>
@@ -210,7 +238,6 @@ export default function VideoPlayerScreen() {
               allowsPictureInPicture
               onLayout={() => {
                 setLoading(false);
-                markComplete();
               }}
             />
             {loading && (

@@ -13,22 +13,23 @@ export const getAutoEnrollCoursesForPlan = async (planSlug) => {
   const plan = await MembershipPlan.findOne({ slug }).lean();
   if (!plan) return [];
 
-  // Recursively resolve all inherited plan IDs
+  // Iterative BFS to resolve all inherited plan IDs (avoids stack overflow on deep chains)
   const resolvedPlanIds = new Set([plan._id.toString()]);
-  const processInheritance = async (currentPlan) => {
-    const inheritedIds = currentPlan?.access?.inheritedPlanIds || [];
+  const queue = [plan];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const inheritedIds = current?.access?.inheritedPlanIds || [];
     for (const id of inheritedIds) {
-      const idStr = id.toString();
+      const idStr = String(id);
       if (!resolvedPlanIds.has(idStr)) {
         resolvedPlanIds.add(idStr);
         const parentPlan = await MembershipPlan.findById(id).lean();
         if (parentPlan) {
-          await processInheritance(parentPlan);
+          queue.push(parentPlan);
         }
       }
     }
-  };
-  await processInheritance(plan);
+  }
 
   const allPlanIds = Array.from(resolvedPlanIds);
   const allPlansQuery = await MembershipPlan.find({ _id: { $in: allPlanIds } }).lean();

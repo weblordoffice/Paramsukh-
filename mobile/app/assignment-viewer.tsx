@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,11 @@ import {
   TextInput,
   StatusBar,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCourseStore } from '../store/courseStore';
 
 export default function AssignmentViewerScreen() {
@@ -27,6 +29,25 @@ export default function AssignmentViewerScreen() {
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({});
+
+  const storageKey = `assignment_answers_${assignmentId}`;
+
+  // Restore persisted answers on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(storageKey);
+        if (raw) setAnswers(JSON.parse(raw));
+      } catch { /* ignore */ }
+    })();
+  }, [storageKey]);
+
+  // Persist answers whenever they change
+  useEffect(() => {
+    if (Object.keys(answers).length > 0) {
+      AsyncStorage.setItem(storageKey, JSON.stringify(answers)).catch(() => {});
+    }
+  }, [answers, storageKey]);
 
   if (!assignment) {
     return (
@@ -146,6 +167,13 @@ export default function AssignmentViewerScreen() {
                     <Ionicons name="information-circle-outline" size={18} color="#475569" />
                     <Text style={styles.expTitle}>Explanation</Text>
                   </View>
+                  {q.type !== 'mcq' && (
+                    <Text style={{ fontSize: 14, fontWeight: '600', marginBottom: 4, color: (answers[q._id] || '').trim().toLowerCase() === (q.correctAnswer || '').trim().toLowerCase() ? '#10B981' : '#EF4444' }}>
+                      {(answers[q._id] || '').trim().toLowerCase() === (q.correctAnswer || '').trim().toLowerCase()
+                        ? '✅ Correct answer!'
+                        : `❌ Your answer: "${answers[q._id]}"`}
+                    </Text>
+                  )}
                   <Text style={styles.expText}>
                     {q.explanation || `The correct answer is: ${q.correctAnswer}`}
                   </Text>

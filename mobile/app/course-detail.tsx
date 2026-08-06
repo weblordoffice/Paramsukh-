@@ -65,7 +65,7 @@ export default function CourseDetailScreen() {
   const courseColor = (params.color as string) || '#8B5CF6';
   const courseDuration = (params.duration as string) || '6 weeks';
 
-  const { currentCourse, fetchCourseById, fetchEnrollmentProgress, enrollmentProgress, isLoading } =
+  const { currentCourse, fetchCourseById, fetchEnrollmentProgress, enrollmentProgress, isLoading, error } =
     useCourseStore();
   const { token } = useAuthStore();
 
@@ -149,7 +149,7 @@ export default function CourseDetailScreen() {
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
       {/* ── Back button ── */}
-      <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
+      <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(home)/courses'); }}>
         <Ionicons name="chevron-back" size={22} color="#F8FAFC" />
       </TouchableOpacity>
 
@@ -157,6 +157,14 @@ export default function CourseDetailScreen() {
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color={courseColor} />
           <Text style={styles.loadingText}>Loading course…</Text>
+        </View>
+      ) : error || !currentCourse ? (
+        <View style={styles.loadingBox}>
+          <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+          <Text style={styles.loadingText}>{error || 'Failed to load course'}</Text>
+          <TouchableOpacity onPress={() => courseId && fetchCourseById(courseId)} style={{ marginTop: 12, padding: 10 }}>
+            <Text style={{ color: courseColor, fontWeight: '600' }}>Tap to Retry</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -203,7 +211,7 @@ export default function CourseDetailScreen() {
           </View>
 
           {/* ── Progress card ── */}
-          {token && videos.length > 0 && (
+          {token && (videos.length > 0 || totalPdfs > 0) && (
             <View style={styles.progressCard}>
               <View style={styles.progressHeader}>
                 <Text style={styles.progressLabel}>Your Progress</Text>

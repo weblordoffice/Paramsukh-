@@ -29,6 +29,7 @@ export default function EventDetailScreen() {
 
   const { user } = useAuthStore();
   const isMountedRef = useRef(true);
+  const processingRef = useRef(false);
   const [processing, setProcessing] = useState(false);
   const [showRegisterForm, setShowRegisterForm] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -42,8 +43,12 @@ export default function EventDetailScreen() {
   useEffect(() => {
     isMountedRef.current = true;
     if (eventId) {
-      fetchEventDetails(eventId);
-      checkRegistrationStatus(eventId);
+      (async () => {
+        await fetchEventDetails(eventId);
+        if (isMountedRef.current) {
+          await checkRegistrationStatus(eventId);
+        }
+      })();
     }
     return () => {
       isMountedRef.current = false;
@@ -113,6 +118,11 @@ export default function EventDetailScreen() {
       Alert.alert('Missing Info', 'Please enter your email.');
       return false;
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email.trim())) {
+      Alert.alert('Invalid Email', 'Please enter a valid email address.');
+      return false;
+    }
     if (!form.phone.trim()) {
       Alert.alert('Missing Info', 'Please enter your phone number.');
       return false;
@@ -123,6 +133,8 @@ export default function EventDetailScreen() {
   const submitRegistration = async (simulatePayment: boolean) => {
     if (!eventId) return;
     if (!validateForm()) return;
+    if (processingRef.current) return;
+    processingRef.current = true;
 
     setProcessing(true);
     const result = await registerForEvent(eventId, {
@@ -132,6 +144,7 @@ export default function EventDetailScreen() {
       simulatePayment,
       paymentId: simulatePayment ? `sim_${Date.now()}` : undefined
     });
+    processingRef.current = false;
     setProcessing(false);
 
     if (result.success) {
@@ -150,7 +163,9 @@ export default function EventDetailScreen() {
   };
 
   const handlePaidEventPayment = async () => {
-    if (!eventId || !validateForm() || processing) return;
+    if (!eventId || !validateForm()) return;
+    if (processingRef.current) return;
+    processingRef.current = true;
     setProcessing(true);
     try {
       const linkResult = await createEventPaymentLink(eventId, {
@@ -191,6 +206,7 @@ export default function EventDetailScreen() {
     } catch (err: any) {
       Alert.alert('Payment failed', err?.message || 'Could not complete payment. Please try again.');
     } finally {
+      processingRef.current = false;
       setProcessing(false);
     }
   };
@@ -260,7 +276,7 @@ export default function EventDetailScreen() {
               justifyContent: 'center',
               zIndex: 10
             }}
-            onPress={() => { if (router.canGoBack()) router.back(); }}
+            onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/'); }}
           >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>

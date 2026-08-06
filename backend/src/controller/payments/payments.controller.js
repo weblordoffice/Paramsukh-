@@ -335,7 +335,7 @@ export const createMembershipOrder = async (req, res) => {
     const order = await createRazorpayOrder({
       amount,
       currency: planConfig.currency || 'INR',
-      receipt: `membership_${userId}_${Date.now()}`,
+      receipt: `mem_${String(userId).slice(-6)}_${Date.now().toString(36)}`,
       notes: {
         type: 'membership',
         plan: finalPlan,
@@ -420,6 +420,7 @@ export const createMembershipPaymentLink = async (req, res) => {
       contact: user.phone ? String(user.phone).replace('+91', '').trim() : undefined,
     };
 
+    // Create payment link
     const link = await createRazorpayPaymentLink({
       amount,
       currency: planConfig.currency || 'INR',
@@ -436,15 +437,29 @@ export const createMembershipPaymentLink = async (req, res) => {
       callback_method: callbackUrl ? 'get' : undefined,
     });
 
-    user.pendingMembershipPaymentLink = {
-      linkId: link.id,
-      url: link.short_url,
-      plan: finalPlan,
-      amount,
-      createdAt: new Date(),
-      expiresAt: link.expire_by ? new Date(link.expire_by * 1000) : null,
-    };
-    await user.save();
+    // Atomically set pending link — prevents duplicate link creation in concurrent requests
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    await User.findOneAndUpdate(
+      {
+        _id: userId,
+        $or: [
+          { 'pendingMembershipPaymentLink.linkId': { $exists: false } },
+          { 'pendingMembershipPaymentLink.createdAt': { $lt: fiveMinutesAgo } },
+        ],
+      },
+      {
+        $set: {
+          pendingMembershipPaymentLink: {
+            linkId: link.id,
+            url: link.short_url,
+            plan: finalPlan,
+            amount,
+            createdAt: new Date(),
+            expiresAt: link.expire_by ? new Date(link.expire_by * 1000) : null,
+          },
+        },
+      }
+    );
 
     return res.status(200).json({
       success: true,
@@ -540,6 +555,7 @@ export const createAdminMembershipPaymentLink = async (req, res) => {
         adminId: adminIdentifier,
         trackingId,
         validityDays: String(finalValidityDays),
+        amount: String(Math.round(finalAmount * 100)),
       },
     });
 
@@ -688,8 +704,8 @@ export const confirmMembershipPaymentLink = async (req, res) => {
     const targetUserId = notes?.userId ? String(notes.userId) : String(userId);
     console.log(`   Razorpay link status: ${status}, notes.plan: ${notes?.plan}, notes.userId: ${notes?.userId}`);
 
-    // Basic ownership check (if notes were set)
-    if (!isAdminCreated && notes?.userId && String(notes.userId) !== String(userId)) {
+    // Ownership check — payment link must belong to the requesting user
+    if (notes?.userId && String(notes.userId) !== String(userId)) {
       return res.status(403).json({ success: false, message: 'Payment link does not belong to this user' });
     }
 
@@ -717,8 +733,12 @@ export const confirmMembershipPaymentLink = async (req, res) => {
     const finalPlan = finalPlanConfig.slug;
 
     // Validate amount against the plan price (skip in test mode where mock returns 0)
+    // Admin-created links use the stored amount from notes (custom price may differ from plan config)
     if (!isRazorpayTestMode) {
-      const expectedPaise = Math.round((finalPlanConfig.amount || 0) * 100);
+      const adminAmount = isAdminCreated ? Number(notes?.amount || 0) : 0;
+      const expectedPaise = adminAmount > 0
+        ? adminAmount
+        : Math.round((finalPlanConfig.amount || 0) * 100);
       const paidPaise = Number(link?.amount ?? link?.amount_paid ?? 0);
       if (expectedPaise > 0 && paidPaise !== expectedPaise) {
         return res.status(400).json({
@@ -906,6 +926,15 @@ export const syncMembershipFromRazorpay = async (req, res) => {
       const firstPayment = Array.isArray(paymentsRaw) ? paymentsRaw[0] : paymentsRaw;
       const paymentId = firstPayment?.payment_id || full?.payment_id || `pay_${Date.now()}`;
       const amountPaise = full?.amount ?? firstPayment?.amount ?? 0;
+
+      // Validate the paid amount matches the plan price
+      if (!isRazorpayTestMode) {
+        const expectedPaise = Math.round((finalPlanConfig.amount || 0) * 100);
+        if (expectedPaise > 0 && Number(amountPaise) !== expectedPaise) {
+          console.warn(`⏭️ Sync skipped: amount mismatch for user ${userId} on plan ${finalPlan}`);
+          continue;
+        }
+      }
 
       user.subscriptionPlan = finalPlan;
       user.subscriptionStatus = 'active';
@@ -1236,8 +1265,8 @@ export const handleWebhook = async (req, res) => {
 
     console.log('📩 Webhook received:', payload.event);
 
-    // Verify webhook signature when possible (skipped in test mode)
-    if (signature && !verifyWebhookSignature(req.rawBody, signature)) {
+    // Verify webhook signature (required in production, skipped in test mode)
+    if (!isRazorpayTestMode && !verifyWebhookSignature(req.rawBody, signature)) {
       console.error('❌ Invalid Razorpay webhook signature');
       return res.status(400).json({ status: 'invalid_signature' });
     }
@@ -1258,13 +1287,24 @@ export const handleWebhook = async (req, res) => {
             if (!planConfig.isValid) {
               break;
             }
+
+            // Validate payment amount matches plan price
+            if (!isRazorpayTestMode) {
+              const expectedPaise = Math.round((planConfig.amount || 0) * 100);
+              const paidPaise = Number(payment?.amount || 0);
+              if (expectedPaise > 0 && paidPaise !== expectedPaise) {
+                console.error(`❌ Webhook amount mismatch for user ${pNotes.userId}: expected ${expectedPaise}, got ${paidPaise}`);
+                break;
+              }
+            }
+
             const validityDays = resolveMembershipValidityDays({ notes: pNotes, planConfig });
             mUser.subscriptionPlan = planConfig.slug;
             mUser.subscriptionStatus = 'active';
             mUser.subscriptionStartDate = new Date();
             mUser.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
 
-            upsertUserPaymentEntry({
+            const inserted = upsertUserPaymentEntry({
               user: mUser,
               orderId: payment.order_id || payment.id,
               paymentId: payment.id,
@@ -1276,6 +1316,11 @@ export const handleWebhook = async (req, res) => {
                 trackingId: pNotes?.trackingId || null,
               },
             });
+
+            if (!inserted) {
+              console.log(`ℹ️ Webhook payment ${payment.id} already recorded for user ${pNotes.userId}`);
+              break;
+            }
 
             mUser.pendingMembershipPaymentLink = undefined;
             await mUser.save();
@@ -1332,10 +1377,26 @@ export const handleWebhook = async (req, res) => {
               );
             }
 
-            // Enroll in selected courses if provided
+            // Enroll in selected courses if provided, otherwise auto-enroll all eligible
             const selectedIds = parseSelectedCourseIds(pNotes);
-            if (selectedIds.length > 0) {
+            const planDoc = await MembershipPlan.findOne({ slug: planConfig.slug }).select('access.courseSelection').lean();
+            const hasCourseSelection = planDoc?.access?.courseSelection?.enabled === true;
+
+            if (hasCourseSelection && selectedIds.length > 0) {
               await enrollSelectedCourses(pNotes.userId, selectedIds, planConfig.slug);
+            } else if (!hasCourseSelection) {
+              const courses = await getAutoEnrollCoursesForPlan(planConfig.slug);
+              for (const course of courses) {
+                const existingEnrollment = await Enrollment.findOne({ userId: pNotes.userId, courseId: course._id });
+                if (!existingEnrollment) {
+                  await Enrollment.create({ userId: pNotes.userId, courseId: course._id, currentVideoId: course.videos?.length > 0 ? course.videos[0]._id : null });
+                  course.enrollmentCount = (course.enrollmentCount || 0) + 1;
+                  await course.save();
+                }
+              }
+              console.log(`   Enrolled in ${courses.length} course(s) for plan ${planConfig.slug}`);
+            } else {
+              console.log(`   Skipped auto-enroll — plan ${planConfig.slug} uses credit-based courseSelection`);
             }
 
             // Handle plan upgrade - enroll in new community groups
@@ -1424,6 +1485,36 @@ export const handleWebhook = async (req, res) => {
             }
           }
         }
+
+        if (pNotes.type === 'event' && pNotes.registrationId && pNotes.eventId) {
+          const eventReg = await EventRegistration.findOneAndUpdate(
+            { _id: pNotes.registrationId, status: 'pending', paymentStatus: 'pending' },
+            {
+              $set: {
+                status: 'confirmed',
+                paymentStatus: 'completed',
+                paymentId: payment.id,
+                paidAt: new Date()
+              }
+            },
+            { new: true }
+          );
+          if (eventReg) {
+            await Event.findByIdAndUpdate(pNotes.eventId, { $inc: { reservedSeats: -1 } });
+            console.log(`✅ Event registration ${pNotes.registrationId} confirmed via payment.captured webhook`);
+            recordTransaction({
+              userId: eventReg.userId,
+              source: 'event',
+              sourceId: eventReg._id.toString(),
+              amount: eventReg.paymentAmount || 0,
+              provider: 'razorpay',
+              providerRef: payment.id,
+              metadata: { eventName: `Event Registration ${eventReg._id}`, paymentId: payment.id },
+            }).catch(err => console.error('Transaction recording failed:', err.message));
+          } else {
+            console.log(`ℹ️ Event registration ${pNotes.registrationId} already confirmed or not found`);
+          }
+        }
         break;
       }
 
@@ -1444,6 +1535,17 @@ export const handleWebhook = async (req, res) => {
             if (!planConfig.isValid) {
               break;
             }
+
+            // Validate payment amount matches plan price
+            if (!isRazorpayTestMode) {
+              const expectedPaise = Math.round((planConfig.amount || 0) * 100);
+              const paidPaise = Number(pl?.amount || 0);
+              if (expectedPaise > 0 && paidPaise !== expectedPaise) {
+                console.error(`❌ Webhook amount mismatch for user ${plUserId}: expected ${expectedPaise}, got ${paidPaise}`);
+                break;
+              }
+            }
+
             const validityDays = resolveMembershipValidityDays({ notes, planConfig });
 
             plUser.subscriptionPlan = planConfig.slug;
@@ -1516,10 +1618,26 @@ export const handleWebhook = async (req, res) => {
                 );
               }
 
-              // Enroll in selected courses if provided
+              // Enroll in selected courses if provided, otherwise auto-enroll all eligible
               const selectedIds = parseSelectedCourseIds(notes);
-              if (selectedIds.length > 0) {
+              const planDoc = await MembershipPlan.findOne({ slug: planConfig.slug }).select('access.courseSelection').lean();
+              const hasCourseSelection = planDoc?.access?.courseSelection?.enabled === true;
+
+              if (hasCourseSelection && selectedIds.length > 0) {
                 await enrollSelectedCourses(plUserId, selectedIds, planConfig.slug);
+              } else if (!hasCourseSelection) {
+                const courses = await getAutoEnrollCoursesForPlan(planConfig.slug);
+                for (const course of courses) {
+                  const existingEnrollment = await Enrollment.findOne({ userId: plUserId, courseId: course._id });
+                  if (!existingEnrollment) {
+                    await Enrollment.create({ userId: plUserId, courseId: course._id, currentVideoId: course.videos?.length > 0 ? course.videos[0]._id : null });
+                    course.enrollmentCount = (course.enrollmentCount || 0) + 1;
+                    await course.save();
+                  }
+                }
+                console.log(`   Enrolled in ${courses.length} course(s) for plan ${planConfig.slug}`);
+              } else {
+                console.log(`   Skipped auto-enroll — plan ${planConfig.slug} uses credit-based courseSelection`);
               }
 
               // Handle plan upgrade - enroll in new community groups
@@ -1564,6 +1682,36 @@ export const handleWebhook = async (req, res) => {
             }
           }
         }
+
+        if (notes.type === 'event' && notes.registrationId && notes.eventId) {
+          const eventReg = await EventRegistration.findOneAndUpdate(
+            { _id: notes.registrationId, status: 'pending', paymentStatus: 'pending' },
+            {
+              $set: {
+                status: 'confirmed',
+                paymentStatus: 'completed',
+                paymentId: plPaymentId,
+                paidAt: new Date()
+              }
+            },
+            { new: true }
+          );
+          if (eventReg) {
+            await Event.findByIdAndUpdate(notes.eventId, { $inc: { reservedSeats: -1 } });
+            console.log(`✅ Event registration ${notes.registrationId} confirmed via payment_link.paid webhook`);
+            recordTransaction({
+              userId: eventReg.userId,
+              source: 'event',
+              sourceId: eventReg._id.toString(),
+              amount: eventReg.paymentAmount || 0,
+              provider: 'razorpay',
+              providerRef: plPaymentId,
+              metadata: { eventName: `Event Registration ${eventReg._id}`, paymentId: plPaymentId },
+            }).catch(err => console.error('Transaction recording failed:', err.message));
+          } else {
+            console.log(`ℹ️ Event registration ${notes.registrationId} already confirmed or not found`);
+          }
+        }
         break;
       }
       
@@ -1574,9 +1722,9 @@ export const handleWebhook = async (req, res) => {
           const status = payload.event === 'payment_link.cancelled' ? 'cancelled' : 'expired';
           const notes = pl?.notes || {};
 
-          // Admin link status update
+          // Admin link status update — don't overwrite already-paid links
           await AdminPaymentLink.findOneAndUpdate(
-            { paymentLinkId: pl.id },
+            { paymentLinkId: pl.id, status: { $nin: ['paid'] } },
             { status }
           );
 

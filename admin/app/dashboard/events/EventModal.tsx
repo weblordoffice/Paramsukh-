@@ -59,7 +59,8 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
         if (isOpen) {
             if (event) {
                 const eventDate = new Date(event.eventDate);
-                const localDate = eventDate.toISOString().split('T')[0];
+                // Use local date (not UTC) to avoid timezone offset shifting the displayed date
+                const localDate = eventDate.toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
 
                 setFormData({
                     title: event.title || '',
@@ -214,6 +215,16 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (formData.color && !/^#[0-9A-Fa-f]{6}$/.test(formData.color)) {
+            toast.error('Color must be a valid hex code (e.g. #8B5CF6)');
+            return;
+        }
+        if (formData.emoji && formData.emoji.length > 4) {
+            toast.error('Emoji must be 1-4 characters');
+            return;
+        }
+
         setSubmitting(true);
 
         try {
@@ -508,14 +519,23 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Category *
                                     </label>
-                                    <input
-                                        type="text"
+                                    <select
                                         required
                                         value={formData.category}
                                         onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                                        placeholder="Enter event category (e.g. Workshop, Retreat)"
-                                    />
+                                    >
+                                        <option value="">Select category...</option>
+                                        <option value="Meditation">Meditation</option>
+                                        <option value="Discourse">Discourse</option>
+                                        <option value="Wellness">Wellness</option>
+                                        <option value="Devotional">Devotional</option>
+                                        <option value="Festival">Festival</option>
+                                        <option value="Workshop">Workshop</option>
+                                        <option value="Healing">Healing</option>
+                                        <option value="Yoga">Yoga</option>
+                                        <option value="Other">Other</option>
+                                    </select>
                                 </div>
 
                                 <div className="md:col-span-2">

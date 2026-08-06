@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import crypto from "crypto";
 
 const eventRegistrationSchema = new mongoose.Schema({
   userId: {
@@ -39,7 +40,8 @@ const eventRegistrationSchema = new mongoose.Schema({
   },
   paymentAmount: {
     type: Number,
-    default: 0
+    default: 0,
+    min: 0
   },
   paymentId: {
     type: String,
@@ -107,9 +109,8 @@ eventRegistrationSchema.index({ registeredAt: -1 });
 
 eventRegistrationSchema.pre('save', function(next) {
   if (this.status === 'confirmed' && !this.ticketId) {
-    const randomStr = Math.random().toString(36).substring(2, 6).toUpperCase();
-    const timestampStr = Date.now().toString().slice(-4);
-    this.ticketId = `EVT-${randomStr}-${timestampStr}`;
+    const unique = crypto.randomBytes(6).toString('hex').toUpperCase().slice(0, 8);
+    this.ticketId = `EVT-${unique}`;
   }
   next();
 });

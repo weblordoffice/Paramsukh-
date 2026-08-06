@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { MembershipPlan } from '../models/membershipPlan.models.js';
 
 export const normalizePlanSlug = (plan) => String(plan || '').trim().toLowerCase();
@@ -27,7 +28,8 @@ const resolvePlanInheritance = async (rootPlan) => {
 
   while (queue.length > 0) {
     const current = queue.shift();
-    const inheritedIds = current?.access?.inheritedPlanIds || [];
+    const inheritedIds = (current?.access?.inheritedPlanIds || [])
+      .filter(id => id && mongoose.Types.ObjectId.isValid(String(id)));
 
     for (const inheritedId of inheritedIds) {
       const idStr = String(inheritedId);
@@ -91,7 +93,7 @@ export const resolveMembershipPlanChargeAmount = async (planSlug) => {
   if (plan) {
     const amount = Number(plan?.pricing?.oneTime?.amount || 0);
     const currency = plan?.pricing?.oneTime?.currency || 'INR';
-    const validityDays = plan.isLifetime ? null : Number(plan?.validityDays || 365);
+    const validityDays = plan.isLifetime ? null : Number(plan?.validityDays ?? 365);
 
     return {
       isValid: true,

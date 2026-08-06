@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, Alert, ActivityIndicator, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../../utils/paymentBrowser';
 import Header from '../../components/Header';
 import { useMembershipStore } from '../../store/membershipStore';
+import { useAuthStore } from '../../store/authStore';
 import apiClient from '../../utils/apiClient';
-import { fetchPublicMembershipPlans, UIMembershipPlan } from '../../utils/membershipPlans';
+import { fetchPublicMembershipPlans, UIMembershipPlan, PENDING_MEMBERSHIP_LINK_KEY } from '../../utils/membershipPlans';
 
-const PENDING_LINK_KEY = 'pending_membership_payment_link';
+const PENDING_LINK_KEY = PENDING_MEMBERSHIP_LINK_KEY;
 
 interface EligibleCourse {
   _id: string;
@@ -25,17 +26,22 @@ interface EligibleCourse {
 
 export default function MembershipScreen() {
   const { currentSubscription, isLoading, fetchCurrentSubscription } = useMembershipStore();
+  const { token } = useAuthStore();
 
   const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(true);
   const [purchasingPlanId, setPurchasingPlanId] = useState<string | null>(null);
+  const purchasingRef = useRef(false);
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
   const [planCourses, setPlanCourses] = useState<Record<string, EligibleCourse[]>>({});
   const [selectedCourses, setSelectedCourses] = useState<Record<string, string[]>>({});
   const [loadingCourses, setLoadingCourses] = useState<Record<string, boolean>>({});
 
   const loadPublicPlans = useCallback(async () => {
+    setPlansLoading(true);
     const dynamicPlans = await fetchPublicMembershipPlans();
     setPlans(dynamicPlans);
+    setPlansLoading(false);
     if (dynamicPlans.length > 0 && !expandedPlanId) {
       setExpandedPlanId(dynamicPlans[0].id);
     }
@@ -55,6 +61,9 @@ export default function MembershipScreen() {
         if (!raw || cancelled) return;
         const { paymentLinkId, plan } = JSON.parse(raw);
         if (!paymentLinkId || !plan) return;
+        // Re-check in case subscription became active during async gap
+        const currentSub = useMembershipStore.getState().currentSubscription;
+        if (currentSub?.status === 'active') return;
         const res = await apiClient.post('/payments/membership-link/confirm', { paymentLinkId, plan });
         if (res.data?.success && res.data?.data?.status === 'active') {
           await AsyncStorage.removeItem(PENDING_LINK_KEY);
@@ -120,7 +129,13 @@ export default function MembershipScreen() {
   };
 
   const handlePurchase = async (plan: UIMembershipPlan) => {
-    if (purchasingPlanId) return;
+    if (!token) {
+      Alert.alert('Login Required', 'Please sign in to purchase a membership.');
+      return;
+    }
+    if (purchasingRef.current) return;
+    purchasingRef.current = true;
+
     const selected = selectedCourses[plan.id] || [];
     const maxSelectable = plan.courseSelection?.maxSelectableCourses || 0;
 
@@ -149,7 +164,7 @@ export default function MembershipScreen() {
       const expiresAt = linkRes.data.data.expiresAt as string | undefined;
 
       if (paymentLinkId) {
-        const pending = { paymentLinkId, plan: plan.parentSlug };
+        const pending = { paymentLinkId, plan: plan.parentSlug, variantSlug: plan.variantSlug || null };
         await AsyncStorage.setItem(PENDING_LINK_KEY, JSON.stringify(pending));
         await savePendingPaymentLink({
           type: 'membership',
@@ -191,6 +206,7 @@ export default function MembershipScreen() {
     } catch (err: any) {
       Alert.alert('Payment Failed', err?.message || 'Could not complete payment.');
     } finally {
+      purchasingRef.current = false;
       setPurchasingPlanId(null);
     }
   };
@@ -239,7 +255,12 @@ export default function MembershipScreen() {
           </View>
 
           {/* Plan Cards with Course Selection */}
-          {plans.length === 0 && (
+          {plansLoading ? (
+            <View className="items-center py-12">
+              <ActivityIndicator size="large" color="#8B5CF6" />
+              <Text className="text-gray-500 mt-3 text-sm">Loading plans...</Text>
+            </View>
+          ) : plans.length === 0 && (
             <View className="bg-white rounded-2xl p-4 mb-4 border border-gray-200 flex-row items-center gap-2">
               <Ionicons name="information-circle-outline" size={18} color="#64748B" />
               <Text className="text-sm text-gray-600 flex-1">

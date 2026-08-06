@@ -321,6 +321,16 @@ export const updateVideoPosition = async (req, res) => {
       });
     }
 
+    // Validate videoIndex against course's actual video count
+    const course = await Course.findById(enrollment.courseId).select('videos').lean();
+    const maxIndex = (course?.videos?.length || 1) - 1;
+    if (videoIndex < 0 || videoIndex > maxIndex) {
+      return res.status(400).json({
+        success: false,
+        message: `videoIndex must be between 0 and ${maxIndex}`
+      });
+    }
+
     enrollment.currentVideoId = videoId;
     enrollment.currentVideoIndex = videoIndex;
     enrollment.lastAccessedAt = new Date();

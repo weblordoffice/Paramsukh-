@@ -283,12 +283,15 @@ eventSchema.pre('save', function(next) {
   // Update imageCount  
   this.imageCount = this.images.length;
   
-  // Generate slug from title if not provided
-  if (!this.slug && this.title) {
-    this.slug = this.title
+  // Generate slug from title only if title has changed and slug is not set
+  if (this.isModified('title') && !this.slug) {
+    const baseSlug = this.title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
+    // Append short random suffix to avoid collisions
+    const suffix = Math.random().toString(36).substring(2, 6);
+    this.slug = `${baseSlug}-${suffix}`;
   }
   
   // Auto-update status based on dates (but don't override 'cancelled' status)
@@ -306,12 +309,13 @@ eventSchema.pre('save', function(next) {
 });
 
 // Pre-delete middleware to soft-delete EventRegistrations (preserve payment data)
-eventSchema.pre('deleteOne', { document: false, query: true }, async function() {
+// Using findOneAndDelete to handle both findByIdAndDelete and findOneAndDelete calls
+eventSchema.pre('findOneAndDelete', { document: false, query: true }, async function() {
   try {
     const { EventRegistration } = await import('./eventRegistration.models.js');
     const filter = this.getFilter();
     const eventId = filter._id;
-    
+
     if (eventId) {
       const result = await EventRegistration.updateMany({ eventId }, { status: 'cancelled', notes: 'Event was deleted by Admin' });
       console.log(`✅ Cancelled ${result.modifiedCount} registrations for deleted event: ${eventId}`);
@@ -323,7 +327,8 @@ eventSchema.pre('deleteOne', { document: false, query: true }, async function() 
 
 // Methods    
 eventSchema.methods.isFull = function() {
-  return this.maxAttendees !== null && this.currentAttendees >= this.maxAttendees;
+  const total = (this.currentAttendees || 0) + (this.reservedSeats || 0);
+  return this.maxAttendees !== null && total >= this.maxAttendees;
 };   
 
 eventSchema.methods.canRegister = function() {
@@ -370,8 +375,7 @@ eventSchema.methods.updateAttendeeCount = async function() {
     // The caller should save the document if needed
     return count;
   } catch (error) {
-    // If EventRegistration model doesn't exist yet, return current count
-    console.warn('EventRegistration model not found, using currentAttendees field');
+    console.warn('EventRegistration model import failed:', error?.message || error);
     return this.currentAttendees;
   }
 };

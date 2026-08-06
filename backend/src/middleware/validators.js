@@ -100,28 +100,32 @@ export const validateCreateEvent = [
     .trim()
     .isLength({ min: 10 })
     .withMessage('Event description must be at least 10 characters'),
-  body('startDate')
+  body('eventDate')
     .isISO8601()
-    .withMessage('Start date must be a valid date')
-    .custom((value) => {
-      if (new Date(value) < new Date()) {
-        throw new Error('Start date cannot be in the past');
-      }
-      return true;
-    }),
-  body('endDate')
+    .withMessage('Event date must be a valid date'),
+  body('eventTime')
+    .trim()
+    .notEmpty()
+    .withMessage('Event time is required'),
+  body('startTime')
     .isISO8601()
-    .withMessage('End date must be a valid date')
-    .custom((value, { req }) => {
-      if (new Date(value) <= new Date(req.body.startDate)) {
-        throw new Error('End date must be after start date');
-      }
-      return true;
-    }),
-  body('maxParticipants')
-    .optional()
+    .withMessage('Start time must be a valid datetime'),
+  body('location')
+    .trim()
+    .notEmpty()
+    .withMessage('Location is required'),
+  body('category')
+    .trim()
+    .notEmpty()
+    .withMessage('Category is required'),
+  body('maxAttendees')
+    .optional({ nullable: true })
     .isInt({ min: 1 })
-    .withMessage('Max participants must be at least 1'),
+    .withMessage('Max attendees must be at least 1'),
+  body('price')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Price must be a non-negative number'),
   handleValidationErrors
 ];
 
