@@ -108,6 +108,15 @@ const userSchema = new mongoose.Schema({
     }
   }],
 
+  pendingMembershipPaymentLink: {
+    linkId: { type: String },
+    url: { type: String },
+    plan: { type: String, lowercase: true, trim: true },
+    amount: { type: Number },
+    createdAt: { type: Date },
+    expiresAt: { type: Date }
+  },
+
   // User preferences
   preferences: {
     theme: {

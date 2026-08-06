@@ -36,6 +36,8 @@ import adminCouponRoutes from './routes/coupons/admin.coupons.routes.js';
 import donationsRoutes from './routes/donations/donationsRoute.js';
 import supportRoutes from './routes/support/supportRoute.js';
 import { clerkWebhookHandler } from './controller/auth/clerkWebhook.controller.js';
+import { handleWebhook } from './controller/payments/payments.controller.js';
+import { handlePodcastPaymentWebhook } from './controller/podcast/podcastPayment.controller.js';
 import { setupCounselingCrons } from './services/counselingCron.service.js';
 dotenv.config();
 
@@ -50,6 +52,18 @@ if (isProduction) {
   }
   if (!process.env.ADMIN_API_KEY || process.env.ADMIN_API_KEY === 'dev-admin-key-123') {
     console.error('FATAL: ADMIN_API_KEY is missing or using the dev default. Set a strong key in .env');
+    process.exit(1);
+  }
+  if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    console.error('FATAL: RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are required in production');
+    process.exit(1);
+  }
+  if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
+    console.error('FATAL: RAZORPAY_WEBHOOK_SECRET is required in production');
+    process.exit(1);
+  }
+  if (process.env.RAZORPAY_TEST_MODE === 'true') {
+    console.error('FATAL: RAZORPAY_TEST_MODE must not be enabled in production');
     process.exit(1);
   }
 }
@@ -117,6 +131,27 @@ app.post('/api/auth/clerk-webhook', express.raw({ type: 'application/json' }), (
   req.rawBody = rawBody;
   clerkWebhookHandler(req, res);
 });
+
+// Razorpay webhooks need raw body for HMAC signature verification
+app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), (req, res, next) => {
+  req.rawBody = req.body instanceof Buffer ? req.body.toString('utf8') : String(req.body);
+  try {
+    req.body = JSON.parse(req.rawBody);
+  } catch (_) {
+    req.body = {};
+  }
+  next();
+}, handleWebhook);
+
+app.post('/api/podcasts/webhook/razorpay', express.raw({ type: 'application/json' }), (req, res, next) => {
+  req.rawBody = req.body instanceof Buffer ? req.body.toString('utf8') : String(req.body);
+  try {
+    req.body = JSON.parse(req.rawBody);
+  } catch (_) {
+    req.body = {};
+  }
+  next();
+}, handlePodcastPaymentWebhook);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));

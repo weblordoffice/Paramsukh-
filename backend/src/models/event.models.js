@@ -134,6 +134,10 @@ const eventSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  reservedSeats: {
+    type: Number,
+    default: 0
+  },
   registrationRequired: {
     type: Boolean,
     default: false

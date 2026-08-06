@@ -35,6 +35,7 @@ import AIMemorySheet from './AIMemorySheet';
 import { AIToolPresentationSection, useAIAssistantStore } from '../store/aiAssistantStore';
 import { useAuthStore } from '../store/authStore';
 import apiClient from '../utils/apiClient';
+import { pollPaymentConfirmation } from '../utils/paymentBrowser';
 import { AIScreenContext } from '../utils/aiScreenContext';
 import EventSource from 'react-native-sse';
 import { getTokenSecurely } from '../utils/biometricAuth';
@@ -803,15 +804,18 @@ export default function AIChatPanel({
           showTitle: true,
         });
 
-        const confirmRes = await apiClient.post(`/events/${eventId}/register/confirm-link`, {
-          paymentLinkId,
+        const pollResult = await pollPaymentConfirmation(async () => {
+          const confirmRes = await apiClient.post(`/events/${eventId}/register/confirm-link`, {
+            paymentLinkId,
+          });
+          return { success: !!confirmRes.data?.success, message: confirmRes.data?.message };
         });
 
         await appendMessage(
           'assistant',
-          confirmRes.data?.success
-            ? confirmRes.data?.message || 'Your event payment was confirmed.'
-            : confirmRes.data?.message || 'Payment is not completed yet. You can try confirming again after payment.'
+          pollResult.success
+            ? pollResult.result?.message || 'Your event payment was confirmed.'
+            : pollResult.result?.message || 'Payment is not completed yet. You can try confirming again after payment.'
         );
         return;
       }
@@ -845,21 +849,27 @@ export default function AIChatPanel({
           showTitle: true,
         });
 
-        const confirmRes = await apiClient.post('/payments/membership-link/confirm', {
-          paymentLinkId,
-          plan,
-          variantSlug,
+        const pollResult = await pollPaymentConfirmation(async () => {
+          const confirmRes = await apiClient.post('/payments/membership-link/confirm', {
+            paymentLinkId,
+            plan,
+            variantSlug,
+          });
+          return {
+            success: !!confirmRes.data?.success && (confirmRes.data?.data?.status === 'active' || confirmRes.data?.data?.status === 'paid'),
+            message: confirmRes.data?.message,
+          };
         });
 
-        if (confirmRes.data?.success) {
+        if (pollResult.success) {
           await fetchMemoryItems();
         }
 
         await appendMessage(
           'assistant',
-          confirmRes.data?.success
-            ? confirmRes.data?.message || 'Your membership payment was confirmed.'
-            : confirmRes.data?.message || 'Payment is not completed yet. You can try confirming again after payment.'
+          pollResult.success
+            ? pollResult.result?.message || 'Your membership payment was confirmed.'
+            : pollResult.result?.message || 'Payment is not completed yet. You can try confirming again after payment.'
         );
         return;
       }
@@ -930,14 +940,18 @@ export default function AIChatPanel({
           });
         }
 
-        // Step 2: Trigger backend confirmation
+        // Step 2: Trigger backend confirmation (with polling in case the webhook is delayed)
         try {
-          const confirmRes = await apiClient.post('/payments/booking-link/confirm', {
-            paymentLinkId,
-            bookingId,
+          const pollResult = await pollPaymentConfirmation(async () => {
+            const confirmRes = await apiClient.post('/payments/booking-link/confirm', {
+              paymentLinkId,
+              bookingId,
+            });
+            return { success: !!confirmRes.data?.success, message: confirmRes.data?.message };
           });
 
-          const isSuccess = !!confirmRes.data?.success;
+          const isSuccess = pollResult.success;
+          const confirmRes = { data: { success: isSuccess, message: pollResult.result?.message } };
 
           // Step 3: Update presentation card with final payment state (success checkmark or failure)
           if (lastMsgId) {

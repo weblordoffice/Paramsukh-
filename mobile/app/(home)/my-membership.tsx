@@ -15,8 +15,8 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../../utils/paymentBrowser';
 import { useMembershipStore } from '../../store/membershipStore';
 import { useAuthStore } from '../../store/authStore';
 import apiClient from '../../utils/apiClient';
@@ -236,7 +236,7 @@ export default function MyMembershipScreen() {
     };
 
     const handlePurchase = async (plan: UIMembershipPlan) => {
-        if (!token) {
+        if (!token || purchasingPlanId) {
             return;
         }
         const currentSelection = currentSubscription?.selectedPlan || currentSubscription?.plan;
@@ -257,43 +257,54 @@ export default function MyMembershipScreen() {
 
             if (!linkRes.data?.success || !linkRes.data?.data?.url) {
                 console.warn('[Membership] Payment link creation failed', linkRes.data);
-                setPurchasingPlanId(null);
                 return;
             }
 
             const url = linkRes.data.data.url as string;
             const paymentLinkId = linkRes.data.data.paymentLinkId as string | undefined;
+            const expiresAt = linkRes.data.data.expiresAt as string | undefined;
+            const pendingPayload = {
+                paymentLinkId,
+                plan: plan.parentSlug,
+                variantSlug: plan.variantSlug || null,
+            };
 
             if (paymentLinkId) {
-                await AsyncStorage.setItem(PENDING_LINK_KEY, JSON.stringify({
+                await AsyncStorage.setItem(PENDING_LINK_KEY, JSON.stringify(pendingPayload));
+                await savePendingPaymentLink({
+                    type: 'membership',
+                    id: plan.parentSlug,
                     paymentLinkId,
-                    plan: plan.parentSlug,
-                    variantSlug: plan.variantSlug || null,
-                }));
+                    url,
+                    expiresAt,
+                    confirmPayload: pendingPayload,
+                });
             }
 
-            const result = await WebBrowser.openAuthSessionAsync(url, callbackUrl, {
-                createTask: false,
+            const openResult = await openPaymentLink({
+                url,
+                useAuthSession: true,
+                callbackUrl,
+                confirm: async () => {
+                    const res = await apiClient.post('/payments/membership-link/confirm', pendingPayload);
+                    return {
+                        success: !!res.data?.success && (res.data?.data?.status === 'active' || res.data?.data?.status === 'paid'),
+                        data: res.data?.data,
+                        message: res.data?.message,
+                    };
+                },
             });
 
-            if (result.type === 'success') {
-                if (paymentLinkId) {
-                    const confirmRes = await apiClient.post('/payments/membership-link/confirm', {
-                        paymentLinkId,
-                        plan: plan.parentSlug,
-                        variantSlug: plan.variantSlug || null,
-                    });
-                    if (confirmRes.data?.data?.status === 'active' || confirmRes.data?.data?.status === 'paid') {
-                        await AsyncStorage.removeItem(PENDING_LINK_KEY);
-                    }
-                }
+            if (openResult.success) {
+                await AsyncStorage.removeItem(PENDING_LINK_KEY);
+                await clearPendingPaymentLinks('membership', plan.parentSlug, paymentLinkId);
             }
 
             await fetchCurrentSubscription();
             await loadPurchases();
             await fetchActiveMembershipInfo();
 
-            if (result.type === 'success') {
+            if (openResult.success) {
                 if (plan.courseSelection?.enabled && activeMembership?.courseSelection?.remaining && activeMembership.courseSelection.remaining > 0) {
                     router.push({
                         pathname: '/(home)/choose-courses',

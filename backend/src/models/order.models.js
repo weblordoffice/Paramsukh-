@@ -117,7 +117,10 @@ const orderSchema = new mongoose.Schema({
     refundAmount: Number,
     razorpayOrderId: String,
     razorpayPaymentId: String,
-    razorpayReceiptId: String
+    razorpayReceiptId: String,
+    paymentLinkId: String,
+    paymentLinkUrl: String,
+    paymentLinkExpiresAt: Date
   },
   // Order status
   status: {

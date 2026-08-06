@@ -18,6 +18,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Audio } from 'expo-av';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
+import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../../utils/paymentBrowser';
 import { Video, ResizeMode } from 'expo-av';
 import { WebView } from 'react-native-webview';
 import { useAuthStore } from '../../store/authStore';
@@ -354,7 +355,7 @@ export default function PodcastsScreen() {
   };
 
   const handlePurchasePodcast = async (podcast: Podcast) => {
-    if (!user || !token) {
+    if (!user || !token || processingPayment) {
       Alert.alert('Login Required', 'Please login to purchase podcasts');
       return;
     }
@@ -368,39 +369,43 @@ export default function PodcastsScreen() {
       );
 
       if (paymentResponse.data?.success && paymentResponse.data?.data?.url) {
-        const paymentLinkId = paymentResponse.data?.data?.paymentLinkId;
+        const paymentLinkId = paymentResponse.data?.data?.paymentLinkId as string | undefined;
+        const url = paymentResponse.data.data.url as string;
+        const expiresAt = paymentResponse.data?.data?.expiresAt as string | undefined;
 
-        await Linking.openURL(paymentResponse.data.data.url);
+        if (paymentLinkId) {
+          await savePendingPaymentLink({
+            type: 'membership',
+            id: podcast._id,
+            paymentLinkId,
+            url,
+            expiresAt,
+          });
+        }
 
-        Alert.alert(
-          'Complete Payment',
-          'After finishing payment, tap "I Completed Payment" to unlock access.',
-          [
-            {
-              text: 'I Completed Payment',
-              onPress: async () => {
-                try {
-                  const confirmResponse = await axios.post(
-                    `${API_URL}/podcasts/${podcast._id}/confirm-payment`,
-                    { paymentLinkId },
-                    { headers: { Authorization: `Bearer ${token}` } }
-                  );
+        const openResult = await openPaymentLink({
+          url,
+          confirm: async () => {
+            const confirmResponse = await axios.post(
+              `${API_URL}/podcasts/${podcast._id}/confirm-payment`,
+              { paymentLinkId },
+              { headers: { Authorization: `Bearer ${token}` } }
+            );
+            return {
+              success: !!confirmResponse.data?.success,
+              message: confirmResponse.data?.message,
+            };
+          },
+        });
 
-                  if (confirmResponse.data?.success) {
-                    setShowPaymentFlow(false);
-                    await fetchPodcasts();
-                    Alert.alert('Success', 'Podcast unlocked successfully');
-                  } else {
-                    Alert.alert('Pending', 'Payment is not completed yet. Please try again in a moment.');
-                  }
-                } catch (confirmError: any) {
-                  Alert.alert('Error', confirmError.response?.data?.message || 'Unable to confirm payment right now');
-                }
-              }
-            },
-            { text: 'Close', onPress: () => setShowPaymentFlow(false), style: 'cancel' }
-          ]
-        );
+        if (openResult.success) {
+          await clearPendingPaymentLinks('membership', podcast._id, paymentLinkId);
+          setShowPaymentFlow(false);
+          await fetchPodcasts();
+          Alert.alert('Success', 'Podcast unlocked successfully');
+        } else {
+          Alert.alert('Pending', openResult.result?.message || 'Payment is not completed yet. Please try again in a moment.');
+        }
       }
     } catch (error: any) {
       Alert.alert('Error', error.response?.data?.message || 'Failed to initiate payment');

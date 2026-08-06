@@ -20,6 +20,35 @@ const syncEventAttendeeCount = async (eventOrId) => {
   return event;
 };
 
+const reserveEventSeat = async (eventId) => {
+  const event = await Event.findOneAndUpdate(
+    {
+      _id: eventId,
+      $or: [
+        { maxAttendees: null },
+        {
+          $expr: {
+            $lt: [
+              { $add: [
+                { $ifNull: ['$currentAttendees', 0] },
+                { $ifNull: ['$reservedSeats', 0] }
+              ] },
+              '$maxAttendees'
+            ]
+          }
+        }
+      ]
+    },
+    { $inc: { reservedSeats: 1 } },
+    { new: true }
+  );
+  return event;
+};
+
+const releaseEventSeat = async (eventId) => {
+  await Event.findByIdAndUpdate(eventId, { $inc: { reservedSeats: -1 } });
+};
+
 const buildEventSummary = (event) => ({
   _id: event?._id,
   title: event?.title,
@@ -519,6 +548,7 @@ export const createEventRegistrationOrder = async (req, res) => {
     const participantPhone = phone || req.user.phone || '';
 
     let registration = existing;
+    const isNewRegistration = !registration;
     if (!registration) {
       registration = new EventRegistration({ userId, eventId });
     }
@@ -537,6 +567,18 @@ export const createEventRegistrationOrder = async (req, res) => {
     registration.paidAt = null;
     await registration.save();
 
+    // Reserve a seat for new paid registrations to prevent overselling
+    if (isNewRegistration) {
+      const reservedEvent = await reserveEventSeat(eventId);
+      if (!reservedEvent) {
+        await EventRegistration.findByIdAndDelete(registration._id);
+        return res.status(400).json({
+          success: false,
+          message: "This event is full. No seats available."
+        });
+      }
+    }
+
     const order = await createRazorpayOrder({
       amount: currentPrice,
       currency: (event.currency || 'INR').toUpperCase(),
@@ -548,6 +590,9 @@ export const createEventRegistrationOrder = async (req, res) => {
         userId: userId.toString()
       }
     });
+
+    registration.razorpayOrderId = order.id;
+    await registration.save();
 
     return res.status(200).json({
       success: true,
@@ -608,6 +653,31 @@ export const confirmEventPayment = async (req, res) => {
       });
     }
 
+    // Bind payment to this registration
+    if (registration.razorpayOrderId && registration.razorpayOrderId !== razorpay_order_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Payment does not belong to this registration"
+      });
+    }
+
+    // Fetch and validate payment details from Razorpay
+    let paymentDetails;
+    try {
+      paymentDetails = await fetchPaymentDetails(razorpay_payment_id);
+      if (paymentDetails.status !== 'captured') {
+        return res.status(400).json({ success: false, message: "Payment not captured" });
+      }
+      if (paymentDetails.order_id !== razorpay_order_id) {
+        return res.status(400).json({ success: false, message: "Payment order mismatch" });
+      }
+      if (Number(paymentDetails.amount) !== Number(registration.paymentAmount * 100)) {
+        return res.status(400).json({ success: false, message: "Payment amount mismatch" });
+      }
+    } catch (e) {
+      return res.status(400).json({ success: false, message: "Could not verify payment with Razorpay" });
+    }
+
     if (registration.status === 'confirmed' && registration.paymentStatus === 'completed') {
       await syncEventAttendeeCount(eventId);
       return res.status(200).json({
@@ -628,18 +698,13 @@ export const confirmEventPayment = async (req, res) => {
       });
     }
 
-    let paymentDetails;
-    try {
-      paymentDetails = await fetchPaymentDetails(razorpay_payment_id);
-    } catch (e) {
-      paymentDetails = { amount: registration.paymentAmount * 100, status: 'captured' };
-    }
-
     registration.paymentStatus = 'completed';
     registration.paymentId = razorpay_payment_id;
     registration.paidAt = new Date();
     registration.status = 'confirmed';
     await registration.save();
+
+    await releaseEventSeat(eventId);
 
     const event = await Event.findById(eventId).select('title');
     const amountInRupees = (paymentDetails.amount && typeof paymentDetails.amount === 'number')
@@ -719,6 +784,7 @@ export const createEventRegistrationLink = async (req, res) => {
     const participantEmail = email || user?.email || '';
     const participantPhone = phone || user?.phone || '';
 
+    const isNewRegistration = !registration;
     if (!registration) {
       registration = new EventRegistration({ userId, eventId });
     }
@@ -736,6 +802,36 @@ export const createEventRegistrationLink = async (req, res) => {
     registration.paymentId = null;
     registration.paidAt = null;
     await registration.save();
+
+    // Reserve a seat for new paid registrations to prevent overselling
+    if (isNewRegistration) {
+      const reservedEvent = await reserveEventSeat(eventId);
+      if (!reservedEvent) {
+        await EventRegistration.findByIdAndDelete(registration._id);
+        return res.status(400).json({
+          success: false,
+          message: "This event is full. No seats available."
+        });
+      }
+    }
+
+    // Reuse existing payment link when possible (and not expired)
+    if (registration.paymentLinkId && registration.paymentLinkUrl) {
+      const expiresAt = registration.paymentLinkExpiresAt;
+      if (!expiresAt || new Date(expiresAt).getTime() > Date.now() + 5 * 60 * 1000) {
+        return res.status(200).json({
+          success: true,
+          data: {
+            url: registration.paymentLinkUrl,
+            paymentLinkId: registration.paymentLinkId,
+            registrationId: registration._id.toString(),
+            isTestMode: isRazorpayTestMode,
+            paymentAmount: currentPrice,
+            event: buildEventSummary(event),
+          },
+        });
+      }
+    }
 
     const customer = {
       name: participantName || 'Participant',
@@ -755,11 +851,17 @@ export const createEventRegistrationLink = async (req, res) => {
       },
     });
 
+    registration.paymentLinkId = link.id;
+    registration.paymentLinkUrl = link.short_url;
+    registration.paymentLinkExpiresAt = link.expire_by ? new Date(link.expire_by * 1000) : null;
+    await registration.save();
+
     return res.status(200).json({
       success: true,
       data: {
         url: link.short_url,
         paymentLinkId: link.id,
+        expiresAt: registration.paymentLinkExpiresAt,
         registrationId: registration._id.toString(),
         isTestMode: isRazorpayTestMode,
         paymentAmount: currentPrice,
@@ -784,27 +886,30 @@ export const confirmEventPaymentByLink = async (req, res) => {
     if (!paymentLinkId) return res.status(400).json({ success: false, message: "paymentLinkId required" });
 
     if (isRazorpayTestMode) {
-      const registration = await EventRegistration.findOne({
-        userId,
-        eventId,
-        status: 'pending',
-      }).sort({ updatedAt: -1 });
+      const confirmed = await EventRegistration.findOneAndUpdate(
+        { userId, eventId, status: 'pending' },
+        {
+          $set: {
+            paymentStatus: 'completed',
+            paymentId: `pay_test_${Date.now()}`,
+            paidAt: new Date(),
+            status: 'confirmed',
+          }
+        },
+        { sort: { updatedAt: -1 }, new: true }
+      );
 
-      if (!registration) {
-        return res.status(404).json({ success: false, message: "Pending registration not found" });
+      if (!confirmed) {
+        return res.status(404).json({ success: false, message: "Pending registration not found or already confirmed" });
       }
 
-      registration.paymentStatus = 'completed';
-      registration.paymentId = `pay_test_${Date.now()}`;
-      registration.paidAt = new Date();
-      registration.status = 'confirmed';
-      await registration.save();
+      await releaseEventSeat(eventId);
       await syncEventAttendeeCount(eventId);
 
       return res.status(200).json({
         success: true,
         message: "Test payment confirmed. You are registered for this event.",
-        data: { registration: { _id: registration._id, status: registration.status, paymentStatus: registration.paymentStatus } },
+        data: { registration: { _id: confirmed._id, status: confirmed.status, paymentStatus: confirmed.paymentStatus } },
       });
     }
 
@@ -832,25 +937,58 @@ export const confirmEventPaymentByLink = async (req, res) => {
       });
     }
 
+    // Validate amount against server-stored registration amount (skip in test mode)
+    if (!isRazorpayTestMode) {
+      const expectedPaise = Math.round((Number(registration.paymentAmount) || 0) * 100);
+      const paidPaise = Number(link?.amount || link?.amount_paid || 0);
+      if (expectedPaise > 0 && paidPaise !== expectedPaise) {
+        return res.status(400).json({
+          success: false,
+          message: "Payment amount does not match event registration amount",
+          data: { expected: expectedPaise, received: paidPaise }
+        });
+      }
+    }
+
     const paymentsRaw = link?.payments;
     const firstPayment = Array.isArray(paymentsRaw) ? paymentsRaw[0] : paymentsRaw;
     const paymentId = firstPayment?.payment_id || link?.payment_id;
-    registration.paymentStatus = 'completed';
-    registration.paymentId = paymentId || `pay_${Date.now()}`;
-    registration.paidAt = new Date();
-    registration.status = 'confirmed';
-    await registration.save();
+
+    // Idempotent confirmation: atomic update only if still pending
+    const confirmed = await EventRegistration.findOneAndUpdate(
+      { _id: registrationId, userId, eventId, status: 'pending', paymentStatus: 'pending' },
+      {
+        $set: {
+          paymentStatus: 'completed',
+          paymentId: paymentId || `pay_${Date.now()}`,
+          paidAt: new Date(),
+          status: 'confirmed',
+        }
+      },
+      { new: true }
+    );
+
+    if (!confirmed) {
+      const refreshed = await EventRegistration.findOne({ _id: registrationId, userId, eventId });
+      return res.status(200).json({
+        success: true,
+        message: "Payment was already confirmed. You are registered for this event.",
+        data: { registration: { _id: refreshed._id, status: refreshed.status, paymentStatus: refreshed.paymentStatus } },
+      });
+    }
+
+    await releaseEventSeat(eventId);
 
     const event = await Event.findById(eventId).select('title');
 
     recordTransaction({
       userId,
       source: 'event',
-      sourceId: registration._id.toString(),
-      amount: registration.paymentAmount,
+      sourceId: confirmed._id.toString(),
+      amount: confirmed.paymentAmount,
       provider: 'razorpay',
-      providerRef: registration.paymentId,
-      metadata: { eventName: event?.title, orderId: paymentLinkId, paymentId: registration.paymentId },
+      providerRef: confirmed.paymentId,
+      metadata: { eventName: event?.title, orderId: paymentLinkId, paymentId: confirmed.paymentId },
     }).catch(err => console.error('Transaction recording failed:', err.message));
 
     const user = await User.findById(userId).select('payments');
@@ -858,15 +996,15 @@ export const confirmEventPaymentByLink = async (req, res) => {
       user.payments = user.payments || [];
       user.payments.push({
         orderId: paymentLinkId,
-        paymentId: registration.paymentId,
-        amount: registration.paymentAmount,
+        paymentId: confirmed.paymentId,
+        amount: confirmed.paymentAmount,
         plan: `Event - ${event?.title || 'Event'}`,
         status: 'completed',
         date: new Date(),
       });
       await user.save();
 
-      sendEventRegistrationEmail(user, event?.title, registration.paymentAmount);
+      sendEventRegistrationEmail(user, event?.title, confirmed.paymentAmount);
     }
     await syncEventAttendeeCount(eventId);
 
@@ -888,7 +1026,7 @@ export const confirmEventPaymentByLink = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Payment confirmed. You are registered for this event.",
-      data: { registration: { _id: registration._id, status: registration.status, paymentStatus: registration.paymentStatus } },
+      data: { registration: { _id: confirmed._id, status: confirmed.status, paymentStatus: confirmed.paymentStatus } },
     });
   } catch (error) {
     console.error("❌ Confirm event link error:", error);

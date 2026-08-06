@@ -7,11 +7,14 @@ import {
   fetchPaymentDetails,
   createRefund,
   isTestMode,
+  isRazorpayTestMode,
   verifyWebhookSignature
 } from '../../services/razorpayService.js';
 import { User } from '../../models/user.models.js';
 import Booking from '../../models/booking.models.js';
 import Order from '../../models/order.models.js';
+import { Event } from '../../models/event.models.js';
+import { EventRegistration } from '../../models/eventRegistration.models.js';
 import { Course } from '../../models/course.models.js';
 import { Enrollment } from '../../models/enrollment.models.js';
 import { MembershipPlan } from '../../models/membershipPlan.models.js';
@@ -155,10 +158,25 @@ export const createBookingPaymentLink = async (req, res) => {
     if (booking.isFree) {
       return res.status(400).json({ success: false, message: 'Free booking does not require payment' });
     }
+    if (booking.paymentStatus === 'paid' || booking.status === 'confirmed') {
+      return res.status(400).json({ success: false, message: 'Booking is already paid' });
+    }
     const amount = Number(booking.amount) || 0;
     if (amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid booking amount' });
     }
+
+    // Reuse existing payment link when possible (and not expired)
+    if (booking.paymentLinkId && booking.paymentLinkUrl) {
+      const expiresAt = booking.paymentLinkExpiresAt;
+      if (!expiresAt || new Date(expiresAt).getTime() > Date.now() + 5 * 60 * 1000) {
+        return res.status(200).json({
+          success: true,
+          data: { url: booking.paymentLinkUrl, paymentLinkId: booking.paymentLinkId },
+        });
+      }
+    }
+
     const user = await User.findById(userId).select('email phone displayName name');
     const customer = {
       name: user?.displayName || user?.name || 'Customer',
@@ -172,9 +190,19 @@ export const createBookingPaymentLink = async (req, res) => {
       customer,
       notes: { type: 'counseling', bookingId: String(bookingId), userId: String(userId) },
     });
+
+    booking.paymentLinkId = link.id;
+    booking.paymentLinkUrl = link.short_url;
+    booking.paymentLinkExpiresAt = link.expire_by ? new Date(link.expire_by * 1000) : null;
+    await booking.save();
+
     return res.status(200).json({
       success: true,
-      data: { url: link.short_url, paymentLinkId: link.id },
+      data: {
+        url: link.short_url,
+        paymentLinkId: link.id,
+        expiresAt: booking.paymentLinkExpiresAt,
+      },
     });
   } catch (error) {
     console.error('❌ Create booking link error:', error);
@@ -209,23 +237,55 @@ export const confirmBookingPaymentLink = async (req, res) => {
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
+    if (booking.paymentStatus === 'paid' || booking.status === 'confirmed') {
+      return res.status(200).json({ success: true, message: 'Booking already confirmed', data: { booking } });
+    }
+
+    // Validate amount against server-stored booking amount (skip in test mode)
+    if (!isRazorpayTestMode) {
+      const expectedPaise = Math.round((Number(booking.amount) || 0) * 100);
+      const paidPaise = Number(link?.amount || link?.amount_paid || 0);
+      if (expectedPaise > 0 && paidPaise !== expectedPaise) {
+        return res.status(400).json({
+          success: false,
+          message: 'Payment amount does not match booking amount',
+          data: { expected: expectedPaise, received: paidPaise }
+        });
+      }
+    }
+
     const paymentsRaw = link?.payments;
     const firstPayment = Array.isArray(paymentsRaw) ? paymentsRaw[0] : paymentsRaw;
     const paymentId = firstPayment?.payment_id || link?.payment_id;
-    booking.paymentId = paymentId || `pay_${Date.now()}`;
-    booking.paymentMethod = 'razorpay';
-    booking.paymentStatus = 'paid';
-    booking.paidAt = new Date();
-    booking.status = 'confirmed';
-    await booking.save();
+
+    // Idempotent confirmation: atomic update only if still pending
+    const confirmedBooking = await Booking.findOneAndUpdate(
+      { _id: bookingId, user: userId, paymentStatus: { $ne: 'paid' }, status: { $ne: 'confirmed' } },
+      {
+        $set: {
+          paymentId: paymentId || `pay_${Date.now()}`,
+          paymentMethod: 'razorpay',
+          paymentStatus: 'paid',
+          paidAt: new Date(),
+          status: 'confirmed',
+        }
+      },
+      { new: true }
+    );
+
+    if (!confirmedBooking) {
+      const refreshedBooking = await Booking.findOne({ _id: bookingId, user: userId });
+      return res.status(200).json({ success: true, message: 'Booking already confirmed', data: { booking: refreshedBooking } });
+    }
+
     try {
       await sendNotification(userId, {
         type: 'system',
         title: 'Payment Confirmed',
-        message: `Payment of ₹${booking.amount} received. Your counseling session is confirmed for ${booking.bookingDate?.toLocaleDateString?.() || 'the selected date'}`,
+        message: `Payment of ₹${confirmedBooking.amount} received. Your counseling session is confirmed for ${confirmedBooking.bookingDate?.toLocaleDateString?.() || 'the selected date'}`,
         icon: '✅',
         priority: 'high',
-        relatedId: booking._id,
+        relatedId: confirmedBooking._id,
         relatedType: 'booking',
       });
     } catch (notifyErr) {
@@ -234,7 +294,7 @@ export const confirmBookingPaymentLink = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: 'Payment confirmed',
-      data: { booking },
+      data: { booking: confirmedBooking },
     });
   } catch (error) {
     console.error('❌ Confirm booking link error:', error);
@@ -332,9 +392,26 @@ export const createMembershipPaymentLink = async (req, res) => {
 
     const courseIds = Array.isArray(selectedCourseIds) ? selectedCourseIds.filter(Boolean) : [];
 
-    const user = await User.findById(userId).select('email phone displayName name');
+    const user = await User.findById(userId).select('email phone displayName name pendingMembershipPaymentLink');
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Reuse a recently created pending link for the same plan to avoid duplicates
+    const pending = user.pendingMembershipPaymentLink;
+    if (pending && pending.linkId && pending.url && pending.plan === finalPlan && pending.amount === amount) {
+      const stillValid = !pending.expiresAt || new Date(pending.expiresAt).getTime() > Date.now() + 5 * 60 * 1000;
+      if (stillValid) {
+        return res.status(200).json({
+          success: true,
+          message: 'Payment link already created',
+          data: {
+            paymentLinkId: pending.linkId,
+            url: pending.url,
+            testMode: isTestMode(),
+          },
+        });
+      }
     }
 
     const customer = {
@@ -359,12 +436,23 @@ export const createMembershipPaymentLink = async (req, res) => {
       callback_method: callbackUrl ? 'get' : undefined,
     });
 
+    user.pendingMembershipPaymentLink = {
+      linkId: link.id,
+      url: link.short_url,
+      plan: finalPlan,
+      amount,
+      createdAt: new Date(),
+      expiresAt: link.expire_by ? new Date(link.expire_by * 1000) : null,
+    };
+    await user.save();
+
     return res.status(200).json({
       success: true,
       message: 'Payment link created',
       data: {
         paymentLinkId: link.id,
         url: link.short_url,
+        expiresAt: user.pendingMembershipPaymentLink.expiresAt,
         testMode: isTestMode(),
       },
     });
@@ -628,12 +716,20 @@ export const confirmMembershipPaymentLink = async (req, res) => {
 
     const finalPlan = finalPlanConfig.slug;
 
-    const validityDays = resolveMembershipValidityDays({ notes, planConfig: finalPlanConfig });
+    // Validate amount against the plan price (skip in test mode where mock returns 0)
+    if (!isRazorpayTestMode) {
+      const expectedPaise = Math.round((finalPlanConfig.amount || 0) * 100);
+      const paidPaise = Number(link?.amount ?? link?.amount_paid ?? 0);
+      if (expectedPaise > 0 && paidPaise !== expectedPaise) {
+        return res.status(400).json({
+          success: false,
+          message: 'Payment amount does not match membership plan price',
+          data: { expected: expectedPaise, received: paidPaise }
+        });
+      }
+    }
 
-    user.subscriptionPlan = finalPlan;
-    user.subscriptionStatus = 'active';
-    user.subscriptionStartDate = new Date();
-    user.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
+    const validityDays = resolveMembershipValidityDays({ notes, planConfig: finalPlanConfig });
 
     // Razorpay can return payments as array or single object
     const paymentsRaw = link?.payments;
@@ -641,7 +737,8 @@ export const confirmMembershipPaymentLink = async (req, res) => {
     const paymentId = firstPayment?.payment_id || link?.payment_id || `pay_link_${Date.now()}`;
     const amountPaise = link?.amount ?? firstPayment?.amount ?? 0;
 
-    upsertUserPaymentEntry({
+    // Idempotent payment recording: if this payment link already recorded, just return success
+    const recorded = upsertUserPaymentEntry({
       user,
       orderId: paymentLinkId,
       paymentId,
@@ -653,6 +750,26 @@ export const confirmMembershipPaymentLink = async (req, res) => {
         trackingId: notes?.trackingId || null,
       },
     });
+
+    if (!recorded) {
+      console.log(`ℹ️ Membership payment link ${paymentLinkId} already recorded for user ${targetUserId}`);
+      return res.status(200).json({
+        success: true,
+        message: 'Membership already activated',
+        data: {
+          plan: user.subscriptionPlan,
+          selectedPlan: user.subscriptionPlan,
+          status: user.subscriptionStatus,
+          paymentLinkStatus: link?.status
+        }
+      });
+    }
+
+    user.subscriptionPlan = finalPlan;
+    user.subscriptionStatus = 'active';
+    user.subscriptionStartDate = new Date();
+    user.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
+    user.pendingMembershipPaymentLink = undefined;
 
     await user.save();
     await upsertActiveUserMembership({
@@ -931,14 +1048,22 @@ export const verifyMembershipPayment = async (req, res) => {
       });
     }
 
-    // Fetch payment details
+    // Fetch and validate payment details from Razorpay
     let paymentDetails;
     try {
       paymentDetails = await fetchPaymentDetails(razorpay_payment_id);
+      if (paymentDetails.status !== 'captured') {
+        return res.status(400).json({ success: false, message: 'Payment not captured' });
+      }
+      if (paymentDetails.order_id !== razorpay_order_id) {
+        return res.status(400).json({ success: false, message: 'Payment order mismatch' });
+      }
+      if (Number(paymentDetails.amount) !== Number(planConfig.amount * 100)) {
+        return res.status(400).json({ success: false, message: 'Payment amount mismatch' });
+      }
     } catch (error) {
       console.error('⚠️ Could not fetch payment details:', error.message);
-      // Continue with mock data in test mode
-      paymentDetails = { amount: 0, status: 'captured' };
+      return res.status(400).json({ success: false, message: 'Could not verify payment with Razorpay' });
     }
 
     // Update user membership
@@ -948,6 +1073,14 @@ export const verifyMembershipPayment = async (req, res) => {
         success: false,
         message: 'User not found'
       });
+    }
+
+    // Replay protection
+    const paymentAlreadyUsed = (user.payments || []).some(
+      (p) => p.paymentId === razorpay_payment_id || p.orderId === razorpay_order_id
+    );
+    if (paymentAlreadyUsed) {
+      return res.status(400).json({ success: false, message: 'Payment already recorded' });
     }
 
     // Activate membership
@@ -1104,7 +1237,7 @@ export const handleWebhook = async (req, res) => {
     console.log('📩 Webhook received:', payload.event);
 
     // Verify webhook signature when possible (skipped in test mode)
-    if (signature && !verifyWebhookSignature(payload, signature)) {
+    if (signature && !verifyWebhookSignature(req.rawBody, signature)) {
       console.error('❌ Invalid Razorpay webhook signature');
       return res.status(400).json({ status: 'invalid_signature' });
     }
@@ -1144,6 +1277,7 @@ export const handleWebhook = async (req, res) => {
               },
             });
 
+            mUser.pendingMembershipPaymentLink = undefined;
             await mUser.save();
             await upsertActiveUserMembership({
               userId: pNotes.userId,
@@ -1216,44 +1350,78 @@ export const handleWebhook = async (req, res) => {
 
         if (pNotes.type === 'booking' && pNotes.bookingId) {
           const booking = await Booking.findById(pNotes.bookingId);
-          if (booking && booking.paymentStatus !== 'paid') {
-            booking.paymentId = payment.id;
-            booking.paymentMethod = 'razorpay';
-            booking.paymentStatus = 'paid';
-            booking.paidAt = new Date();
-            booking.status = 'confirmed';
-            await booking.save();
-            console.log(`✅ Booking ${pNotes.bookingId} confirmed via payment.captured`);
-            recordTransaction({
-              userId: booking.userId,
-              source: 'counseling',
-              sourceId: booking._id.toString(),
-              amount: booking.amount || 0,
-              provider: 'razorpay',
-              providerRef: payment.id,
-              metadata: { eventName: `Counseling Booking ${booking._id}` },
-            }).catch(err => console.error('Transaction recording failed:', err.message));
+          if (booking) {
+            const expectedPaise = Math.round((Number(booking.amount) || 0) * 100);
+            const paidPaise = Number(payment?.amount || 0);
+            if (!isRazorpayTestMode && expectedPaise > 0 && paidPaise !== expectedPaise) {
+              console.error(`❌ Amount mismatch for booking ${pNotes.bookingId}: expected ${expectedPaise}, got ${paidPaise}`);
+            } else {
+              const confirmedBooking = await Booking.findOneAndUpdate(
+                { _id: pNotes.bookingId, paymentStatus: { $ne: 'paid' }, status: { $ne: 'confirmed' } },
+                {
+                  $set: {
+                    paymentId: payment.id,
+                    paymentMethod: 'razorpay',
+                    paymentStatus: 'paid',
+                    paidAt: new Date(),
+                    status: 'confirmed',
+                  }
+                },
+                { new: true }
+              );
+              if (confirmedBooking) {
+                console.log(`✅ Booking ${pNotes.bookingId} confirmed via payment.captured`);
+                recordTransaction({
+                  userId: confirmedBooking.user,
+                  source: 'counseling',
+                  sourceId: confirmedBooking._id.toString(),
+                  amount: confirmedBooking.amount || 0,
+                  provider: 'razorpay',
+                  providerRef: payment.id,
+                  metadata: { eventName: `Counseling Booking ${confirmedBooking._id}` },
+                }).catch(err => console.error('Transaction recording failed:', err.message));
+              } else {
+                console.log(`ℹ️ Booking ${pNotes.bookingId} already confirmed`);
+              }
+            }
           }
         }
 
         if (pNotes.type === 'order' && pNotes.orderId) {
           const order = await Order.findById(pNotes.orderId);
-          if (order && order.status !== 'confirmed') {
-            order.payment.status = 'completed';
-            order.payment.razorpayPaymentId = payment.id;
-            order.payment.paidAt = new Date();
-            order.status = 'confirmed';
-            await order.save();
-            console.log(`✅ Order ${pNotes.orderId} confirmed via payment.captured`);
-            recordTransaction({
-              userId: order.userId,
-              source: 'order',
-              sourceId: order._id.toString(),
-              amount: order.totalAmount || 0,
-              provider: 'razorpay',
-              providerRef: payment.id,
-              metadata: { paymentId: payment.id },
-            }).catch(err => console.error('Transaction recording failed:', err.message));
+          if (order) {
+            const expectedPaise = Math.round((order.pricing?.total || 0) * 100);
+            const paidPaise = Number(payment?.amount || 0);
+            if (!isRazorpayTestMode && expectedPaise > 0 && paidPaise !== expectedPaise) {
+              console.error(`❌ Amount mismatch for order ${pNotes.orderId}: expected ${expectedPaise}, got ${paidPaise}`);
+            } else {
+              const confirmedOrder = await Order.findOneAndUpdate(
+                { _id: pNotes.orderId, status: 'pending', 'payment.status': { $ne: 'completed' } },
+                {
+                  $set: {
+                    status: 'confirmed',
+                    'payment.status': 'completed',
+                    'payment.razorpayPaymentId': payment.id,
+                    'payment.paidAt': new Date(),
+                  }
+                },
+                { new: true }
+              );
+              if (confirmedOrder) {
+                console.log(`✅ Order ${pNotes.orderId} confirmed via payment.captured`);
+                recordTransaction({
+                  userId: order.user,
+                  source: 'order',
+                  sourceId: order._id.toString(),
+                  amount: order.pricing?.total || order.totalAmount || 0,
+                  provider: 'razorpay',
+                  providerRef: payment.id,
+                  metadata: { paymentId: payment.id },
+                }).catch(err => console.error('Transaction recording failed:', err.message));
+              } else {
+                console.log(`ℹ️ Order ${pNotes.orderId} already confirmed`);
+              }
+            }
           }
         }
         break;
@@ -1298,6 +1466,7 @@ export const handleWebhook = async (req, res) => {
             });
 
             if (inserted) {
+              plUser.pendingMembershipPaymentLink = undefined;
               await plUser.save();
               await upsertActiveUserMembership({
                 userId: plUserId,
@@ -1368,14 +1537,31 @@ export const handleWebhook = async (req, res) => {
 
         if (notes.type === 'counseling' && notes.bookingId) {
           const whBooking = await Booking.findById(notes.bookingId);
-          if (whBooking && whBooking.paymentStatus !== 'paid') {
-            whBooking.paymentId = plPaymentId;
-            whBooking.paymentMethod = 'razorpay';
-            whBooking.paymentStatus = 'paid';
-            whBooking.paidAt = new Date();
-            whBooking.status = 'confirmed';
-            await whBooking.save();
-            console.log(`✅ Booking ${notes.bookingId} confirmed via payment_link.paid`);
+          if (whBooking) {
+            const expectedPaise = Math.round((Number(whBooking.amount) || 0) * 100);
+            const paidPaise = Number(pl?.amount || 0);
+            if (!isRazorpayTestMode && expectedPaise > 0 && paidPaise !== expectedPaise) {
+              console.error(`❌ Amount mismatch for booking ${notes.bookingId}: expected ${expectedPaise}, got ${paidPaise}`);
+            } else {
+              const confirmedBooking = await Booking.findOneAndUpdate(
+                { _id: notes.bookingId, paymentStatus: { $ne: 'paid' }, status: { $ne: 'confirmed' } },
+                {
+                  $set: {
+                    paymentId: plPaymentId,
+                    paymentMethod: 'razorpay',
+                    paymentStatus: 'paid',
+                    paidAt: new Date(),
+                    status: 'confirmed',
+                  }
+                },
+                { new: true }
+              );
+              if (confirmedBooking) {
+                console.log(`✅ Booking ${notes.bookingId} confirmed via payment_link.paid`);
+              } else {
+                console.log(`ℹ️ Booking ${notes.bookingId} already confirmed`);
+              }
+            }
           }
         }
         break;
@@ -1386,10 +1572,49 @@ export const handleWebhook = async (req, res) => {
         const pl = payload?.payload?.payment_link?.entity;
         if (pl?.id) {
           const status = payload.event === 'payment_link.cancelled' ? 'cancelled' : 'expired';
+          const notes = pl?.notes || {};
+
+          // Admin link status update
           await AdminPaymentLink.findOneAndUpdate(
             { paymentLinkId: pl.id },
             { status }
           );
+
+          // Release reserved event seat when a paid registration link expires/cancels
+          if (String(notes.type) === 'event' && notes.registrationId && notes.eventId) {
+            const registration = await EventRegistration.findById(notes.registrationId);
+            if (registration && registration.status === 'pending' && registration.paymentStatus === 'pending') {
+              await Event.findByIdAndUpdate(notes.eventId, { $inc: { reservedSeats: -1 } });
+              await EventRegistration.findByIdAndUpdate(notes.registrationId, {
+                $unset: { paymentLinkId: 1, paymentLinkUrl: 1, paymentLinkExpiresAt: 1 }
+              });
+            }
+          }
+
+          // Clear stale pending membership link
+          if (String(notes.type) === 'membership' && notes.userId) {
+            await User.findOneAndUpdate(
+              { _id: notes.userId, 'pendingMembershipPaymentLink.linkId': pl.id },
+              { $unset: { pendingMembershipPaymentLink: 1 } }
+            );
+          }
+
+          // Mark order payment as failed if still pending
+          if (String(notes.type) === 'order' && notes.orderId) {
+            await Order.findOneAndUpdate(
+              { _id: notes.orderId, status: 'pending', 'payment.status': 'pending', 'payment.paymentLinkId': pl.id },
+              { $set: { 'payment.status': 'failed' } }
+            );
+          }
+
+          // Mark booking payment as failed if still pending
+          if (String(notes.type) === 'counseling' && notes.bookingId) {
+            await Booking.findOneAndUpdate(
+              { _id: notes.bookingId, status: 'pending', paymentStatus: 'pending', paymentLinkId: pl.id },
+              { $set: { paymentStatus: 'failed' } }
+            );
+          }
+
           console.log(`❌ Payment link ${pl.id} marked as ${status} via webhook`);
         }
         break;

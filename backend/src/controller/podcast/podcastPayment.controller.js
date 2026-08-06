@@ -93,6 +93,7 @@ export const createPodcastPaymentLink = async (req, res) => {
                 paymentLinkId: link.id,
                 amount: podcast.price,
                 currency: podcast.currencyCode || 'INR',
+                expiresAt: link.expire_by ? new Date(link.expire_by * 1000) : null,
             },
         });
     } catch (error) {
@@ -158,6 +159,16 @@ export const confirmPodcastPayment = async (req, res) => {
 
         // Get podcast
         const podcast = await Podcast.findById(podcastId);
+        const expectedPaise = Math.round((Number(podcast?.price) || 0) * 100);
+        const paidPaise = Number(link?.amount || link?.amount_paid || 0);
+        // In production, validate that the paid amount matches the podcast price
+        if (process.env.NODE_ENV === 'production' && expectedPaise > 0 && paidPaise !== expectedPaise) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment amount does not match podcast price',
+                data: { expected: expectedPaise, received: paidPaise }
+            });
+        }
         if (!podcast) {
             return res.status(404).json({
                 success: false,
@@ -233,7 +244,7 @@ export const confirmPodcastPayment = async (req, res) => {
 export const handlePodcastPaymentWebhook = async (req, res) => {
     try {
         const signature = req.headers['x-razorpay-signature'];
-        const isValidWebhook = verifyRazorpayWebhookSignature(req.body, signature);
+        const isValidWebhook = verifyRazorpayWebhookSignature(req.rawBody, signature);
 
         if (!isValidWebhook) {
             return res.status(401).json({

@@ -2,7 +2,7 @@ import Booking from '../../models/booking.models.js';
 import { User } from '../../models/user.models.js';
 import CounselingService from '../../models/counselingService.model.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
-import { verifyRazorpaySignature, createRefund } from '../../services/razorpayService.js';
+import { verifyRazorpaySignature, createRefund, fetchPaymentDetails } from '../../services/razorpayService.js';
 import { recordTransaction } from '../../services/transaction.service.js';
 import mongoose from 'mongoose';
 export const getAllServices = async (req, res) => {
@@ -628,64 +628,68 @@ export const updatePaymentStatus = async (req, res) => {
   try {
     const userId = req.user._id;
     const { bookingId } = req.params;
-    const {
-      paymentId,
-      paymentMethod,
-      paymentStatus,
-      razorpay_payment_id,
-      razorpay_order_id,
-      razorpay_signature
-    } = req.body;
+    const { razorpay_payment_id, razorpay_order_id, razorpay_signature } = req.body;
 
-    const booking = await Booking.findOne({
-      _id: bookingId,
-      user: userId
-    });
-
+    const booking = await Booking.findOne({ _id: bookingId, user: userId });
     if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: 'Booking not found'
-      });
+      return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
     if (booking.isFree) {
-      return res.status(400).json({
-        success: false,
-        message: 'This is a free booking, no payment required'
-      });
+      return res.status(400).json({ success: false, message: 'This is a free booking, no payment required' });
     }
 
-    // If Razorpay IDs provided, verify signature before updating
-    const paymentIdToUse = razorpay_payment_id || paymentId;
-    const orderIdToUse = razorpay_order_id;
-    if (paymentIdToUse && orderIdToUse) {
-      const isValid = verifyRazorpaySignature(
-        orderIdToUse,
-        paymentIdToUse,
-        razorpay_signature || 'test_signature'
-      );
-      if (!isValid) {
-        return res.status(400).json({
-          success: false,
-          message: 'Payment verification failed'
-        });
+    if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {
+      return res.status(400).json({ success: false, message: 'Razorpay payment details required' });
+    }
+
+    // Bind payment to this booking
+    if (booking.razorpayOrderId && booking.razorpayOrderId !== razorpay_order_id) {
+      return res.status(400).json({ success: false, message: 'Payment does not belong to this booking' });
+    }
+
+    const isValid = verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+    if (!isValid) {
+      return res.status(400).json({ success: false, message: 'Payment verification failed' });
+    }
+
+    // Fetch and validate payment details from Razorpay
+    let paymentDetails;
+    try {
+      paymentDetails = await fetchPaymentDetails(razorpay_payment_id);
+      if (paymentDetails.status !== 'captured') {
+        return res.status(400).json({ success: false, message: 'Payment not captured' });
       }
+      if (paymentDetails.order_id !== razorpay_order_id) {
+        return res.status(400).json({ success: false, message: 'Payment order mismatch' });
+      }
+      if (Number(paymentDetails.amount) !== Number(booking.amount * 100)) {
+        return res.status(400).json({ success: false, message: 'Payment amount mismatch' });
+      }
+    } catch (e) {
+      console.error('Update Payment Status Error:', e);
+      return res.status(400).json({ success: false, message: 'Could not verify payment with Razorpay' });
     }
 
-    booking.paymentId = paymentIdToUse || paymentId;
-    booking.paymentMethod = paymentMethod || 'razorpay';
-    booking.paymentStatus = paymentStatus || 'paid';
+    // Replay protection
+    const existingBooking = await Booking.findOne({
+      _id: { $ne: bookingId },
+      $or: [{ paymentId: razorpay_payment_id }, { razorpayOrderId: razorpay_order_id }]
+    });
+    if (existingBooking) {
+      return res.status(400).json({ success: false, message: 'Payment already used for another booking' });
+    }
+
+    booking.paymentId = razorpay_payment_id;
+    booking.razorpayOrderId = razorpay_order_id;
+    booking.paymentMethod = 'razorpay';
+    booking.paymentStatus = 'paid';
+    booking.status = 'confirmed';
     booking.paidAt = new Date();
-
-    if (paymentStatus === 'paid' || booking.paymentStatus === 'paid') {
-      booking.status = 'confirmed';
-    }
-
     await booking.save();
 
     recordTransaction({
-      userId: booking.userId,
+      userId: booking.user,
       source: 'counseling',
       sourceId: booking._id.toString(),
       amount: booking.amount || 0,
@@ -693,7 +697,7 @@ export const updatePaymentStatus = async (req, res) => {
       providerRef: booking.paymentId,
       metadata: { paymentId: booking.paymentId },
     }).catch(err => console.error('Transaction recording failed:', err.message));
-    // Send notification
+
     await sendNotification(userId, {
       type: 'system',
       title: 'Payment Confirmed',

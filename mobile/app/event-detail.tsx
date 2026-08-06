@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, Linking, TextInput, Animated, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
+import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../utils/paymentBrowser';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEventStore } from '../store/eventStore';
 import { useAuthStore } from '../store/authStore';
@@ -150,7 +150,7 @@ export default function EventDetailScreen() {
   };
 
   const handlePaidEventPayment = async () => {
-    if (!eventId || !validateForm()) return;
+    if (!eventId || !validateForm() || processing) return;
     setProcessing(true);
     try {
       const linkResult = await createEventPaymentLink(eventId, {
@@ -158,34 +158,40 @@ export default function EventDetailScreen() {
         email: form.email.trim(),
         phone: form.phone.trim()
       });
-      if (!linkResult.success || !linkResult.url) {
+      if (!linkResult.success || !linkResult.url || !linkResult.paymentLinkId) {
         Alert.alert('Error', linkResult.message || 'Could not create payment.');
-        setProcessing(false);
         return;
       }
-      
-      const browserResult = await WebBrowser.openBrowserAsync(linkResult.url, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+
+      const { url, paymentLinkId, registrationId, expiresAt } = linkResult;
+
+      await savePendingPaymentLink({
+        type: 'event',
+        id: eventId,
+        paymentLinkId,
+        url,
+        expiresAt,
+        confirmPayload: { eventId, registrationId },
       });
 
-      if (linkResult.paymentLinkId) {
-        const confirmResult = await confirmEventPaymentByLink(eventId, linkResult.paymentLinkId);
-        setProcessing(false);
-        setShowRegisterForm(false);
-        if (confirmResult.success) {
-          Alert.alert(
-            'Registration Confirmed',
-            'You are registered for this event. You can find your ticket in the events list.',
-            [{ text: 'Great!' }]
-          );
-        } else {
-          // If browser closed but payment check failed, it might be because they didn't pay
-          // We don't necessarily show an error unless we are sure.
-        }
-      } else setProcessing(false);
+      const openResult = await openPaymentLink({
+        url,
+        confirm: async () => confirmEventPaymentByLink(eventId, paymentLinkId),
+      });
+
+      setShowRegisterForm(false);
+      if (openResult.success) {
+        await clearPendingPaymentLinks('event', eventId, paymentLinkId);
+        Alert.alert(
+          'Registration Confirmed',
+          'You are registered for this event. You can find your ticket in the events list.',
+          [{ text: 'Great!' }]
+        );
+      }
     } catch (err: any) {
-      setProcessing(false);
       Alert.alert('Payment failed', err?.message || 'Could not complete payment. Please try again.');
+    } finally {
+      setProcessing(false);
     }
   };
 

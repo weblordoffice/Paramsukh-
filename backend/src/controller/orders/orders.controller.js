@@ -7,7 +7,7 @@ import { recordTransaction } from '../../services/transaction.service.js';
 import { escapeRegex } from '../../utils/sanitizeUtils.js';
 import mongoose from 'mongoose';
 import { sendNotification } from '../notifications/notifications.controller.js';
-import { createRazorpayOrder, verifyRazorpaySignature, createRazorpayPaymentLink, fetchPaymentLink } from '../../services/razorpayService.js';
+import { createRazorpayOrder, verifyRazorpaySignature, createRazorpayPaymentLink, fetchPaymentLink, isRazorpayTestMode } from '../../services/razorpayService.js';
 import { sendOrderConfirmationEmail } from '../../services/emailService.js';
 import { redeemPoints } from '../../services/referral.service.js';
 import ReferralConfig from '../../models/referralConfig.models.js';
@@ -700,7 +700,39 @@ export const verifyOrderPayment = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
 
-    // 3. Update Order Status
+    // 3. Bind payment to this order
+    if (order.payment.razorpayOrderId && order.payment.razorpayOrderId !== razorpayOrderId) {
+      return res.status(400).json({ success: false, message: 'Payment does not belong to this order' });
+    }
+
+    // 4. Fetch and validate payment details from Razorpay
+    let paymentDetails;
+    try {
+      paymentDetails = await fetchPaymentDetails(razorpayPaymentId);
+      if (paymentDetails.status !== 'captured') {
+        return res.status(400).json({ success: false, message: 'Payment not captured' });
+      }
+      if (paymentDetails.order_id !== razorpayOrderId) {
+        return res.status(400).json({ success: false, message: 'Payment order mismatch' });
+      }
+      if (Number(paymentDetails.amount) !== Number(order.pricing.total * 100)) {
+        return res.status(400).json({ success: false, message: 'Payment amount mismatch' });
+      }
+    } catch (error) {
+      console.error('[VerifyPayment] Could not fetch payment details:', error.message);
+      return res.status(400).json({ success: false, message: 'Could not verify payment with Razorpay' });
+    }
+
+    // 5. Replay protection
+    const existingPaymentOrder = await Order.findOne({
+      'payment.razorpayPaymentId': razorpayPaymentId,
+      _id: { $ne: orderId }
+    });
+    if (existingPaymentOrder) {
+      return res.status(400).json({ success: false, message: 'Payment already used for another order' });
+    }
+
+    // 6. Update Order Status
     if (order.status === 'pending' || order.payment.status === 'pending') {
       order.status = 'confirmed';
       order.payment.status = 'completed';
@@ -711,10 +743,10 @@ export const verifyOrderPayment = async (req, res) => {
       console.log(`✅ Order #${order.orderNumber} confirmed via Razorpay`);
 
       recordTransaction({
-        userId: order.userId,
+        userId: order.user,
         source: 'order',
         sourceId: order._id.toString(),
-        amount: order.totalAmount,
+        amount: order.pricing.total,
         provider: 'razorpay',
         providerRef: razorpayPaymentId,
         metadata: { orderId: order.orderNumber, paymentId: razorpayPaymentId },
@@ -769,11 +801,23 @@ export const createOrderPaymentLink = async (req, res) => {
     const { orderId } = req.params;
     const order = await Order.findOne({ _id: orderId, user: userId });
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
-    if (order.status !== 'pending' || order.payment?.status !== 'pending') {
+    if (order.status !== 'pending' || order.payment?.status === 'completed') {
       return res.status(400).json({ success: false, message: 'Order is not pending payment' });
     }
     const amount = order.pricing?.total ?? 0;
     if (amount <= 0) return res.status(400).json({ success: false, message: 'Invalid order total' });
+
+    // Reuse existing payment link when possible (and not expired)
+    if (order.payment?.paymentLinkId && order.payment?.paymentLinkUrl) {
+      const expiresAt = order.payment?.paymentLinkExpiresAt;
+      if (!expiresAt || new Date(expiresAt).getTime() > Date.now() + 5 * 60 * 1000) {
+        return res.status(200).json({
+          success: true,
+          data: { url: order.payment.paymentLinkUrl, paymentLinkId: order.payment.paymentLinkId },
+        });
+      }
+    }
+
     const rawContact = order.deliveryAddress?.phone || req.user?.phone;
     const customer = {
       name: req.user?.displayName || req.user?.name || order.deliveryAddress?.fullName || 'Customer',
@@ -787,9 +831,19 @@ export const createOrderPaymentLink = async (req, res) => {
       customer,
       notes: { type: 'order', orderId: String(orderId), userId: String(userId) },
     });
+
+    order.payment.paymentLinkId = link.id;
+    order.payment.paymentLinkUrl = link.short_url;
+    order.payment.paymentLinkExpiresAt = link.expire_by ? new Date(link.expire_by * 1000) : null;
+    await order.save();
+
     return res.status(200).json({
       success: true,
-      data: { url: link.short_url, paymentLinkId: link.id },
+      data: {
+        url: link.short_url,
+        paymentLinkId: link.id,
+        expiresAt: order.payment.paymentLinkExpiresAt,
+      },
     });
   } catch (error) {
     console.error('[CreateOrderPaymentLink] Error:', error);
@@ -813,22 +867,58 @@ export const verifyOrderPaymentByLink = async (req, res) => {
     if (notes?.userId && String(notes.userId) !== String(userId)) {
       return res.status(403).json({ success: false, message: 'Payment link does not belong to you' });
     }
+    if (notes?.orderId && String(notes.orderId) !== String(orderId)) {
+      return res.status(400).json({ success: false, message: 'Payment link does not match this order' });
+    }
     if (status !== 'paid' && status !== 'captured') {
       return res.status(200).json({ success: true, data: { status: link?.status }, message: 'Payment not completed yet' });
     }
+
     const order = await Order.findOne({ _id: orderId, user: userId });
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
     if (order.status !== 'pending' || order.payment?.status !== 'pending') {
       return res.status(200).json({ success: true, data: { order }, message: 'Order already confirmed' });
     }
+
+    // Validate amount against server-stored order total (skip in test mode because mock returns 0)
+    if (!isRazorpayTestMode) {
+      const expectedPaise = Math.round((order.pricing?.total || 0) * 100);
+      const paidPaise = Number(link?.amount || link?.amount_paid || 0);
+      if (expectedPaise > 0 && paidPaise !== expectedPaise) {
+        return res.status(400).json({
+          success: false,
+          message: 'Payment amount does not match order total',
+          data: { expected: expectedPaise, received: paidPaise }
+        });
+      }
+    }
+
     const paymentsRaw = link?.payments;
     const firstPayment = Array.isArray(paymentsRaw) ? paymentsRaw[0] : paymentsRaw;
     const razorpayPaymentId = firstPayment?.payment_id || link?.payment_id;
-    order.status = 'confirmed';
-    order.payment.status = 'completed';
-    order.payment.razorpayPaymentId = razorpayPaymentId || `pay_${Date.now()}`;
-    order.payment.paidAt = Date.now();
-    await order.save();
+
+    // Idempotent confirmation: atomic update only if not already completed
+    const confirmedOrder = await Order.findOneAndUpdate(
+      { _id: orderId, user: userId, status: 'pending', 'payment.status': { $ne: 'completed' } },
+      {
+        $set: {
+          status: 'confirmed',
+          'payment.status': 'completed',
+          'payment.razorpayPaymentId': razorpayPaymentId || `pay_${Date.now()}`,
+          'payment.paidAt': Date.now(),
+        }
+      },
+      { new: true }
+    );
+
+    if (!confirmedOrder) {
+      const refreshedOrder = await Order.findOne({ _id: orderId, user: userId });
+      return res.status(200).json({
+        success: true,
+        data: { order: refreshedOrder },
+        message: 'Order already confirmed'
+      });
+    }
 
     const cart = await Cart.findOne({ user: userId });
     if (cart) {
@@ -841,7 +931,7 @@ export const verifyOrderPaymentByLink = async (req, res) => {
       await cart.save();
     }
     try {
-      await sendOrderConfirmationEmail(req.user, order);
+      await sendOrderConfirmationEmail(req.user, confirmedOrder);
     } catch (e) {
       console.error('Order confirmation email failed:', e);
     }
@@ -849,12 +939,12 @@ export const verifyOrderPaymentByLink = async (req, res) => {
       await sendNotification(userId, {
         type: 'order',
         title: 'Order Confirmed! ✅',
-        message: `Payment successful! Your order #${order.orderNumber} is confirmed.`,
+        message: `Payment successful! Your order #${confirmedOrder.orderNumber} is confirmed.`,
         icon: '📦',
         priority: 'high',
-        relatedId: order._id,
+        relatedId: confirmedOrder._id,
         relatedType: 'order',
-        actionUrl: `/orders/${order._id}`,
+        actionUrl: `/orders/${confirmedOrder._id}`,
       });
     } catch (e) {
       console.error('Notification failed:', e);
@@ -862,7 +952,7 @@ export const verifyOrderPaymentByLink = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: 'Payment verified and order confirmed',
-      data: { order },
+      data: { order: confirmedOrder },
     });
   } catch (error) {
     console.error('[VerifyOrderPaymentByLink] Error:', error);
