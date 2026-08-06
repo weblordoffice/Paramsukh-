@@ -144,12 +144,14 @@ export const clearPendingPaymentLinks = async (
   paymentLinkId?: string
 ): Promise<void> => {
   try {
+    // Prevent accidental full deletion — require at least one filter
+    if (!type && !id && !paymentLinkId) return;
+
     const raw = await AsyncStorage.getItem(PENDING_PAYMENT_LINK_KEY);
     if (!raw) return;
     const parsed: PendingPaymentLink[] = JSON.parse(raw);
     const filtered = parsed.filter((item) => {
-      if (!type) return false;
-      if (item.type !== type) return true;
+      if (type && item.type !== type) return true;
       if (id && item.id !== id) return true;
       if (paymentLinkId && item.paymentLinkId !== paymentLinkId) return true;
       return false;

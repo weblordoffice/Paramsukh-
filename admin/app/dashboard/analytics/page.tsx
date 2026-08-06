@@ -117,8 +117,8 @@ export default function AnalyticsPage() {
     },
     {
       title: 'Event Success',
-      label: 'Conversion Rate',
-      value: `${data.events.conversionRate}/event`,
+      label: 'Avg Registrations',
+      value: `${data.events.avgRegistrationsPerEvent}/event`,
       subValue: `${data.events.totalRegistrations} total signups`,
       icon: Calendar,
       color: 'purple',
@@ -127,8 +127,12 @@ export default function AnalyticsPage() {
     }
   ];
 
-  return (
-    <div className="p-6 max-w-7xl mx-auto">
+  const colorMap: Record<string, string> = {
+    blue: 'bg-blue-50 text-blue-600',
+    orange: 'bg-orange-50 text-orange-600',
+    green: 'bg-green-50 text-green-600',
+    purple: 'bg-purple-50 text-purple-600',
+  };
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800">Platform Analytics</h1>
         <p className="text-gray-500">Real-time health indicators and performance metrics.</p>
@@ -138,7 +142,7 @@ export default function AnalyticsPage() {
         {cards.map((card, i) => (
           <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-hover hover:shadow-md">
             <div className="flex justify-between items-start mb-4">
-              <div className={`p-3 rounded-lg bg-${card.color}-50 text-${card.color}-600`}>
+              <div className={`p-3 rounded-lg ${colorMap[card.color]}`}>
                 <card.icon className="w-6 h-6" />
               </div>
               <div className={`flex items-center text-sm font-medium ${card.status === 'up' ? 'text-green-600' : 'text-red-600'}`}>

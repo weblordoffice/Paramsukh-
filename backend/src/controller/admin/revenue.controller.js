@@ -33,6 +33,7 @@ export const getTransactions = async (req, res) => {
         { 'metadata.planName': { $regex: search, $options: 'i' } },
         { 'metadata.courseName': { $regex: search, $options: 'i' } },
         { 'metadata.productName': { $regex: search, $options: 'i' } },
+        { 'metadata.eventName': { $regex: search, $options: 'i' } },
       ];
     }
 

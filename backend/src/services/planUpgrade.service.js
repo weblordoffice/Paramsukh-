@@ -110,7 +110,7 @@ const resolvePlanCommunityCategories = async (planSlug) => {
 
     const courseIds = coursePlanLinks.map((link) => String(link.courseId)).filter(Boolean);
     if (courseIds.length === 0) {
-      return [];
+      return Array.from(categories);
     }
 
     const courses = await Course.find({ _id: { $in: courseIds }, status: 'published' })

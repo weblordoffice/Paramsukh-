@@ -48,6 +48,13 @@ export const addLiveSessionToCourse = async (req, res) => {
       });
     }
 
+    if (new Date(scheduledAt) <= new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: "scheduledAt must be in the future"
+      });
+    }
+
     // Find course
     const course = await Course.findById(courseId);
     if (!course) {
@@ -65,7 +72,7 @@ export const addLiveSessionToCourse = async (req, res) => {
       durationInMinutes: resolvedDurationInMinutes,
       meetingPlatform: resolvedMeetingPlatform,
       meetingLink,
-      resources: resources || [],
+      resources: (resources || []).filter(r => r && r.title && r.pdfUrl),
       status: resolvedStatus
     };
 
@@ -354,7 +361,9 @@ export const addSessionRecording = async (req, res) => {
     }
 
     liveSession.recordingUrl = recordingUrl;
-    liveSession.status = 'completed';
+    if (liveSession.status !== 'cancelled') {
+      liveSession.status = 'completed';
+    }
     await course.save();
 
     return res.status(200).json({

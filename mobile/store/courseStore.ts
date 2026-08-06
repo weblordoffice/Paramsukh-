@@ -128,8 +128,7 @@ export const useCourseStore = create<CourseState>((set) => ({
                 set({ courses: [], isLoading: false });
             }
         } catch (error: any) {
-            // Silently fail - don't show errors to user if courses aren't available
-            set({ isLoading: false, courses: [], error: null });
+            set({ isLoading: false, courses: [], error: error?.message || 'Failed to load courses' });
         }
     },
 
@@ -168,8 +167,10 @@ export const useCourseStore = create<CourseState>((set) => ({
                 set({ enrollmentProgress: response.data?.data });
             }
         } catch (error: any) {
-            // 404 = user is not enrolled yet — try to auto-enroll them in the background
-            if (error.response?.status === 404) {
+            // Only auto-enroll if the response indicates the user is not enrolled
+            const isNotEnrolled = error.response?.status === 404 &&
+                (error.response?.data?.message || '').toLowerCase().includes('enroll');
+            if (isNotEnrolled) {
                 try {
                     const enrollResponse = await apiClient.post(`${API_URL}/enrollments/enroll`, { courseId });
                     if (enrollResponse.data?.success) {

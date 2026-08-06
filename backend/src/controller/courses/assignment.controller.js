@@ -151,10 +151,15 @@ export const updateAssignment = async (req, res) => {
     try {
         const { assignmentId } = req.params;
         const updates = req.body;
+        const allowedFields = ['title', 'description', 'questions', 'order', 'isStandalone'];
+        const safeUpdates = {};
+        for (const field of allowedFields) {
+            if (updates[field] !== undefined) safeUpdates[field] = updates[field];
+        }
 
         const updatedAssignment = await Assignment.findByIdAndUpdate(
             assignmentId,
-            { $set: updates },
+            { $set: safeUpdates },
             { new: true, runValidators: true }
         );
 

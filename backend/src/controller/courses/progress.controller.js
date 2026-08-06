@@ -11,49 +11,37 @@ export const markVideoComplete = async (req, res) => {
         const { courseId, videoId } = req.params;
         const userId = req.user._id;
 
-        const enrollment = await Enrollment.findOne({ userId, courseId });
+        // Atomic completion — prevents concurrent requests from losing data
+        const updated = await Enrollment.findOneAndUpdate(
+            { userId, courseId },
+            {
+                $addToSet: { completedVideos: videoId },
+                $set: { lastAccessedAt: new Date() }
+            },
+            { new: true }
+        );
 
-        if (!enrollment) {
+        if (!updated) {
             return res.status(404).json({
                 success: false,
                 message: 'Enrollment not found. Please enroll in this course first.'
             });
         }
 
-        const course = await Course.findById(courseId);
-        if (!course) {
-            return res.status(404).json({
-                success: false,
-                message: 'Course not found'
-            });
-        }
-
-        const belongsToCourse = Array.isArray(course.videos) &&
-            course.videos.some(v => String(v._id) === String(videoId));
-        if (!belongsToCourse) {
-            return res.status(400).json({
-                success: false,
-                message: 'Video not found in this course'
-            });
-        }
-
-        enrollment.markVideoComplete(videoId);
-
         const currentVideoIndex = course.videos.findIndex(v => String(v._id) === String(videoId));
         if (currentVideoIndex !== -1 && currentVideoIndex < course.videos.length - 1) {
-            enrollment.currentVideoIndex = currentVideoIndex + 1;
-            enrollment.currentVideoId = course.videos[currentVideoIndex + 1]._id;
+            updated.currentVideoIndex = currentVideoIndex + 1;
+            updated.currentVideoId = course.videos[currentVideoIndex + 1]._id;
         } else {
-            enrollment.currentVideoId = videoId;
+            updated.currentVideoId = videoId;
         }
-        enrollment.lastAccessedAt = new Date();
 
-        enrollment.updateProgress(course.videos.length, course.pdfs ? course.pdfs.length : 0);
+        updated.updateProgress(course.videos.length, course.pdfs ? course.pdfs.length : 0);
 
-        await enrollment.save();
+        await updated.save();
 
-        if (enrollment.isCompleted) {
-            handleCourseCompletion(userId, courseId).catch(err =>
+        if (updated.isCompleted) {
+            await handleCourseCompletion(userId, courseId).catch(err =>
                 console.error('Post-completion hook failed:', err.message)
             );
         }
@@ -93,9 +81,17 @@ export const markPdfComplete = async (req, res) => {
         const { courseId, pdfId } = req.params;
         const userId = req.user._id;
 
-        const enrollment = await Enrollment.findOne({ userId, courseId });
+        // Atomic completion — prevents concurrent requests from losing data
+        const updated = await Enrollment.findOneAndUpdate(
+            { userId, courseId },
+            {
+                $addToSet: { completedPdfs: pdfId },
+                $set: { lastAccessedAt: new Date() }
+            },
+            { new: true }
+        );
 
-        if (!enrollment) {
+        if (!updated) {
             return res.status(404).json({
                 success: false,
                 message: 'Enrollment not found'
@@ -110,27 +106,15 @@ export const markPdfComplete = async (req, res) => {
             });
         }
 
-        const belongsToCourse = Array.isArray(course.pdfs) &&
-            course.pdfs.some(p => String(p._id) === String(pdfId));
-        if (!belongsToCourse) {
-            return res.status(400).json({
-                success: false,
-                message: 'PDF not found in this course'
-            });
-        }
-
-        enrollment.markPdfComplete(pdfId);
-        enrollment.lastAccessedAt = new Date();
-
-        enrollment.updateProgress(
+        updated.updateProgress(
             course.videos ? course.videos.length : 0,
             course.pdfs ? course.pdfs.length : 0
         );
 
-        await enrollment.save();
+        await updated.save();
 
-        if (enrollment.isCompleted) {
-            handleCourseCompletion(userId, courseId).catch(err =>
+        if (updated.isCompleted) {
+            await handleCourseCompletion(userId, courseId).catch(err =>
                 console.error('Post-completion hook failed:', err.message)
             );
         }
@@ -146,9 +130,9 @@ export const markPdfComplete = async (req, res) => {
             success: true,
             message: 'PDF marked as complete',
             data: {
-                progress: enrollment.progress,
-                completedPdfs: enrollment.completedPdfs,
-                isCompleted: enrollment.isCompleted
+                progress: updated.progress,
+                completedPdfs: updated.completedPdfs,
+                isCompleted: updated.isCompleted
             }
         });
     } catch (error) {

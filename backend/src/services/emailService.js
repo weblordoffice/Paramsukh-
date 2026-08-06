@@ -10,8 +10,11 @@ if (process.env.RESEND_API_KEY) {
 }
 
 const safeSend = (fn) => {
-    if (!process.env.RESEND_API_KEY) return;
-    fn().catch(err => console.error('Email send failed:', err.message));
+    if (!process.env.RESEND_API_KEY) return Promise.resolve();
+    return fn().catch(err => {
+        console.error('Email send failed:', err?.message || err);
+        return { success: false, error: err?.message || 'Unknown email error' };
+    });
 };
 
 export const sendEmail = async ({ to, subject, html }) => {

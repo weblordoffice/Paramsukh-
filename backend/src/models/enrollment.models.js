@@ -70,12 +70,14 @@ enrollmentSchema.index({ courseId: 1, isCompleted: 1 });
 enrollmentSchema.methods.updateProgress = function(totalVideos, totalPdfs) {
   const totalItems = totalVideos + totalPdfs;
   if (totalItems === 0) {
-    this.progress = 0;
-    return;
+    this.progress = 100;
+    this.isCompleted = true;
+    this.completedAt = new Date();
+    return this.progress;
   }
   
   const completedItems = this.completedVideos.length + this.completedPdfs.length;
-  this.progress = Math.round((completedItems / totalItems) * 100);
+  this.progress = Math.min(100, Math.round((completedItems / totalItems) * 100));
   
   if (this.progress === 100 && !this.isCompleted) {
     this.isCompleted = true;
@@ -100,6 +102,19 @@ enrollmentSchema.methods.markPdfComplete = function(pdfId) {
   }
   return this;
 };
+
+// Post-delete middleware: sync enrollment and completion counts on Course
+enrollmentSchema.post('findOneAndDelete', async function(doc) {
+  if (!doc) return;
+  try {
+    const { Course } = await import('./course.models.js');
+    await Course.findByIdAndUpdate(doc.courseId, {
+      $inc: { enrollmentCount: -1, ...(doc.isCompleted ? { completionCount: -1 } : {}) }
+    });
+  } catch (error) {
+    console.error('Failed to sync course counts on enrollment delete:', error);
+  }
+});
 
 export const Enrollment = mongoose.model("Enrollment", enrollmentSchema);
 

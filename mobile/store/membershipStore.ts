@@ -70,59 +70,16 @@ export const useMembershipStore = create<MembershipState>((set) => ({
                 set({ isLoading: false, currentSubscription: null, error: null });
             }
         } catch (error: any) {
-            // Silently handle subscription fetch errors - don't show to user
-            // Don't logout or show errors - user might be on free tier or offline
-            set({
-                isLoading: false,
-                currentSubscription: null,
-                error: null
-            });
+            // Preserve previous subscription state on network errors
+            const prev = useMembershipStore.getState().currentSubscription;
+            set({ isLoading: false, currentSubscription: prev, error: 'Failed to load subscription' });
         }
     },
 
-    purchaseMembership: async (planId: string, paymentId: string) => {
-        set({ isPurchasing: true, error: null });
-        try {
-            const token = useAuthStore.getState().token;
-            if (!token) {
-                set({ isPurchasing: false, error: 'You must be logged in to purchase.' });
-                return false;
-            }
-
-            const response = await apiClient.post('/user/membership/purchase', {
-                plan: planId,
-                paymentId
-            });
-
-            if (response.data?.success) {
-                // Update current subscription
-                set({
-                    currentSubscription: response.data?.subscription,
-                    isPurchasing: false
-                });
-                return true;
-            } else {
-                set({ isPurchasing: false, error: response.data?.message });
-                return false;
-            }
-        } catch (error: any) {
-            let userMessage = 'Unable to complete purchase. Please try again.';
-            
-            if (error.response?.status === 401) {
-                userMessage = 'Session expired. Please sign in again.';
-                useAuthStore.getState().logout();
-            } else if (error.response?.status === 400) {
-                userMessage = error.response?.data?.message || 'Invalid purchase details. Please check and try again.';
-            } else if (!error.response) {
-                userMessage = 'No internet connection. Please check your network and try again.';
-            }
-            
-            set({
-                isPurchasing: false,
-                error: userMessage
-            });
-            return false;
-        }
+    /** @deprecated Use direct apiClient calls in screens — see membership-new.tsx / my-membership.tsx */
+    purchaseMembership: async (_planId: string, _paymentId: string) => {
+        console.warn('[MembershipStore] purchaseMembership is deprecated. Use the payment-link flow instead.');
+        return false;
     },
 
     clearError: () => set({ error: null }),

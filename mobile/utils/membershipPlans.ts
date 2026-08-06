@@ -1,5 +1,7 @@
 import apiClient from './apiClient';
 
+export const PENDING_MEMBERSHIP_LINK_KEY = 'pending_membership_payment_link';
+
 export interface UIMembershipPlan {
   id: string;
   slug: string;
@@ -49,13 +51,13 @@ const buildPlanFeatures = (plan: any) => {
     })).filter((item: { text: string }) => !!item.text);
   }
 
-  const categories = Array.isArray(plan?.access?.includedCategories) ? plan.access.includedCategories : [];
-  const subcategories = Array.isArray(plan?.access?.includedSubcategories) ? plan.access.includedSubcategories : [];
+  const categories = (Array.isArray(plan?.access?.includedCategories) ? plan.access.includedCategories : []).map((c: string) => c.charAt(0).toUpperCase() + c.slice(1));
+  const subcategories = (Array.isArray(plan?.access?.includedSubcategories) ? plan.access.includedSubcategories : []).map((c: string) => c.charAt(0).toUpperCase() + c.slice(1));
   const categoryText = categories.length > 0
-    ? `${categories.length} configured categories`
+    ? `Includes: ${categories.join(', ')}`
     : 'Category access defined by admin';
   const subcategoryText = subcategories.length > 0
-    ? `${subcategories.length} configured subcategories`
+    ? `Subcategories: ${subcategories.join(', ')}`
     : 'Subcategory access defined by admin';
 
   return [
@@ -110,8 +112,9 @@ export const fetchPublicMembershipPlans = async (): Promise<UIMembershipPlan[]> 
       .filter((plan) => !!plan.id);
 
     return mapped;
-  } catch {
-    return [];
+  } catch (error: any) {
+    console.error('[MembershipPlans] Failed to fetch plans:', error?.message || error);
+    throw error;
   }
 };
 

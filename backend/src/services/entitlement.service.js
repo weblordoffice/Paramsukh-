@@ -58,7 +58,9 @@ export const getUserEntitlementContext = async (userId) => {
   // entitlement source so active plan holders are recognized.
   if (!activeMembership && user?.subscriptionPlan && user?.subscriptionStatus === 'active') {
     const userPlanSlug = normalizePlanSlug(user.subscriptionPlan || '');
-    if (userPlanSlug && userPlanSlug !== 'free') {
+    // Ensure the subscription hasn't expired
+    const isExpired = user.subscriptionEndDate && new Date(user.subscriptionEndDate) < new Date();
+    if (userPlanSlug && userPlanSlug !== 'free' && !isExpired) {
       try {
         const inheritance = await resolveMembershipPlanInheritanceBySlug(userPlanSlug);
         const resolvedPlans = inheritance.plans.length > 0 ? inheritance.plans : [];
@@ -101,10 +103,10 @@ export const getUserEntitlementContext = async (userId) => {
 export const evaluateCourseEnrollmentAccess = async ({
   userId,
   course,
-  currentEnrollments,
-  distinctEnrolledCategoryCount = 0,
-  isAlreadyUsingCourseCategory = false,
-  enrollmentsInSameCategory = 0,
+  currentEnrollments: _currentEnrollments,
+  distinctEnrolledCategoryCount: _distinctEnrolledCategoryCount = 0,
+  isAlreadyUsingCourseCategory: _isAlreadyUsingCourseCategory = false,
+  enrollmentsInSameCategory: _enrollmentsInSameCategory = 0,
 }) => {
   const entitlement = await getUserEntitlementContext(userId);
 
@@ -183,27 +185,19 @@ export const evaluateCommunityAccess = async (userId) => {
     return { hasAccess: false, reason: 'user_not_found' };
   }
 
-  if (entitlement.source === 'dynamic') {
+  if (entitlement.source === 'dynamic' || entitlement.source === 'fallback_user_field') {
     return {
-      hasAccess: true,
-      reason: 'allowed',
+      hasAccess: entitlement.communityAccess === true,
+      reason: entitlement.communityAccess ? 'allowed' : 'not_included',
       plan: entitlement.planSlug,
       status: entitlement.user.subscriptionStatus,
     };
   }
 
-  if (entitlement.source === 'fallback_user_field') {
-    return {
-      hasAccess: true,
-      reason: 'allowed',
-      plan: entitlement.planSlug,
-      status: entitlement.user.subscriptionStatus,
-    };
-  }
-
+  // Free users / no plan — no community access
   return {
-    hasAccess: true,
-    reason: 'general_access',
+    hasAccess: false,
+    reason: 'free_plan',
     plan: 'free',
     status: entitlement.user.subscriptionStatus,
     isFreeUser: true,

@@ -87,8 +87,7 @@ export default function DashboardPage() {
             icon: Users,
             color: 'from-orange-500 to-orange-600',
             bg: 'bg-orange-50',
-            text: 'text-orange-600',
-            trend: '+12% this month'
+            text: 'text-orange-600'
         },
         {
             title: 'Active Courses',
@@ -96,8 +95,7 @@ export default function DashboardPage() {
             icon: BookOpen,
             color: 'from-blue-500 to-blue-600',
             bg: 'bg-blue-50',
-            text: 'text-blue-600',
-            trend: 'Trending up'
+            text: 'text-blue-600'
         },
         {
             title: 'Upcoming Events',
@@ -105,8 +103,7 @@ export default function DashboardPage() {
             icon: Calendar,
             color: 'from-purple-500 to-purple-600',
             bg: 'bg-purple-50',
-            text: 'text-purple-600',
-            trend: '3 this week'
+            text: 'text-purple-600'
         },
         {
             title: 'Total Orders',
@@ -114,8 +111,7 @@ export default function DashboardPage() {
             icon: Package,
             color: 'from-green-500 to-green-600',
             bg: 'bg-green-50',
-            text: 'text-green-600',
-            trend: '+5 orders today'
+            text: 'text-green-600'
         },
     ];
 
@@ -196,9 +192,6 @@ export default function DashboardPage() {
                             <div className={`p-3 rounded-xl ${stat.bg} ${stat.text} transition-colors`}>
                                 <stat.icon className="w-6 h-6" />
                             </div>
-                            <span className="text-xs font-medium px-2 py-1 rounded-full bg-gray-50 text-gray-500">
-                                {stat.trend}
-                            </span>
                         </div>
                         <div>
                             <h3 className="text-gray-500 text-sm font-medium">{stat.title}</h3>

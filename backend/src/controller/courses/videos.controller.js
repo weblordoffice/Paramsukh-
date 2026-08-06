@@ -262,6 +262,9 @@ export const deleteVideo = async (req, res) =>{
         
         course.videos.pull(videoId);
         await course.save();
+
+        const { Enrollment } = await import('../../models/enrollment.models.js');
+        await Enrollment.updateMany({ courseId }, { $pull: { completedVideos: videoId } });
         
         return res.status(200).json({
             success: true,

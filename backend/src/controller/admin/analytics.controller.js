@@ -74,7 +74,7 @@ export const getBasicAnalytics = async (req, res) => {
                 events: {
                     totalEvents,
                     totalRegistrations,
-                    conversionRate: eventConvRate
+                    avgRegistrationsPerEvent: eventConvRate
                 },
                 charts: {
                     userGrowth: await User.aggregate([

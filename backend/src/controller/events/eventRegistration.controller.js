@@ -153,6 +153,8 @@ export const registerForEvent = async (req, res) => {
       registration = new EventRegistration({ userId, eventId });
     }
 
+    const isNewRegistration = !existingRegistration;
+
     applyRegistrationState({
       registration,
       currentPrice,
@@ -166,7 +168,25 @@ export const registerForEvent = async (req, res) => {
     registration.paidAt = paidAt;
 
     await registration.save();
+
+    // Reserve a seat for capacity-limited events (including free) to prevent overselling
+    if (event.maxAttendees != null && !isSimulatedPayment && isNewRegistration) {
+      const reserved = await reserveEventSeat(eventId);
+      if (!reserved) {
+        await EventRegistration.findByIdAndDelete(registration._id);
+        return res.status(400).json({
+          success: false,
+          message: "This event is full. No seats available."
+        });
+      }
+    }
+
     await syncEventAttendeeCount(event);
+
+    // Release the reserved seat — currentAttendees is now set by the count of confirmed registrations
+    if (event.maxAttendees != null && !isSimulatedPayment && isNewRegistration) {
+      await releaseEventSeat(eventId);
+    }
 
     console.log(`✅ User ${userId} registered for event: ${event.title}`);
 
@@ -464,6 +484,14 @@ export const updatePaymentStatus = async (req, res) => {
     const { eventId, registrationId } = req.params;
     const { paymentStatus, paymentId } = req.body;
 
+    const VALID_STATUSES = ['pending', 'completed', 'failed', 'refunded'];
+    if (!VALID_STATUSES.includes(paymentStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid paymentStatus. Must be one of: ${VALID_STATUSES.join(', ')}`
+      });
+    }
+
     const registration = await EventRegistration.findOne({
       _id: registrationId,
       eventId
@@ -721,19 +749,24 @@ export const confirmEventPayment = async (req, res) => {
       metadata: { eventName: event?.title, orderId: razorpay_order_id, paymentId: razorpay_payment_id },
     }).catch(err => console.error('Transaction recording failed:', err.message));
 
-    const user = await User.findById(userId).select('payments');
-    if (user) {
-      user.payments = user.payments || [];
-      user.payments.push({
-        orderId: razorpay_order_id,
-        paymentId: razorpay_payment_id,
-        amount: amountInRupees,
-        plan: `Event - ${event?.title || 'Event'}`,
-        status: 'completed',
-        date: new Date()
-      });
-      await user.save();
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        $push: {
+          payments: {
+            orderId: razorpay_order_id,
+            paymentId: razorpay_payment_id,
+            amount: amountInRupees,
+            plan: `Event - ${event?.title || 'Event'}`,
+            status: 'completed',
+            date: new Date()
+          }
+        }
+      },
+      { new: true }
+    ).select('email displayName');
 
+    if (user) {
       sendEventRegistrationEmail(user, event?.title, amountInRupees);
     }
 
@@ -991,19 +1024,24 @@ export const confirmEventPaymentByLink = async (req, res) => {
       metadata: { eventName: event?.title, orderId: paymentLinkId, paymentId: confirmed.paymentId },
     }).catch(err => console.error('Transaction recording failed:', err.message));
 
-    const user = await User.findById(userId).select('payments');
-    if (user) {
-      user.payments = user.payments || [];
-      user.payments.push({
-        orderId: paymentLinkId,
-        paymentId: confirmed.paymentId,
-        amount: confirmed.paymentAmount,
-        plan: `Event - ${event?.title || 'Event'}`,
-        status: 'completed',
-        date: new Date(),
-      });
-      await user.save();
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        $push: {
+          payments: {
+            orderId: paymentLinkId,
+            paymentId: confirmed.paymentId,
+            amount: confirmed.paymentAmount,
+            plan: `Event - ${event?.title || 'Event'}`,
+            status: 'completed',
+            date: new Date(),
+          }
+        }
+      },
+      { new: true }
+    ).select('email displayName');
 
+    if (user) {
       sendEventRegistrationEmail(user, event?.title, confirmed.paymentAmount);
     }
     await syncEventAttendeeCount(eventId);

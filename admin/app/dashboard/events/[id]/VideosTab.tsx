@@ -49,6 +49,16 @@ export default function VideosTab({ eventId, videos, onUpdate }: VideosTabProps)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Validate YouTube URL
+        if (formData.type === 'youtube' && formData.url) {
+            const ytRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/i;
+            if (!ytRegex.test(formData.url.trim())) {
+                toast.error('Please enter a valid YouTube URL');
+                return;
+            }
+        }
+
         setSubmitting(true);
 
         try {
@@ -96,9 +106,10 @@ export default function VideosTab({ eventId, videos, onUpdate }: VideosTabProps)
 
         setDeleting(videoIndex);
         try {
-            // Assuming backend supports updating with new array
-            const updatedVideos = videos.filter((_, index) => index !== videoIndex);
-            await apiClient.put(`/api/events/${eventId}`, { videos: updatedVideos });
+            const video = videos[videoIndex];
+            await apiClient.delete(`/api/events/${eventId}/videos`, {
+                data: { videoUrl: video.url, videoId: video.id || video._id }
+            });
             toast.success('Video deleted successfully');
             onUpdate();
         } catch (error: any) {

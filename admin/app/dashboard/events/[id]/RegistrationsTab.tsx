@@ -33,6 +33,7 @@ export default function RegistrationsTab({ eventId }: RegistrationsTabProps) {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [checkingInId, setCheckingInId] = useState<string | null>(null);
 
     const fetchRegistrations = useCallback(async () => {
         try {
@@ -51,6 +52,8 @@ export default function RegistrationsTab({ eventId }: RegistrationsTabProps) {
     }, [eventId, fetchRegistrations]);
 
     const handleCheckIn = async (registrationId: string) => {
+        if (checkingInId) return;
+        setCheckingInId(registrationId);
         try {
             await apiClient.patch(`/api/events/${eventId}/registrations/${registrationId}/checkin`);
             toast.success('User checked in successfully');
@@ -58,15 +61,27 @@ export default function RegistrationsTab({ eventId }: RegistrationsTabProps) {
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to check in user');
             console.error(error);
+        } finally {
+            setCheckingInId(null);
         }
+    };
+
+    const safeCell = (value: string) => {
+        const str = String(value || 'N/A');
+        // Prevent CSV formula injection in Excel/Sheets
+        if (/^[=+\-@\t\r\n]/.test(str)) {
+            return `'${str}`;
+        }
+        return str;
     };
 
     const exportToCSV = () => {
         const headers = ['Name', 'Email', 'Phone', 'Status', 'Payment Status', 'Attended', 'Registered At', 'Check-in Time'];
-        const rows = filteredRegistrations.map(reg => [
-            reg.participantName || reg.userId?.displayName || 'N/A',
-            reg.participantEmail || reg.userId?.email || 'N/A',
-            reg.participantPhone || reg.userId?.phone || 'N/A',
+        // Export ALL registrations, not just filtered
+        const rows = registrations.map(reg => [
+            safeCell(reg.participantName || reg.userId?.displayName || 'N/A'),
+            safeCell(reg.participantEmail || reg.userId?.email || 'N/A'),
+            safeCell(reg.participantPhone || reg.userId?.phone || 'N/A'),
             reg.status,
             reg.paymentStatus || 'N/A',
             reg.checkedIn || reg.status === 'attended' ? 'Yes' : 'No',
@@ -321,9 +336,10 @@ export default function RegistrationsTab({ eventId }: RegistrationsTabProps) {
                                             {!(registration.checkedIn || registration.status === 'attended') && registration.status === 'confirmed' && (
                                                 <button
                                                     onClick={() => handleCheckIn(registration._id)}
-                                                    className="text-blue-600 hover:text-blue-900 font-medium"
+                                                    disabled={checkingInId === registration._id}
+                                                    className={`font-medium ${checkingInId === registration._id ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-900'}`}
                                                 >
-                                                    Check In
+                                                    {checkingInId === registration._id ? 'Checking...' : 'Check In'}
                                                 </button>
                                             )}
                                         </td>

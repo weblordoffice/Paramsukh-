@@ -1,5 +1,7 @@
 import { User } from '../../models/user.models.js';
 import { Enrollment } from '../../models/enrollment.models.js';
+import { Course } from '../../models/course.models.js';
+import { UserMembership } from '../../models/userMembership.models.js';
 import Assessment from '../../models/assessment.models.js';
 import {
   resolveMembershipPlanChargeAmount,
@@ -614,6 +616,14 @@ export const purchaseMembership = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
+    // Replay protection — prevent double-activation with the same payment
+    const paymentAlreadyUsed = (user.payments || []).some(
+      (p) => p.paymentId === razorpayPaymentId || p.orderId === razorpayOrderId
+    );
+    if (paymentAlreadyUsed) {
+      return res.status(400).json({ success: false, message: 'Payment already recorded' });
+    }
+
     const courseSelectionEnabled = planConfig?.plan?.access?.courseSelection?.enabled || false;
     const maxSelectableCourses = planConfig?.plan?.access?.courseSelection?.maxSelectableCourses || 0;
 
@@ -670,7 +680,7 @@ export const purchaseMembership = async (req, res) => {
         return existingEnrollment;
       });
       enrollments = await Promise.all(enrollmentPromises);
-      enrolledCount = enrollments.filter((e) => e?.isNew !== false).length;
+      enrolledCount = enrollments.filter((e) => e && !e.isNew).length;
     }
 
     const communitySync = await handlePlanUpgrade(userId, finalPlan);

@@ -58,6 +58,14 @@ export default function PhotosTab({ eventId, photos, onUpdate }: PhotosTabProps)
         const files = Array.from(e.target.files || []);
         if (files.length === 0) return;
 
+        const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+        for (const file of files) {
+            if (file.size > MAX_SIZE) {
+                toast.error(`File "${file.name}" exceeds 10MB limit`);
+                return;
+            }
+        }
+
         const uploadData = new FormData();
         files.forEach((file) => uploadData.append('images', file));
 
@@ -130,10 +138,10 @@ export default function PhotosTab({ eventId, photos, onUpdate }: PhotosTabProps)
 
         setDeleting(photoIndex);
         try {
-            // Note: Backend should support deleting by index or URL
-            // Assuming we need to send updated images array
-            const updatedImages = photos.filter((_, index) => index !== photoIndex);
-            await apiClient.put(`/api/events/${eventId}`, { images: updatedImages });
+            const photo = photos[photoIndex];
+            await apiClient.delete(`/api/events/${eventId}/images`, {
+                data: { imageUrl: photo.url, imageId: photo.id || photo._id }
+            });
             toast.success('Photo deleted successfully');
             onUpdate();
         } catch (error: any) {
