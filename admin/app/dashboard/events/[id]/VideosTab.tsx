@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { Plus, Trash2, X, Play, ExternalLink } from 'lucide-react';
 
 interface Video {
+    _id?: string;
     url: string;
     type?: 'youtube' | 'local';
     title?: string;
@@ -108,7 +109,7 @@ export default function VideosTab({ eventId, videos, onUpdate }: VideosTabProps)
         try {
             const video = videos[videoIndex];
             await apiClient.delete(`/api/events/${eventId}/videos`, {
-                data: { videoUrl: video.url, videoId: video.id || video._id }
+                data: { videoUrl: video.url, videoId: video._id }
             });
             toast.success('Video deleted successfully');
             onUpdate();
