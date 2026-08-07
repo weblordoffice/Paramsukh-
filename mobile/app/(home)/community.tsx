@@ -74,8 +74,10 @@ export default function CommunityScreen() {
   const [showPostTypeFilter, setShowPostTypeFilter] = useState(false);
   const [selectedPostFilter, setSelectedPostFilter] = useState<'all' | 'image' | 'text'>('all');
   const [showTagFilter, setShowTagFilter] = useState(false);
-  const [selectedTag, setSelectedTag] = useState<string>('all');
+  const [selectedTag, setSelectedTag] = useState<string | null>('all');
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [createPostTags, setCreatePostTags] = useState<string[]>([]);
   const [expandedPlanGroups, setExpandedPlanGroups] = useState<Set<string>>(new Set());
@@ -126,9 +128,7 @@ export default function CommunityScreen() {
 
   useEffect(() => {
     checkAssessmentStatus();
-    // Fetch user groups on mount
-    fetchMyGroups();
-  }, [fetchMyGroups, checkAssessmentStatus]);
+  }, [checkAssessmentStatus]);
 
   useEffect(() => {
     if (token) {
@@ -161,6 +161,8 @@ export default function CommunityScreen() {
   // When active group changes, fetch its posts
   useEffect(() => {
     if (activeGroup) {
+      setSelectedPostFilter('all');
+      setSelectedTag(null);
       fetchGroupPosts(activeGroup._id);
     }
   }, [activeGroup, fetchGroupPosts]);
@@ -249,6 +251,8 @@ export default function CommunityScreen() {
         setCreatePostTags([]);
         setShowCreatePost(false);
         setIsLoading(false);
+        // Re-fetch to get server-assigned data (author enrichment, timeAgo, etc.)
+        fetchGroupPosts(activeGroup._id);
 
         Alert.alert('Success', 'Your post has been published!');
       } else {
@@ -262,8 +266,8 @@ export default function CommunityScreen() {
   };
 
   const handleCreatePost = () => {
-    if (!postContent.trim()) {
-      Alert.alert('Content Required', 'Please add some text to your post before publishing.');
+    if (!postContent.trim() && !selectedMedia) {
+      Alert.alert('Content Required', 'Please add text or an image to your post.');
       return;
     }
 
@@ -305,7 +309,7 @@ export default function CommunityScreen() {
     }
 
     // Filter by Tag
-    if (selectedTag !== 'all') {
+    if (selectedTag && selectedTag !== 'all') {
       filtered = filtered.filter(post => post.tags && post.tags.includes(selectedTag));
     }
 
@@ -596,7 +600,18 @@ export default function CommunityScreen() {
             contentContainerStyle={{ paddingBottom: bottomTabHeight }}
             showsVerticalScrollIndicator={false}
             refreshing={isStoreLoading}
-            onRefresh={() => activeGroup && fetchGroupPosts(activeGroup._id)}
+            onRefresh={() => { setCurrentPage(1); activeGroup && fetchGroupPosts(activeGroup._id); }}
+            onEndReachedThreshold={0.3}
+            onEndReached={() => {
+              if (!loadingMore && activeGroup) {
+                setLoadingMore(true);
+                const nextPage = currentPage + 1;
+                fetchGroupPosts(activeGroup._id, nextPage).then(() => {
+                  setCurrentPage(nextPage);
+                  setLoadingMore(false);
+                }).catch(() => setLoadingMore(false));
+              }
+            }}
             ListHeaderComponent={
               <>
                 {/* Assessment Banner - Show if not completed */}

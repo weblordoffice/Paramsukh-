@@ -20,54 +20,69 @@ interface Post {
 export default function CommunityPage() {
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [pendingActionId, setPendingActionId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchPosts();
     }, []);
 
-    const fetchPosts = async () => {
+    const fetchPosts = async (pageNum = 1, append = false) => {
         try {
-            const response = await apiClient.get('/api/community/all');
-            setPosts(response.data.data?.posts || response.data.posts || response.data || []);
+            if (append) setLoadingMore(true); else setLoading(true);
+            const response = await apiClient.get('/api/community/all', { params: { page: pageNum, limit: 20 } });
+            const data = response.data.data?.posts || response.data.posts || response.data || [];
+            const postsData = Array.isArray(data) ? data : (data.posts || []);
+            if (append) {
+                setPosts(prev => [...prev, ...postsData]);
+            } else {
+                setPosts(postsData);
+            }
+            setHasMore(postsData.length === 20);
         } catch (error: any) {
-            // Only show error for server errors, not for empty data
             if (error.response?.status !== 404) {
                 console.error('Error fetching community posts:', error);
                 if (error.response?.status >= 500) {
                     toast.error('Server error. Please try again later.');
                 }
-            }                                                      
-            setPosts([]);    
+            }
+            if (!append) setPosts([]);
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
     };
 
     const handleDeletePost = async (postId: string) => {
-        if (!confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
-            return;
-        }
-
+        if (!confirm('Are you sure you want to delete this post?')) return;
+        if (pendingActionId) return;
+        setPendingActionId(postId);
         try {
             await apiClient.delete(`/api/community/posts/${postId}/admin`);
             toast.success('Post deleted successfully');
-            fetchPosts(); // Refresh the list
+            setPosts(prev => prev.filter(p => p._id !== postId));
         } catch (error: any) {
-            console.error('Error deleting post:', error);
             toast.error(error.response?.data?.message || 'Failed to delete post');
+        } finally {
+            setPendingActionId(null);
         }
     };
 
     const handleTogglePin = async (postId: string, currentPinStatus: boolean) => {
+        if (pendingActionId) return;
+        setPendingActionId(postId);
         try {
             const response = await apiClient.patch(`/api/community/posts/${postId}/pin`);
             toast.success(response.data.message);
-            fetchPosts(); // Refresh the list
+            setPosts(prev => prev.map(p => p._id === postId ? { ...p, isPinned: !currentPinStatus } : p));
         } catch (error: any) {
-            console.error('Error toggling pin:', error);
             toast.error(error.response?.data?.message || 'Failed to update pin status');
+        } finally {
+            setPendingActionId(null);
         }
     };
 
@@ -117,7 +132,7 @@ export default function CommunityPage() {
                 {filteredPosts.length === 0 ? (
                     <div className="bg-white rounded-xl p-12 text-center text-accent shadow-md">
                         <MessageSquare className="w-16 h-16 mx-auto mb-4 text-accent/30" />
-                        <p>No community posts found</p>
+                        <p>{searchTerm ? 'No posts match your search' : 'No community posts found'}</p>
                     </div>
                 ) : (
                     filteredPosts.map((post) => (
@@ -140,14 +155,16 @@ export default function CommunityPage() {
                                         <span className="text-sm text-accent">{new Date(post.createdAt).toLocaleDateString()}</span>
                                         <button
                                             onClick={() => handleTogglePin(post._id, post.isPinned)}
-                                            className={`p-2 rounded-lg transition ${post.isPinned ? 'text-primary bg-primary/10 hover:bg-primary/20' : 'text-gray-600 hover:bg-gray-100'}`}
+                                            disabled={pendingActionId === post._id}
+                                            className={`p-2 rounded-lg transition ${pendingActionId === post._id ? 'opacity-50 cursor-not-allowed' : ''} ${post.isPinned ? 'text-primary bg-primary/10 hover:bg-primary/20' : 'text-gray-600 hover:bg-gray-100'}`}
                                             title={post.isPinned ? 'Unpin post' : 'Pin post'}
                                         >
                                             <Pin className="w-4 h-4" />
                                         </button>
                                         <button
                                             onClick={() => handleDeletePost(post._id)}
-                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                                            disabled={pendingActionId === post._id}
+                                            className={`p-2 rounded-lg transition ${pendingActionId === post._id ? 'opacity-50 cursor-not-allowed' : 'text-red-600 hover:bg-red-50'}`}
                                             title="Delete post"
                                         >
                                             <Trash2 className="w-4 h-4" />
@@ -168,6 +185,21 @@ export default function CommunityPage() {
                             </div>
                         </div>
                     ))
+                )}
+                {hasMore && !loading && filteredPosts.length > 0 && (
+                    <div className="flex justify-center mt-4">
+                        <button
+                            onClick={() => {
+                                const nextPage = page + 1;
+                                fetchPosts(nextPage, true);
+                                setPage(nextPage);
+                            }}
+                            disabled={loadingMore}
+                            className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition disabled:opacity-50"
+                        >
+                            {loadingMore ? 'Loading...' : 'Load More'}
+                        </button>
+                    </div>
                 )}
             </div>
 

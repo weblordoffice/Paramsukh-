@@ -6,19 +6,23 @@ import { Post, Comment, Group } from '../../models/community.models.js';
 export const getAllPosts = async (req, res) => {
     try {
         const { page = 1, limit = 20, search } = req.query;
+        const pageNum = Math.max(1, parseInt(page) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
 
-        const query = { isActive: true }; // Only show active posts
+        const query = { isActive: true };
 
         if (search) {
-            query.content = { $regex: search, $options: 'i' };
+            // Escape regex-special characters to prevent ReDoS attacks
+            const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            query.content = { $regex: escaped, $options: 'i' };
         }
 
         const posts = await Post.find(query)
             .populate('userId', 'displayName email photoURL')
             .populate('groupId', 'name')
             .sort({ createdAt: -1 })
-            .limit(limit * 1)
-            .skip((page - 1) * limit)
+            .limit(limitNum)
+            .skip((pageNum - 1) * limitNum)
             .lean();
 
         const total = await Post.countDocuments(query);

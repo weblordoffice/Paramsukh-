@@ -130,8 +130,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                     communityAccessDenied: true 
                 });
             } else {
-                // Don't show error to user for other cases, show empty list (user might be offline)
-                set({ groups: [], planGroups: [], isLoading: false, error: null });
+                set({ groups: [], planGroups: [], isLoading: false, error: error?.message || 'Failed to load groups' });
             }
         }
     },
@@ -143,7 +142,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 params: { page }
             });
             if (response.data?.success) {
-                const newPosts = response.data?.posts;
+                const newPosts = response.data?.posts ?? [];
                 set(state => ({
                     posts: page === 1 ? newPosts : [...state.posts, ...newPosts],
                     isLoading: false
@@ -319,26 +318,30 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     },
 
     toggleCommentLike: async (commentId: string, postId: string) => {
+        // Snapshot current state for rollback
+        const prevComments = useCommunityStore.getState().comments;
+
+        // Optimistic update
+        set(state => ({
+            comments: {
+                ...state.comments,
+                [postId]: state.comments[postId]?.map(c => {
+                    if (c._id === commentId) {
+                        return {
+                            ...c,
+                            userLiked: !c.userLiked,
+                            likeCount: c.userLiked ? c.likeCount - 1 : c.likeCount + 1
+                        };
+                    }
+                    return c;
+                }) || []
+            }
+        }));
         try {
             await apiClient.post(`${API_URL}/community/comments/${commentId}/like`);
-
-            // Update comment like status
-            set(state => ({
-                comments: {
-                    ...state.comments,
-                    [postId]: state.comments[postId]?.map(c => {
-                        if (c._id === commentId) {
-                            return {
-                                ...c,
-                                userLiked: !c.userLiked,
-                                likeCount: c.userLiked ? c.likeCount - 1 : c.likeCount + 1
-                            };
-                        }
-                        return c;
-                    }) || []
-                }
-            }));
         } catch (error) {
+            // Revert on failure
+            set({ comments: prevComments });
         }
     }
 }));
