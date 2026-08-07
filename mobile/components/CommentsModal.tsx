@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -11,7 +11,8 @@ import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
-    Keyboard
+    Keyboard,
+    Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCommunityStore } from '@/store/communityStore';
@@ -37,13 +38,18 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
 
     const postComments = postId ? comments[postId] || [] : [];
     const [loadingComments, setLoadingComments] = useState(false);
+    const activePostIdRef = useRef<string | null>(null);
 
     useEffect(() => {
         const loadComments = async () => {
             if (!postId) return;
+            activePostIdRef.current = postId;
             setLoadingComments(true);
             await fetchPostComments(postId);
-            setLoadingComments(false);
+            // Only update state if this is still the active post
+            if (activePostIdRef.current === postId) {
+                setLoadingComments(false);
+            }
         };
 
         if (visible && postId) {
@@ -59,6 +65,8 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
         if (success) {
             setContent('');
             Keyboard.dismiss();
+        } else {
+            Alert.alert('Error', 'Failed to post comment. Please try again.');
         }
         setIsSubmitting(false);
     };
@@ -95,12 +103,12 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
                         renderItem={({ item }) => (
                             <View style={styles.commentItem}>
                                 <Image
-                                    source={{ uri: item.author.photoURL || 'https://via.placeholder.com/40' }}
+                                    source={{ uri: item.author?.photoURL || 'https://via.placeholder.com/40' }}
                                     style={styles.avatar}
                                 />
                                 <View style={styles.commentContent}>
                                     <View style={styles.commentHeader}>
-                                        <Text style={styles.authorName}>{item.author.displayName || 'User'}</Text>
+                                        <Text style={styles.authorName}>{item.author?.displayName || 'User'}</Text>
                                         <Text style={styles.timeAgo}>{new Date(item.createdAt).toLocaleDateString()}</Text>
                                     </View>
                                     <Text style={styles.commentText}>{item.content}</Text>

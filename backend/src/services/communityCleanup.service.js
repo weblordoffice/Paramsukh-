@@ -11,6 +11,12 @@ export const cleanupExpiredCommunityMemberships = async (userId) => {
   try {
     console.log(`🧹 Starting community membership cleanup for user: ${userId}`);
 
+    // Capture active groupIds BEFORE deactivation to avoid re-decrementing already-inactive ones
+    const activeBefore = await GroupMember.find({ userId, isActive: true })
+      .select('groupId')
+      .lean();
+    const groupIds = activeBefore.map(m => m.groupId);
+
     // Deactivate all group memberships for this user
     const result = await GroupMember.updateMany(
       { userId, isActive: true },
@@ -19,17 +25,12 @@ export const cleanupExpiredCommunityMemberships = async (userId) => {
 
     console.log(`✅ Deactivated ${result.modifiedCount} group memberships for user ${userId}`);
 
-    // Decrement member counts for affected groups
-    if (result.modifiedCount > 0) {
-      const affectedMemberships = await GroupMember.find({ userId, isActive: false });
-      const groupIds = affectedMemberships.map(m => m.groupId);
-
-      // Decrement counts atomically for each group
+    // Decrement member counts only for groups that were actually active before
+    if (result.modifiedCount > 0 && groupIds.length > 0) {
       await Group.updateMany(
         { _id: { $in: groupIds }, memberCount: { $gt: 0 } },
         { $inc: { memberCount: -1 } }
       );
-
       console.log(`📉 Decremented member counts for ${groupIds.length} groups`);
     }
 
@@ -44,35 +45,41 @@ export const cleanupExpiredCommunityMemberships = async (userId) => {
 };
 
 /**
- * Restore community group memberships when user renews subscription
+ * Restore community group memberships when user renews subscription.
+ * Only reactivates memberships for groups the user is currently entitled to.
  */
 export const restoreCommunityMemberships = async (userId) => {
   try {
     console.log(`♻️ Restoring community memberships for user: ${userId}`);
 
-    // Get user's courses to determine which groups they should be in
     const user = await User.findById(userId);
     if (!user) {
       throw new Error('User not found');
     }
 
-    // Reactivate memberships for groups where user was previously active
+    // Only restore memberships that belong to the user's current plan
+    const currentPlanSlug = user.subscriptionPlan?.toLowerCase?.() || 'free';
+    const entitledGroupIds = await Group.find({
+      $or: [
+        { planSlug: currentPlanSlug },
+        { planSlug: 'general' },
+        { groupType: 'course' }, // Course groups are entitlement-based
+      ]
+    }).select('_id').lean();
+    const entitledIds = entitledGroupIds.map(g => g._id);
+
+    // Reactivate only previously-inactive memberships for entitled groups
     const result = await GroupMember.updateMany(
-      { userId, isActive: false },
+      { userId, isActive: false, groupId: { $in: entitledIds } },
       { isActive: true }
     );
 
     if (result.modifiedCount > 0) {
-      // Increment member counts for restored groups
-      const restoredMemberships = await GroupMember.find({ userId, isActive: true });
-      const groupIds = restoredMemberships.map(m => m.groupId);
-
       await Group.updateMany(
-        { _id: { $in: groupIds } },
+        { _id: { $in: entitledIds }, memberCount: { $gte: 0 } },
         { $inc: { memberCount: 1 } }
       );
-
-      console.log(`📈 Restored ${result.modifiedCount} group memberships`);
+      console.log(`📈 Restored ${result.modifiedCount} group memberships for entitled groups`);
     } else {
       console.log(`ℹ️  No memberships to restore for user ${userId}`);
     }
@@ -95,15 +102,18 @@ export const cleanupAllExpiredMemberships = async () => {
   try {
     console.log('🧹 Running scheduled community membership cleanup...');
 
-    // Find all users with expired/cancelled subscriptions
+    // Find all users with expired/cancelled subscriptions that have actually passed endDate
     const expiredUsers = await User.find({
-      subscriptionStatus: { $in: ['expired', 'cancelled'] }
+      subscriptionStatus: { $in: ['expired', 'cancelled'] },
+      $or: [
+        { subscriptionEndDate: { $lte: new Date() } },
+        { subscriptionEndDate: null },
+      ]
     }).select('_id');
 
     let totalCleaned = 0;
 
     for (const user of expiredUsers) {
-      // Check if user still has active group memberships
       const activeMemberships = await GroupMember.countDocuments({
         userId: user._id,
         isActive: true

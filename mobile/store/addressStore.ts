@@ -75,11 +75,11 @@ export const useAddressStore = create<AddressState>((set) => ({
         try {
             const response = await apiClient.patch(
                 `${API_URL}/addresses/${id}`,
-                addressData
+                addressData    
             );
             if (response.data?.success) {
                 const updated = response.data?.data?.address;
-                set((state) => ({
+                set((state) => ({   
                     addresses: state.addresses.map((a) =>
                         a._id === id ? { ...a, ...updated } : a
                     ),

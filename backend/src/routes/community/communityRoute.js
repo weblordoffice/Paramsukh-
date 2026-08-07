@@ -24,7 +24,7 @@ const router = express.Router();
 router.get('/all', adminAuth, getAllPosts);
 router.delete('/posts/:postId/admin', adminAuth, deletePostAdmin);
 router.patch('/posts/:postId/pin', adminAuth, togglePinPost);
-router.post('/admin/posts', adminAuth, createPostAdmin);
+router.post('/admin/posts', adminAuth, communityPostLimiter, sanitizePostContent, validateCreatePost, createPostAdmin);
 router.get('/admin/groups', adminAuth, getAdminGroups);
 router.get('/admin/cleanup-expired', adminAuth, runScheduledCleanup);  // Scheduled cleanup endpoint
 

@@ -41,37 +41,37 @@ export const checkCommunityAccess = async (req, res) => {
 };
 
 const ensureGeneralGroup = async () => {
-  let generalGroup = await Group.findOne({ groupType: 'plan', planSlug: 'general' });
-  if (!generalGroup) {
-    generalGroup = await Group.create({
-      name: 'General Community',
-      description: 'A public space for all users. Join the conversation!',
-      groupType: 'plan',
-      planSlug: 'general',
-      isActive: true,
-    });
-    console.log('✨ Created General Community Group');
-  }
+  const generalGroup = await Group.findOneAndUpdate(
+    { groupType: 'plan', planSlug: 'general' },
+    {
+      $setOnInsert: {
+        name: 'General Community',
+        description: 'A public space for all users. Join the conversation!',
+        groupType: 'plan',
+        planSlug: 'general',
+        isActive: true,
+      }
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
   return generalGroup;
 };
 
 const enrollUserInGroup = async (groupId, userId) => {
-  let membership = await GroupMember.findOne({ groupId, userId });
-  if (!membership) {
-    membership = await GroupMember.create({
-      groupId,
-      userId,
-      role: 'member',
-      isActive: true,
-    });
+  // Atomic upsert — prevents race conditions on concurrent enrollment
+  const result = await GroupMember.findOneAndUpdate(
+    { groupId, userId },
+    { $setOnInsert: { groupId, userId, role: 'member', isActive: true }, $set: { isActive: true } },
+    { upsert: true, new: true, rawResult: true }
+  );
+
+  // Only increment memberCount if this was a new insert (not an existing membership)
+  if (!result.lastErrorObject?.updatedExisting) {
     await Group.findByIdAndUpdate(groupId, { $inc: { memberCount: 1 } });
     console.log(`👤 Enrolled user ${userId} in group ${groupId}`);
-  } else if (!membership.isActive) {
-    membership.isActive = true;
-    await membership.save();
-    await Group.findByIdAndUpdate(groupId, { $inc: { memberCount: 1 } });
   }
-  return membership;
+
+  return result.value;
 };
 
 const formatPlanLabel = (planSlug) => {
@@ -180,11 +180,20 @@ export const getMyGroups = async (req, res) => {
       });
     }
 
-    await syncUserCommunityMembershipsByPlan({
+    // Skip expensive sync if user already has an active membership in the plan group
+    const existingPlanMembership = await GroupMember.findOne({
       userId,
-      planSlug,
-      membershipActive: true,
+      isActive: true,
+      groupId: { $in: await Group.find({ groupType: 'plan', planSlug, isActive: true }).select('_id').lean().then(g => g.map(x => x._id)) }
     });
+
+    if (!existingPlanMembership) {
+      await syncUserCommunityMembershipsByPlan({
+        userId,
+        planSlug,
+        membershipActive: true,
+      });
+    }
 
     const planParentGroup = await Group.findOne({ groupType: 'plan', planSlug, isActive: true }).lean();
     const categorySubgroups = await Group.find({
@@ -462,24 +471,27 @@ export const togglePostLike = async (req, res) => {
       });
     }
 
-    const likeIndex = post.likes.findIndex(like => like.userId.toString() === userId.toString());
+    // Atomic toggle — prevents race conditions on concurrent likes
+    const alreadyLiked = post.likes.some(like => like.userId.toString() === userId.toString());
 
-    if (likeIndex > -1) {
-      // Unlike
-      post.likes.splice(likeIndex, 1);
-      post.likeCount = Math.max(0, post.likeCount - 1);
+    if (alreadyLiked) {
+      await Post.findOneAndUpdate(
+        { _id: postId, 'likes.userId': userId },
+        { $pull: { likes: { userId } }, $inc: { likeCount: -1 } }
+      );
     } else {
-      // Like
-      post.likes.push({ userId });
-      post.likeCount += 1;
+      await Post.findOneAndUpdate(
+        { _id: postId, 'likes.userId': { $ne: userId } },
+        { $addToSet: { likes: { userId } }, $inc: { likeCount: 1 } }
+      );
     }
 
-    await post.save();
+    const updated = await Post.findById(postId).select('likeCount').lean();
 
     return res.status(200).json({
       success: true,
-      liked: likeIndex === -1,
-      likeCount: post.likeCount
+      liked: !alreadyLiked,
+      likeCount: updated?.likeCount ?? post.likeCount
     });
 
   } catch (error) {
@@ -500,6 +512,8 @@ export const getPostComments = async (req, res) => {
   try {
     const userId = req.user._id;
     const { postId } = req.params;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
 
     const post = await Post.findById(postId);
     if (!post) {
@@ -518,9 +532,14 @@ export const getPostComments = async (req, res) => {
       });
     }
 
-    const comments = await Comment.find({ postId, isActive: true })
-      .populate('userId', 'displayName photoURL subscriptionPlan')
-      .sort({ createdAt: -1 });
+    const [comments, total] = await Promise.all([
+      Comment.find({ postId, isActive: true })
+        .populate('userId', 'displayName photoURL subscriptionPlan')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Comment.countDocuments({ postId, isActive: true })
+    ]);
 
     const commentsWithUserLike = comments.map(comment => {
       const userLiked = comment.likes.some(like => like.userId.toString() === userId.toString());
@@ -545,7 +564,10 @@ export const getPostComments = async (req, res) => {
     return res.status(200).json({
       success: true,
       comments: commentsWithUserLike,
-      totalComments: comments.length
+      totalComments: total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
     });
 
   } catch (error) {
@@ -611,13 +633,11 @@ export const addComment = async (req, res) => {
       content: content.trim()
     });
 
-    // Update post comment count
-    post.commentCount += 1;
-    await post.save();
+    // Atomic increment — prevents lost updates on concurrent comments
+    await Post.findByIdAndUpdate(postId, { $inc: { commentCount: 1 } });
 
     if (parentComment) {
-      parentComment.replyCount = (parentComment.replyCount || 0) + 1;
-      await parentComment.save();
+      await Comment.findByIdAndUpdate(parentCommentId, { $inc: { replyCount: 1 } });
     }
 
     const populatedComment = await Comment.findById(comment._id)
@@ -680,24 +700,26 @@ export const toggleCommentLike = async (req, res) => {
       });
     }
 
-    const likeIndex = comment.likes.findIndex(like => like.userId.toString() === userId.toString());
+    const alreadyLiked = comment.likes.some(like => like.userId.toString() === userId.toString());
 
-    if (likeIndex > -1) {
-      // Unlike
-      comment.likes.splice(likeIndex, 1);
-      comment.likeCount = Math.max(0, comment.likeCount - 1);
+    if (alreadyLiked) {
+      await Comment.findOneAndUpdate(
+        { _id: commentId, 'likes.userId': userId },
+        { $pull: { likes: { userId } }, $inc: { likeCount: -1 } }
+      );
     } else {
-      // Like
-      comment.likes.push({ userId });
-      comment.likeCount += 1;
+      await Comment.findOneAndUpdate(
+        { _id: commentId, 'likes.userId': { $ne: userId } },
+        { $addToSet: { likes: { userId } }, $inc: { likeCount: 1 } }
+      );
     }
 
-    await comment.save();
+    const updated = await Comment.findById(commentId).select('likeCount').lean();
 
     return res.status(200).json({
       success: true,
-      liked: likeIndex === -1,
-      likeCount: comment.likeCount
+      liked: !alreadyLiked,
+      likeCount: updated?.likeCount ?? comment.likeCount
     });
 
   } catch (error) {
@@ -724,6 +746,15 @@ export const deletePost = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Post not found"
+      });
+    }
+
+    // User must still be an active group member
+    const membership = await GroupMember.findOne({ groupId: post.groupId, userId, isActive: true });
+    if (!membership) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not a member of this group"
       });
     }
 
