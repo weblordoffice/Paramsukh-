@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { Plus, Trash2, X, Image as ImageIcon } from 'lucide-react';
 
 interface Photo {
+    _id?: string;
     url: string;
     caption?: string;
     uploadedAt: string;
