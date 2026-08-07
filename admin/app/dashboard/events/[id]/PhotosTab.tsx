@@ -140,7 +140,7 @@ export default function PhotosTab({ eventId, photos, onUpdate }: PhotosTabProps)
         try {
             const photo = photos[photoIndex];
             await apiClient.delete(`/api/events/${eventId}/images`, {
-                data: { imageUrl: photo.url, imageId: photo.id || photo._id }
+                data: { imageUrl: photo.url, imageId: photo._id }
             });
             toast.success('Photo deleted successfully');
             onUpdate();
