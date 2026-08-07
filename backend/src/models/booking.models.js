@@ -175,7 +175,8 @@ const bookingSchema = new mongoose.Schema({
   },
   userFeedback: {
     type: String,
-    trim: true
+    trim: true,
+    maxlength: 1000
   },
   feedbackSubmittedAt: {
     type: Date
@@ -189,16 +190,19 @@ bookingSchema.index({ user: 1, status: 1, bookingDate: -1 });
 bookingSchema.index({ counselorType: 1, bookingDate: 1, status: 1 });
 bookingSchema.index({ bookingDate: 1, bookingTime: 1 });
 
-// UNIQUE compound index to prevent double booking (race condition prevention)
+// UNIQUE compound index to prevent double booking (status handled by partialFilterExpression)
 bookingSchema.index({ 
   counselorType: 1, 
   bookingDate: 1, 
-  bookingTime: 1, 
-  status: 1 
+  bookingTime: 1
 }, { 
   unique: true,
   partialFilterExpression: { status: { $in: ['pending', 'confirmed'] } }
 });
+
+// Sparse indexes for replay protection lookups
+bookingSchema.index({ paymentId: 1 }, { sparse: true, unique: true });
+bookingSchema.index({ razorpayOrderId: 1 }, { sparse: true });
 
 // Virtual for formatted date
 bookingSchema.virtual('formattedDate').get(function () {
@@ -211,30 +215,34 @@ bookingSchema.virtual('formattedDate').get(function () {
 });
 
 // Method to check if booking can be cancelled
+// Parse bookingDate + bookingTime into full datetime
+function resolveBookingDateTime(bookingDate, bookingTime) {
+  const date = new Date(bookingDate);
+  if (!bookingTime) return date;
+  const timeParts = bookingTime.match(/^(\d{1,2}):(\d{2})$/);
+  if (timeParts) {
+    date.setHours(parseInt(timeParts[1]), parseInt(timeParts[2]), 0, 0);
+  }
+  return date;
+}
+
 bookingSchema.methods.canBeCancelled = function () {
   if (this.status === 'cancelled' || this.status === 'completed') {
     return false;
   }
-
-  // Check if booking is at least 24 hours away
   const now = new Date();
-  const bookingDateTime = new Date(this.bookingDate);
+  const bookingDateTime = resolveBookingDateTime(this.bookingDate, this.bookingTime);
   const hoursUntilBooking = (bookingDateTime - now) / (1000 * 60 * 60);
-
   return hoursUntilBooking >= 24;
 };
 
-// Method to check if booking can be rescheduled
 bookingSchema.methods.canBeRescheduled = function () {
   if (this.status === 'cancelled' || this.status === 'completed') {
     return false;
   }
-
-  // Check if booking is at least 48 hours away
   const now = new Date();
-  const bookingDateTime = new Date(this.bookingDate);
+  const bookingDateTime = resolveBookingDateTime(this.bookingDate, this.bookingTime);
   const hoursUntilBooking = (bookingDateTime - now) / (1000 * 60 * 60);
-
   return hoursUntilBooking >= 48;
 };
 
@@ -309,13 +317,11 @@ bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
     return hrs * 60 + mins;
   };
 
-  // Helper to format minutes to "hh:mm AM/PM"
+  // Helper to format minutes to "HH:mm" (24h format — matches pre-save normalization)
   const formatMinutesToTime = (totalMinutes) => {
-    let hrs = Math.floor(totalMinutes / 60);
+    const hrs = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
-    const ampm = hrs >= 12 ? 'PM' : 'AM';
-    const displayHrs = hrs % 12 || 12;
-    return `${displayHrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')} ${ampm}`;
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   };
 
   const startMinutes = parseTimeToMinutes(hours.start);
@@ -362,6 +368,8 @@ bookingSchema.pre('save', function (next) {
         if (period === 'PM' && hours < 12) hours += 12;
         if (period === 'AM' && hours === 12) hours = 0;
         this.bookingTime = `${String(hours).padStart(2, '0')}:${minutes}`;
+      } else {
+        return next(new Error(`Invalid bookingTime format: "${timeStr}". Use HH:mm or HH:mm AM/PM.`));
       }
     }
   }

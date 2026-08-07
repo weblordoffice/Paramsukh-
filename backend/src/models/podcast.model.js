@@ -111,6 +111,7 @@ podcastSchema.pre('findOneAndUpdate', function(next) {
     const hasSet = !!update.$set;
     const target = hasSet ? update.$set : update;
     const source = target.source;
+    const accessType = target.accessType;
 
     if (source === 'youtube') {
         target.accessType = 'free';
@@ -119,6 +120,14 @@ podcastSchema.pre('findOneAndUpdate', function(next) {
         target.videoUrl = '';
     } else if (source === 'local') {
         target.youtubeUrl = '';
+    }
+
+    // Validate accessType requirements
+    if (accessType === 'paid' && !target.price && target.price !== 0) {
+        return next(new Error('Price is required for paid podcasts'));
+    }
+    if (accessType === 'membership' && (!target.requiredMemberships || target.requiredMemberships.length === 0)) {
+        return next(new Error('At least one required membership plan is needed for membership-type podcasts'));
     }
 
     target.updatedAt = Date.now();

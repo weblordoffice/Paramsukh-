@@ -25,23 +25,24 @@ export default function CounselingScreen() {
 
   const { counselingTypes, fetchCounselingTypes, fetchMyBookings, isLoading } = useCounselingStore();
 
-  const isMountedRef = useRef(true);
+  const isMountedRef1 = useRef(true);
+  const isMountedRef2 = useRef(true);
 
   useEffect(() => {
-    isMountedRef.current = true;
+    isMountedRef1.current = true;
     fetchCounselingTypes();
     return () => {
-      isMountedRef.current = false;
+      isMountedRef1.current = false;
     };
   }, [fetchCounselingTypes]);
 
   useEffect(() => {
-    isMountedRef.current = true;
+    isMountedRef2.current = true;
     const loadConfirmedBooking = async () => {
       setIsBookingLoading(true);
       const bookings = await fetchMyBookings('confirmed');
 
-      if (!isMountedRef.current) return;
+      if (!isMountedRef2.current) return;
 
       if (!bookings.length) {
         setConfirmedBooking(null);
@@ -57,14 +58,14 @@ export default function CounselingScreen() {
         .sort((a: ConfirmedBookingSummary, b: ConfirmedBookingSummary) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
 
       const selected = upcoming[0] || bookings[0];
-      if (!isMountedRef.current) return;
+      if (!isMountedRef2.current) return;
       setConfirmedBooking(selected as ConfirmedBookingSummary);
       setIsBookingLoading(false);
     };
 
     loadConfirmedBooking();
     return () => {
-      isMountedRef.current = false;
+      isMountedRef2.current = false;
     };
   }, [fetchMyBookings]);
 

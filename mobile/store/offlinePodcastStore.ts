@@ -59,13 +59,11 @@ export const useOfflinePodcastStore = create<OfflinePodcastState>((set, get) => 
             const raw = await AsyncStorage.getItem(STORAGE_KEY);
             const parsed: OfflinePodcastItem[] = raw ? JSON.parse(raw) : [];
 
-            const validDownloads: OfflinePodcastItem[] = [];
-            for (const item of parsed) {
+            const checks = await Promise.all(parsed.map(async (item) => {
                 const info = await FileSystem.getInfoAsync(item.localUri);
-                if (info.exists) {
-                    validDownloads.push(item);
-                }
-            }
+                return info.exists ? item : null;
+            }));
+            const validDownloads = checks.filter((item): item is OfflinePodcastItem => item !== null);
 
             if (validDownloads.length !== parsed.length) {
                 await persistDownloads(validDownloads);

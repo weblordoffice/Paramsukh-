@@ -29,7 +29,10 @@ interface UserBooking {
 interface CounselingState {
     counselingTypes: CounselorType[];
     isLoading: boolean;
+    isLoadingSlots: boolean;
+    isLoadingBookings: boolean;
     error: string | null;
+    errorBookings: string | null;
     fetchCounselingTypes: () => Promise<void>;
     checkAvailability: (date: string, counselorType: string) => Promise<string[]>;
     bookSession: (bookingData: any) => Promise<{ success: boolean; message?: string; bookingId?: string }>;
@@ -43,12 +46,15 @@ interface CounselingState {
 export const useCounselingStore = create<CounselingState>((set) => ({
     counselingTypes: [],
     isLoading: false,
+    isLoadingSlots: false,
+    isLoadingBookings: false,
     error: null,
+    errorBookings: null,
 
     fetchCounselingTypes: async () => {
         set({ isLoading: true, error: null });
         try {
-            const response = await apiClient.get(`${API_URL}/counseling/services`);
+            const response = await apiClient.get('/counseling/services');
             if (response.data && response.data.success) {
                 const types = response.data?.data?.services?.map((s: any) => ({
                     id: s._id,
@@ -178,13 +184,15 @@ export const useCounselingStore = create<CounselingState>((set) => ({
     },
 
     fetchMyBookings: async (status?: string) => {
+        set({ isLoadingBookings: true, errorBookings: null });
         try {
             const response = await apiClient.get(`${API_URL}/counseling/my-bookings`, {
                 params: status ? { status } : {}
             });
-
+            set({ isLoadingBookings: false });
             return response.data?.data?.bookings || [];
         } catch (error: any) {
+            set({ isLoadingBookings: false, errorBookings: error?.message || 'Failed to load bookings' });
             return [];
         }
     }

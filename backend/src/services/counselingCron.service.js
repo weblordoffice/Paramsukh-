@@ -8,6 +8,13 @@ import { cleanupExpiredBookings, autoCompletePastBookings } from '../services/bo
 export const setupCounselingCrons = () => {
   console.log('🕐 Setting up counseling system cron jobs...');
 
+  // Only run crons on primary instance in multi-replica deployments
+  const isCronInstance = !process.env.SKIP_CRON_JOBS || process.env.CRON_INSTANCE === 'true';
+  if (!isCronInstance) {
+    console.log('🕐 Skipping counseling cron jobs — not the cron instance');
+    return;
+  }
+
   // Cleanup expired unpaid bookings - Every 10 minutes
   cron.schedule('*/10 * * * *', async () => {
     console.log('\n⏰ [CRON] Running expired booking cleanup...');

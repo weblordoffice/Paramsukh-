@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Podcast from '../../models/podcast.model.js';
 import PodcastPurchase from '../../models/podcastPurchase.model.js';
 import PodcastFavorite from '../../models/podcastFavorite.model.js';
@@ -356,19 +357,15 @@ export const updatePodcast = async (req, res) => {
         const normalizedAccessType = resolvedSource === 'youtube' ? 'free' : (accessType || podcast.accessType || 'free');
         const updatePayload = { ...req.body, source: resolvedSource, accessType: normalizedAccessType };
 
-        // Validation
-        if (resolvedSource === 'youtube' && !youtubeUrl) {
-            return res.status(400).json({
-                success: false,
-                message: 'YouTube URL is required when source is youtube',
-            });
+        // Validation — only require URL if source is being explicitly set (not from existing)
+        if (source && source === 'youtube' && !youtubeUrl) {
+            return res.status(400).json({ success: false, message: 'YouTube URL is required when source is youtube' });
         }
-
-        if (resolvedSource === 'local' && !videoUrl) {
-            return res.status(400).json({
-                success: false,
-                message: 'Video URL is required when source is local',
-            });
+        if (source && source === 'local' && !videoUrl) {
+            return res.status(400).json({ success: false, message: 'Video URL is required when source is local' });
+        }
+        if (resolvedSource === 'youtube' && !youtubeUrl && !podcast.youtubeUrl) {
+            return res.status(400).json({ success: false, message: 'YouTube URL is required' });
         }
 
         if (normalizedAccessType === 'membership' && (!requiredMemberships || requiredMemberships.length === 0)) {
@@ -427,10 +424,18 @@ export const deletePodcast = async (req, res) => {
             });
         }
 
-        await podcast.deleteOne();
-
-        // Also delete any purchases associated with this podcast
-        await PodcastPurchase.deleteMany({ podcastId: podcast._id });
+        const session = await mongoose.startSession();
+        try {
+            session.startTransaction();
+            await podcast.deleteOne({ session });
+            await PodcastPurchase.deleteMany({ podcastId: podcast._id }, { session });
+            await session.commitTransaction();
+        } catch (txError) {
+            await session.abortTransaction();
+            throw txError;
+        } finally {
+            session.endSession();
+        }
 
         res.status(200).json({
             success: true,

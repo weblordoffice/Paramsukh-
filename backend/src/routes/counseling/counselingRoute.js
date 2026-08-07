@@ -40,7 +40,7 @@ const router = express.Router();
 // Public Routes
 // ========================================
 router.get('/services', getAllServices);
-router.get('/availability', getAvailability);
+router.get('/availability', protectedRoutes, getAvailability);
 
 // ========================================
 // Admin Routes (Admin Auth)

@@ -434,37 +434,32 @@ export const cancelBooking = async (req, res) => {
     const { bookingId } = req.params;
     const { reason } = req.body;
 
-    const booking = await Booking.findOne({
-      _id: bookingId,
-      user: userId
-    });
+    // Atomic cancellation — prevents race conditions on concurrent cancels
+    const booking = await Booking.findOneAndUpdate(
+      { _id: bookingId, user: userId, status: { $nin: ['cancelled', 'completed'] } },
+      {
+        $set: {
+          status: 'cancelled',
+          cancelledAt: new Date(),
+          cancellationReason: reason || 'User requested cancellation',
+          cancelledBy: 'user',
+          refundStatus: 'pending'
+        }
+      },
+      { new: false } // return the old document for refund processing
+    );
 
     if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: 'Booking not found'
-      });
-    }
-
-    if (booking.status === 'cancelled') {
-      return res.status(400).json({
-        success: false,
-        message: 'Booking is already cancelled'
-      });
-    }
-
-    if (booking.status === 'completed') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot cancel a completed booking'
-      });
+      const existing = await Booking.findById(bookingId).select('status').lean();
+      if (!existing) return res.status(404).json({ success: false, message: 'Booking not found' });
+      if (existing.status === 'cancelled') return res.status(400).json({ success: false, message: 'Booking is already cancelled' });
+      return res.status(400).json({ success: false, message: 'Cannot cancel this booking' });
     }
 
     if (!booking.canBeCancelled()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Bookings can only be cancelled at least 24 hours in advance'
-      });
+      // Revert the cancellation
+      await Booking.findByIdAndUpdate(bookingId, { $set: { status: booking.status, cancelledAt: null, cancellationReason: null, cancelledBy: null, refundStatus: null } });
+      return res.status(400).json({ success: false, message: 'Bookings can only be cancelled at least 24 hours in advance' });
     }
 
     booking.status = 'cancelled';
@@ -485,22 +480,17 @@ export const cancelBooking = async (req, res) => {
             cancelled_by: 'user'
           }
         );
-
-        booking.refundId = refund.id;
-        booking.refundAmount = booking.amount;
-        booking.refundStatus = 'processed';
-        booking.refundProcessedAt = new Date();
-
+        await Booking.findByIdAndUpdate(bookingId, {
+          $set: { refundId: refund.id, refundAmount: booking.amount, refundStatus: 'processed', refundProcessedAt: new Date() }
+        });
         console.log(`✅ Refund processed: ${refund.id}`);
       } catch (refundError) {
         console.error('❌ Refund processing failed:', refundError.message);
-        booking.refundStatus = 'failed';
-        booking.refundError = refundError.message;
-        // Don't fail the cancellation if refund fails - log it
+        await Booking.findByIdAndUpdate(bookingId, {
+          $set: { refundStatus: 'failed', refundError: refundError.message }
+        });
       }
     }
-
-    await booking.save();
 
     const { recordRefund } = await import('../../services/transaction.service.js');
     recordRefund({ sourceId: booking._id.toString(), refundAmount: booking.amount }).catch(err =>
@@ -541,10 +531,10 @@ export const rescheduleBooking = async (req, res) => {
     const { newDate, newTime, reason } = req.body;
 
     if (!newDate || !newTime) {
-      return res.status(400).json({
-        success: false,
-        message: 'New date and time are required'
-      });
+      return res.status(400).json({ success: false, message: 'New date and time are required' });
+    }
+    if (new Date(newDate) <= new Date()) {
+      return res.status(400).json({ success: false, message: 'New date must be in the future' });
     }
 
     const booking = await Booking.findOne({

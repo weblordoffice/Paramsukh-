@@ -159,22 +159,18 @@ export const confirmPodcastPayment = async (req, res) => {
 
         // Get podcast
         const podcast = await Podcast.findById(podcastId);
-        const expectedPaise = Math.round((Number(podcast?.price) || 0) * 100);
-        const paidPaise = Number(link?.amount || link?.amount_paid || 0);
-        // In production, validate that the paid amount matches the podcast price
-        if (process.env.NODE_ENV === 'production' && expectedPaise > 0 && paidPaise !== expectedPaise) {
-            return res.status(400).json({
-                success: false,
-                message: 'Payment amount does not match podcast price',
-                data: { expected: expectedPaise, received: paidPaise }
-            });
-        }
         if (!podcast) {
             return res.status(404).json({
                 success: false,
                 message: 'Podcast not found',
             });
         }
+        if (podcast.accessType !== 'paid') {
+            return res.status(400).json({ success: false, message: 'This podcast does not require payment' });
+        }
+
+        const expectedPaise = Math.round((Number(podcast?.price) || 0) * 100);
+        const paidPaise = Number(link?.amount || link?.amount_paid || 0);
 
         // Check if already purchased
         let purchase = await PodcastPurchase.findOne({
@@ -284,10 +280,12 @@ export const handlePodcastPaymentWebhook = async (req, res) => {
                 });
 
                 if (!purchase) {
+                    const podcast = await Podcast.findById(podcastId).select('title price').lean();
                     purchase = await PodcastPurchase.create({
                         userId,
                         podcastId,
                         paymentId,
+                        orderId: payload?.payment_link_id || payload?.id || null,
                         purchasedAt: new Date(),
                     });
 
