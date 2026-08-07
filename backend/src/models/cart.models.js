@@ -10,6 +10,7 @@ const cartItemSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
+    max: 999,
     default: 1
   },
   variant: {
@@ -19,6 +20,10 @@ const cartItemSchema = new mongoose.Schema({
   price: {
     type: Number,
     required: true
+  },
+  taxRate: {
+    type: Number,
+    default: 18 // GST %
   },
   addedAt: {
     type: Date,
@@ -143,9 +148,11 @@ cartSchema.methods.calculateTotals = function(coupon = null) {
     this.discount = 0;
   }
   
-  // Calculate tax (assuming 18% GST)
-  const taxableAmount = Math.max(0, this.subtotal - this.discount);
-  this.tax = Math.round((taxableAmount * 0.18) * 100) / 100;
+  // Calculate tax per-item using each product's taxRate
+  this.tax = Math.round(this.items.reduce((sum, item) => {
+    const itemNet = Math.max(0, (item.price * item.quantity) - (this.discount || 0) * (item.price * item.quantity / Math.max(1, this.subtotal)));
+    return sum + (itemNet * ((item.taxRate ?? 18) / 100));
+  }, 0) * 100) / 100;
   
   // Calculate total
   this.total = this.subtotal - this.discount + this.shippingCharge + this.tax;
@@ -158,7 +165,11 @@ cartSchema.methods.addItem = async function(productId, quantity, _clientPrice, v
   const product = await Product.findById(productId).select('pricing.sellingPrice');
   if (!product) throw new Error('Product not found');
 
-  const price = product.pricing?.sellingPrice || _clientPrice;
+  // Always use DB price — never trust client-supplied price (prevents price tampering)
+  const price = product.pricing?.sellingPrice ?? 0;
+  if (price === 0 && !product.pricing?.sellingPrice) {
+    throw new Error('Unable to determine product price');
+  }
 
   const existingItemIndex = this.items.findIndex(item => 
     item.product.toString() === productId.toString() &&
@@ -171,7 +182,8 @@ cartSchema.methods.addItem = async function(productId, quantity, _clientPrice, v
     const newItem = {
       product: productId,
       quantity,
-      price
+      price,
+      taxRate: product.pricing?.taxRate ?? 18
     };
     if (variant && typeof variant === 'object' && Object.keys(variant).length > 0) {
       newItem.variant = variant;

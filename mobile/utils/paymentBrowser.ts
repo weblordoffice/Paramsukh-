@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export const PENDING_PAYMENT_LINK_KEY = 'pending_payment_link';
 
 export interface PendingPaymentLink {
-  type: 'order' | 'event' | 'counseling' | 'membership' | 'podcast';
+  type: 'order' | 'event' | 'counseling' | 'membership' | 'podcast' | 'donation';
   id?: string; // orderId / eventId / bookingId / plan slug
   paymentLinkId?: string;
   url?: string;

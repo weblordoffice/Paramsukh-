@@ -91,7 +91,7 @@ export const getAllProducts = async (req, res) => {
       } else {
         const foundCategory = await Category.findOne({
           $or: [
-            { name: { $regex: new RegExp('^' + category + '$', 'i') } },
+            { name: { $regex: new RegExp('^' + escapeRegex(category) + '$', 'i') } },
             { slug: category.toLowerCase() }
           ]
         });
@@ -172,9 +172,8 @@ export const getProductById = async (req, res) => {
       });
     }
 
-    // Increment view count
-    product.stats.views += 1;
-    await product.save();
+    // Atomic view count — avoids triggering pre-save hooks unnecessarily
+    await Product.findByIdAndUpdate(id, { $inc: { 'stats.views': 1 } });
 
     res.status(200).json({
       success: true,
@@ -215,13 +214,12 @@ export const updateProduct = async (req, res) => {
       });
     }
 
-    // Update fields
+    // Update only allowed fields — prevents mass assignment of shop, stats, ratings, etc.
+    const ALLOWED = ['name', 'slug', 'description', 'shortDescription', 'images', 'category', 'subcategory', 'pricing', 'specifications', 'variants', 'shipping', 'tags', 'isFeatured', 'productType'];
     const updates = req.body;
-    Object.keys(updates).forEach(key => {
-      if (updates[key] !== undefined) {
-        product[key] = updates[key];
-      }
-    });
+    for (const key of ALLOWED) {
+      if (updates[key] !== undefined) product[key] = updates[key];
+    }
 
     await product.save();
 
@@ -264,6 +262,10 @@ export const deleteProduct = async (req, res) => {
         message: 'Not authorized to delete this product'
       });
     }
+
+    // Remove from all carts to prevent dangling references
+    const Cart = (await import('../../models/cart.models.js')).default || (await import('../../models/cart.models.js')).Cart;
+    await Cart.updateMany({ 'items.product': product._id }, { $pull: { items: { product: product._id } } });
 
     await product.deleteOne();
 
@@ -414,12 +416,10 @@ export const addProductReview = async (req, res) => {
     const { id } = req.params;
     const { rating, title, comment, images, orderId } = req.body;
 
-    if (!rating || !comment) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rating and comment are required'
-      });
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
     }
+    if (!comment) return res.status(400).json({ success: false, message: 'Comment is required' });
 
     const product = await Product.findById(id);
     if (!product) {

@@ -3,6 +3,8 @@ import Product from '../../models/product.models.js';
 import Shop from '../../models/shop.models.js';
 import Category from '../../models/category.models.js';
 
+const escapeRegexStr = (str) => String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 // @desc    Create product (Admin only - Simplified)
 // @route   POST /api/products/admin/create
 // @access  Admin
@@ -54,7 +56,7 @@ export const createProductAdmin = async (req, res) => {
         } else if (category && typeof category === 'string') {
             // Try finding by name (case-insensitive)
             let existingCategory = await Category.findOne({
-                name: { $regex: new RegExp(`^${category}$`, 'i') }
+                name: { $regex: new RegExp(`^${escapeRegexStr(category)}$`, 'i') }
             });
 
             if (existingCategory) {
@@ -150,7 +152,6 @@ export const createProductAdmin = async (req, res) => {
                 isUnlimited: productType === 'external' || productType === 'amazon'
             },
             shop: shop._id,
-            productType: productType === 'amazon' ? 'amazon' : 'regular',
             externalLink: productType === 'amazon' && externalLink ? externalLink.trim() : null,
             isFeatured,
             isActive: true,
@@ -195,14 +196,15 @@ export const updateProductAdmin = async (req, res) => {
             });
         }
 
-        // Handle specific fields mapping to nested structure
-        if (updates.price) {
-            product.pricing.sellingPrice = updates.price;
-            product.pricing.mrp = updates.price; // Update mrp as well
-        }
-
-        if (updates.stock !== undefined) {
-            product.inventory.stock = updates.stock; // Changed from quantity to stock
+        // Only update price/stock for non-external products
+        if (product.productType !== 'external' && product.productType !== 'amazon') {
+            if (updates.price) {
+                product.pricing.sellingPrice = updates.price;
+                product.pricing.mrp = updates.price;
+            }
+            if (updates.stock !== undefined) {
+                product.inventory.stock = updates.stock;
+            }
         }
 
         // Format images array if provided
@@ -225,13 +227,6 @@ export const updateProductAdmin = async (req, res) => {
             }
         });
 
-        if (updates.price !== undefined && product.productType !== 'amazon') {
-            product.pricing.sellingPrice = updates.price;
-            product.pricing.mrp = updates.price;
-        }
-        if (updates.stock !== undefined && product.productType !== 'amazon') {
-            product.inventory.stock = updates.stock;
-        }
 
         await product.save();
 
@@ -257,14 +252,16 @@ export const deleteProductAdmin = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const product = await Product.findByIdAndDelete(id);
-
+        const product = await Product.findById(id);
         if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: 'Product not found'
-            });
+            return res.status(404).json({ success: false, message: 'Product not found' });
         }
+
+        // Remove from all carts to prevent dangling references
+        const Cart = (await import('../../models/cart.models.js')).default || (await import('../../models/cart.models.js')).Cart;
+        await Cart.updateMany({ 'items.product': product._id }, { $pull: { items: { product: product._id } } });
+
+        await Product.findByIdAndDelete(id);
 
         res.status(200).json({
             success: true,
