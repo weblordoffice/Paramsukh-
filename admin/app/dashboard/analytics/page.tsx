@@ -46,8 +46,8 @@ interface AnalyticsData {
   events: {
     totalEvents: number;
     totalRegistrations: number;
-    conversionRate: number;
-  };
+    avgRegistrationsPerEvent: number;
+  };  
   charts: {
     userGrowth: { _id: string; count: number }[];
     revenueTrend: { _id: string; total: number }[];
@@ -122,7 +122,7 @@ export default function AnalyticsPage() {
       subValue: `${data.events.totalRegistrations} total signups`,
       icon: Calendar,
       color: 'purple',
-      status: data.events.conversionRate > 5 ? 'up' : 'down',
+      status: data.events.avgRegistrationsPerEvent > 5 ? 'up' : 'down',
       desc: 'Average registrations confirmed per event.'
     }
   ];
