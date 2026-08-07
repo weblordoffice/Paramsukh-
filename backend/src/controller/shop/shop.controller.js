@@ -299,12 +299,10 @@ export const addShopReview = async (req, res) => {
     const { id } = req.params;
     const { rating, title, comment, orderId } = req.body;
 
-    if (!rating || !comment) {
-      return res.status(400).json({
-        success: false,
-        message: 'Rating and comment are required'
-      });
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5' });
     }
+    if (!comment) return res.status(400).json({ success: false, message: 'Comment is required' });
 
     // Check if shop exists
     const shop = await Shop.findById(id);
@@ -324,7 +322,7 @@ export const addShopReview = async (req, res) => {
       title,
       comment,
       order: orderId,
-      isVerifiedPurchase: !!orderId
+      isVerifiedPurchase: !!orderId && /^[a-f\d]{24}$/i.test(String(orderId))
     });
 
     await review.save();

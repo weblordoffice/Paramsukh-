@@ -1,184 +1,154 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, TextInput, ActivityIndicator, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDonationStore } from '@/store/donationStore';
+import { useAuthStore } from '@/store/authStore';
+import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '@/utils/paymentBrowser';
+import apiClient from '@/utils/apiClient';
 
 export default function DonationsScreen() {
   const router = useRouter();
-  const [showQR, setShowQR] = useState(false);
-  const { recordDonation } = useDonationStore();
+  const insets = useSafeAreaInsets();
+  const { token } = useAuthStore();
+  const { donations, fetchMyDonations, isLoading } = useDonationStore();
 
-  const accountDetails = {
-    accountName: 'Paramsukh Foundation',
-    accountNumber: '1234567890',
-    ifscCode: 'SBIN0001234',
-    bankName: 'State Bank of India',
-    branch: 'Main Branch',
-    upiId: 'paramsukh@sbi'
-  };
+  const [amount, setAmount] = useState('');
+  const [message, setMessage] = useState('');
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handlePay = async () => {
-    // Open UPI payment intent
-    const upiUrl = `upi://pay?pa=${accountDetails.upiId}&pn=${encodeURIComponent(accountDetails.accountName)}&cu=INR`;
+  const presetAmounts = [101, 501, 1001, 5001];
+
+  useEffect(() => {
+    if (token) fetchMyDonations();
+  }, [token, fetchMyDonations]);
+
+  const handleDonate = async () => {
+    const numAmount = Number(amount);
+    if (!numAmount || numAmount <= 0) {
+      Alert.alert('Invalid Amount', 'Please enter a valid donation amount');
+      return;
+    }
+    if (isProcessing) return;
+    setIsProcessing(true);
 
     try {
-      const supported = await Linking.canOpenURL(upiUrl);
+      const linkRes = await apiClient.post('/donations/payment-link', {
+        amount: numAmount,
+        message: message.trim() || undefined,
+        isAnonymous
+      });
 
-      if (supported) {
-        await Linking.openURL(upiUrl);
-
-        // Ask user if payment was successful (since we can't know for sure with deep linking)
-        Alert.alert(
-          'Payment Confirmation',
-          'Did you complete the payment successfully?',
-          [
-            { text: 'No', style: 'cancel' },
-            {
-              text: 'Yes',
-              onPress: async () => {
-                // Prompt for amount (since we didn't specify it in intent, or just default to 0/unknown)
-                // ideally we should have an input field for amount before clicking Pay
-                // For now, let's just record it as "User reported donation"
-
-                await recordDonation({
-                  amount: 0, // 0 indicates unknown/unverified
-                  paymentMethod: 'UPI',
-                  message: 'User reported successful UPI payment via app link'
-                });
-                Alert.alert('Thank You', 'Your donation has been recorded. We will verify and update your history shortly.');
-              }
-            }
-          ]
-        );
-      } else {
-        Alert.alert('Error', 'No UPI app found on your device');
+      if (!linkRes.data?.success || !linkRes.data?.data?.url) {
+        Alert.alert('Error', linkRes.data?.message || 'Could not create payment link');
+        setIsProcessing(false);
+        return;
       }
-    } catch (err) {
-      Alert.alert('Error', 'Failed to open payment app');
+
+      const { url, paymentLinkId, expiresAt } = linkRes.data.data;
+      await savePendingPaymentLink({ type: 'donation', paymentLinkId, url, expiresAt });
+
+      const openResult = await openPaymentLink({
+        url,
+        confirm: async () => {
+          const res = await apiClient.post('/donations/confirm-payment', { paymentLinkId });
+          return { success: !!res.data?.success, message: res.data?.message, data: res.data?.data };
+        },
+      });
+
+      if (openResult.success) {
+        await clearPendingPaymentLinks('donation', undefined, paymentLinkId);
+        Alert.alert('Thank You! 🙏', `Your donation of ₹${numAmount} has been received.`, [
+          { text: 'OK', onPress: () => { setAmount(''); setMessage(''); fetchMyDonations(); } }
+        ]);
+      } else {
+        Alert.alert('Payment', openResult.result?.message || 'Payment not completed. You can try again.');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err?.message || 'Payment failed. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => { if (router.canGoBack()) router.back(); }}
-        >
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={styles.backBtn}>
+          <Ionicons name="arrow-back" size={24} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Donations</Text>
-        <View style={styles.placeholder} />
+        <Text style={styles.headerTitle}>Donate</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        {/* Paramsukh Banner */}
-        <View style={styles.banner}>
-          <View style={styles.logoContainer}>
-            <Ionicons name="heart-circle" size={64} color="#EF4444" />
-          </View>
-          <Text style={styles.bannerTitle}>Paramsukh Foundation</Text>
-          <Text style={styles.bannerSubtitle}>
-            Your contribution makes a difference in countless lives
-          </Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        {/* Hero */}
+        <View style={styles.hero}>
+          <Text style={styles.heroEmoji}>🙏</Text>
+          <Text style={styles.heroTitle}>Support Our Mission</Text>
+          <Text style={styles.heroSubtitle}>Your contribution helps us spread wellness and spiritual knowledge to everyone.</Text>
         </View>
 
-        {/* Toggle: Account Details or QR Code */}
-        <View style={styles.toggleContainer}>
-          <TouchableOpacity
-            style={[styles.toggleButton, !showQR && styles.toggleButtonActive]}
-            onPress={() => setShowQR(false)}
-          >
-            <Ionicons
-              name="card-outline"
-              size={20}
-              color={!showQR ? '#FFFFFF' : '#6B7280'}
-            />
-            <Text style={[styles.toggleText, !showQR && styles.toggleTextActive]}>
-              Account Details
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.toggleButton, showQR && styles.toggleButtonActive]}
-            onPress={() => setShowQR(true)}
-          >
-            <Ionicons
-              name="qr-code-outline"
-              size={20}
-              color={showQR ? '#FFFFFF' : '#6B7280'}
-            />
-            <Text style={[styles.toggleText, showQR && styles.toggleTextActive]}>
-              Pay with QR
-            </Text>
-          </TouchableOpacity>
+        {/* Amount Input */}
+        <View style={styles.card}>
+          <Text style={styles.label}>Donation Amount (₹)</Text>
+          <TextInput
+            style={styles.amountInput}
+            placeholder="Enter amount"
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="numeric"
+            placeholderTextColor="#9CA3AF"
+          />
+          <View style={styles.presets}>
+            {presetAmounts.map(p => (
+              <TouchableOpacity key={p} style={[styles.presetBtn, amount === String(p) && styles.presetActive]} onPress={() => setAmount(String(p))}>
+                <Text style={[styles.presetText, amount === String(p) && styles.presetTextActive]}>₹{p}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
-        {/* Content Area */}
-        {!showQR ? (
-          // Account Details
-          <View style={styles.contentCard}>
-            <Text style={styles.contentTitle}>Bank Account Details</Text>
+        {/* Message */}
+        <View style={styles.card}>
+          <Text style={styles.label}>Message (Optional)</Text>
+          <TextInput style={styles.msgInput} placeholder="Leave a message..." value={message} onChangeText={setMessage} multiline placeholderTextColor="#9CA3AF" />
+        </View>
 
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Account Name</Text>
-              <Text style={styles.detailValue}>{accountDetails.accountName}</Text>
-            </View>
+        {/* Anonymous Toggle */}
+        <TouchableOpacity style={styles.anonRow} onPress={() => setIsAnonymous(!isAnonymous)}>
+          <Ionicons name={isAnonymous ? 'checkbox' : 'square-outline'} size={22} color="#8B5CF6" />
+          <Text style={styles.anonText}>Donate anonymously</Text>
+        </TouchableOpacity>
 
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Account Number</Text>
-              <Text style={styles.detailValue}>{accountDetails.accountNumber}</Text>
-            </View>
+        {/* Donate Button */}
+        <TouchableOpacity style={[styles.donateBtn, (!amount || isProcessing) && styles.donateDisabled]} onPress={handleDonate} disabled={!amount || isProcessing}>
+          {isProcessing ? <ActivityIndicator color="#FFF" /> : <Text style={styles.donateBtnText}>Donate via Razorpay</Text>}
+        </TouchableOpacity>
 
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>IFSC Code</Text>
-              <Text style={styles.detailValue}>{accountDetails.ifscCode}</Text>
-            </View>
-
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Bank Name</Text>
-              <Text style={styles.detailValue}>{accountDetails.bankName}</Text>
-            </View>
-
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Branch</Text>
-              <Text style={styles.detailValue}>{accountDetails.branch}</Text>
-            </View>
-
-            <View style={[styles.detailRow, styles.upiRow]}>
-              <Text style={styles.detailLabel}>UPI ID</Text>
-              <Text style={styles.upiValue}>{accountDetails.upiId}</Text>
-            </View>
-          </View>
-        ) : (
-          // QR Code
-          <View style={styles.contentCard}>
-            <Text style={styles.contentTitle}>Scan QR to Pay</Text>
-
-            <View style={styles.qrContainer}>
-              <View style={styles.qrPlaceholder}>
-                <Ionicons name="qr-code" size={120} color="#9CA3AF" />
+        {/* Donation History */}
+        <View style={styles.historySection}>
+          <Text style={styles.historyTitle}>Donation History</Text>
+          {isLoading ? (
+            <ActivityIndicator color="#8B5CF6" style={{ marginTop: 20 }} />
+          ) : donations.length === 0 ? (
+            <Text style={styles.emptyText}>No donations yet. Be the first to contribute!</Text>
+          ) : (
+            donations.slice(0, 10).map(d => (
+              <View key={d._id} style={styles.historyCard}>
+                <View style={styles.historyRow}>
+                  <Ionicons name="heart-circle" size={24} color="#EF4444" />
+                  <View style={styles.historyInfo}>
+                    <Text style={styles.historyAmount}>₹{d.amount}</Text>
+                    <Text style={styles.historyDate}>{new Date(d.createdAt).toLocaleDateString('en-IN')}</Text>
+                  </View>
+                  <Text style={styles.historyStatus}>{d.status}</Text>
+                </View>
               </View>
-              <Text style={styles.qrSubtext}>
-                Scan with any UPI app to donate
-              </Text>
-            </View>
-
-            <TouchableOpacity style={styles.payButton} onPress={handlePay}>
-              <Ionicons name="wallet-outline" size={20} color="#FFFFFF" />
-              <Text style={styles.payButtonText}>Pay Now</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Thank You Message */}
-        <View style={styles.thankYouCard}>
-          <Ionicons name="heart" size={24} color="#EF4444" />
-          <Text style={styles.thankYouText}>
-            Thank you for your generous support!
-          </Text>
+            ))
+          )}
         </View>
       </ScrollView>
     </View>
@@ -186,199 +156,36 @@ export default function DonationsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F9FAFB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 16,
-  },
-  placeholder: {
-    width: 40,
-  },
-  scrollContent: {
-    padding: 20,
-  },
-  banner: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  logoContainer: {
-    marginBottom: 16,
-  },
-  bannerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  bannerSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  toggleContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  toggleButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  toggleButtonActive: {
-    backgroundColor: '#3B82F6',
-  },
-  toggleText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  toggleTextActive: {
-    color: '#FFFFFF',
-  },
-  contentCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  contentTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  detailLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  detailValue: {
-    fontSize: 14,
-    color: '#111827',
-    fontWeight: '600',
-  },
-  upiRow: {
-    borderBottomWidth: 0,
-    paddingTop: 16,
-    marginTop: 8,
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  upiValue: {
-    fontSize: 14,
-    color: '#3B82F6',
-    fontWeight: '700',
-  },
-  qrContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  qrPlaceholder: {
-    width: 200,
-    height: 200,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderStyle: 'dashed',
-  },
-  qrSubtext: {
-    fontSize: 13,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  payButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#3B82F6',
-    paddingVertical: 14,
-    borderRadius: 12,
-  },
-  payButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  thankYouCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    backgroundColor: '#FEF2F2',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  thankYouText: {
-    fontSize: 14,
-    color: '#991B1B',
-    fontWeight: '600',
-  },
+  container: { flex: 1, backgroundColor: '#F9FAFB' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: '#E5E7EB' },
+  backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
+  scroll: { padding: 16, paddingBottom: 40 },
+  hero: { alignItems: 'center', paddingVertical: 24 },
+  heroEmoji: { fontSize: 48, marginBottom: 12 },
+  heroTitle: { fontSize: 24, fontWeight: '800', color: '#1F2937', marginBottom: 8 },
+  heroSubtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', paddingHorizontal: 20 },
+  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#E5E7EB' },
+  label: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 8 },
+  amountInput: { fontSize: 32, fontWeight: '700', color: '#8B5CF6', borderBottomWidth: 2, borderBottomColor: '#E5E7EB', paddingVertical: 8, marginBottom: 12 },
+  presets: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  presetBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: '#D1D5DB', backgroundColor: '#FFF' },
+  presetActive: { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' },
+  presetText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
+  presetTextActive: { color: '#FFF' },
+  msgInput: { fontSize: 14, color: '#1F2937', borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 12, padding: 12, minHeight: 60, textAlignVertical: 'top' },
+  anonRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20 },
+  anonText: { fontSize: 14, color: '#374151' },
+  donateBtn: { backgroundColor: '#8B5CF6', borderRadius: 16, paddingVertical: 18, alignItems: 'center', marginBottom: 30, shadowColor: '#8B5CF6', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6 },
+  donateDisabled: { opacity: 0.6 },
+  donateBtnText: { color: '#FFF', fontSize: 18, fontWeight: '700' },
+  historySection: { marginTop: 10 },
+  historyTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937', marginBottom: 12 },
+  emptyText: { fontSize: 14, color: '#9CA3AF', textAlign: 'center', marginTop: 16 },
+  historyCard: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: '#E5E7EB' },
+  historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  historyInfo: { flex: 1 },
+  historyAmount: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
+  historyDate: { fontSize: 12, color: '#9CA3AF' },
+  historyStatus: { fontSize: 12, fontWeight: '600', color: '#10B981', textTransform: 'capitalize' },
 });

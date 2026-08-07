@@ -45,7 +45,13 @@ const productSchema = new mongoose.Schema({
   // Pricing
   pricing: {
     mrp: { type: Number, required: true, min: 0 },
-    sellingPrice: { type: Number, required: true, min: 0 },
+    sellingPrice: {
+      type: Number, required: true, min: 0,
+      validate: {
+        validator: function(v) { return v <= this.pricing.mrp; },
+        message: 'Selling price must not exceed MRP'
+      }
+    },
     discount: { type: Number, default: 0, min: 0, max: 100 },
     taxRate: { type: Number, default: 0, min: 0 } // GST %
   },

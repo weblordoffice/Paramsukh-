@@ -38,6 +38,7 @@ import supportRoutes from './routes/support/supportRoute.js';
 import { clerkWebhookHandler } from './controller/auth/clerkWebhook.controller.js';
 import { handleWebhook } from './controller/payments/payments.controller.js';
 import { handlePodcastPaymentWebhook } from './controller/podcast/podcastPayment.controller.js';
+import { handleDonationWebhook } from './controller/donations/donations.controller.js';
 import { setupCounselingCrons } from './services/counselingCron.service.js';
 dotenv.config();
 
@@ -142,6 +143,16 @@ app.post('/api/payments/webhook', express.raw({ type: 'application/json' }), (re
   }
   next();
 }, handleWebhook);
+
+app.post('/api/donations/webhook', express.raw({ type: 'application/json' }), (req, res, next) => {
+  req.rawBody = req.body instanceof Buffer ? req.body.toString('utf8') : String(req.body);
+  try {
+    req.body = JSON.parse(req.rawBody);
+  } catch (_) {
+    req.body = {};
+  }
+  next();
+}, handleDonationWebhook);
 
 app.post('/api/podcasts/webhook/razorpay', express.raw({ type: 'application/json' }), (req, res, next) => {
   req.rawBody = req.body instanceof Buffer ? req.body.toString('utf8') : String(req.body);

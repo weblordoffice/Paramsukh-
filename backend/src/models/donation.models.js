@@ -28,8 +28,8 @@ const donationSchema = new mongoose.Schema({
     },
     paymentMethod: {
         type: String,
-        enum: ['UPI', 'card', 'netbanking', 'wallet'],
-        default: 'UPI'
+        enum: ['UPI', 'card', 'netbanking', 'wallet', 'razorpay'],
+        default: 'razorpay'
     },
     transactionId: {
         type: String, // From payment gateway/UPI
