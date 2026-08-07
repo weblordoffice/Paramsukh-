@@ -35,6 +35,7 @@ export default function BookCounselingScreen() {
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [fetchingSlots, setFetchingSlots] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const processingRef = useRef(false);
 
   const backTimerRef = useRef<any>(null);
 
@@ -78,7 +79,9 @@ export default function BookCounselingScreen() {
 
 
   const handleBooking = async () => {
-    if (!selectedDate || !selectedTime || processing) return;
+    if (!selectedDate || !selectedTime) return;
+    if (processingRef.current) return;
+    processingRef.current = true;
 
     const formattedDateString = new Date(selectedDate).toLocaleDateString('en-IN', {
       weekday: 'short',
@@ -92,7 +95,7 @@ export default function BookCounselingScreen() {
     try {
       // Step 1: Create booking (pending for paid, confirmed for free)
       const result = await bookSession({
-        counselorType: title, // Use service title as type
+        counselorType: id as string,
         counselorName: counselorName || 'Expert Counselor',
         bookingType: title,
         bookingTitle: title,
@@ -157,6 +160,7 @@ export default function BookCounselingScreen() {
     } catch (e: any) {
       Alert.alert('Error', e?.message || 'An unexpected error occurred.');
     } finally {
+      processingRef.current = false;
       setProcessing(false);
     }
   };

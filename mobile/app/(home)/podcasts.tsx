@@ -262,6 +262,7 @@ export default function PodcastsScreen() {
     }
 
     if (podcast.accessType === 'free' && podcast.source === 'youtube') {
+      stop();
       setCurrentPodcast(podcast);
       return;
     }
@@ -375,7 +376,7 @@ export default function PodcastsScreen() {
 
         if (paymentLinkId) {
           await savePendingPaymentLink({
-            type: 'membership',
+            type: 'podcast',
             id: podcast._id,
             paymentLinkId,
             url,

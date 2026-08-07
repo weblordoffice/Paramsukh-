@@ -18,6 +18,7 @@ interface PodcastStoreState {
     favorites: FavoritePodcast[];
     favoriteIds: Set<string>;
     loadingFavorites: boolean;
+    errorFavorites: string | null;
     loadingToggles: Record<string, boolean>;
 
     fetchFavorites: () => Promise<void>;
@@ -29,6 +30,7 @@ export const usePodcastStore = create<PodcastStoreState>((set, get) => ({
     favorites: [],
     favoriteIds: new Set(),
     loadingFavorites: false,
+    errorFavorites: null,
     loadingToggles: {},
 
     fetchFavorites: async () => {
@@ -42,8 +44,8 @@ export const usePodcastStore = create<PodcastStoreState>((set, get) => ({
             } else {
                 set({ loadingFavorites: false });
             }
-        } catch (error) {
-            set({ loadingFavorites: false });
+        } catch (error: any) {
+            set({ loadingFavorites: false, errorFavorites: error?.message || 'Failed to load favorites' });
         }
     },
 

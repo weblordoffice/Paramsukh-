@@ -13,11 +13,12 @@ export const getAllBookings = async (req, res) => {
         if (status) query.status = status;
 
         if (search) {
+            const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             query.$or = [
-                { bookingTitle: { $regex: search, $options: 'i' } },
-                { counselorName: { $regex: search, $options: 'i' } },
-                { userPhone: { $regex: search, $options: 'i' } },
-                { userEmail: { $regex: search, $options: 'i' } }
+                { bookingTitle: { $regex: escaped, $options: 'i' } },
+                { counselorName: { $regex: escaped, $options: 'i' } },
+                { userPhone: { $regex: escaped, $options: 'i' } },
+                { userEmail: { $regex: escaped, $options: 'i' } }
             ];
         }
 
@@ -99,7 +100,23 @@ export const updateBookingStatusAdmin = async (req, res) => {
             });
         }
 
-        const oldStatus = booking.status;
+        // Prevent reactivating cancelled bookings to confirmed if slot was re-booked
+        if (status === 'confirmed' && oldStatus === 'cancelled') {
+            const existingConfirmed = await Booking.findOne({
+                counselorType: booking.counselorType,
+                bookingDate: booking.bookingDate,
+                bookingTime: booking.bookingTime,
+                status: { $in: ['pending', 'confirmed'] },
+                _id: { $ne: booking._id }
+            });
+            if (existingConfirmed) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'Slot has been re-booked by another user. Cannot reactivate this booking.'
+                });
+            }
+        }
+
         booking.status = status;
 
         // MEETING LINK VALIDATION: Require meeting link before marking as completed
@@ -116,6 +133,26 @@ export const updateBookingStatusAdmin = async (req, res) => {
             booking.cancelledAt = Date.now();
             booking.cancellationReason = reason || 'Cancelled by admin';
             booking.cancelledBy = 'admin';
+
+            // Process refund for paid bookings
+            if (!booking.isFree && booking.paymentStatus === 'paid' && booking.paymentId) {
+                try {
+                    const { createRefund } = await import('../../services/razorpayService.js');
+                    const refund = await createRefund(booking.paymentId, Math.round(booking.amount * 100), {
+                        booking_id: booking._id.toString(),
+                        reason: reason || 'Admin cancellation',
+                        cancelled_by: 'admin'
+                    });
+                    booking.refundId = refund.id;
+                    booking.refundAmount = booking.amount;
+                    booking.refundStatus = 'processed';
+                    booking.refundProcessedAt = new Date();
+                } catch (refundError) {
+                    console.error('Admin refund failed:', refundError.message);
+                    booking.refundStatus = 'failed';
+                    booking.refundError = refundError.message;
+                }
+            }
         } else if (status === 'completed') {
             booking.completedAt = Date.now();
         }
@@ -214,14 +251,20 @@ export const deleteBookingAdmin = async (req, res) => {
     try {
         const { id } = req.params;
 
-        const booking = await Booking.findByIdAndDelete(id);
-
+        const booking = await Booking.findById(id);
         if (!booking) {
-            return res.status(404).json({
+            return res.status(404).json({ success: false, message: 'Booking not found' });
+        }
+
+        // Reject deletion of paid bookings — cancel them instead to process refund
+        if (!booking.isFree && booking.paymentStatus === 'paid') {
+            return res.status(400).json({
                 success: false,
-                message: 'Booking not found'
+                message: 'Cannot delete a paid booking. Cancel it to process a refund.'
             });
         }
+
+        await Booking.findByIdAndDelete(id);
 
         res.status(200).json({
             success: true,

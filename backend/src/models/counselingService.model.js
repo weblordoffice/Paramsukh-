@@ -32,6 +32,30 @@ const counselingServiceSchema = new mongoose.Schema({
         required: true,
         default: 0
     },
+    category: {
+        type: String,
+        default: 'General'
+    },
+    currencyCode: {
+        type: String,
+        default: 'INR'
+    },
+    counselorImage: {
+        type: String,
+        default: null
+    },
+    onlineMeetingLink: {
+        type: String,
+        default: null
+    },
+    meetingPlatform: {
+        type: String,
+        default: 'zoom'
+    },
+    meetingPassword: {
+        type: String,
+        default: null
+    },
     isFree: {
         type: Boolean,
         default: false
