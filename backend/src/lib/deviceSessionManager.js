@@ -28,7 +28,7 @@ export const registerOrValidateDevice = async (userId, req, authProvider, clerkS
     registeredAt: { $gte: window24h }
   }).sort({ registeredAt: 1 });
 
-  if (registrationLogs.length >= 3) {
+  if (registrationLogs.length >= (parseInt(process.env.MAX_DEVICE_REGISTRATIONS_24H || '5', 10))) {
     const oldestLog = registrationLogs[0];
     const msElapsed = Date.now() - oldestLog.registeredAt.getTime();
     const cooldownRemainingMs = (24 * 60 * 60 * 1000) - msElapsed;
@@ -45,7 +45,7 @@ export const registerOrValidateDevice = async (userId, req, authProvider, clerkS
   // 3. Count currently active (non-revoked) sessions for the user
   const activeSessions = await DeviceSession.find({ user: userId, isRevoked: false });
 
-  if (activeSessions.length >= 2) {
+  if (activeSessions.length >= (parseInt(process.env.MAX_ACTIVE_DEVICES || '5', 10))) {
     // Check if the client requested to revoke a specific device to free up a slot
     const revokeDeviceId = req.headers['x-revoke-device-id'] || req.body?.revokeDeviceId;
     if (revokeDeviceId) {
@@ -77,7 +77,7 @@ export const registerOrValidateDevice = async (userId, req, authProvider, clerkS
           browser: s.browser,
           lastSeen: s.lastSeen
         })),
-        message: 'Active device limit exceeded (maximum 2 active devices allowed).'
+        message: `Active device limit exceeded (maximum ${process.env.MAX_ACTIVE_DEVICES || '5'} active devices allowed).`
       };
     }
   }

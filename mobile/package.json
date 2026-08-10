@@ -26,6 +26,7 @@
     "axios": "^1.13.1",
     "country-state-city": "^3.2.1",
     "expo": "~54.0.33",
+    "expo-application": "~7.0.8",
     "expo-auth-session": "~7.0.10",
     "expo-av": "~16.0.8",
     "expo-constants": "~18.0.10",
