@@ -289,6 +289,13 @@ export default function SignInScreen() {
               </TouchableOpacity>
 
               <View className="flex-row items-center justify-between mb-5">
+                <TouchableOpacity onPress={() => {
+                  setOtpSent(false);
+                  setOtp('');
+                }}>
+                  <Text className="text-purple-600 font-medium">← Change Number</Text>
+                </TouchableOpacity>
+
                 {resendTimer > 0 ? (
                   <Text className="text-gray-500">Resend in {resendTimer}s</Text>
                 ) : (
