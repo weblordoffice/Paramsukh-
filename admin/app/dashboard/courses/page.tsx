@@ -50,6 +50,7 @@ export default function CoursesPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+    const [modalKey, setModalKey] = useState(0);
     const [deleting, setDeleting] = useState<string | null>(null);
     const [planLookup, setPlanLookup] = useState<Record<string, { name: string; color: string }>>({});
 
@@ -120,11 +121,13 @@ export default function CoursesPage() {
 
     const handleCreate = () => {
         setSelectedCourse(null);
+        setModalKey(prev => prev + 1);
         setIsModalOpen(true);
     };
 
     const handleEdit = (course: Course) => {
         setSelectedCourse(course);
+        setModalKey(prev => prev + 1);
         setIsModalOpen(true);
     };
 
@@ -333,6 +336,7 @@ export default function CoursesPage() {
 
             {/* Course Modal */}
             <CourseModal
+                key={modalKey}
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 course={selectedCourse}

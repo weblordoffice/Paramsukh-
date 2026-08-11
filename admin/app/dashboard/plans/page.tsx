@@ -6,7 +6,6 @@ import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api/client";
 
 type PlanStatus = "draft" | "published" | "archived";
-type AccessMode = "entitlement_only" | "auto_enroll" | "hybrid";
 type EligibleCoursesMode = "all_published" | "specific" | "categories";
 
 interface CourseSelection {
@@ -26,6 +25,7 @@ interface MembershipPlan {
   status: PlanStatus;
   displayOrder: number;
   validityDays: number;
+  isLifetime?: boolean;
   pricing: {
     oneTime: {
       amount: number;
@@ -33,17 +33,7 @@ interface MembershipPlan {
     };
   };
   access?: {
-    inheritedPlanIds?: string[];
-    accessMode?: AccessMode;
-    communityAccess?: boolean;
-    counselingAccess?: boolean;
-    eventAccess?: boolean;
     courseSelection?: CourseSelection;
-  };
-  metadata?: {
-    badgeColor?: string;
-    icon?: string;
-    popular?: boolean;
   };
 }
 
@@ -55,16 +45,9 @@ interface PlanFormState {
   status: PlanStatus;
   displayOrder: number;
   validityDays: number;
+  isLifetime: boolean;
   amount: number;
   currency: string;
-  accessMode: AccessMode;
-  inheritedPlanIds: string[];
-  communityAccess: boolean;
-  counselingAccess: boolean;
-  eventAccess: boolean;
-  badgeColor: string;
-  icon: string;
-  popular: boolean;
   courseSelectionEnabled: boolean;
   maxSelectableCourses: number;
   eligibleCoursesMode: EligibleCoursesMode;
@@ -88,16 +71,9 @@ const DEFAULT_FORM: PlanFormState = {
   status: "draft",
   displayOrder: 0,
   validityDays: 365,
+  isLifetime: false,
   amount: 0,
   currency: "INR",
-  accessMode: "entitlement_only",
-  inheritedPlanIds: [],
-  communityAccess: false,
-  counselingAccess: false,
-  eventAccess: false,
-  badgeColor: "#64748B",
-  icon: "✨",
-  popular: false,
   courseSelectionEnabled: false,
   maxSelectableCourses: 3,
   eligibleCoursesMode: "all_published",
@@ -219,16 +195,9 @@ export default function MembershipPlansPage() {
       status: selectedPlan.status || "draft",
       displayOrder: selectedPlan.displayOrder ?? 0,
       validityDays: selectedPlan.validityDays ?? 365,
+      isLifetime: !!selectedPlan.isLifetime,
       amount: selectedPlan.pricing?.oneTime?.amount ?? 0,
       currency: selectedPlan.pricing?.oneTime?.currency || "INR",
-      accessMode: selectedPlan.access?.accessMode || "entitlement_only",
-      inheritedPlanIds: (selectedPlan.access?.inheritedPlanIds || []).map((id) => String(id)),
-      communityAccess: !!selectedPlan.access?.communityAccess,
-      counselingAccess: !!selectedPlan.access?.counselingAccess,
-      eventAccess: !!selectedPlan.access?.eventAccess,
-      badgeColor: selectedPlan.metadata?.badgeColor || "#64748B",
-      icon: selectedPlan.metadata?.icon || "✨",
-      popular: !!selectedPlan.metadata?.popular,
       courseSelectionEnabled: !!selectedPlan.access?.courseSelection?.enabled,
       maxSelectableCourses: selectedPlan.access?.courseSelection?.maxSelectableCourses ?? 3,
       eligibleCoursesMode: selectedPlan.access?.courseSelection?.eligibleCoursesMode || "all_published",
@@ -290,7 +259,6 @@ export default function MembershipPlansPage() {
 
   const buildPayload = () => {
     const slug = toSlug(form.slug || form.title);
-    const inheritedPlanIds = (form.inheritedPlanIds || []).filter(Boolean);
 
     return {
       title: form.title.trim(),
@@ -300,6 +268,7 @@ export default function MembershipPlansPage() {
       status: form.status,
       displayOrder: Number(form.displayOrder || 0),
       validityDays: Number(form.validityDays || 365),
+      isLifetime: form.isLifetime,
       pricing: {
         oneTime: {
           amount: Number(form.amount || 0),
@@ -307,17 +276,16 @@ export default function MembershipPlansPage() {
         },
       },
       access: {
-        inheritedPlanIds,
         includedCourseIds: [],
         limits: {
           maxCategories: null,
           maxCoursesTotal: null,
           perCategoryCourseLimit: null,
         },
-        accessMode: form.accessMode,
-        communityAccess: form.communityAccess,
-        counselingAccess: form.counselingAccess,
-        eventAccess: form.eventAccess,
+        accessMode: "entitlement_only",
+        communityAccess: false,
+        counselingAccess: false,
+        eventAccess: false,
         courseSelection: {
           enabled: form.courseSelectionEnabled,
           maxSelectableCourses: Number(form.maxSelectableCourses || 3),
@@ -329,11 +297,6 @@ export default function MembershipPlansPage() {
             ? parseListInput(form.eligibleCategoriesText)
             : [],
         },
-      },
-      metadata: {
-        badgeColor: form.badgeColor,
-        icon: form.icon,
-        popular: form.popular,
       },
     };
   };
@@ -627,32 +590,42 @@ export default function MembershipPlansPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Display Order</label>
-              <input
-                type="number"
-                value={form.displayOrder}
-                onChange={(event) => setForm((prev) => ({ ...prev, displayOrder: Number(event.target.value || 0) }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">One-time Price (INR)</label>
               <input
                 type="number"
-                value={form.amount}
+                value={form.amount || ""}
                 onChange={(event) => updateField("amount", Number(event.target.value || 0))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                placeholder="499"
               />
               {formErrors.amount && <p className="text-xs text-red-600 mt-1">{formErrors.amount}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Validity Days</label>
-              <input
-                type="number"
-                value={form.validityDays}
-                onChange={(event) => updateField("validityDays", Number(event.target.value || 365))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Validity</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  value={form.isLifetime ? "" : form.validityDays}
+                  onChange={(event) => updateField("validityDays", Number(event.target.value || 365))}
+                  disabled={form.isLifetime}
+                  className="w-28 px-3 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100 disabled:text-gray-400"
+                  placeholder="365"
+                />
+                <span className="text-sm text-gray-500">days</span>
+                <label className="flex items-center gap-2 text-sm text-gray-700 ml-4">
+                  <input
+                    type="checkbox"
+                    checked={form.isLifetime}
+                    onChange={(event) => {
+                      updateField("isLifetime", event.target.checked);
+                      if (event.target.checked) {
+                        updateField("validityDays", 36500);
+                      }
+                    }}
+                  />
+                  Lifetime
+                </label>
+              </div>
               {formErrors.validityDays && <p className="text-xs text-red-600 mt-1">{formErrors.validityDays}</p>}
             </div>
           </div>
@@ -677,217 +650,107 @@ export default function MembershipPlansPage() {
           </div>
 
           <div className="border border-gray-200 rounded-lg p-4 space-y-4">
-            <h3 className="text-sm font-semibold text-gray-900">Access Rules</h3>
-            <div className="grid grid-cols-1 md:grid-cols-1 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Access Mode</label>
-                <select
-                  value={form.accessMode}
-                  onChange={(event) => setForm((prev) => ({ ...prev, accessMode: event.target.value as AccessMode }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                >
-                  <option value="entitlement_only">Entitlement only</option>
-                  <option value="auto_enroll">Auto enroll</option>
-                  <option value="hybrid">Hybrid</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Inherits From Plans</label>
-              <div className="space-y-2 max-h-44 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3">
-                {plans.filter((plan) => plan._id !== selectedPlanId).length === 0 ? (
-                  <p className="text-sm text-gray-500">No other plans available to inherit.</p>
-                ) : (
-                  plans
-                    .filter((plan) => plan._id !== selectedPlanId)
-                    .map((plan) => (
-                      <label key={plan._id} className="flex items-center gap-2 text-sm text-gray-700">
-                        <input
-                          type="checkbox"
-                          checked={form.inheritedPlanIds.includes(plan._id)}
-                          onChange={(event) => {
-                            const checked = event.target.checked;
-                            setForm((prev) => ({
-                              ...prev,
-                              inheritedPlanIds: checked
-                                ? Array.from(new Set([...prev.inheritedPlanIds, plan._id]))
-                                : prev.inheritedPlanIds.filter((id) => id !== plan._id),
-                            }));
-                          }}
-                        />
-                        <span className="font-medium text-gray-900">{plan.title}</span>
-                        <span className="text-xs text-gray-500">({plan.slug})</span>
-                      </label>
-                    ))
-                )}
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Inherited plans contribute their categories and courses to this plan. Users on this plan receive access to all inherited content.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900">Course Access</h3>
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input
                   type="checkbox"
-                  checked={form.communityAccess}
-                  onChange={(event) => setForm((prev) => ({ ...prev, communityAccess: event.target.checked }))}
+                  checked={form.courseSelectionEnabled}
+                  onChange={(event) => updateField("courseSelectionEnabled", event.target.checked)}
                 />
-                Community Access
-              </label>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={form.counselingAccess}
-                  onChange={(event) => setForm((prev) => ({ ...prev, counselingAccess: event.target.checked }))}
-                />
-                Counseling Access
-              </label>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={form.eventAccess}
-                  onChange={(event) => setForm((prev) => ({ ...prev, eventAccess: event.target.checked }))}
-                />
-                Event Access
+                Limit course access
               </label>
             </div>
+            <p className="text-xs text-gray-500">
+              When enabled, users get limited credits to pick specific courses. When disabled, users access all courses tagged with this plan.
+            </p>
 
-            <div className="border-t pt-4 mt-4">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-sm font-semibold text-gray-900">Course Selection (Credit-Based)</h4>
-                <label className="flex items-center gap-2 text-sm text-gray-700">
+            <div
+              className="space-y-4 transition-opacity duration-200"
+              style={{
+                opacity: form.courseSelectionEnabled ? 1 : 0.5,
+                pointerEvents: form.courseSelectionEnabled ? "auto" : "none",
+              }}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Max Selectable Courses
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={form.courseSelectionEnabled}
-                    onChange={(event) => updateField("courseSelectionEnabled", event.target.checked)}
+                    type="number"
+                    min={1}
+                    value={form.maxSelectableCourses}
+                    onChange={(event) => updateField("maxSelectableCourses", Number(event.target.value || 1))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                   />
-                  Enable Course Selection
-                </label>
-              </div>
-              <p className="text-xs text-gray-500 mb-4">
-                When enabled, users on this plan get limited credits to pick specific courses rather than accessing all courses.
-              </p>
-
-              <div
-                className="space-y-4 transition-opacity duration-200"
-                style={{
-                  opacity: form.courseSelectionEnabled ? 1 : 0.5,
-                  pointerEvents: form.courseSelectionEnabled ? "auto" : "none",
-                }}
-              >
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Max Selectable Courses (Credits)
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={form.maxSelectableCourses}
-                      onChange={(event) => updateField("maxSelectableCourses", Number(event.target.value || 1))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">How many courses the user can pick</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Eligible Courses Mode
-                    </label>
-                    <select
-                      value={form.eligibleCoursesMode}
-                      onChange={(event) => setForm((prev) => ({ ...prev, eligibleCoursesMode: event.target.value as EligibleCoursesMode }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    >
-                      <option value="all_published">All Published Courses</option>
-                      <option value="specific">Specific Courses</option>
-                      <option value="categories">By Categories</option>
-                    </select>
-                  </div>
+                  <p className="text-xs text-gray-500 mt-1">How many courses the user can pick</p>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Eligible Courses
+                  </label>
+                  <select
+                    value={form.eligibleCoursesMode}
+                    onChange={(event) => setForm((prev) => ({ ...prev, eligibleCoursesMode: event.target.value as EligibleCoursesMode }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="all_published">All Published Courses</option>
+                    <option value="specific">Specific Courses</option>
+                    <option value="categories">By Categories</option>
+                  </select>
+                </div>
+              </div>
 
-                {form.eligibleCoursesMode === "specific" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Eligible Courses
-                    </label>
-                    <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 space-y-1.5">
-                      {allCourses.length === 0 ? (
-                        <p className="text-sm text-gray-500">No courses found.</p>
-                      ) : (
-                        allCourses.map((course) => (
-                          <label key={course._id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
-                            <input
-                              type="checkbox"
-                              checked={form.eligibleCourseIds.includes(course._id)}
-                              onChange={(event) => {
-                                const checked = event.target.checked;
-                                setForm((prev) => ({
-                                  ...prev,
-                                  eligibleCourseIds: checked
-                                    ? Array.from(new Set([...prev.eligibleCourseIds, course._id]))
-                                    : prev.eligibleCourseIds.filter((id) => id !== course._id),
-                                }));
-                              }}
-                            />
-                            <span className="truncate">{course.title}</span>
-                          </label>
-                        ))
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Selected: {form.eligibleCourseIds.length} course(s)
-                    </p>
+              {form.eligibleCoursesMode === "specific" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Eligible Courses
+                  </label>
+                  <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 space-y-1.5">
+                    {allCourses.length === 0 ? (
+                      <p className="text-sm text-gray-500">No courses found.</p>
+                    ) : (
+                      allCourses.map((course) => (
+                        <label key={course._id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5">
+                          <input
+                            type="checkbox"
+                            checked={form.eligibleCourseIds.includes(course._id)}
+                            onChange={(event) => {
+                              const checked = event.target.checked;
+                              setForm((prev) => ({
+                                ...prev,
+                                eligibleCourseIds: checked
+                                  ? Array.from(new Set([...prev.eligibleCourseIds, course._id]))
+                                  : prev.eligibleCourseIds.filter((id) => id !== course._id),
+                              }));
+                            }}
+                          />
+                          <span className="truncate">{course.title}</span>
+                        </label>
+                      ))
+                    )}
                   </div>
-                )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Selected: {form.eligibleCourseIds.length} course(s)
+                  </p>
+                </div>
+              )}
 
-                {form.eligibleCoursesMode === "categories" && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Eligible Categories
-                    </label>
-                    <input
-                      value={form.eligibleCategoriesText}
-                      onChange={(event) => setForm((prev) => ({ ...prev, eligibleCategoriesText: event.target.value }))}
-                      placeholder="physical, mental, financial"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Comma-separated category names</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="border border-gray-200 rounded-lg p-4 space-y-4">
-            <h3 className="text-sm font-semibold text-gray-900">Display Metadata</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Badge Color</label>
-                <input
-                  type="color"
-                  value={form.badgeColor}
-                  onChange={(event) => setForm((prev) => ({ ...prev, badgeColor: event.target.value }))}
-                  className="w-full h-10 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Icon/Emoji</label>
-                <input
-                  value={form.icon}
-                  onChange={(event) => setForm((prev) => ({ ...prev, icon: event.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm text-gray-700 mt-7">
-                <input
-                  type="checkbox"
-                  checked={form.popular}
-                  onChange={(event) => setForm((prev) => ({ ...prev, popular: event.target.checked }))}
-                />
-                Mark as popular
-              </label>
+              {form.eligibleCoursesMode === "categories" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Eligible Categories
+                  </label>
+                  <input
+                    value={form.eligibleCategoriesText}
+                    onChange={(event) => setForm((prev) => ({ ...prev, eligibleCategoriesText: event.target.value }))}
+                    placeholder="physical, mental, financial"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Comma-separated category names</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -895,32 +758,26 @@ export default function MembershipPlansPage() {
             <h3 className="text-sm font-semibold text-gray-900">Live Preview</h3>
             <div className="rounded-lg border border-gray-200 bg-white p-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">{form.icon || "✨"}</span>
-                  <p className="font-semibold text-gray-900">{form.title || "Untitled Plan"}</p>
-                </div>
-                <span
-                  className="text-xs px-2 py-1 rounded-full border"
-                  style={{
-                    color: form.badgeColor || "#64748B",
-                    borderColor: `${form.badgeColor || "#64748B"}66`,
-                    backgroundColor: `${form.badgeColor || "#64748B"}1A`,
-                  }}
-                >
+                <p className="font-semibold text-gray-900">{form.title || "Untitled Plan"}</p>
+                <span className={`text-xs px-2 py-1 rounded-full ${
+                  form.status === "published"
+                    ? "bg-green-100 text-green-700"
+                    : form.status === "draft"
+                      ? "bg-yellow-100 text-yellow-700"
+                      : "bg-gray-100 text-gray-700"
+                }`}>
                   {form.status}
                 </span>
               </div>
               <p className="text-sm text-gray-600 mt-2">{form.shortDescription || "No short description yet."}</p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 <span className="px-2 py-1 rounded bg-blue-50 text-blue-700">INR {Number(form.amount || 0).toLocaleString("en-IN")}</span>
-                <span className="px-2 py-1 rounded bg-indigo-50 text-indigo-700">{Number(form.validityDays || 365)} days</span>
-                <span className="px-2 py-1 rounded bg-gray-100 text-gray-700">{form.accessMode}</span>
-                {form.communityAccess && <span className="px-2 py-1 rounded bg-green-50 text-green-700">Community</span>}
-                {form.counselingAccess && <span className="px-2 py-1 rounded bg-emerald-50 text-emerald-700">Counseling</span>}
-                {form.eventAccess && <span className="px-2 py-1 rounded bg-orange-50 text-orange-700">Events</span>}
+                <span className="px-2 py-1 rounded bg-indigo-50 text-indigo-700">
+                  {form.isLifetime ? "Lifetime" : `${Number(form.validityDays || 365)} days`}
+                </span>
                 {form.courseSelectionEnabled && (
                   <span className="px-2 py-1 rounded bg-teal-50 text-teal-700">
-                    Course Selection ({form.maxSelectableCourses} credits, {form.eligibleCoursesMode})
+                    {form.maxSelectableCourses} course credits
                   </span>
                 )}
               </div>
