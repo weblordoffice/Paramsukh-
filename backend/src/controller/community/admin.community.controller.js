@@ -121,12 +121,12 @@ export const togglePinPost = async (req, res) => {
     }
 };
 
-// @desc    Create a community post (Admin only)
+// @desc    Create a community post in one or more groups (Admin only)
 // @route   POST /api/community/admin/posts
 // @access  Admin
 export const createPostAdmin = async (req, res) => {
     try {
-        const { content, groupId, images, tags } = req.body;
+        const { content, groupId, groupIds, images, tags } = req.body;
 
         if (!content || content.trim().length === 0) {
             return res.status(400).json({
@@ -135,39 +135,50 @@ export const createPostAdmin = async (req, res) => {
             });
         }
 
-        if (!groupId) {
+        // Support single groupId (legacy) or multiple groupIds (new)
+        const targetGroupIds = Array.isArray(groupIds) && groupIds.length > 0
+            ? groupIds.filter(Boolean)
+            : (groupId ? [groupId] : []);
+
+        if (targetGroupIds.length === 0) {
             return res.status(400).json({
                 success: false,
-                message: 'Group ID is required'
+                message: 'At least one group ID is required'
             });
         }
 
-        const group = await Group.findById(groupId);
-        if (!group) {
+        const groups = await Group.find({ _id: { $in: targetGroupIds }, isActive: true }).select('_id').lean();
+        const validGroupIds = groups.map((g) => String(g._id));
+
+        if (validGroupIds.length === 0) {
             return res.status(404).json({
                 success: false,
-                message: 'Group not found'
+                message: 'No valid active groups found'
             });
         }
 
-        const post = await Post.create({
-            userId: req.admin._id,
-            groupId,
-            content: content.trim(),
-            images: images || [],
-            tags: tags || []
-        });
+        const createdPosts = [];
+        for (const gid of validGroupIds) {
+            const post = await Post.create({
+                userId: req.admin._id,
+                groupId: gid,
+                content: content.trim(),
+                images: images || [],
+                tags: tags || []
+            });
+            createdPosts.push(post);
+        }
 
-        const populatedPost = await Post.findById(post._id)
+        const populatedPosts = await Post.find({ _id: { $in: createdPosts.map((p) => p._id) } })
             .populate('userId', 'displayName email photoURL')
             .populate('groupId', 'name');
 
-        console.log(`📝 Admin ${req.admin._id} created post in group ${groupId}`);
+        console.log(`📝 Admin ${req.admin._id} created post in ${validGroupIds.length} group(s)`);
 
         res.status(201).json({
             success: true,
-            message: 'Post created successfully',
-            data: populatedPost
+            message: `Post created in ${validGroupIds.length} group(s)`,
+            data: populatedPosts
         });
     } catch (error) {
         console.error('Admin Create Post Error:', error);
@@ -198,6 +209,75 @@ export const getAdminGroups = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to retrieve groups',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get all comments for a post (Admin only)
+// @route   GET /api/community/admin/posts/:postId/comments
+// @access  Admin
+export const getPostCommentsAdmin = async (req, res) => {
+    try {
+        const { postId } = req.params;
+
+        const comments = await Comment.find({ postId, isActive: true })
+            .populate('userId', 'displayName email photoURL')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            data: comments
+        });
+    } catch (error) {
+        console.error('Get Post Comments Admin Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve comments',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Delete a comment (Admin only)
+// @route   DELETE /api/community/comments/:commentId/admin
+// @access  Admin
+export const deleteCommentAdmin = async (req, res) => {
+    try {
+        const { commentId } = req.params;
+
+        const comment = await Comment.findById(commentId);
+        if (!comment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Comment not found'
+            });
+        }
+
+        // Soft delete
+        comment.isActive = false;
+        await comment.save();
+
+        // Decrement post commentCount
+        await Post.findByIdAndUpdate(comment.postId, { $inc: { commentCount: -1 } });
+
+        // If it's a reply, decrement parent comment's replyCount
+        if (comment.parentCommentId) {
+            await Comment.findByIdAndUpdate(comment.parentCommentId, { $inc: { replyCount: -1 } });
+        }
+
+        console.log(`🗑️ Admin deleted comment ${commentId}`);
+
+        res.status(200).json({
+            success: true,
+            message: 'Comment deleted successfully'
+        });
+    } catch (error) {
+        console.error('Delete Comment Admin Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete comment',
             error: error.message
         });
     }

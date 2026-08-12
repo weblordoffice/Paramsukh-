@@ -5,6 +5,7 @@ import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { Search, MessageSquare, Heart, MessageCircle, Trash2, Pin, Plus } from 'lucide-react';
 import CreatePostModal from './CreatePostModal';
+import CommentsModal from './CommentsModal';
 
 interface Post {
     _id: string;
@@ -26,6 +27,8 @@ export default function CommunityPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [pendingActionId, setPendingActionId] = useState<string | null>(null);
+    const [showCommentsModal, setShowCommentsModal] = useState(false);
+    const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
 
     useEffect(() => {
         fetchPosts();
@@ -154,6 +157,16 @@ export default function CommunityPage() {
                                     <div className="flex items-center space-x-2">
                                         <span className="text-sm text-accent">{new Date(post.createdAt).toLocaleDateString()}</span>
                                         <button
+                                            onClick={() => {
+                                                setCommentsPostId(post._id);
+                                                setShowCommentsModal(true);
+                                            }}
+                                            className="p-2 rounded-lg transition text-gray-600 hover:bg-gray-100"
+                                            title="View comments"
+                                        >
+                                            <MessageCircle className="w-4 h-4" />
+                                        </button>
+                                        <button
                                             onClick={() => handleTogglePin(post._id, post.isPinned)}
                                             disabled={pendingActionId === post._id}
                                             className={`p-2 rounded-lg transition ${pendingActionId === post._id ? 'opacity-50 cursor-not-allowed' : ''} ${post.isPinned ? 'text-primary bg-primary/10 hover:bg-primary/20' : 'text-gray-600 hover:bg-gray-100'}`}
@@ -207,6 +220,12 @@ export default function CommunityPage() {
                 isOpen={showCreateModal}
                 onClose={() => setShowCreateModal(false)}
                 onSuccess={fetchPosts}
+            />
+
+            <CommentsModal
+                isOpen={showCommentsModal}
+                postId={commentsPostId}
+                onClose={() => { setShowCommentsModal(false); setCommentsPostId(null); }}
             />
         </div>
     );

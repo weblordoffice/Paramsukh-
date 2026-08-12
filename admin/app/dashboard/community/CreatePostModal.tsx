@@ -23,7 +23,7 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [content, setContent] = useState('');
-    const [groupId, setGroupId] = useState('');
+    const [groupIds, setGroupIds] = useState<string[]>([]);
     const [images, setImages] = useState<string[]>([]);
     const [tags, setTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState('');
@@ -38,10 +38,24 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
 
     const resetForm = () => {
         setContent('');
-        setGroupId('');
+        setGroupIds([]);
         setImages([]);
         setTags([]);
         setTagInput('');
+    };
+
+    const toggleGroup = (id: string) => {
+        setGroupIds(prev =>
+            prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id]
+        );
+    };
+
+    const toggleSelectAll = () => {
+        if (groupIds.length === groups.length) {
+            setGroupIds([]);
+        } else {
+            setGroupIds(groups.map(g => g._id));
+        }
     };
 
     const fetchGroups = async () => {
@@ -105,8 +119,8 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
             toast.error('Content is required');
             return;
         }
-        if (!groupId) {
-            toast.error('Please select a group');
+        if (groupIds.length === 0) {
+            toast.error('Please select at least one group');
             return;
         }
 
@@ -114,11 +128,11 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
         try {
             await apiClient.post('/api/community/admin/posts', {
                 content: content.trim(),
-                groupId,
+                groupIds,
                 images,
                 tags,
             });
-            toast.success('Post created successfully');
+            toast.success(`Post created in ${groupIds.length} group(s)`);
             onSuccess();
             onClose();
         } catch (error: any) {
@@ -143,24 +157,49 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
                 <div className="p-6 space-y-6">
                     {/* Group Selection */}
                     <div>
-                        <label className="block text-sm font-medium text-secondary mb-2">
-                            Select Group <span className="text-red-500">*</span>
-                        </label>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-sm font-medium text-secondary">
+                                Select Groups <span className="text-red-500">*</span>
+                            </label>
+                            {!loading && groups.length > 0 && (
+                                <button
+                                    type="button"
+                                    onClick={toggleSelectAll}
+                                    className="text-xs font-medium text-primary hover:underline"
+                                >
+                                    {groupIds.length === groups.length ? 'Clear All' : 'Select All'}
+                                </button>
+                            )}
+                        </div>
+                        <p className="text-xs text-accent mb-2">
+                            {groupIds.length} group(s) selected — post will appear in all selected groups
+                        </p>
                         {loading ? (
                             <div className="h-10 bg-gray-100 rounded-lg animate-pulse" />
+                        ) : groups.length === 0 ? (
+                            <p className="text-sm text-accent">No groups available</p>
                         ) : (
-                            <select
-                                value={groupId}
-                                onChange={(e) => setGroupId(e.target.value)}
-                                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
-                            >
-                                <option value="">Choose a group...</option>
+                            <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
                                 {groups.map((group) => (
-                                    <option key={group._id} value={group._id}>
-                                        {group.name} ({group.groupType} · {group.memberCount} members)
-                                    </option>
+                                    <label
+                                        key={group._id}
+                                        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={groupIds.includes(group._id)}
+                                            onChange={() => toggleGroup(group._id)}
+                                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                        />
+                                        <div className="flex-1">
+                                            <span className="text-sm font-medium text-secondary">{group.name}</span>
+                                        </div>
+                                        <span className="text-xs text-accent">
+                                            {group.groupType} · {group.memberCount} members
+                                        </span>
+                                    </label>
                                 ))}
-                            </select>
+                            </div>
                         )}
                     </div>
 
@@ -257,7 +296,7 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={submitting || !content.trim() || !groupId}
+                        disabled={submitting || !content.trim() || groupIds.length === 0}
                         className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {submitting ? 'Creating...' : 'Create Post'}
