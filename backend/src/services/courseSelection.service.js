@@ -37,7 +37,10 @@ export const getEligibleCourses = async (userId, membershipId) => {
   const eligibleCategories = (selectionConfig.eligibleCategories || []).map(normalize);
   const eligibleCourseIds = (selectionConfig.eligibleCourseIds || []).map((id) => String(id));
 
-  const baseFilter = { status: 'published' };
+  const baseFilter = {
+    status: 'published',
+    includedInPlans: plan.slug,
+  };
 
   if (mode === 'specific' && eligibleCourseIds.length > 0) {
     baseFilter._id = { $in: eligibleCourseIds };
@@ -276,11 +279,11 @@ export const undoCourseSelection = async ({ userId, membershipId, courseId, ip =
           _id: membershipId,
           userId,
           status: 'active',
-          selectedCourseIds: course._id,
+          selectedCourseIds: courseId,
         },
         {
           $inc: { selectedCourseCredits: 1 },
-          $pull: { selectedCourseIds: course._id },
+          $pull: { selectedCourseIds: courseId },
         },
         { new: true, session }
       );
@@ -289,14 +292,14 @@ export const undoCourseSelection = async ({ userId, membershipId, courseId, ip =
         throw new Error('UNDO_FAILED');
       }
 
-      await Enrollment.deleteOne({ userId, courseId: course._id }, { session });
+      await Enrollment.deleteOne({ userId, courseId }, { session });
 
-      await Course.findByIdAndUpdate(course._id, { $inc: { enrollmentCount: -1 } }, { session });
+      await Course.findByIdAndUpdate(courseId, { $inc: { enrollmentCount: -1 } }, { session });
 
       await MembershipSelectionLog.create([{
         userId,
         membershipId,
-        courseId: course._id,
+        courseId,
         action: 'undo',
         creditsBefore: currentCredits,
         creditsAfter: updated.selectedCourseCredits,
@@ -306,7 +309,7 @@ export const undoCourseSelection = async ({ userId, membershipId, courseId, ip =
       result = {
         success: true,
         reason: 'undone',
-        course: { _id: course._id },
+        course: { _id: courseId },
         remainingCredits: updated.selectedCourseCredits,
       };
     });

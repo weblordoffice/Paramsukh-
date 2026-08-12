@@ -161,6 +161,8 @@ export const useCourseStore = create<CourseState>((set) => ({
     },
 
     fetchEnrollmentProgress: async (courseId: string) => {
+        // Always clear stale progress from a previous course before fetching
+        set({ enrollmentProgress: null });
         try {
             const response = await apiClient.get(`${API_URL}/courses/${courseId}/progress`);
             if (response.data?.success) {
@@ -183,6 +185,7 @@ export const useCourseStore = create<CourseState>((set) => ({
                     // Ignore enrollment error, keep enrollmentProgress null
                 }
             }
+            // For any other error (network, 403, 500), leave enrollmentProgress null
         }
     },
 

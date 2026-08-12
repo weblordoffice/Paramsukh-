@@ -17,9 +17,6 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
         title: '',
         description: '',
         shortDescription: '',
-        icon: 'calendar',
-        color: '#8B5CF6',
-        emoji: '📅',
         thumbnailUrl: '',
         bannerUrl: '',
         eventDate: '',
@@ -66,9 +63,6 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                     title: event.title || '',
                     description: event.description || '',
                     shortDescription: event.shortDescription || '',
-                    icon: event.icon || 'calendar',
-                    color: event.color || '#8B5CF6',
-                    emoji: event.emoji || '📅',
                     thumbnailUrl: event.thumbnailUrl || '',
                     bannerUrl: event.bannerUrl || '',
                     eventDate: localDate,
@@ -104,9 +98,6 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                     title: '',
                     description: '',
                     shortDescription: '',
-                    icon: 'calendar',
-                    color: '#8B5CF6',
-                    emoji: '📅',
                     thumbnailUrl: '',
                     bannerUrl: '',
                     eventDate: '',
@@ -216,15 +207,6 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (formData.color && !/^#[0-9A-Fa-f]{6}$/.test(formData.color)) {
-            toast.error('Color must be a valid hex code (e.g. #8B5CF6)');
-            return;
-        }
-        if (formData.emoji && formData.emoji.length > 4) {
-            toast.error('Emoji must be 1-4 characters');
-            return;
-        }
-
         setSubmitting(true);
 
         try {
@@ -317,32 +299,6 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Emoji
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.emoji}
-                                        onChange={(e) => setFormData({ ...formData, emoji: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                                        placeholder="📅"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Color (Hex)
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.color}
-                                        onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                                        placeholder="#8B5CF6"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Thumbnail URL
                                     </label>
                                     <div className="flex gap-2">
@@ -418,7 +374,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         required
                                         value={formData.eventDate}
                                         onChange={(e) => setFormData({ ...formData, eventDate: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white [color-scheme:light]"
                                     />
                                 </div>
 
@@ -431,7 +387,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         required
                                         value={formData.eventTime}
                                         onChange={(e) => setFormData({ ...formData, eventTime: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white [color-scheme:light]"
                                     />
                                 </div>
                             </div>

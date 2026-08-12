@@ -49,6 +49,7 @@ interface PlanFormState {
   amount: number;
   currency: string;
   courseSelectionEnabled: boolean;
+  communityAccess: boolean;
   maxSelectableCourses: number;
   eligibleCoursesMode: EligibleCoursesMode;
   eligibleCourseIds: string[];
@@ -75,6 +76,7 @@ const DEFAULT_FORM: PlanFormState = {
   amount: 0,
   currency: "INR",
   courseSelectionEnabled: false,
+  communityAccess: false,
   maxSelectableCourses: 3,
   eligibleCoursesMode: "all_published",
   eligibleCourseIds: [],
@@ -199,6 +201,7 @@ export default function MembershipPlansPage() {
       amount: selectedPlan.pricing?.oneTime?.amount ?? 0,
       currency: selectedPlan.pricing?.oneTime?.currency || "INR",
       courseSelectionEnabled: !!selectedPlan.access?.courseSelection?.enabled,
+      communityAccess: !!selectedPlan.access?.communityAccess,
       maxSelectableCourses: selectedPlan.access?.courseSelection?.maxSelectableCourses ?? 3,
       eligibleCoursesMode: selectedPlan.access?.courseSelection?.eligibleCoursesMode || "all_published",
       eligibleCourseIds: (selectedPlan.access?.courseSelection?.eligibleCourseIds || []).map((id) => String(id)),
@@ -283,7 +286,7 @@ export default function MembershipPlansPage() {
           perCategoryCourseLimit: null,
         },
         accessMode: "entitlement_only",
-        communityAccess: false,
+        communityAccess: form.communityAccess,
         counselingAccess: false,
         eventAccess: false,
         courseSelection: {
@@ -752,6 +755,21 @@ export default function MembershipPlansPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50">
+            <h3 className="text-sm font-semibold text-gray-900">Community Access</h3>
+            <label className="flex items-center gap-2 text-sm text-gray-700">
+              <input
+                type="checkbox"
+                checked={form.communityAccess}
+                onChange={(event) => updateField("communityAccess", event.target.checked)}
+              />
+              Enable community groups for this plan
+            </label>
+            <p className="text-xs text-gray-500">
+              Users on this plan get access to plan-based community groups and category subgroups.
+            </p>
           </div>
 
           <div className="border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50">

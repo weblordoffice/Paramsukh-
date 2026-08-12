@@ -428,6 +428,8 @@ export const getPlanEligibleCourses = async (req, res) => {
       const resolvedIds = Array.from(planCourseIds).filter(Boolean);
       if (resolvedIds.length > 0) {
         courseQuery._id = { $in: resolvedIds };
+      } else {
+        return res.status(200).json({ success: true, courses: [], maxSelectableCourses: selectionConfig.maxSelectableCourses || 0 });
       }
     }
 

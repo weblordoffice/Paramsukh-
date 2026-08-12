@@ -8,6 +8,7 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -118,6 +119,7 @@ export default function CoursesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'free' | 'paid'>('free');
   const bottomTabHeight = useBottomTabBarHeight();
+  const [creditsLoading, setCreditsLoading] = useState(true);
   const [membershipCredits, setMembershipCredits] = useState<{
     membershipId: string;
     remaining: number;
@@ -128,6 +130,7 @@ export default function CoursesScreen() {
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
 
   const fetchMembershipCredits = useCallback(async () => {
+    setCreditsLoading(true);
     try {
       const { data } = await apiClient.get('/membership/active');
       if (data?.success && data?.hasActiveMembership && data?.courseSelection?.enabled) {
@@ -158,6 +161,8 @@ export default function CoursesScreen() {
       setMembershipCredits(null);
       setEligibleCourseIds(new Set());
       setSelectedCourseIds(new Set());
+    } finally {
+      setCreditsLoading(false);
     }
   }, []);
 
@@ -240,6 +245,47 @@ export default function CoursesScreen() {
 
   const handleCardPress = (module: Course, locked: boolean) => {
     if (locked) {
+      const courseIdStr = String(module._id);
+      const isEligible = membershipCredits?.enabled && eligibleCourseIds.has(courseIdStr);
+      const hasCredits = membershipCredits?.enabled && (membershipCredits?.remaining || 0) > 0;
+
+      if (isEligible && hasCredits) {
+        Alert.alert(
+          'Unlock Course',
+          `Would you like to use 1 credit to unlock "${module.title}"?`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Unlock',
+              onPress: async () => {
+                try {
+                  const res = await apiClient.post(`/membership/${membershipCredits!.membershipId}/select-course`, {
+                    courseId: courseIdStr,
+                  });
+                  if (res.data?.success) {
+                    setSelectedCourseIds((prev) => new Set(prev).add(courseIdStr));
+                    setMembershipCredits((prev) => prev ? {
+                      ...prev,
+                      remaining: prev.remaining - 1,
+                    } : null);
+                    Alert.alert('Success', `"${module.title}" is now unlocked!`);
+                  } else if (res.data?.reason === 'already_enrolled') {
+                    setSelectedCourseIds((prev) => new Set(prev).add(courseIdStr));
+                  }
+                } catch (err: any) {
+                  if (err?.response?.data?.reason === 'already_enrolled') {
+                    setSelectedCourseIds((prev) => new Set(prev).add(courseIdStr));
+                  } else {
+                    Alert.alert('Error', err.response?.data?.message || 'Failed to select course');
+                  }
+                }
+              }
+            }
+          ]
+        );
+        return;
+      }
+
       // Redirect to membership purchase screen
       router.push('/(home)/my-membership');
       return;
@@ -394,6 +440,18 @@ export default function CoursesScreen() {
             </View>
           ) : (
             displayCourses.map((course) => {
+              // Don't render access state until credits have loaded — avoids
+              // a flash where all paid courses appear unlocked.
+              if (creditsLoading && course.includedInPlans && course.includedInPlans.length > 0) {
+                return (
+                  <View key={course._id} style={[styles.card, { opacity: 0.5 }]}>
+                    <View style={[styles.imageContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+                      <ActivityIndicator size="small" color="#EAB308" />
+                    </View>
+                  </View>
+                );
+              }
+
               const accessible = isCourseAccessible(
                 course.includedInPlans,
                 effectivePlans,
@@ -405,7 +463,7 @@ export default function CoursesScreen() {
               const isCreditUnlocked = needsCreditSelection
                 ? selectedCourseIds.has(String(course._id))
                 : true;
-              const locked = !accessible || (!accessible && needsCreditSelection && !isCreditUnlocked);
+              const locked = !accessible || (needsCreditSelection && !isCreditUnlocked);
               const categoryConfig = getCategoryConfig(course.category);
 
               return (
@@ -460,27 +518,10 @@ export default function CoursesScreen() {
 
                       if (locked && isEligible && hasCredits) {
                         return (
-                          <TouchableOpacity
-                            style={styles.unlockOverlay}
-                            onPress={async () => {
-                              try {
-                                const res = await apiClient.post(`/membership/${membershipCredits!.membershipId}/select-course`, {
-                                  courseId: courseIdStr,
-                                });
-                                if (res.data?.success) {
-                                  setSelectedCourseIds((prev) => new Set(prev).add(courseIdStr));
-                                  setMembershipCredits((prev) => prev ? {
-                                    ...prev,
-                                    remaining: prev.remaining - 1,
-                                  } : null);
-                                }
-                              } catch {}
-                            }}
-                            activeOpacity={0.8}
-                          >
+                          <View style={styles.unlockOverlay}>
                             <Ionicons name="lock-open-outline" size={20} color="#FFFFFF" />
                             <Text style={styles.unlockOverlayText}>Unlock Course</Text>
-                          </TouchableOpacity>
+                          </View>
                         );
                       }
 

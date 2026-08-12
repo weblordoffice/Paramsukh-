@@ -71,6 +71,8 @@ export default function VideoPlayerScreen() {
     let cancelled = false;
     (async () => {
       try {
+        // fetchEnrollmentProgress clears stale state before fetching —
+        // so after the await, enrollmentProgress === null means genuinely not enrolled
         await useCourseStore.getState().fetchEnrollmentProgress(courseId);
         const progress = useCourseStore.getState().enrollmentProgress;
         if (!cancelled && !progress) {
@@ -78,7 +80,9 @@ export default function VideoPlayerScreen() {
             { text: 'OK', onPress: () => router.back() }
           ]);
         }
-      } catch { /* ignore */ }
+      } catch {
+        // On network error, allow through — backend will enforce access
+      }
       if (!cancelled) setAccessChecked(true);
     })();
     return () => { cancelled = true; };

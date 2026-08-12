@@ -243,25 +243,26 @@ export default function PhotosTab({ eventId, photos, onUpdate }: PhotosTabProps)
                                     Upload from your computer or add photo URLs. Photos will be displayed in the event gallery.
                                 </p>
 
+                                <div className="border-2 border-dashed border-blue-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors relative">
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        onChange={handleLocalUpload}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        disabled={uploading}
+                                    />
+                                    <ImageIcon className="w-10 h-10 text-blue-500 mx-auto mb-2" />
+                                    <p className="text-sm font-medium text-blue-600">
+                                        {uploading ? 'Uploading...' : 'Click to upload photos from your computer'}
+                                    </p>
+                                    <p className="text-xs text-gray-400 mt-1">JPG, PNG, GIF up to 10MB each</p>
+                                </div>
+
                                 <div className="flex items-center gap-3">
-                                    <div className="relative">
-                                        <input
-                                            type="file"
-                                            accept="image/*"
-                                            multiple
-                                            onChange={handleLocalUpload}
-                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                            disabled={uploading}
-                                        />
-                                        <button
-                                            type="button"
-                                            disabled={uploading}
-                                            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg border border-gray-300 text-sm font-medium transition whitespace-nowrap"
-                                        >
-                                            {uploading ? 'Uploading...' : 'Upload Photos'}
-                                        </button>
-                                    </div>
-                                    <span className="text-xs text-gray-500">or paste image URLs below</span>
+                                    <div className="flex-1 h-px bg-gray-200" />
+                                    <span className="text-xs text-gray-500 whitespace-nowrap">or paste image URLs</span>
+                                    <div className="flex-1 h-px bg-gray-200" />
                                 </div>
 
                                 {formData.urls.map((url, index) => (

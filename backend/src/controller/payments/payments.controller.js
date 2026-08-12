@@ -120,7 +120,9 @@ const parseSelectedCourseIds = (notes = {}) => {
 };
 
 const enrollSelectedCourses = async (userId, courseIds, planSlug) => {
+  console.log(`[EnrollSelectedCourses] userId=${userId} courseIds=${JSON.stringify(courseIds)} planSlug=${planSlug}`);
   const courses = await Course.find({ _id: { $in: courseIds }, status: 'published' }).select('_id title videos enrollmentCount').lean();
+  console.log(`[EnrollSelectedCourses] Found ${courses.length} published courses for IDs: ${JSON.stringify(courseIds)}`);
   let enrolled = 0;
 
   for (const course of courses) {
@@ -375,7 +377,9 @@ export const createMembershipOrder = async (req, res) => {
 export const createMembershipPaymentLink = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { plan, selectedCourseIds, callbackUrl } = req.body;
+    const { plan, selectedCourseIds } = req.body;
+    const rawCallbackUrl = req.body.callbackUrl || '';
+    const callbackUrl = rawCallbackUrl.startsWith('http') ? rawCallbackUrl : (process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`);
 
     const planConfig = await resolveMembershipPlanChargeAmount(plan);
     if (!planConfig.isValid) {
@@ -391,6 +395,7 @@ export const createMembershipPaymentLink = async (req, res) => {
     }
 
     const courseIds = Array.isArray(selectedCourseIds) ? selectedCourseIds.filter(Boolean) : [];
+    console.log(`[CreatePaymentLink] req.selectedCourseIds=${JSON.stringify(selectedCourseIds)} → courseIds=${JSON.stringify(courseIds)}`);
 
     const user = await User.findById(userId).select('email phone displayName name pendingMembershipPaymentLink');
     if (!user) {
@@ -467,6 +472,7 @@ export const createMembershipPaymentLink = async (req, res) => {
       data: {
         paymentLinkId: link.id,
         url: link.short_url,
+        callbackUrl,
         expiresAt: user.pendingMembershipPaymentLink.expiresAt,
         testMode: isTestMode(),
       },
@@ -700,6 +706,7 @@ export const confirmMembershipPaymentLink = async (req, res) => {
 
     const status = String(link?.status || '').toLowerCase();
     const notes = link?.notes || {};
+    console.log(`[ConfirmPaymentLink] linkId=${paymentLinkId} status=${status} rawNotes=${JSON.stringify(notes)}`);
     const isAdminCreated = String(notes?.adminCreated || '').toLowerCase() === 'true';
     const targetUserId = notes?.userId ? String(notes.userId) : String(userId);
     console.log(`   Razorpay link status: ${status}, notes.plan: ${notes?.plan}, notes.userId: ${notes?.userId}`);
@@ -830,9 +837,11 @@ export const confirmMembershipPaymentLink = async (req, res) => {
     const planDoc = await MembershipPlan.findOne({ slug: finalPlan }).select('access.courseSelection').lean();
     const hasCourseSelection = planDoc?.access?.courseSelection?.enabled === true;
     const parsedSelectedIds = parseSelectedCourseIds(notes);
+    console.log(`[MembershipConfirm] plan=${finalPlan} hasCourseSelection=${hasCourseSelection} selectedIds=${JSON.stringify(parsedSelectedIds)} notes.selectedCourseIds=${JSON.stringify(notes?.selectedCourseIds)}`);
 
     if (hasCourseSelection && parsedSelectedIds.length > 0) {
-      await enrollSelectedCourses(targetUserId, parsedSelectedIds, finalPlan);
+      const enrolled = await enrollSelectedCourses(targetUserId, parsedSelectedIds, finalPlan);
+      console.log(`[MembershipConfirm] Enrolled in ${enrolled} selected course(s)`);
     } else if (!hasCourseSelection) {
       const courses = await getAutoEnrollCoursesForPlan(finalPlan);
       for (const course of courses) {
@@ -1381,6 +1390,7 @@ export const handleWebhook = async (req, res) => {
             const selectedIds = parseSelectedCourseIds(pNotes);
             const planDoc = await MembershipPlan.findOne({ slug: planConfig.slug }).select('access.courseSelection').lean();
             const hasCourseSelection = planDoc?.access?.courseSelection?.enabled === true;
+            console.log(`[Webhook payment.captured] plan=${planConfig.slug} hasCourseSelection=${hasCourseSelection} selectedIds=${JSON.stringify(selectedIds)} raw=${JSON.stringify(pNotes?.selectedCourseIds)}`);
 
             if (hasCourseSelection && selectedIds.length > 0) {
               await enrollSelectedCourses(pNotes.userId, selectedIds, planConfig.slug);
@@ -1622,6 +1632,7 @@ export const handleWebhook = async (req, res) => {
               const selectedIds = parseSelectedCourseIds(notes);
               const planDoc = await MembershipPlan.findOne({ slug: planConfig.slug }).select('access.courseSelection').lean();
               const hasCourseSelection = planDoc?.access?.courseSelection?.enabled === true;
+              console.log(`[Webhook payment_link.paid] plan=${planConfig.slug} hasCourseSelection=${hasCourseSelection} selectedIds=${JSON.stringify(selectedIds)} raw=${JSON.stringify(notes?.selectedCourseIds)}`);
 
               if (hasCourseSelection && selectedIds.length > 0) {
                 await enrollSelectedCourses(plUserId, selectedIds, planConfig.slug);

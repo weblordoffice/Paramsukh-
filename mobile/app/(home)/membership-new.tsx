@@ -99,6 +99,7 @@ export default function MembershipScreen() {
   };
 
   const toggleCourseSelection = (planId: string, courseId: string, maxSelectable: number) => {
+    console.log('[toggleCourseSelection] FIRED planId=', planId, 'courseId=', courseId);
     setSelectedCourses((prev) => {
       const current = prev[planId] || [];
       if (current.includes(courseId)) {
@@ -138,12 +139,25 @@ export default function MembershipScreen() {
 
     const selected = selectedCourses[plan.id] || [];
     const maxSelectable = plan.courseSelection?.maxSelectableCourses || 0;
+    console.log('[handlePurchase] planId=', plan.id, 'selectedCourses=', selectedCourses, 'selected=', selected, 'maxSelectable=', maxSelectable);
 
     if (maxSelectable > 0 && selected.length === 0) {
-      Alert.alert('Select Courses', `Please select up to ${maxSelectable} courses before purchasing.`);
+      purchasingRef.current = false;
+      Alert.alert(
+        'Select Courses',
+        `You can pick up to ${maxSelectable} courses. Select now or choose after purchase.`,
+        [
+          { text: 'Choose After Purchase', onPress: () => { purchasingRef.current = true; proceedWithPurchase(plan, selected); } },
+          { text: 'Pick Now', style: 'cancel' },
+        ]
+      );
       return;
     }
 
+    proceedWithPurchase(plan, selected);
+  };
+
+  const proceedWithPurchase = async (plan: UIMembershipPlan, selected: string[]) => {
     setPurchasingPlanId(plan.id);
 
     try {
@@ -151,7 +165,6 @@ export default function MembershipScreen() {
         plan: plan.parentSlug,
         amount: plan.price,
         selectedCourseIds: selected,
-        callbackUrl: 'paramsukh://payment-done',
       });
 
       if (!linkRes.data?.success || !linkRes.data?.data?.url) {
@@ -162,6 +175,7 @@ export default function MembershipScreen() {
       const url = linkRes.data.data.url as string;
       const paymentLinkId = linkRes.data.data.paymentLinkId as string | undefined;
       const expiresAt = linkRes.data.data.expiresAt as string | undefined;
+      const serverCallbackUrl = linkRes.data.data.callbackUrl as string | undefined;
 
       if (paymentLinkId) {
         const pending = { paymentLinkId, plan: plan.parentSlug, variantSlug: plan.variantSlug || null };
@@ -179,7 +193,7 @@ export default function MembershipScreen() {
       const openResult = await openPaymentLink({
         url,
         useAuthSession: true,
-        callbackUrl: 'paramsukh://payment-done',
+        callbackUrl: serverCallbackUrl || 'paramsukh://payment-done',
         confirm: async () => {
           const res = await apiClient.post('/payments/membership-link/confirm', {
             paymentLinkId,
@@ -280,10 +294,10 @@ export default function MembershipScreen() {
 
             return (
               <View key={plan.id} className="mb-4">
-                {/* Plan Card */}
+                {/* Plan Header - Touchable for expand/collapse */}
                 <TouchableOpacity
                   activeOpacity={0.9}
-                  onPress={() => hasCourseSelection ? togglePlan(plan.id, plan.slug) : null}
+                  onPress={() => togglePlan(plan.id, plan.slug)}
                   className={`rounded-[20px] p-5 shadow-lg ${isExpanded ? 'rounded-b-none' : ''}`}
                   style={{ backgroundColor: plan.gradient[0] }}
                 >

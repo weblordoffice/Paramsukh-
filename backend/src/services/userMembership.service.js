@@ -40,6 +40,7 @@ export const upsertActiveUserMembership = async ({
   const isLifetime = planConfig?.isLifetime || plan.isLifetime || false;
   const validityDays = Number(planConfig?.validityDays ?? plan.validityDays ?? 365);
   const courseIdsToStore = Array.isArray(selectedCourseIds) ? selectedCourseIds.filter(Boolean).map(String) : [];
+  console.log(`[UpsertMembership] userId=${userId} planSlug=${slug} courseSelectionEnabled=${plan.access?.courseSelection?.enabled} maxSelectable=${plan.access?.courseSelection?.maxSelectableCourses} courseIdsToStore=${JSON.stringify(courseIdsToStore)}`);
 
   // Use sentinel far-future date for lifetime plans (schema requires endDate)
   const resolvedEndDate = endDate
@@ -48,6 +49,37 @@ export const upsertActiveUserMembership = async ({
 
   const isPlanSwitch = plan.access?.courseSelection?.enabled;
 
+  const setFields = {
+    planId: plan._id,
+    planSnapshot,
+    status: 'active',
+    source,
+    startDate: startDate || new Date(),
+    endDate: resolvedEndDate,
+    autoRenew: false,
+    courseSelectionEnabled: plan.access?.courseSelection?.enabled || false,
+    metadata: { ...metadata },
+    ...(payment ? {
+      payment: {
+        provider: payment.provider || 'manual',
+        orderId: payment.orderId || null,
+        paymentId: payment.paymentId || null,
+        amount: Number(payment.amount || 0),
+        currency: payment.currency || 'INR',
+      }
+    } : {}),
+  };
+
+  if (isPlanSwitch) {
+    setFields.courseSelectionEnabled = true;
+    setFields.selectedCourseIds = courseIdsToStore;
+    setFields.selectedCourseCredits = Math.max(0, (plan.access?.courseSelection?.maxSelectableCourses || 0) - courseIdsToStore.length);
+  } else {
+    setFields.courseSelectionEnabled = false;
+    setFields.selectedCourseCredits = 0;
+    setFields.selectedCourseIds = [];
+  }
+
   // Atomic upsert: findOneAndUpdate with upsert prevents race conditions
   const membership = await UserMembership.findOneAndUpdate(
     {
@@ -55,44 +87,13 @@ export const upsertActiveUserMembership = async ({
       status: 'active',
     },
     {
-      $set: {
-        planId: plan._id,
-        planSnapshot,
-        status: 'active',
-        source,
-        startDate: startDate || new Date(),
-        endDate: resolvedEndDate,
-        autoRenew: false,
-        courseSelectionEnabled: plan.access?.courseSelection?.enabled || false,
-        metadata: { ...metadata },
-        ...(payment ? {
-          payment: {
-            provider: payment.provider || 'manual',
-            orderId: payment.orderId || null,
-            paymentId: payment.paymentId || null,
-            amount: Number(payment.amount || 0),
-            currency: payment.currency || 'INR',
-          }
-        } : {}),
-      },
-      ...(isPlanSwitch ? {
-        $addToSet: { selectedCourseIds: { $each: courseIdsToStore } },
-        $set: {
-          courseSelectionEnabled: true,
-        },
-        $inc: { selectedCourseCredits: plan.access?.courseSelection?.maxSelectableCourses || 0 },
-      } : {
-        $set: {
-          courseSelectionEnabled: false,
-          selectedCourseCredits: 0,
-          selectedCourseIds: [],
-        },
-      }),
+      $set: setFields,
     },
     {
       upsert: true,
       new: true,
       setDefaultsOnInsert: true,
+      runValidators: true,
     }
   );
 

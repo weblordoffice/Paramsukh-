@@ -11,6 +11,15 @@ export const markVideoComplete = async (req, res) => {
         const { courseId, videoId } = req.params;
         const userId = req.user._id;
 
+        // Fetch the course first so we can update video index and progress
+        const course = await Course.findById(courseId).select('videos pdfs').lean();
+        if (!course) {
+            return res.status(404).json({
+                success: false,
+                message: 'Course not found'
+            });
+        }
+
         // Atomic completion — prevents concurrent requests from losing data
         const updated = await Enrollment.findOneAndUpdate(
             { userId, courseId },
@@ -28,15 +37,15 @@ export const markVideoComplete = async (req, res) => {
             });
         }
 
-        const currentVideoIndex = course.videos.findIndex(v => String(v._id) === String(videoId));
-        if (currentVideoIndex !== -1 && currentVideoIndex < course.videos.length - 1) {
+        const currentVideoIndex = (course.videos || []).findIndex(v => String(v._id) === String(videoId));
+        if (currentVideoIndex !== -1 && currentVideoIndex < (course.videos || []).length - 1) {
             updated.currentVideoIndex = currentVideoIndex + 1;
             updated.currentVideoId = course.videos[currentVideoIndex + 1]._id;
         } else {
             updated.currentVideoId = videoId;
         }
 
-        updated.updateProgress(course.videos.length, course.pdfs ? course.pdfs.length : 0);
+        updated.updateProgress((course.videos || []).length, (course.pdfs || []).length);
 
         await updated.save();
 
@@ -57,9 +66,9 @@ export const markVideoComplete = async (req, res) => {
             success: true,
             message: 'Video marked as complete',
             data: {
-                progress: enrollment.progress,
-                completedVideos: enrollment.completedVideos,
-                isCompleted: enrollment.isCompleted
+                progress: updated.progress,
+                completedVideos: updated.completedVideos,
+                isCompleted: updated.isCompleted
             }
         });
     } catch (error) {

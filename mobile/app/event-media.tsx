@@ -2,8 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Dimensions, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 
 import { useEventStore, EventVideo, EventPhoto } from '../store/eventStore';
+
+function getYouTubeId(url: string): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+  const match = url.match(regExp);
+  return (match && match[2].length === 11) ? match[2] : null;
+}
 
 const { width } = Dimensions.get('window');
 const PHOTO_SIZE = (width - 48) / 3;
@@ -33,7 +41,12 @@ export default function EventMediaScreen() {
     }
   }, [eventId, fetchEventDetails]);
 
-  const handleVideoPress = (video: EventVideo) => {
+  const handleVideoPress = async (video: EventVideo) => {
+    const ytId = getYouTubeId(video.url);
+    if (ytId) {
+      await WebBrowser.openBrowserAsync(`https://www.youtube.com/watch?v=${ytId}`);
+      return;
+    }
     router.push({
       pathname: '/video-player',
       params: {
@@ -42,6 +55,8 @@ export default function EventMediaScreen() {
         videoTitle: video.title || 'Event Recording',
         videoDuration: video.duration || '',
         videoUrl: video.url,
+        courseId: '',
+        videoId: '',
       }
     });
   };
