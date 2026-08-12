@@ -9,12 +9,14 @@ import CommentsModal from './CommentsModal';
 
 interface Post {
     _id: string;
-    userId: { displayName: string };
+    userId: { displayName: string } | null;
     content: string;
     groupId: { name: string };
     likeCount: number;
     commentCount: number;
-    isPinned: boolean;            
+    isPinned: boolean;
+    isAdminPost?: boolean;
+    authorName?: string;
     createdAt: string;
 }
 
@@ -144,7 +146,7 @@ export default function CommunityPage() {
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
                                         <div className="flex items-center space-x-2">
-                                            <h3 className="font-bold text-secondary">{post.userId?.displayName || 'Unknown User'}</h3>
+                                            <h3 className="font-bold text-secondary">{post.authorName || post.userId?.displayName || 'Unknown User'}</h3>
                                             {post.isPinned && (
                                                 <span className="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium flex items-center space-x-1">
                                                     <Pin className="w-3 h-3" />

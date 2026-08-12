@@ -160,7 +160,9 @@ export const createPostAdmin = async (req, res) => {
         const createdPosts = [];
         for (const gid of validGroupIds) {
             const post = await Post.create({
-                userId: req.admin._id,
+                userId: req.admin?._id || null,
+                isAdminPost: true,
+                authorName: req.admin?.name || req.admin?.email || 'ParamSukh Admin',
                 groupId: gid,
                 content: content.trim(),
                 images: images || [],
@@ -173,7 +175,7 @@ export const createPostAdmin = async (req, res) => {
             .populate('userId', 'displayName email photoURL')
             .populate('groupId', 'name');
 
-        console.log(`📝 Admin ${req.admin._id} created post in ${validGroupIds.length} group(s)`);
+        console.log(`📝 Admin created post in ${validGroupIds.length} group(s)`);
 
         res.status(201).json({
             success: true,

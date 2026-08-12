@@ -333,11 +333,16 @@ export const getGroupPosts = async (req, res) => {
         commentCount: post.commentCount,
         isPinned: post.isPinned,
         userLiked,
-        author: {
+        author: post.userId ? {
           _id: post.userId._id,
           displayName: post.userId.displayName,
           photoURL: post.userId.photoURL,
           subscriptionPlan: post.userId.subscriptionPlan
+        } : {
+          _id: null,
+          displayName: post.authorName || 'ParamSukh Admin',
+          photoURL: null,
+          subscriptionPlan: 'admin'
         },
         tags: post.tags,
         groupId: post.groupId, // Include so client knows which subgroup the post belongs to

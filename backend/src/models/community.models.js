@@ -94,7 +94,17 @@ const postSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: false,
+    default: null
+  },
+  isAdminPost: {
+    type: Boolean,
+    default: false
+  },
+  authorName: {
+    type: String,
+    default: null,
+    trim: true
   },
   groupId: {
     type: mongoose.Schema.Types.ObjectId,
