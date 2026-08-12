@@ -175,7 +175,8 @@ jobs:
           script: |
             set -euo pipefail
             cd "${{ secrets.VPS_PROJECT_PATH }}"
-            git pull --ff-only
+            git fetch origin master
+            git reset --hard origin/master
 
             # Validate critical backend env values before attempting restart
             for key in MONGO_URI JWT_SECRET ADMIN_API_KEY; do
