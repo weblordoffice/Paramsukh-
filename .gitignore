@@ -25,6 +25,20 @@ venv/
 /logs
 *.log
 
+# Uploaded media / temporary files (never commit)
+backend/tmp/
+backend/public/uploads/
+*.mp4
+*.mov
+*.webm
+*.avi
+*.mkv
+!mobile/assets/images/*.png
+!mobile/assets/images/*.jpg
+!mobile/assets/images/*.svg
+!mobile/assets/*.png
+!admin/public/*.png
+
 # Coverage
 /coverage
 
