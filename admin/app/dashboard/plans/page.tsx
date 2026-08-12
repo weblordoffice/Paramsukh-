@@ -34,6 +34,7 @@ interface MembershipPlan {
   };
   access?: {
     courseSelection?: CourseSelection;
+    communityAccess?: boolean;
   };
 }
 
