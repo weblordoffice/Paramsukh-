@@ -65,7 +65,7 @@ export const paymentLimiter = rateLimit({
  */
 export const otpLimiter = rateLimit({
   windowMs: 10 * 60 * 1000, // 10 minutes
-  max: process.env.NODE_ENV === 'production' ? 3 : (process.env.NODE_ENV === 'test' ? 1000 : 10),
+  max: process.env.NODE_ENV === 'production' ? 6 : (process.env.NODE_ENV === 'test' ? 1000 : 10),
   message: {
     success: false,
     message: process.env.NODE_ENV === 'production' 

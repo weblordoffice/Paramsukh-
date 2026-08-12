@@ -13,50 +13,59 @@ export const getUserEntitlementContext = async (userId) => {
     return null;
   }
 
-  const activeMembership = await UserMembership.findOne({
+  const activeMemberships = await UserMembership.find({
     userId,
     status: 'active',
     $or: [
       { endDate: { $gte: new Date() } },
       { endDate: null },
+      { endDate: { $exists: false } },
     ],
   })
     .populate('planId')
     .sort({ endDate: -1 })
     .lean();
 
-  if (activeMembership?.planId) {
-    const plan = activeMembership.planId;
-    const inheritance = await resolveMembershipPlanInheritanceFromPlan(plan);
-    const resolvedPlans = inheritance.plans.length > 0 ? inheritance.plans : [plan];
-    const planSlugs = inheritance.planSlugs.length > 0 ? inheritance.planSlugs : [normalizePlanSlug(plan.slug)];
+  if (activeMemberships.length > 0) {
+    const allPlanSlugs = [];
     let communityAccess = false;
+    let isPaid = false;
+    let courseSelectionEnabled = false;
+    const allMembershipIds = [];
 
-    resolvedPlans.forEach((resolved) => {
-      if (resolved.access?.communityAccess) {
-        communityAccess = true;
-      }
-    });
+    for (const mem of activeMemberships) {
+      if (!mem.planId) continue;
+      const plan = mem.planId;
+      allPlanSlugs.push(normalize(plan.slug));
+      allMembershipIds.push(String(mem._id));
+      if (plan.access?.communityAccess) communityAccess = true;
+      if (normalize(plan.slug) !== 'free') isPaid = true;
+      if (plan.access?.courseSelection?.enabled) courseSelectionEnabled = true;
+    }
+
+    const primary = activeMemberships[0];
+    const primaryPlan = primary.planId;
 
     return {
       source: 'dynamic',
       user,
-      planId: String(plan._id),
-      planSlug: normalize(plan.slug),
-      planSlugs,
-      accessMode: plan.access?.accessMode || 'entitlement_only',
+      planId: String(primaryPlan._id),
+      planSlug: normalize(primaryPlan.slug),
+      planSlugs: [...new Set(allPlanSlugs)],
+      accessMode: primaryPlan.access?.accessMode || 'entitlement_only',
       communityAccess,
-      isPaid: normalize(plan.slug) !== 'free',
-      membershipId: String(activeMembership._id),
-      courseSelectionEnabled: plan.access?.courseSelection?.enabled || false,
-      membership: activeMembership,
+      isPaid,
+      membershipId: String(primary._id),
+      courseSelectionEnabled,
+      membership: primary,
+      allMemberships: activeMemberships,
     };
   }
 
   // Fallback: some legacy users may have `subscriptionPlan` on the User
   // document but no `UserMembership` entry. Use that as a best-effort
   // entitlement source so active plan holders are recognized.
-  if (!activeMembership && user?.subscriptionPlan && user?.subscriptionStatus === 'active') {
+  if (activeMemberships.length === 0 && user?.subscriptionPlan && user?.subscriptionStatus === 'active') {
     const userPlanSlug = normalizePlanSlug(user.subscriptionPlan || '');
     // Ensure the subscription hasn't expired
     const isExpired = user.subscriptionEndDate && new Date(user.subscriptionEndDate) < new Date();

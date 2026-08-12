@@ -139,123 +139,115 @@ export const getMyGroups = async (req, res) => {
       });
     }
 
-    const activeMembership = await UserMembership.findOne({
+    const activeMemberships = await UserMembership.find({
       userId,
       status: 'active',
-      endDate: { $gte: new Date() },
+      $or: [
+        { endDate: { $gte: new Date() } },
+        { endDate: null },
+        { endDate: { $exists: false } },
+      ],
     })
       .populate('planId')
       .sort({ endDate: -1 })
       .lean();
 
-    const planSlug = activeMembership?.planId?.slug || access.planSlug;
-
-    if (!planSlug || planSlug === 'free') {
+    if (!activeMemberships.length) {
       const generalGroup = await ensureGeneralGroup();
       await enrollUserInGroup(generalGroup._id, userId);
-      const reFetched = await Group.findById(generalGroup._id).select('memberCount').lean();
-      const membership = await GroupMember.findOne({ groupId: generalGroup._id, userId, isActive: true }).lean();
-
-      const formatted = {
-        _id: generalGroup._id,
-        name: generalGroup.name,
-        description: generalGroup.description,
-        memberCount: reFetched?.memberCount || 0,
-        coverImage: generalGroup.coverImage || null,
-        groupType: 'plan',
-        planSlug: 'general',
-        category: null,
-        parentGroupId: null,
-        course: null,
-        joinedAt: membership?.joinedAt || new Date(),
-        role: membership?.role || 'member',
+      const fmt = {
+        _id: generalGroup._id, name: generalGroup.name, description: generalGroup.description,
+        memberCount: generalGroup.memberCount || 0, coverImage: generalGroup.coverImage || null,
+        groupType: 'plan', planSlug: 'general', category: null, parentGroupId: null,
+        course: null, joinedAt: new Date(), role: 'member',
       };
-
       return res.status(200).json({
         success: true,
-        planGroups: [{ ...formatted, subgroups: [] }],
-        groups: [formatted],
+        planGroups: [{ ...fmt, subgroups: [] }],
+        groups: [fmt],
         otherGroups: [],
         totalGroups: 1,
       });
     }
 
-    // Skip expensive sync if user already has an active membership in the plan group
-    const existingPlanMembership = await GroupMember.findOne({
-      userId,
-      isActive: true,
-      groupId: { $in: await Group.find({ groupType: 'plan', planSlug, isActive: true }).select('_id').lean().then(g => g.map(x => x._id)) }
-    });
+    const allPlanGroups = [];
 
-    if (!existingPlanMembership) {
-      await syncUserCommunityMembershipsByPlan({
+    for (const membership of activeMemberships) {
+      const planSlug = membership?.planId?.slug || access.planSlug;
+      if (!planSlug || planSlug === 'free') continue;
+
+      const existingPlanMembership = await GroupMember.findOne({
         userId,
-        planSlug,
-        membershipActive: true,
+        isActive: true,
+        groupId: { $in: await Group.find({ groupType: 'plan', planSlug, isActive: true }).select('_id').lean().then(g => g.map(x => x._id)) }
       });
+
+      if (!existingPlanMembership) {
+        await syncUserCommunityMembershipsByPlan({
+          userId,
+          planSlug,
+          membershipActive: true,
+        });
+      }
+
+      const planParentGroup = await Group.findOne({ groupType: 'plan', planSlug, isActive: true }).lean();
+      const categorySubgroups = await Group.find({
+        groupType: 'category',
+        planSlug,
+        isActive: true,
+      }).sort({ name: 1 }).lean();
+
+      if (planParentGroup || categorySubgroups.length > 0) {
+        const userMemberships = await GroupMember.find({
+          userId,
+          isActive: true,
+          groupId: { $in: [planParentGroup?._id, ...categorySubgroups.map((g) => g._id)].filter(Boolean) },
+        }).select('groupId joinedAt role').lean();
+
+        const membershipByGroupId = new Map(userMemberships.map((m) => [String(m.groupId), m]));
+
+        const formatGroupLocal = (group) => {
+          const mem = membershipByGroupId.get(String(group._id));
+          return {
+            _id: group._id,
+            name: group.name,
+            description: group.description,
+            memberCount: group.memberCount || 0,
+            coverImage: group.coverImage || null,
+            groupType: group.groupType,
+            planSlug: group.planSlug,
+            category: group.category || null,
+            parentGroupId: group.parentGroupId || null,
+            course: group.courseId || null,
+            joinedAt: mem?.joinedAt || new Date(),
+            role: mem?.role || 'member',
+          };
+        };
+
+        allPlanGroups.push({
+          ...formatGroupLocal(planParentGroup || {
+            _id: null,
+            name: `${formatPlanLabel(planSlug)} Community`,
+            description: `Community for ${formatPlanLabel(planSlug)} plan members`,
+            memberCount: 0,
+            groupType: 'plan',
+            planSlug,
+            category: null,
+            parentGroupId: null,
+          }),
+          subgroups: categorySubgroups.map(formatGroupLocal),
+        });
+      }
     }
 
-    const planParentGroup = await Group.findOne({ groupType: 'plan', planSlug, isActive: true }).lean();
-    const categorySubgroups = await Group.find({
-      groupType: 'category',
-      planSlug,
-      isActive: true,
-    })
-      .sort({ name: 1 })
-      .lean();
-
-    const userMemberships = await GroupMember.find({
-      userId,
-      isActive: true,
-      groupId: { $in: [planParentGroup?._id, ...categorySubgroups.map((g) => g._id)].filter(Boolean) },
-    })
-      .select('groupId joinedAt role')
-      .lean();
-
-    const membershipByGroupId = new Map(
-      userMemberships.map((m) => [String(m.groupId), m])
-    );
-
-    const formatGroup = (group) => {
-      const mem = membershipByGroupId.get(String(group._id));
-      return {
-        _id: group._id,
-        name: group.name,
-        description: group.description,
-        memberCount: group.memberCount || 0,
-        coverImage: group.coverImage || null,
-        groupType: group.groupType,
-        planSlug: group.planSlug,
-        category: group.category || null,
-        parentGroupId: group.parentGroupId || null,
-        course: group.courseId || null,
-        joinedAt: mem?.joinedAt || new Date(),
-        role: mem?.role || 'member',
-      };
-    };
-
-    const planGroupFormatted = {
-      ...formatGroup(planParentGroup || {
-        _id: null,
-        name: `${formatPlanLabel(planSlug)} Community`,
-        description: `Community for ${formatPlanLabel(planSlug)} plan members`,
-        memberCount: 0,
-        groupType: 'plan',
-        planSlug,
-        category: null,
-        parentGroupId: null,
-      }),
-      subgroups: categorySubgroups.map(formatGroup),
-    };
-
-    const allGroups = [planGroupFormatted, ...categorySubgroups.map(formatGroup)];
+    const allGroups = allPlanGroups.flatMap(pg => [pg, ...pg.subgroups]).filter(g => g._id);
 
     return res.status(200).json({
       success: true,
-      planGroups: [planGroupFormatted],
-      groups: allGroups.filter((g) => g._id),
+      planGroups: allPlanGroups,
+      groups: allGroups,
       otherGroups: [],
-      totalGroups: 1 + categorySubgroups.length,
+      totalGroups: allPlanGroups.length + allPlanGroups.reduce((sum, pg) => sum + (pg.subgroups?.length || 0), 0),
     });
 
   } catch (error) {

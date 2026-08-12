@@ -80,11 +80,11 @@ export const upsertActiveUserMembership = async ({
     setFields.selectedCourseIds = [];
   }
 
-  // Atomic upsert: findOneAndUpdate with upsert prevents race conditions
+  // Atomic upsert: per-plan key allows multiple active memberships (brown + gold coexist)
   const membership = await UserMembership.findOneAndUpdate(
     {
       userId,
-      status: 'active',
+      planId: plan._id,
     },
     {
       $set: setFields,
