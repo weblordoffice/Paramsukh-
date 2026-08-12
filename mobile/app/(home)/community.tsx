@@ -916,8 +916,8 @@ export default function CommunityScreen() {
           setShowCreatePost(false);
         }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { paddingBottom: bottomTabHeight + 24 }]}>
+        <SafeAreaView style={styles.fullModalOverlay}>
+          <View style={[styles.fullModalContent, { paddingBottom: bottomTabHeight + 24 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Create Post</Text>
               <TouchableOpacity onPress={() => {
@@ -1006,7 +1006,7 @@ export default function CommunityScreen() {
               <Text style={styles.publishButtonText}>Publish Post</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </SafeAreaView>
       </Modal>
 
       {/* Post Type Filter Bottom Sheet */}
@@ -1897,6 +1897,15 @@ const styles = StyleSheet.create({
   },
   likedText: {
     color: '#EC4899',
+  },
+  fullModalOverlay: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  fullModalContent: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    padding: 24,
   },
   modalOverlay: {
     flex: 1,
