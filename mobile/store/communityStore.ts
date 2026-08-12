@@ -166,8 +166,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         const match = /\.(\w+)$/.exec(filename);
         const ext = match ? match[1] : type === 'image' ? 'jpg' : 'mp4';
 
-        // React Native specific FormData append - use type assertion to bypass TS check
-        formData.append('file', {
+        // React Native specific FormData append - field name must match backend multer config
+        const fieldName = type === 'image' ? 'image' : 'video';
+        formData.append(fieldName, {
             uri,
             name: `upload.${ext}`,
             type: type === 'image' ? `image/${ext}` : `video/${ext}`
