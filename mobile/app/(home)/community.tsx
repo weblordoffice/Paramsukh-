@@ -917,7 +917,7 @@ export default function CommunityScreen() {
         }}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { paddingBottom: bottomTabHeight + 24 }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Create Post</Text>
               <TouchableOpacity onPress={() => {
