@@ -614,6 +614,49 @@ export default function CommunityScreen() {
             }}
             ListHeaderComponent={
               <>
+                {/* Quick Group Switcher — horizontal scrollable chips */}
+                {planGroups.length > 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 12, gap: 8 }}
+                    style={{ backgroundColor: '#FAFAFA', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}
+                  >
+                    <TouchableOpacity
+                      style={[styles.groupChip, !activeGroup?._id && styles.groupChipActive]}
+                      onPress={() => { setActiveGroup(null); setCurrentPage(1); }}
+                    >
+                      <Ionicons name="grid-outline" size={14} color={!activeGroup?._id ? '#FFF' : '#5C4A42'} />
+                      <Text style={[styles.groupChipText, !activeGroup?._id && styles.groupChipTextActive]}>All</Text>
+                    </TouchableOpacity>
+                    {planGroups.map((pg: PlanGroup) => (
+                      <React.Fragment key={pg._id}>
+                        <TouchableOpacity
+                          style={[styles.groupChip, activeGroup?._id === pg._id && styles.groupChipActive]}
+                          onPress={() => { setActiveGroup(pg as any as Group); setCurrentView('feed'); setCurrentPage(1); }}
+                        >
+                          <Ionicons name="shield-outline" size={14} color={activeGroup?._id === pg._id ? '#FFF' : '#F1842D'} />
+                          <Text style={[styles.groupChipText, activeGroup?._id === pg._id && styles.groupChipTextActive]} numberOfLines={1}>
+                            {pg.name}
+                          </Text>
+                        </TouchableOpacity>
+                        {pg.subgroups?.map((sub: Group) => (
+                          <TouchableOpacity
+                            key={sub._id}
+                            style={[styles.groupChip, styles.groupChipSub, activeGroup?._id === sub._id && styles.groupChipActive]}
+                            onPress={() => { setActiveGroup(sub); setCurrentView('feed'); setCurrentPage(1); }}
+                          >
+                            <Ionicons name="pricetag-outline" size={12} color={activeGroup?._id === sub._id ? '#FFF' : '#8C7B73'} />
+                            <Text style={[styles.groupChipText, styles.groupChipSubText, activeGroup?._id === sub._id && styles.groupChipTextActive]} numberOfLines={1}>
+                              {sub.category ? sub.category.charAt(0).toUpperCase() + sub.category.slice(1) : sub.name.split(' - ').pop()}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </React.Fragment>
+                    ))}
+                  </ScrollView>
+                )}
+
                 {/* Assessment Banner - Show if not completed */}
                 {!assessmentCompleted && (
                   <TouchableOpacity
@@ -1635,6 +1678,38 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#6B7280',
+  },
+  groupChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  groupChipActive: {
+    backgroundColor: '#F1842D',
+    borderColor: '#F1842D',
+  },
+  groupChipSub: {
+    backgroundColor: '#FAFAFA',
+  },
+  groupChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#5C4A42',
+    maxWidth: 120,
+  },
+  groupChipTextActive: {
+    color: '#FFFFFF',
+  },
+  groupChipSubText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#8C7B73',
   },
   assessmentBanner: {
     backgroundColor: '#EFF6FF',
