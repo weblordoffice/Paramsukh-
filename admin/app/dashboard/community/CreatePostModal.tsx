@@ -296,16 +296,10 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
                     </button>
                     <button
                         onClick={handleSubmit}
-                        disabled={submitting || !content.trim() || groupIds.length === 0}
+                        disabled={submitting}
                         className="px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        {submitting
-                            ? 'Creating...'
-                            : !content.trim()
-                                ? 'Write content to post'
-                                : groupIds.length === 0
-                                    ? 'Select a group'
-                                    : `Create Post (${groupIds.length} group${groupIds.length > 1 ? 's' : ''})`}
+                        {submitting ? 'Creating...' : 'Create Post'}
                     </button>
                 </div>
             </div>
