@@ -131,6 +131,37 @@ jobs:
           echo ""
           echo "====== Diagnostic complete ======"
 
+      - name: Diagnose TCP connectivity to VPS from GitHub runner
+        shell: bash
+        run: |
+          set -e
+          TARGET_HOST="${{ secrets.VPS_HOST }}"
+          TARGET_PORT="${{ secrets.VPS_PORT || 22 }}"
+          echo "====== TCP Connectivity Test ======"
+          echo "Target: ${TARGET_HOST}:${TARGET_PORT}"
+          echo "Runner public IP (if available): $(curl -s --connect-timeout 5 ifconfig.me || echo 'unavailable')"
+          echo ""
+          echo "--- DNS resolution ---"
+          if command -v dig &>/dev/null; then
+            dig +short "${TARGET_HOST}" A || echo "dig failed"
+          else
+            getent hosts "${TARGET_HOST}" || echo "getent failed"
+          fi
+          echo ""
+          echo "--- netcat TCP probe (10s timeout) ---"
+          if command -v nc &>/dev/null; then
+            nc -vz -w 10 "${TARGET_HOST}" "${TARGET_PORT}" 2>&1 && echo "RESULT: TCP connection SUCCEEDED" || echo "RESULT: TCP connection FAILED"
+          else
+            echo "nc not available, trying bash /dev/tcp fallback..."
+            timeout 10 bash -c "echo > /dev/tcp/${TARGET_HOST}/${TARGET_PORT}" 2>&1 && echo "RESULT: TCP connection SUCCEEDED" || echo "RESULT: TCP connection FAILED"
+          fi
+          echo ""
+          echo "--- traceroute (first 10 hops) ---"
+          traceroute -m 10 -w 3 "${TARGET_HOST}" 2>&1 || echo "traceroute unavailable"
+          echo ""
+          echo "====== Diagnostic complete ======"
+        continue-on-error: true
+
       - name: Deploy stack over SSH
         uses: appleboy/ssh-action@v1.2.0
         with:
