@@ -15,6 +15,7 @@ import {
     Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCommunityStore } from '@/store/communityStore';
 import { useAuthStore } from '@/store/authStore';
 
@@ -77,106 +78,119 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
         <Modal
             visible={visible}
             animationType="slide"
-            presentationStyle="pageSheet"
+            transparent={true}
             onRequestClose={onClose}
         >
             <KeyboardAvoidingView
-                style={styles.container}
+                style={styles.overlay}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             >
-                <View style={styles.header}>
-                    <Text style={styles.headerTitle}>Comments</Text>
-                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                        <Ionicons name="close" size={24} color="#111827" />
-                    </TouchableOpacity>
-                </View>
-
-                {loadingComments && postComments.length === 0 ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color="#F1842D" />
+                <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
+                <SafeAreaView style={styles.sheet} edges={['bottom']}>
+                    <View style={styles.header}>
+                        <Text style={styles.headerTitle}>Comments</Text>
+                        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                            <Ionicons name="close" size={24} color="#111827" />
+                        </TouchableOpacity>
                     </View>
-                ) : (
-                    <FlatList
-                        data={postComments}
-                        keyExtractor={(item) => item._id}
-                        contentContainerStyle={styles.listContent}
-                        renderItem={({ item }) => (
-                            <View style={styles.commentItem}>
-                                <Image
-                                    source={{ uri: item.author?.photoURL || 'https://via.placeholder.com/40' }}
-                                    style={styles.avatar}
-                                />
-                                <View style={styles.commentContent}>
-                                    <View style={styles.commentHeader}>
-                                        <Text style={styles.authorName}>{item.author?.displayName || 'User'}</Text>
-                                        <Text style={styles.timeAgo}>{new Date(item.createdAt).toLocaleDateString()}</Text>
-                                    </View>
-                                    <Text style={styles.commentText}>{item.content}</Text>
 
-                                    <View style={styles.actions}>
-                                        <TouchableOpacity
-                                            style={styles.likeButton}
-                                            onPress={() => postId && toggleCommentLike(item._id, postId)}
-                                        >
-                                            <Ionicons
-                                                name={item.userLiked ? "heart" : "heart-outline"}
-                                                size={16}
-                                                color={item.userLiked ? "#EF4444" : "#6B7280"}
-                                            />
-                                            <Text style={[styles.likeCount, item.userLiked && styles.likedText]}>
-                                                {item.likeCount > 0 ? item.likeCount : ''}
-                                            </Text>
-                                        </TouchableOpacity>
+                    {loadingComments && postComments.length === 0 ? (
+                        <View style={styles.loadingContainer}>
+                            <ActivityIndicator size="large" color="#F1842D" />
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={postComments}
+                            keyExtractor={(item) => item._id}
+                            contentContainerStyle={styles.listContent}
+                            renderItem={({ item }) => (
+                                <View style={styles.commentItem}>
+                                    <Image
+                                        source={{ uri: item.author?.photoURL || 'https://via.placeholder.com/40' }}
+                                        style={styles.avatar}
+                                    />
+                                    <View style={styles.commentContent}>
+                                        <View style={styles.commentHeader}>
+                                            <Text style={styles.authorName}>{item.author?.displayName || 'User'}</Text>
+                                            <Text style={styles.timeAgo}>{new Date(item.createdAt).toLocaleDateString()}</Text>
+                                        </View>
+                                        <Text style={styles.commentText}>{item.content}</Text>
+
+                                        <View style={styles.actions}>
+                                            <TouchableOpacity
+                                                style={styles.likeButton}
+                                                onPress={() => postId && toggleCommentLike(item._id, postId)}
+                                            >
+                                                <Ionicons
+                                                    name={item.userLiked ? "heart" : "heart-outline"}
+                                                    size={16}
+                                                    color={item.userLiked ? "#EF4444" : "#6B7280"}
+                                                />
+                                                <Text style={[styles.likeCount, item.userLiked && styles.likedText]}>
+                                                    {item.likeCount > 0 ? item.likeCount : ''}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
                                     </View>
                                 </View>
-                            </View>
-                        )}
-                        ListEmptyComponent={
-                            <View style={styles.emptyState}>
-                                <Text style={styles.emptyText}>No comments yet. Be the first to comment!</Text>
-                            </View>
-                        }
-                    />
-                )}
-
-                <View style={styles.inputContainer}>
-                    <Image
-                        source={{ uri: user?.photoURL || 'https://via.placeholder.com/40' }}
-                        style={styles.inputAvatar}
-                    />
-                    <View style={styles.inputWrapper}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Add a comment..."
-                            value={content}
-                            onChangeText={setContent}
-                            multiline
-                            maxLength={500}
+                            )}
+                            ListEmptyComponent={
+                                <View style={styles.emptyState}>
+                                    <Text style={styles.emptyText}>No comments yet. Be the first to comment!</Text>
+                                </View>
+                            }
                         />
-                        {content.trim().length > 0 && (
-                            <TouchableOpacity
-                                style={styles.sendButton}
-                                onPress={handleSend}
-                                disabled={isSubmitting}
-                            >
-                                {isSubmitting ? (
-                                    <ActivityIndicator size="small" color="#F1842D" />
-                                ) : (
-                                    <Ionicons name="send" size={20} color="#F1842D" />
-                                )}
-                            </TouchableOpacity>
-                        )}
+                    )}
+
+                    <View style={styles.inputContainer}>
+                        <Image
+                            source={{ uri: user?.photoURL || 'https://via.placeholder.com/40' }}
+                            style={styles.inputAvatar}
+                        />
+                        <View style={styles.inputWrapper}>
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Add a comment..."
+                                value={content}
+                                onChangeText={setContent}
+                                multiline
+                                maxLength={500}
+                            />
+                            {content.trim().length > 0 && (
+                                <TouchableOpacity
+                                    style={styles.sendButton}
+                                    onPress={handleSend}
+                                    disabled={isSubmitting}
+                                >
+                                    {isSubmitting ? (
+                                        <ActivityIndicator size="small" color="#F1842D" />
+                                    ) : (
+                                        <Ionicons name="send" size={20} color="#F1842D" />
+                                    )}
+                                </TouchableOpacity>
+                            )}
+                        </View>
                     </View>
-                </View>
+                </SafeAreaView>
             </KeyboardAvoidingView>
         </Modal>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
+    overlay: {
         flex: 1,
+        justifyContent: 'flex-end',
+    },
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    sheet: {
+        maxHeight: '80%',
         backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
     },
     header: {
         flexDirection: 'row',
@@ -270,7 +284,6 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: '#E5E7EB',
         backgroundColor: '#fff',
-        paddingBottom: Platform.OS === 'ios' ? 30 : 16,
     },
     inputAvatar: {
         width: 32,
