@@ -34,7 +34,8 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
         comments,
         fetchPostComments,
         addComment,
-        toggleCommentLike
+        toggleCommentLike,
+        deleteComment
     } = useCommunityStore();
 
     const postComments = postId ? comments[postId] || [] : [];
@@ -70,6 +71,20 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
             Alert.alert('Error', 'Failed to post comment. Please try again.');
         }
         setIsSubmitting(false);
+    };
+
+    const handleCommentDelete = (commentId: string) => {
+        if (!postId) return;
+        Alert.alert('Delete Comment', 'Delete this comment?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                    await deleteComment(commentId, postId);
+                }
+            },
+        ]);
     };
 
     if (!visible) return null;
@@ -112,7 +127,18 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
                                     <View style={styles.commentContent}>
                                         <View style={styles.commentHeader}>
                                             <Text style={styles.authorName}>{item.author?.displayName || 'User'}</Text>
-                                            <Text style={styles.timeAgo}>{new Date(item.createdAt).toLocaleDateString()}</Text>
+                                            <View style={styles.headerRight}>
+                                                <Text style={styles.timeAgo}>{new Date(item.createdAt).toLocaleDateString()}</Text>
+                                                {item.author?._id && user?._id && item.author._id === user._id && (
+                                                    <TouchableOpacity
+                                                        onPress={() => handleCommentDelete(item._id)}
+                                                        style={{ marginLeft: 10 }}
+                                                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                    >
+                                                        <Ionicons name="trash-outline" size={15} color="#9CA3AF" />
+                                                    </TouchableOpacity>
+                                                )}
+                                            </View>
                                         </View>
                                         <Text style={styles.commentText}>{item.content}</Text>
 
@@ -236,6 +262,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         marginBottom: 4,
+        alignItems: 'center',
+    },
+    headerRight: {
+        flexDirection: 'row',
         alignItems: 'center',
     },
     authorName: {

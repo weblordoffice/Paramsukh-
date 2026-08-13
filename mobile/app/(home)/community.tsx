@@ -25,7 +25,7 @@ import { useNotificationStore } from '@/store/notificationStore';
 import AssessmentModal from '@/components/AssessmentModal';
 import CommentsModal from '@/components/CommentsModal';
 import * as ImagePicker from 'expo-image-picker';
-import { useCommunityStore, Group, PlanGroup } from '@/store/communityStore';
+import { useCommunityStore, Group, PlanGroup, Post } from '@/store/communityStore';
 import { useBottomTabBarHeight } from '@/hooks/useBottomTabBarHeight';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -60,6 +60,7 @@ export default function CommunityScreen() {
     fetchGroupPosts,
     createPost: storeCreatePost,
     togglePostLike: storeToggleLike,
+    deletePost: storeDeletePost,
     communityAccessDenied
   } = useCommunityStore();
 
@@ -276,6 +277,23 @@ export default function CommunityScreen() {
 
   const toggleLike = async (postId: string) => {
     await storeToggleLike(postId);
+  };
+
+  const handlePostMenu = (post: Post) => {
+    const isOwnPost = post.author?._id && user?._id && post.author._id === user._id;
+    if (!isOwnPost) return;
+
+    Alert.alert('Post Options', 'What would you like to do?', [
+      { text: 'Delete Post', style: 'destructive', onPress: () => confirmDeletePost(post._id) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  };
+
+  const confirmDeletePost = (postId: string) => {
+    Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => { await storeDeletePost(postId); } },
+    ]);
   };
 
   const getViewTitle = () => {
@@ -732,7 +750,7 @@ export default function CommunityScreen() {
                       <Text style={styles.postTime}>{/* format date */ new Date(post.createdAt).toLocaleDateString()}</Text>
                     </View>
                   </View>
-                  <TouchableOpacity>
+                  <TouchableOpacity onPress={() => handlePostMenu(post)}>
                     <Ionicons name="ellipsis-horizontal" size={20} color="#6B7280" />
                   </TouchableOpacity>
                 </View>

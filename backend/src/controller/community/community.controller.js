@@ -730,6 +730,60 @@ export const toggleCommentLike = async (req, res) => {
 };
 
 /**
+ * Delete a comment (only by comment author)
+ * DELETE /api/community/comments/:commentId
+ */
+export const deleteComment = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { commentId } = req.params;
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) {
+      return res.status(404).json({
+        success: false,
+        message: "Comment not found"
+      });
+    }
+
+    // Only comment author can delete
+    if (comment.userId.toString() !== userId.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: "You can only delete your own comments"
+      });
+    }
+
+    // Soft delete
+    comment.isActive = false;
+    await comment.save();
+
+    // Decrement post commentCount
+    await Post.findByIdAndUpdate(comment.postId, { $inc: { commentCount: -1 } });
+
+    // If it's a reply, decrement parent comment's replyCount
+    if (comment.parentCommentId) {
+      await Comment.findByIdAndUpdate(comment.parentCommentId, { $inc: { replyCount: -1 } });
+    }
+
+    console.log(`🗑️ Comment ${commentId} deleted by user ${userId}`);
+
+    return res.status(200).json({
+      success: true,
+      message: "Comment deleted successfully"
+    });
+
+  } catch (error) {
+    console.error("❌ Error deleting comment:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+/**
  * Delete a post (only by post author)
  * DELETE /api/community/posts/:postId
  */

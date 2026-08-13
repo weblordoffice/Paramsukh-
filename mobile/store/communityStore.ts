@@ -91,6 +91,7 @@ interface CommunityState {
     fetchPostComments: (postId: string) => Promise<void>;
     addComment: (postId: string, content: string) => Promise<boolean>;
     toggleCommentLike: (commentId: string, postId: string) => Promise<void>;
+    deleteComment: (commentId: string, postId: string) => Promise<boolean>;
 }
 
 export const useCommunityStore = create<CommunityState>((set, get) => ({
@@ -343,6 +344,24 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         } catch (error) {
             // Revert on failure
             set({ comments: prevComments });
+        }
+    },
+
+    deleteComment: async (commentId: string, postId: string) => {
+        try {
+            await apiClient.delete(`${API_URL}/community/comments/${commentId}`);
+            set(state => ({
+                comments: {
+                    ...state.comments,
+                    [postId]: (state.comments[postId] || []).filter(c => c._id !== commentId)
+                },
+                posts: state.posts.map(p =>
+                    p._id === postId ? { ...p, commentCount: Math.max(0, p.commentCount - 1) } : p
+                )
+            }));
+            return true;
+        } catch (error) {
+            return false;
         }
     }
 }));

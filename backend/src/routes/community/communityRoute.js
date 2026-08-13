@@ -13,7 +13,8 @@ import {
   getPostComments,
   addComment,
   toggleCommentLike,
-  deletePost
+  deletePost,
+  deleteComment
 } from '../../controller/community/community.controller.js';
 import { getAllPosts, deletePostAdmin, togglePinPost, createPostAdmin, getAdminGroups, getPostCommentsAdmin, deleteCommentAdmin } from '../../controller/community/admin.community.controller.js';
 import { runScheduledCleanup } from '../../controller/community/communityCleanup.controller.js';
@@ -57,5 +58,6 @@ router.delete('/posts/:postId', deletePost);
 router.get('/posts/:postId/comments', getPostComments);
 router.post('/posts/:postId/comments', communityCommentLimiter, sanitizeCommentContent, validateCreateComment, addComment);
 router.post('/comments/:commentId/like', communityLikeLimiter, toggleCommentLike);
+router.delete('/comments/:commentId', deleteComment);
 
 export default router;
