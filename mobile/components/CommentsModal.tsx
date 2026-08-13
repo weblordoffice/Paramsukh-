@@ -83,7 +83,7 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
         >
             <KeyboardAvoidingView
                 style={styles.overlay}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             >
                 <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
                 <SafeAreaView style={styles.sheet} edges={['bottom']}>
