@@ -156,7 +156,7 @@ export default function CounselingDetailScreen() {
                             <Ionicons name="time-outline" size={32} color="#F59E0B" />
                             <Text style={styles.waitingTitle}>Meeting link not added yet</Text>
                             <Text style={styles.waitingText}>
-                                Your counselor will add the video call link before your session. You'll be notified when it's ready.
+                                Your counselor will add the video call link before your session. You&apos;ll be notified when it&apos;s ready.
                             </Text>
                         </View>
                     )}

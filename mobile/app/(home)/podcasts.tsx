@@ -15,11 +15,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Audio } from 'expo-av';
 import apiClient from '../../utils/apiClient';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../../utils/paymentBrowser';
 import { Video, ResizeMode } from 'expo-av';
-import { WebView } from 'react-native-webview';
 import { useAuthStore } from '../../store/authStore';
 import { useAudioPlayerStore } from '../../store/audioPlayerStore';
 import { useOfflinePodcastStore } from '../../store/offlinePodcastStore';
@@ -28,86 +26,6 @@ import { hasActiveMembership } from '../../utils/membership';
 import AudioPlayerMiniBar from '../../components/AudioPlayerMiniBar';
 
 const { width } = Dimensions.get('window');
-
-const YOUTUBE_WEBVIEW_USER_AGENT =
-  'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
-
-const YOUTUBE_ERROR_CHECK_SCRIPT = `
-  (function () {
-    if (window.__ytErrorProbeInstalled) return;
-    window.__ytErrorProbeInstalled = true;
-
-    var __timers = [];
-
-    function postError(code) {
-      try {
-        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'YOUTUBE_ERROR', code: code }));
-      } catch (e) {}
-    }
-
-    function check() {
-      try {
-        var text = ((document && document.body && document.body.innerText) || '').toLowerCase();
-        if (text.includes('error 153') || text.includes('video player configuration error')) {
-          postError('153');
-          return;
-        }
-        if (text.includes('error 152') || text.includes('152-4')) {
-          postError('152');
-          return;
-        }
-        if (text.includes('error 150')) {
-          postError('150');
-          return;
-        }
-        if (text.includes('video unavailable') || text.includes('watch on youtube')) {
-          postError('video_unavailable');
-        }
-      } catch (e) {}
-    }
-
-    function clearTimers() {
-      __timers.forEach(function(t) { clearTimeout(t); });
-      __timers = [];
-    }
-
-    __timers.push(setTimeout(check, 1000));
-    __timers.push(setTimeout(check, 2500));
-    __timers.push(setTimeout(check, 5000));
-
-    window.__ytClearTimers = clearTimers;
-  })();
-  true;
-`;
-
-const extractYouTubeVideoId = (url: string): string | null => {
-  if (!url) return null;
-
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.replace('www.', '');
-
-    if (host === 'youtu.be') {
-      return parsed.pathname.replace('/', '').trim() || null;
-    }
-
-    if (host.includes('youtube.com')) {
-      const fromQuery = parsed.searchParams.get('v');
-      if (fromQuery) return fromQuery;
-
-      const parts = parsed.pathname.split('/').filter(Boolean);
-      const embedIndex = parts.findIndex((part) => part === 'embed' || part === 'shorts');
-      if (embedIndex >= 0 && parts[embedIndex + 1]) {
-        return parts[embedIndex + 1];
-      }
-    }
-  } catch {
-    // Ignore parse failures and fallback to regex.
-  }
-
-  const fallback = url.match(/(?:youtube\.com\/.*[?&]v=|youtu\.be\/)([a-zA-Z0-9_-]{6,})/);
-  return fallback?.[1] || null;
-};
 
 const isVideoFile = (url?: string): boolean => {
   if (!url) return false;
@@ -151,12 +69,8 @@ export default function PodcastsScreen() {
   const [processingPayment, setProcessingPayment] = useState(false);
 
   const [currentPodcast, setCurrentPodcast] = useState<Podcast | null>(null);
-  const [youtubeMode, setYoutubeMode] = useState<'embed' | 'watch'>('embed');
-  const [youtubePlaybackBlocked, setYoutubePlaybackBlocked] = useState(false);
 
   const videoRef = useRef<Video>(null);
-  const webViewRef = useRef<WebView>(null);
-  const timersRef = useRef<NodeJS.Timeout[]>([]);
 
   const categories = ['All', 'Meditation', 'Discourse', 'Scripture', 'Mindfulness', 'Mantra', 'Other'];
 
@@ -188,7 +102,7 @@ export default function PodcastsScreen() {
               canAccess: p.accessType === 'free'
             })) || []);
           }
-        } catch (_) {
+        } catch {
           setPodcasts([]);
         }
       } else if (error.response?.status === 404) {
@@ -221,19 +135,6 @@ export default function PodcastsScreen() {
       }
     }
   }, [podcastId, podcasts]);
-
-  useEffect(() => {
-    if (!currentPodcast) return;
-    setYoutubeMode('embed');
-    setYoutubePlaybackBlocked(false);
-  }, [currentPodcast?._id]);
-
-  useEffect(() => {
-    return () => {
-      timersRef.current.forEach(clearTimeout);
-      timersRef.current = [];
-    };
-  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -435,41 +336,11 @@ export default function PodcastsScreen() {
       Alert.alert('Login Required', 'Please login to add favorites');
       return;
     }
-    const { favorited } = await toggleFavorite(podcastId);
+    await toggleFavorite(podcastId);
   };
 
   const closePlayer = () => {
     setCurrentPodcast(null);
-    setYoutubeMode('embed');
-    setYoutubePlaybackBlocked(false);
-  };
-
-  const handleYouTubeMessage = (event: any) => {
-    try {
-      const raw = event?.nativeEvent?.data;
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-
-      if (parsed?.type === 'YOUTUBE_ERROR') {
-        const code = String(parsed?.code || '').toLowerCase();
-        const isBlockedCode =
-          code.includes('153') ||
-          code.includes('152') ||
-          code.includes('150') ||
-          code.includes('video_unavailable');
-
-        if (!isBlockedCode) return;
-
-        if (youtubeMode === 'embed') {
-          setYoutubeMode('watch');
-          return;
-        }
-
-        setYoutubePlaybackBlocked(true);
-      }
-    } catch {
-      // Ignore non-JSON postMessage payloads.
-    }
   };
 
   const openPodcastOnYouTube = async (url?: string) => {
@@ -727,93 +598,6 @@ export default function PodcastsScreen() {
                 isLooping={false}
                 shouldPlay={true}
               />
-            ) : currentPodcast && currentPodcast.source === 'youtube' && currentPodcast.youtubeUrl ? (
-              (() => {
-                const videoId = extractYouTubeVideoId(currentPodcast.youtubeUrl || '');
-                const watchUrl = videoId
-                  ? `https://m.youtube.com/watch?v=${videoId}`
-                  : currentPodcast.youtubeUrl;
-                const externalOpenUrl = videoId
-                  ? `https://www.youtube.com/watch?v=${videoId}`
-                  : currentPodcast.youtubeUrl;
-                const embedUrl = videoId
-                  ? `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&playsinline=1&rel=0&modestbranding=1&controls=1&enablejsapi=1&origin=https%3A%2F%2Fwww.youtube.com`
-                  : null;
-
-                const webViewUrl = youtubeMode === 'watch' ? watchUrl : embedUrl;
-
-                if (!webViewUrl) {
-                  return <Text className="text-white text-lg">Invalid YouTube URL</Text>;
-                }
-
-                if (youtubePlaybackBlocked) {
-                  return (
-                    <View style={{ width, height: width * (9 / 16), backgroundColor: '#000' }} className="items-center justify-center px-6">
-                      <Ionicons name="alert-circle-outline" size={40} color="#F59E0B" />
-                      <Text className="text-white text-base font-semibold mt-3 text-center">This video cannot be played inside the app</Text>
-                      <Text className="text-gray-400 text-sm mt-2 text-center">
-                        YouTube has blocked embedded playback for this video (error 152/150).
-                      </Text>
-                      <TouchableOpacity
-                        className="mt-4 bg-white px-4 py-2 rounded-lg"
-                        onPress={() => openPodcastOnYouTube(externalOpenUrl)}
-                      >
-                        <Text className="text-black font-semibold text-sm">Open in YouTube app</Text>
-                      </TouchableOpacity>
-                    </View>
-                  );
-                }
-
-                return (
-                  <View style={{ width, height: width * (9 / 16), backgroundColor: '#000' }}>
-                    <WebView
-                      source={{
-                        uri: webViewUrl,
-                        headers: {
-                          Referer: 'https://www.youtube.com/',
-                          Origin: 'https://www.youtube.com',
-                        },
-                      }}
-                      style={{ flex: 1, backgroundColor: '#000' }}
-                      allowsInlineMediaPlayback
-                      mediaPlaybackRequiresUserAction={false}
-                      allowsFullscreenVideo
-                      javaScriptEnabled
-                      domStorageEnabled
-                      userAgent={YOUTUBE_WEBVIEW_USER_AGENT}
-                      startInLoadingState
-                      injectedJavaScript={youtubeMode === 'embed' ? YOUTUBE_ERROR_CHECK_SCRIPT : undefined}
-                      onMessage={handleYouTubeMessage}
-                      onHttpError={() => {
-                        if (youtubeMode === 'embed') {
-                          setYoutubeMode('watch');
-                          return;
-                        }
-                        setYoutubePlaybackBlocked(true);
-                      }}
-                      onError={() => {
-                        if (youtubeMode === 'embed') {
-                          setYoutubeMode('watch');
-                          return;
-                        }
-                        setYoutubePlaybackBlocked(true);
-                      }}
-                      originWhitelist={['https://*.youtube.com', 'https://*.youtube-nocookie.com']}
-                    />
-
-                    {youtubeMode === 'watch' && (
-                      <View className="absolute bottom-3 right-3">
-                        <TouchableOpacity
-                          className="bg-white/90 px-3 py-2 rounded-lg"
-                          onPress={() => openPodcastOnYouTube(externalOpenUrl)}
-                        >
-                          <Text className="text-xs font-semibold text-black">Open in YouTube app</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
-                );
-              })()
             ) : (
               <Text className="text-white text-lg">Video source not available</Text>
             )}
