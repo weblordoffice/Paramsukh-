@@ -206,6 +206,8 @@ export const confirmPodcastPayment = async (req, res) => {
                 title: 'Podcast Purchased',
                 message: `You have successfully purchased "${podcast.title}"`,
                 type: 'podcast',
+                relatedId: podcast._id,
+                relatedType: 'podcast',
                 data: { podcastId: String(podcastId) },
             });
         } catch (notificationError) {
@@ -317,6 +319,8 @@ export const handlePodcastPaymentWebhook = async (req, res) => {
                         title: 'Podcast Purchased',
                         message: `You have successfully purchased "${podcast?.title}"`,
                         type: 'podcast',
+                        relatedId: podcastId,
+                        relatedType: 'podcast',
                         data: { podcastId: String(podcastId) },
                     });
                 } catch (notificationError) {

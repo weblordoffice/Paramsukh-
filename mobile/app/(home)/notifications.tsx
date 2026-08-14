@@ -139,6 +139,9 @@ export default function NotificationsScreen() {
         case 'order':
           router.push({ pathname: '/order-detail', params: { orderId: relatedId } });
           break;
+        case 'podcast':
+          router.push({ pathname: '/(home)/podcasts', params: { podcastId: relatedId } });
+          break;
         case 'post':
           router.push('/(home)/community');
           break;

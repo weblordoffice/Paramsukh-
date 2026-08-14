@@ -16,8 +16,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Audio } from 'expo-av';
-import axios from 'axios';
-import { API_URL } from '../../config/api';
+import apiClient from '../../utils/apiClient';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../../utils/paymentBrowser';
 import { Video, ResizeMode } from 'expo-av';
 import { WebView } from 'react-native-webview';
@@ -110,6 +109,11 @@ const extractYouTubeVideoId = (url: string): string | null => {
   return fallback?.[1] || null;
 };
 
+const isVideoFile = (url?: string): boolean => {
+  if (!url) return false;
+  return /\.(mp4|m4v|mov|webm|mkv|avi|flv|wmv|3gp)(\?|#|$)/i.test(url);
+};
+
 interface Podcast {
   _id: string;
   title: string;
@@ -159,12 +163,10 @@ export default function PodcastsScreen() {
   const fetchPodcasts = useCallback(async () => {
     try {
       let response;
-      if (user && token) {
-        response = await axios.get(`${API_URL}/podcasts/user/accessible`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+      if (user) {
+        response = await apiClient.get('/podcasts/user/accessible');
       } else {
-        response = await axios.get(`${API_URL}/podcasts`);
+        response = await apiClient.get('/podcasts');
       }
 
       if (response.data && response.data.success) {
@@ -176,7 +178,19 @@ export default function PodcastsScreen() {
       }
     } catch (error: any) {
       if (error.response?.status === 401) {
-        Alert.alert('Login Required', 'Please login to view all podcasts');
+        // Session expired & refresh failed — silently fall back to free podcasts
+        try {
+          const publicResponse = await apiClient.get('/podcasts');
+          if (publicResponse.data && publicResponse.data.success) {
+            setPodcasts(publicResponse.data.data.podcasts.map((p: any) => ({
+              ...p,
+              isPlaying: false,
+              canAccess: p.accessType === 'free'
+            })) || []);
+          }
+        } catch (_) {
+          setPodcasts([]);
+        }
       } else if (error.response?.status === 404) {
         setPodcasts([]);
       } else {
@@ -186,7 +200,7 @@ export default function PodcastsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user, token]);
+  }, [user]);
 
   useEffect(() => {
     fetchPodcasts();
@@ -256,14 +270,16 @@ export default function PodcastsScreen() {
       return;
     }
 
-    if (podcast.accessType === 'free' && podcast.source === 'local') {
-      await handlePlayLocalPodcast(podcast);
-      return;
-    }
-
-    if (podcast.accessType === 'free' && podcast.source === 'youtube') {
-      stop();
-      setCurrentPodcast(podcast);
+    // Free podcasts: play directly
+    if (podcast.accessType === 'free') {
+      if (podcast.source === 'youtube') {
+        await openPodcastOnYouTube(podcast.youtubeUrl);
+      } else if (podcast.videoUrl && isVideoFile(podcast.videoUrl)) {
+        stop();
+        setCurrentPodcast(podcast);
+      } else {
+        await handlePlayLocalPodcast(podcast);
+      }
       return;
     }
 
@@ -291,14 +307,15 @@ export default function PodcastsScreen() {
     }
 
     try {
-      const streamResponse = await axios.get(`${API_URL}/podcasts/${podcast._id}/stream`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const streamResponse = await apiClient.get(`/podcasts/${podcast._id}/stream`);
 
       if (streamResponse.data?.success && streamResponse.data?.data?.podcast) {
         const streamedPodcast = streamResponse.data.data.podcast;
 
         if (streamedPodcast.source === 'youtube') {
+          await openPodcastOnYouTube(streamedPodcast.youtubeUrl);
+        } else if (streamedPodcast.videoUrl && isVideoFile(streamedPodcast.videoUrl)) {
+          stop();
           setCurrentPodcast(streamedPodcast);
         } else {
           await handlePlayLocalPodcast(streamedPodcast);
@@ -363,10 +380,9 @@ export default function PodcastsScreen() {
 
     setProcessingPayment(true);
     try {
-      const paymentResponse = await axios.post(
-        `${API_URL}/podcasts/${podcast._id}/create-payment`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
+      const paymentResponse = await apiClient.post(
+        `/podcasts/${podcast._id}/create-payment`,
+        {}
       );
 
       if (paymentResponse.data?.success && paymentResponse.data?.data?.url) {
@@ -387,10 +403,9 @@ export default function PodcastsScreen() {
         const openResult = await openPaymentLink({
           url,
           confirm: async () => {
-            const confirmResponse = await axios.post(
-              `${API_URL}/podcasts/${podcast._id}/confirm-payment`,
-              { paymentLinkId },
-              { headers: { Authorization: `Bearer ${token}` } }
+            const confirmResponse = await apiClient.post(
+              `/podcasts/${podcast._id}/confirm-payment`,
+              { paymentLinkId }
             );
             return {
               success: !!confirmResponse.data?.success,
@@ -400,7 +415,7 @@ export default function PodcastsScreen() {
         });
 
         if (openResult.success) {
-          await clearPendingPaymentLinks('membership', podcast._id, paymentLinkId);
+          await clearPendingPaymentLinks('podcast', podcast._id, paymentLinkId);
           setShowPaymentFlow(false);
           await fetchPodcasts();
           Alert.alert('Success', 'Podcast unlocked successfully');
@@ -530,8 +545,10 @@ export default function PodcastsScreen() {
           const dlProgress = progressByPodcastId[podcast._id] || 0;
 
           return (
-            <View
+            <TouchableOpacity
               key={podcast._id}
+              activeOpacity={0.9}
+              onPress={() => handlePlayPodcast(podcast)}
               className="flex-row bg-white rounded-2xl p-4 mb-4 shadow-sm relative overflow-hidden"
             >
               {/* Thumbnail */}
@@ -664,7 +681,7 @@ export default function PodcastsScreen() {
                   />
                 </TouchableOpacity>
               </View>
-            </View>
+            </TouchableOpacity>
           );
         })}
 
