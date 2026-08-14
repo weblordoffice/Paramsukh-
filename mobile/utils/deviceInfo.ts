@@ -8,14 +8,18 @@ const DEVICE_ID_KEY = 'stable_device_id';
 
 /**
  * Gets or generates a stable persistent device UUID, and retrieves hardware metadata.
- * Uses expo-application's installation ID which persists across reinstalls
- * (backed by Android Keystore / iOS Keychain).
+ * Uses platform-specific device identifiers (Android ANDROID_ID / iOS IDFV)
+ * which persist across reinstalls where possible.
  */
 export const getDeviceDetailsMobile = async () => {
   // Try hardware-based installation ID first (survives reinstalls)
   let deviceId = '';
   try {
-    deviceId = await Application.getInstallationIdAsync();
+    if (Platform.OS === 'android') {
+      deviceId = Application.getAndroidId();
+    } else if (Platform.OS === 'ios') {
+      deviceId = (await Application.getIosIdForVendorAsync()) || '';
+    }
   } catch (e) {
     console.warn('[DeviceInfo] Failed to get installation ID:', e);
   }

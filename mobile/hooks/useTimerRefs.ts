@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react';
 
 export function useTimerRefs() {
-  const timers = useRef<NodeJS.Timeout[]>([]);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
     return () => {
