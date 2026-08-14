@@ -1,8 +1,9 @@
-import React, { useState , useEffect, useRef } from 'react';
+import React, { useState , useEffect, useRef, useCallback } from 'react';
 import { ScrollView, Text, TouchableOpacity, View , ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { useCounselingStore } from '../store/counselingStore';
 
@@ -29,7 +30,6 @@ export default function CounselingScreen() {
   const { counselingTypes, fetchCounselingTypes, fetchMyBookings, isLoading } = useCounselingStore();
 
   const isMountedRef1 = useRef(true);
-  const isMountedRef2 = useRef(true);
 
   useEffect(() => {
     isMountedRef1.current = true;
@@ -39,38 +39,40 @@ export default function CounselingScreen() {
     };
   }, [fetchCounselingTypes]);
 
-  useEffect(() => {
-    isMountedRef2.current = true;
-    const loadConfirmedBooking = async () => {
-      setIsBookingLoading(true);
-      const bookings = await fetchMyBookings('confirmed');
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+      const loadConfirmedBooking = async () => {
+        setIsBookingLoading(true);
+        const bookings = await fetchMyBookings('confirmed');
 
-      if (!isMountedRef2.current) return;
+        if (!isActive) return;
 
-      if (!bookings.length) {
-        setConfirmedBooking(null);
+        if (!bookings.length) {
+          setConfirmedBooking(null);
+          setIsBookingLoading(false);
+          return;
+        }
+
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+        const upcoming = bookings
+          .filter((b: ConfirmedBookingSummary) => new Date(b.bookingDate) >= todayStart)
+          .sort((a: ConfirmedBookingSummary, b: ConfirmedBookingSummary) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
+
+        const selected = upcoming[0] || bookings[0];
+        if (!isActive) return;
+        setConfirmedBooking(selected as ConfirmedBookingSummary);
         setIsBookingLoading(false);
-        return;
-      }
+      };
 
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-      const upcoming = bookings
-        .filter((b: ConfirmedBookingSummary) => new Date(b.bookingDate) >= todayStart)
-        .sort((a: ConfirmedBookingSummary, b: ConfirmedBookingSummary) => new Date(a.bookingDate).getTime() - new Date(b.bookingDate).getTime());
-
-      const selected = upcoming[0] || bookings[0];
-      if (!isMountedRef2.current) return;
-      setConfirmedBooking(selected as ConfirmedBookingSummary);
-      setIsBookingLoading(false);
-    };
-
-    loadConfirmedBooking();
-    return () => {
-      isMountedRef2.current = false;
-    };
-  }, [fetchMyBookings]);
+      loadConfirmedBooking();
+      return () => {
+        isActive = false;
+      };
+    }, [fetchMyBookings])
+  );
 
   const handleContinue = () => {
     if (selectedType) {
