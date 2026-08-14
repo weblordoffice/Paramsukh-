@@ -3,7 +3,6 @@ import { ScrollView, Text, TouchableOpacity, View, TextInput, Alert, ActivityInd
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../utils/paymentBrowser';
 import { useCounselingStore } from '../store/counselingStore';
 import { Calendar } from 'react-native-calendars';
@@ -23,8 +22,6 @@ export default function BookCounselingScreen() {
   const color = service?.color || '#F1842D';
   const bgColor = service?.bgColor || '#FDF8F3';
   const isFree = service?.isFree ? 'true' : 'false';
-  const usesCalendly = service?.usesCalendly ? 'true' : 'false';
-  const calendlyUri = service?.calendlyEventUri || '';
 
   // Set today as initial date
   const today = new Date().toISOString().split('T')[0];
@@ -36,26 +33,6 @@ export default function BookCounselingScreen() {
   const [fetchingSlots, setFetchingSlots] = useState(false);
   const [processing, setProcessing] = useState(false);
   const processingRef = useRef(false);
-
-  const backTimerRef = useRef<any>(null);
-
-  // Redirect to Calendly if service uses it
-  React.useEffect(() => {
-    if (usesCalendly === 'true' && calendlyUri) {
-      WebBrowser.openBrowserAsync(calendlyUri as string, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,  
-        enableBarCollapsing: true,   
-        showTitle: true,   
-      });
-      // Go back after opening Calendly
-      backTimerRef.current = setTimeout(() => {
-        if (router.canGoBack()) router.back();
-      }, 1000);
-    }
-    return () => {
-      if (backTimerRef.current) clearTimeout(backTimerRef.current);
-    };
-  }, []);
 
   // Effect: Fetch availability when date changes
   React.useEffect(() => {
@@ -168,18 +145,6 @@ export default function BookCounselingScreen() {
   const showPayment = isFree !== 'true';
   const displayColor = (color as string) || '#3B82F6';
   const displayBgColor = (bgColor as string) || '#EFF6FF';
-
-  // If this is a Calendly service, show a loading state while redirecting
-  if (usesCalendly === 'true') {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#F9FAFB' }}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color={displayColor} />
-          <Text style={{ color: '#6B7280', marginTop: 16 }}>Opening Calendly...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FDF8F3' }}>

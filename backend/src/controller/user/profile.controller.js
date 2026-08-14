@@ -12,6 +12,7 @@ import { upsertActiveUserMembership } from '../../services/userMembership.servic
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
 import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
 import { verifyRazorpaySignature, fetchPaymentDetails } from '../../services/razorpayService.js';
+import { sendMembershipPurchaseEmail } from '../../services/emailService.js';
 
 /**
  * Get user profile
@@ -696,6 +697,12 @@ export const purchaseMembership = async (req, res) => {
     const membership = await UserMembership.findOne({ userId, status: 'active', endDate: { $gte: new Date() } })
       .sort({ endDate: -1 })
       .lean();
+
+    try {
+      sendMembershipPurchaseEmail(user);
+    } catch (emailErr) {
+      console.error('Membership purchase email failed:', emailErr?.message || emailErr);
+    }
 
     return res.status(200).json({
       success: true,

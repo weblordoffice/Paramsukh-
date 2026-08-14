@@ -292,16 +292,22 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    // Clear cart
-    await cart.clearCart();
+    // Clear cart. Online (razorpay) orders keep their cart until payment is
+    // confirmed (the confirmation handler clears it) so a failed payment can be retried.
+    const isOnlinePayment = paymentMethod === 'razorpay';
+    if (!isOnlinePayment) {
+      await cart.clearCart();
+    }
 
     // Notification
     try {
       await sendNotification(userId, {
-        type: 'system',
-        title: 'Order Placed Successfully',
-        message: `Your order #${order.orderNumber} has been placed successfully`,
-        icon: '🛍️',
+        type: isOnlinePayment ? 'order' : 'system',
+        title: isOnlinePayment ? 'Order Awaiting Payment' : 'Order Placed Successfully',
+        message: isOnlinePayment
+          ? `Your order #${order.orderNumber} is awaiting payment. Complete your payment to confirm it.`
+          : `Your order #${order.orderNumber} has been placed successfully`,
+        icon: isOnlinePayment ? '💳' : '🛍️',
         priority: 'high',
         relatedId: order._id,
         relatedType: 'order',
@@ -871,7 +877,7 @@ export const verifyOrderPaymentByLink = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Payment link does not match this order' });
     }
     if (status !== 'paid' && status !== 'captured') {
-      return res.status(200).json({ success: true, data: { status: link?.status }, message: 'Payment not completed yet' });
+      return res.status(200).json({ success: false, data: { status: link?.status }, message: 'Payment not completed yet' });
     }
 
     const order = await Order.findOne({ _id: orderId, user: userId });

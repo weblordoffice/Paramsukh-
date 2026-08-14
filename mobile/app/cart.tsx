@@ -74,6 +74,10 @@ export default function CartScreen() {
                 <TouchableOpacity style={styles.startShoppingButton} onPress={() => router.push('/shops')}>
                     <Text style={styles.startShoppingText}>Start Shopping</Text>
                 </TouchableOpacity>
+                <TouchableOpacity style={styles.myOrdersLink} onPress={() => router.push('/orders')}>
+                    <Ionicons name="receipt-outline" size={18} color="#3B82F6" />
+                    <Text style={styles.myOrdersLinkText}>My Orders</Text>
+                </TouchableOpacity>
             </View>
         );
     }
@@ -86,9 +90,14 @@ export default function CartScreen() {
                     <Ionicons name="arrow-back" size={24} color="#111827" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Cart</Text>
-                <TouchableOpacity style={styles.clearButton} onPress={handleClearCart}>
-                    <Text style={styles.clearText}>Clear</Text>
-                </TouchableOpacity>
+                <View style={styles.headerActions}>
+                    <TouchableOpacity style={styles.ordersButton} onPress={() => router.push('/orders')}>
+                        <Ionicons name="receipt-outline" size={24} color="#111827" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.clearButton} onPress={handleClearCart}>
+                        <Text style={styles.clearText}>Clear</Text>
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
@@ -232,6 +241,27 @@ const styles = StyleSheet.create({
     },
     clearText: {
         color: '#EF4444',
+        fontWeight: '600',
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    ordersButton: {
+        padding: 8,
+    },
+    myOrdersLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 20,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+    },
+    myOrdersLinkText: {
+        color: '#3B82F6',
+        fontSize: 15,
         fontWeight: '600',
     },
     scrollContent: {

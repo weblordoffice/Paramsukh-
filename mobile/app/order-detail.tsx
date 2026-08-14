@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useOrderStore } from '../store/orderStore';
@@ -7,13 +7,51 @@ import { useOrderStore } from '../store/orderStore';
 export default function OrderDetailScreen() {
     const { orderId } = useLocalSearchParams();
     const router = useRouter();
-    const { currentOrder, fetchOrderDetails, isLoading } = useOrderStore();
+    const { currentOrder, fetchOrderDetails, cancelOrder, isLoading } = useOrderStore();
+    const [isCancelling, setIsCancelling] = useState(false);
 
     useEffect(() => {
         if (orderId) {
             fetchOrderDetails(orderId as string);
         }
     }, [orderId, fetchOrderDetails]);
+
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'confirmed': return '#10B981';
+            case 'processing': return '#3B82F6';
+            case 'shipped': return '#6366F1';
+            case 'delivered': return '#10B981';
+            case 'cancelled': return '#EF4444';
+            case 'returned': return '#F59E0B';
+            default: return '#F59E0B'; // pending
+        }
+    };
+
+    const handleCancelOrder = () => {
+        Alert.alert(
+            'Cancel Order',
+            'Are you sure you want to cancel this order?',
+            [
+                { text: 'Keep Order', style: 'cancel' },
+                {
+                    text: 'Cancel Order',
+                    style: 'destructive',
+                    onPress: async () => {
+                        setIsCancelling(true);
+                        const result = await cancelOrder(orderId as string);
+                        setIsCancelling(false);
+                        if (result.success) {
+                            Alert.alert('Order Cancelled', result.message || 'Your order has been cancelled.');
+                            fetchOrderDetails(orderId as string);
+                        } else {
+                            Alert.alert('Error', result.message || 'Could not cancel order.');
+                        }
+                    }
+                }
+            ]
+        );
+    };
 
     if (isLoading || !currentOrder) {
         return (
@@ -38,7 +76,7 @@ export default function OrderDetailScreen() {
                 <View style={styles.section}>
                     <Text style={styles.orderNumber}>Order #{currentOrder.orderNumber}</Text>
                     <Text style={styles.orderDate}>Placed on {new Date(currentOrder.createdAt).toLocaleDateString()}</Text>
-                    <View style={[styles.statusBadge, { alignSelf: 'flex-start', marginTop: 8 }]}>
+                    <View style={[styles.statusBadge, { alignSelf: 'flex-start', marginTop: 8, backgroundColor: getStatusColor(currentOrder.status) }]}>
                         <Text style={styles.statusText}>{currentOrder.status.toUpperCase()}</Text>
                     </View>
                 </View>
@@ -67,10 +105,11 @@ export default function OrderDetailScreen() {
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Shipping Details</Text>
                     <View style={styles.card}>
-                        <Text style={styles.addressText}>{currentOrder.shippingAddress?.street}</Text>
-                        <Text style={styles.addressText}>{currentOrder.shippingAddress?.city}, {currentOrder.shippingAddress?.state}</Text>
-                        <Text style={styles.addressText}>{currentOrder.shippingAddress?.country} - {currentOrder.shippingAddress?.zipCode}</Text>
-                        <Text style={styles.addressText}>Phone: {currentOrder.shippingAddress?.phone}</Text>
+                        <Text style={styles.addressText}>{currentOrder.deliveryAddress?.fullName}</Text>
+                        <Text style={styles.addressText}>{currentOrder.deliveryAddress?.addressLine1}{currentOrder.deliveryAddress?.addressLine2 ? `, ${currentOrder.deliveryAddress?.addressLine2}` : ''}</Text>
+                        <Text style={styles.addressText}>{currentOrder.deliveryAddress?.city}, {currentOrder.deliveryAddress?.state} - {currentOrder.deliveryAddress?.pincode}</Text>
+                        <Text style={styles.addressText}>{currentOrder.deliveryAddress?.country}</Text>
+                        <Text style={styles.addressText}>Phone: {currentOrder.deliveryAddress?.phone}</Text>
                     </View>
                 </View>
 
@@ -80,19 +119,41 @@ export default function OrderDetailScreen() {
                     <View style={styles.card}>
                         <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Subtotal</Text>
-                            <Text style={styles.summaryValue}>₹{currentOrder.totalAmount}</Text>
+                            <Text style={styles.summaryValue}>₹{currentOrder.pricing?.subtotal ?? 0}</Text>
                         </View>
                         <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Shipping</Text>
-                            <Text style={styles.summaryValue}>₹0</Text>
+                            <Text style={styles.summaryValue}>₹{currentOrder.pricing?.shippingCharge ?? 0}</Text>
+                        </View>
+                        <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Discount</Text>
+                            <Text style={styles.summaryValue}>-₹{currentOrder.pricing?.discount ?? 0}</Text>
                         </View>
                         <View style={styles.divider} />
                         <View style={styles.summaryRow}>
                             <Text style={styles.totalLabel}>Total Paid</Text>
-                            <Text style={styles.totalValue}>₹{currentOrder.totalAmount}</Text>
+                            <Text style={styles.totalValue}>₹{currentOrder.pricing?.total ?? currentOrder.totalAmount}</Text>
                         </View>
                     </View>
                 </View>
+
+                {/* Cancel Order (only for pending / confirmed orders) */}
+                {['pending', 'confirmed'].includes(currentOrder.status) && (
+                    <TouchableOpacity
+                        style={styles.cancelButton}
+                        onPress={handleCancelOrder}
+                        disabled={isCancelling}
+                    >
+                        {isCancelling ? (
+                            <ActivityIndicator size="small" color="#EF4444" />
+                        ) : (
+                            <>
+                                <Ionicons name="close-circle-outline" size={20} color="#EF4444" />
+                                <Text style={styles.cancelButtonText}>Cancel Order</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                )}
             </ScrollView>
         </View>
     );
@@ -158,6 +219,23 @@ const styles = StyleSheet.create({
     statusText: {
         color: '#FFFFFF',
         fontSize: 12,
+        fontWeight: '700',
+    },
+    cancelButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#FECACA',
+        borderRadius: 12,
+        paddingVertical: 16,
+        marginTop: 8,
+    },
+    cancelButtonText: {
+        color: '#EF4444',
+        fontSize: 16,
         fontWeight: '700',
     },
     card: {

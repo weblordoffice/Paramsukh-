@@ -177,6 +177,7 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
                             <TextInput
                                 style={styles.input}
                                 placeholder="Add a comment..."
+                                placeholderTextColor="#9CA3AF"
                                 value={content}
                                 onChangeText={setContent}
                                 multiline

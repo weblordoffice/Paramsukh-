@@ -45,6 +45,14 @@ export default function ProfileMenuScreen() {
       route: '/(home)/edit-profile',
     },
     {
+      id: 'my-orders',
+      title: 'My Orders',
+      description: 'Track your orders and purchases',
+      icon: 'receipt-outline',
+      color: '#6366F1',
+      route: '/orders',
+    },
+    {
       id: 'my-progress',
       title: 'My Progress',
       description: 'View achievements and stats',

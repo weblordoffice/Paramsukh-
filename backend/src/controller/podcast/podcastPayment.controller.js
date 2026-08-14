@@ -8,6 +8,7 @@ import PodcastPurchase from '../../models/podcastPurchase.model.js';
 import { User } from '../../models/user.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { recordTransaction } from '../../services/transaction.service.js';
+import { sendPodcastPurchaseEmail } from '../../services/emailService.js';
 
 /**
  * Create payment link for podcast purchase
@@ -146,7 +147,7 @@ export const confirmPodcastPayment = async (req, res) => {
         // Check if payment is completed
         if (status !== 'paid' && status !== 'captured') {
             return res.status(200).json({
-                success: true,
+                success: false,
                 data: { status: link?.status },
                 message: 'Payment not completed yet',
             });
@@ -204,11 +205,19 @@ export const confirmPodcastPayment = async (req, res) => {
                 userId,
                 title: 'Podcast Purchased',
                 message: `You have successfully purchased "${podcast.title}"`,
-                type: 'podcast_purchase',
+                type: 'podcast',
                 data: { podcastId: String(podcastId) },
             });
         } catch (notificationError) {
             console.error('Notification error:', notificationError);
+        }
+
+        // Send email receipt
+        try {
+            const purchaser = await User.findById(userId).select('email displayName');
+            if (purchaser) await sendPodcastPurchaseEmail(purchaser, podcast);
+        } catch (emailError) {
+            console.error('Podcast purchase email error:', emailError);
         }
 
         res.status(200).json({
@@ -307,11 +316,20 @@ export const handlePodcastPaymentWebhook = async (req, res) => {
                         userId,
                         title: 'Podcast Purchased',
                         message: `You have successfully purchased "${podcast?.title}"`,
-                        type: 'podcast_purchase',
+                        type: 'podcast',
                         data: { podcastId: String(podcastId) },
                     });
                 } catch (notificationError) {
                     console.error('Webhook notification error:', notificationError);
+                }
+
+                // Send email receipt
+                try {
+                    const purchaser = await User.findById(userId).select('email displayName');
+                    const purchasedPodcast = await Podcast.findById(podcastId).select('title price');
+                    if (purchaser && purchasedPodcast) await sendPodcastPurchaseEmail(purchaser, purchasedPodcast);
+                } catch (emailError) {
+                    console.error('Webhook podcast email error:', emailError);
                 }
             }
         }

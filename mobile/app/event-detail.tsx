@@ -560,6 +560,7 @@ export default function EventDetailScreen() {
                   value={form.name}
                   onChangeText={(text) => setForm({ ...form, name: text })}
                   placeholder="Enter your name"
+                  placeholderTextColor="#9CA3AF"
                   style={{ width: '100%', height: 56, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6', borderRadius: 16, paddingHorizontal: 16, fontSize: 16, color: '#111827' }}
                 />
               </View>
@@ -569,6 +570,7 @@ export default function EventDetailScreen() {
                   value={form.email}
                   onChangeText={(text) => setForm({ ...form, email: text })}
                   placeholder="you@example.com"
+                  placeholderTextColor="#9CA3AF"
                   keyboardType="email-address"
                   autoCapitalize="none"
                   style={{ width: '100%', height: 56, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6', borderRadius: 16, paddingHorizontal: 16, fontSize: 16, color: '#111827' }}
@@ -580,6 +582,7 @@ export default function EventDetailScreen() {
                   value={form.phone}
                   onChangeText={(text) => setForm({ ...form, phone: text })}
                   placeholder="Your mobile number"
+                  placeholderTextColor="#9CA3AF"
                   keyboardType="phone-pad"
                   style={{ width: '100%', height: 56, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6', borderRadius: 16, paddingHorizontal: 16, fontSize: 16, color: '#111827' }}
                 />

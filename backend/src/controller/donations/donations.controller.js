@@ -2,6 +2,7 @@ import { Donation } from '../../models/donation.models.js';
 import { recordTransaction } from '../../services/transaction.service.js';
 import { createRazorpayOrder, createRazorpayPaymentLink, fetchPaymentLink, verifyRazorpayWebhookSignature, isRazorpayTestMode } from '../../services/razorpayService.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
+import { sendDonationReceiptEmail } from '../../services/emailService.js';
 
 // @desc    Record a new donation
 // @route   POST /api/donations/record
@@ -120,7 +121,7 @@ export const confirmDonationPayment = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Payment link does not belong to you' });
         }
         if (status !== 'paid' && status !== 'captured') {
-            return res.status(200).json({ success: true, data: { status: link?.status }, message: 'Payment not completed yet' });
+            return res.status(200).json({ success: false, data: { status: link?.status }, message: 'Payment not completed yet' });
         }
 
         const amount = Number(link?.amount || 0) / 100;
@@ -144,6 +145,7 @@ export const confirmDonationPayment = async (req, res) => {
             amount,
             transactionId: paymentId,
             paymentMethod: 'razorpay',
+            paymentLinkId,
             message: notes?.message || '',
             isAnonymous,
             status: 'completed'
@@ -159,6 +161,12 @@ export const confirmDonationPayment = async (req, res) => {
         try {
             await sendNotification(userId, { type: 'system', title: 'Donation Received', message: `Thank you for your donation of ₹${amount}!`, icon: '🙏', priority: 'high', relatedId: donation._id, relatedType: 'donation' });
         } catch (e) { /* ignore */ }
+
+        try {
+            await sendDonationReceiptEmail(req.user, donation);
+        } catch (e) {
+            console.error('Donation receipt email failed:', e?.message || e);
+        }
 
         return res.status(200).json({ success: true, message: 'Donation recorded — thank you!', data: donation });
     } catch (error) {
@@ -191,10 +199,19 @@ export const handleDonationWebhook = async (req, res) => {
             const amount = (payload?.payload?.payment?.entity?.amount || payload?.payload?.payment_link?.entity?.amount || 0) / 100;
             const isAnonymous = String(notes?.isAnonymous || 'false').toLowerCase() === 'true';
 
-            await Donation.create({
+            const donation = await Donation.create({
                 userId, userName: isAnonymous ? 'Anonymous' : 'Donor', amount, transactionId: paymentId,
-                paymentMethod: 'razorpay', message: notes?.message || '', isAnonymous, status: 'completed'
+                paymentMethod: 'razorpay', paymentLinkId: payload?.payload?.payment_link?.entity?.id || undefined,
+                message: notes?.message || '', isAnonymous, status: 'completed'
             });
+
+            try {
+                const { User } = await import('../../models/user.models.js');
+                const donor = await User.findById(userId).select('email displayName');
+                if (donor) await sendDonationReceiptEmail(donor, donation);
+            } catch (e) {
+                console.error('Donation webhook email failed:', e?.message || e);
+            }
         }
 
         return res.status(200).json({ status: 'ok' });

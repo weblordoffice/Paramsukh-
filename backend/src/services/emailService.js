@@ -3,11 +3,13 @@ import { Resend } from 'resend';
 const FROM = process.env.RESEND_FROM || 'Paramsukh <onboarding@resend.dev>';
 
 let resend = null;
-if (process.env.RESEND_API_KEY) {
-    resend = new Resend(process.env.RESEND_API_KEY);
-} else {
-    console.warn('RESEND_API_KEY not set — email sending is disabled.');
-}
+const getResend = () => {
+    if (!process.env.RESEND_API_KEY) return null;
+    if (!resend) {
+        resend = new Resend(process.env.RESEND_API_KEY);
+    }
+    return resend;
+};
 
 const safeSend = (fn) => {
     if (!process.env.RESEND_API_KEY) return Promise.resolve();
@@ -19,10 +21,11 @@ const safeSend = (fn) => {
 
 export const sendEmail = async ({ to, subject, html }) => {
     try {
-        if (!process.env.RESEND_API_KEY) {
+        const instance = getResend();
+        if (!instance) {
             return { success: false, message: 'Missing API Key' };
         }
-        const { data, error } = await resend.emails.send({ from: FROM, to, subject, html });
+        const { data, error } = await instance.emails.send({ from: FROM, to, subject, html });
         if (error) {
             console.error('Resend error:', error);
             return { success: false, error };
@@ -137,6 +140,103 @@ export const sendEventRegistrationEmail = (user, eventTitle, amount) => {
                 <p style="margin:4px 0 0;font-size:22px;font-weight:700;color:#111827">₹${amount}</p>
             </div>` : ''}
             <p style="font-size:13px;color:#9ca3af">Check the app for event details and updates.</p>
+        `),
+    }));
+};
+
+export const sendDonationReceiptEmail = (user, donation) => {
+    if (!user?.email) return;
+    const amount = donation.amount ?? 0;
+    const receiptNo = donation.receiptNumber || donation.transactionId || donation._id;
+    safeSend(() => sendEmail({
+        to: user.email,
+        subject: 'Thank You for Your Donation 🙏',
+        html: baseTemplate('Donation Receipt', `
+            <p style="font-size:15px;color:#374151;line-height:1.6">Hi <strong>${user.displayName || 'Friend'}</strong>,</p>
+            <p style="font-size:15px;color:#374151;line-height:1.6">Thank you for your generous donation to Paramsukh Foundation. Your support helps us spread wellness and spiritual knowledge to everyone.</p>
+            <div style="background:#faf5ff;border:1px solid #e9d5ff;border-radius:8px;padding:16px;margin:16px 0">
+                <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#374151">
+                    <tr>
+                        <td style="padding:4px 0;color:#6b7280">Receipt No.</td>
+                        <td style="padding:4px 0;text-align:right;font-weight:600;color:#111827;font-family:monospace">${receiptNo}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:4px 0;color:#6b7280">Amount</td>
+                        <td style="padding:4px 0;text-align:right;font-size:18px;font-weight:700;color:#6d28d9">₹${amount}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:4px 0;color:#6b7280">Payment Method</td>
+                        <td style="padding:4px 0;text-align:right;font-weight:600;color:#111827;text-transform:capitalize">${donation.paymentMethod || 'razorpay'}</td>
+                    </tr>
+                    ${donation.transactionId ? `<tr>
+                        <td style="padding:4px 0;color:#6b7280">Payment ID</td>
+                        <td style="padding:4px 0;text-align:right;font-weight:600;color:#111827;font-family:monospace">${donation.transactionId}</td>
+                    </tr>` : ''}
+                    <tr>
+                        <td style="padding:4px 0;color:#6b7280">Date</td>
+                        <td style="padding:4px 0;text-align:right;font-weight:600;color:#111827">${new Date(donation.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</td>
+                    </tr>
+                </table>
+            </div>
+            <p style="font-size:13px;color:#9ca3af">This is a donation receipt for your records. Paramsukh Foundation thanks you for your kindness.</p>
+        `),
+    }));
+};
+
+export const sendPodcastPurchaseEmail = (user, podcast) => {
+    if (!user?.email) return;
+    safeSend(() => sendEmail({
+        to: user.email,
+        subject: `Podcast Purchase — ${podcast?.title || 'ParamSukh Podcast'}`,
+        html: baseTemplate('Podcast Purchased', `
+            <p style="font-size:15px;color:#374151;line-height:1.6">Hi <strong>${user.displayName || 'Friend'}</strong>,</p>
+            <p style="font-size:15px;color:#374151;line-height:1.6">Thank you for purchasing <strong>${podcast?.title || 'this podcast'}</strong>.</p>
+            <div style="background:#f9fafb;border-radius:8px;padding:16px;margin:16px 0">
+                <p style="margin:0;font-size:14px;color:#6b7280">Amount Paid</p>
+                <p style="margin:4px 0 0;font-size:22px;font-weight:700;color:#111827">₹${podcast?.price || 0}</p>
+            </div>
+            <p style="font-size:13px;color:#9ca3af">You can now listen to this podcast anytime in the app.</p>
+        `),
+    }));
+};
+
+export const sendCounselingBookingEmail = (user, booking) => {
+    const email = user?.email || booking?.userEmail;
+    if (!email) return;
+    const dateStr = booking?.bookingDate
+        ? new Date(booking.bookingDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+        : '';
+    safeSend(() => sendEmail({
+        to: email,
+        subject: 'Counseling Booking Confirmed',
+        html: baseTemplate('Counseling Session Confirmed', `
+            <p style="font-size:15px;color:#374151;line-height:1.6">Hi <strong>${user?.displayName || 'Friend'}</strong>,</p>
+            <p style="font-size:15px;color:#374151;line-height:1.6">Your counseling session has been confirmed.</p>
+            <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0;font-size:14px;color:#374151">
+                <table width="100%" cellpadding="0" cellspacing="0">
+                    <tr>
+                        <td style="padding:4px 0;color:#6b7280">Counselor</td>
+                        <td style="padding:4px 0;text-align:right;font-weight:600;color:#111827">${booking?.counselorName || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:4px 0;color:#6b7280">Session</td>
+                        <td style="padding:4px 0;text-align:right;font-weight:600;color:#111827">${booking?.bookingTitle || booking?.bookingType || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:4px 0;color:#6b7280">Date</td>
+                        <td style="padding:4px 0;text-align:right;font-weight:600;color:#111827">${dateStr || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:4px 0;color:#6b7280">Time</td>
+                        <td style="padding:4px 0;text-align:right;font-weight:600;color:#111827">${booking?.bookingTime || '-'}</td>
+                    </tr>
+                    ${booking?.amount ? `<tr>
+                        <td style="padding:4px 0;color:#6b7280">Amount Paid</td>
+                        <td style="padding:4px 0;text-align:right;font-weight:700;color:#15803d">₹${booking.amount}</td>
+                    </tr>` : ''}
+                </table>
+            </div>
+            <p style="font-size:13px;color:#9ca3af">You'll receive the meeting link before your session.</p>
         `),
     }));
 };

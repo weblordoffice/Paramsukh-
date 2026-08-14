@@ -36,7 +36,7 @@ export default function OrderHistoryScreen() {
 
             <View style={styles.orderContent}>
                 <Text style={styles.itemCount}>{item.items.length} Items</Text>
-                <Text style={styles.totalAmount}>Total: ₹{item.totalAmount}</Text>
+                <Text style={styles.totalAmount}>Total: ₹{item.pricing?.total ?? item.totalAmount}</Text>
             </View>
 
             <View style={styles.actionRow}>

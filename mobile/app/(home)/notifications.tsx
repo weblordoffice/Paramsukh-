@@ -128,7 +128,7 @@ export default function NotificationsScreen() {
           router.push({ pathname: '/course-detail', params: { courseId: relatedId } });
           break;
         case 'booking':
-          router.push('/counseling');
+          router.push({ pathname: '/counseling-detail', params: { bookingId: relatedId } });
           break;
         case 'membership':
           router.push('/(home)/my-membership');

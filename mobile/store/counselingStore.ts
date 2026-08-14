@@ -13,8 +13,6 @@ interface CounselorType {
     duration: string;
     isFree?: boolean;
     price?: number;
-    calendlyEventUri?: string;
-    usesCalendly?: boolean;
 }
 
 interface UserBooking {
@@ -24,6 +22,14 @@ interface UserBooking {
     bookingDate: string;
     bookingTime: string;
     status: string;
+    meetingLink?: string;
+    meetingId?: string;
+    meetingPassword?: string;
+    meetingPlatform?: string;
+    duration?: number;
+    userNotes?: string;
+    amount?: number;
+    paymentStatus?: string;
 }
 
 interface CounselingState {
@@ -41,6 +47,7 @@ interface CounselingState {
     confirmBookingPaymentLink: (paymentLinkId: string, bookingId: string) => Promise<{ success: boolean; message?: string }>;
     verifyCounselingPayment: (bookingId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => Promise<{ success: boolean; message?: string }>;
     fetchMyBookings: (status?: string) => Promise<UserBooking[]>;
+    fetchBookingDetails: (bookingId: string) => Promise<UserBooking | null>;
 }
 
 export const useCounselingStore = create<CounselingState>((set) => ({
@@ -68,8 +75,6 @@ export const useCounselingStore = create<CounselingState>((set) => ({
                     duration: s.duration, // Ensure string or format it
                     price: s.price,
                     isFree: s.isFree,
-                    calendlyEventUri: s.calendlyIntegration?.isEnabled ? s.calendlyIntegration.eventUri : null,
-                    usesCalendly: s.calendlyIntegration?.isEnabled || false
                 })) ?? [];
                 set({ counselingTypes: types, isLoading: false });
             } else {
@@ -101,7 +106,7 @@ export const useCounselingStore = create<CounselingState>((set) => ({
             set({ isLoading: false });
             if (response.data?.success) {
                 const bookingId = response.data?.data?.booking?._id;
-                return { success: true, message: 'Booking confirmed', bookingId };
+                return { success: true, message: 'Booking created', bookingId };
             }
             return { success: false, message: response.data?.message || 'Booking failed' };
         } catch (error: any) {
@@ -194,6 +199,18 @@ export const useCounselingStore = create<CounselingState>((set) => ({
         } catch (error: any) {
             set({ isLoadingBookings: false, errorBookings: error?.message || 'Failed to load bookings' });
             return [];
+        }
+    },
+
+    fetchBookingDetails: async (bookingId: string) => {
+        try {
+            const response = await apiClient.get(`${API_URL}/counseling/${bookingId}`);
+            if (response.data?.success) {
+                return response.data?.data?.booking || null;
+            }
+            return null;
+        } catch (error: any) {
+            return null;
         }
     }
 }));

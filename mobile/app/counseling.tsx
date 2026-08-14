@@ -1,9 +1,8 @@
 import React, { useState , useEffect, useRef } from 'react';
-import { ScrollView, Text, TouchableOpacity, View , ActivityIndicator } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View , ActivityIndicator, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 
 import { useCounselingStore } from '../store/counselingStore';
 
@@ -14,6 +13,10 @@ interface ConfirmedBookingSummary {
   bookingDate: string;
   bookingTime: string;
   status: string;
+  meetingLink?: string;
+  meetingId?: string;
+  meetingPassword?: string;
+  meetingPlatform?: string;
 }
 
 
@@ -73,16 +76,6 @@ export default function CounselingScreen() {
     if (selectedType) {
       const selected = counselingTypes.find(t => t.id === selectedType);
       
-      // If service uses Calendly, open Calendly link directly
-      if (selected?.usesCalendly && selected.calendlyEventUri) {
-        WebBrowser.openBrowserAsync(selected.calendlyEventUri, {
-          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-          enableBarCollapsing: true,
-          showTitle: true,
-        });
-        return;
-      }
-      
       router.push({ pathname: '/book-counseling', params: { id: selected?.id } });
     }
   };
@@ -119,7 +112,11 @@ export default function CounselingScreen() {
               <Text className="text-[#5C4A42] font-medium">Checking your bookings...</Text>
             </View>
           ) : confirmedBooking ? (
-            <View className="bg-white rounded-3xl p-5 mb-6 shadow-sm border border-green-100">
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => router.push({ pathname: '/counseling-detail', params: { bookingId: confirmedBooking._id } })}
+              className="bg-white rounded-3xl p-5 mb-6 shadow-sm border border-green-100"
+            >
               <View className="flex-row items-center justify-between mb-3">
                 <Text className="text-sm font-bold text-[#166534]">Your Confirmed Session</Text>
                 <View className="px-2.5 py-1 rounded-full bg-green-100">
@@ -144,7 +141,26 @@ export default function CounselingScreen() {
                   <Text className="text-xs text-[#166534] font-semibold">{confirmedBooking.bookingTime}</Text>
                 </View>
               </View>
-            </View>
+
+              {confirmedBooking.meetingLink ? (
+                <TouchableOpacity
+                  onPress={() => Linking.openURL(confirmedBooking.meetingLink as string).catch(() => {})}
+                  className="mt-4 flex-row items-center justify-center gap-2 py-3 rounded-2xl"
+                  style={{ backgroundColor: '#16A34A' }}
+                >
+                  <Ionicons name="videocam" size={18} color="#FFFFFF" />
+                  <Text className="text-sm font-bold text-white">Join Meeting</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  onPress={() => router.push({ pathname: '/counseling-detail', params: { bookingId: confirmedBooking._id } })}
+                  className="mt-4 flex-row items-center justify-center gap-2 py-3 rounded-2xl bg-gray-100"
+                >
+                  <Ionicons name="chevron-forward" size={16} color="#166534" />
+                  <Text className="text-sm font-bold text-[#166534]">View Details</Text>
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
           ) : null}
 
           {isLoading ? (
@@ -201,12 +217,6 @@ export default function CounselingScreen() {
                             ) : (
                               <View className="bg-orange-50 px-2 py-1 rounded border border-orange-100">
                                 <Text className="text-[10px] font-bold text-orange-700 tracking-wider">PREMIUM</Text>
-                              </View>
-                            )}
-                            
-                            {type.usesCalendly && (
-                              <View className="bg-purple-50 px-2 py-1 rounded border border-purple-100">
-                                <Text className="text-[10px] font-bold text-purple-700 tracking-wider">SCHEDULE</Text>
                               </View>
                             )}
                           </View>

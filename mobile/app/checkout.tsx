@@ -15,7 +15,7 @@ export default function CheckoutScreen() {
     const insets = useSafeAreaInsets();
     const { cart, clearCart } = useCartStore();
     const { createOrder, createOrderPaymentLink, confirmOrderPaymentLink, isLoading: isOrderLoading } = useOrderStore();
-    const { addresses, fetchAddresses, addAddress, isLoading: isAddressLoading } = useAddressStore();
+    const { addresses, fetchAddresses, addAddress, isLoading: isAddressLoading, error: addressError } = useAddressStore();
 
     const isMountedRef = useRef(true);
 
@@ -167,7 +167,9 @@ export default function CheckoutScreen() {
             setIsAddingAddress(false);
             // Verify fetch to ensure sync
             fetchAddresses();
-        }         
+        } else {
+            Alert.alert("Error", addressError || "Could not save address. Please check your details and try again.");
+        }
     };
 
     if (!cart) {
@@ -219,12 +221,14 @@ export default function CheckoutScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Full Name"
+                                placeholderTextColor="#9CA3AF"
                                 value={newAddress.fullName}
                                 onChangeText={t => setNewAddress({ ...newAddress, fullName: t })}
                             />
                             <TextInput
                                 style={styles.input}
                                 placeholder="Phone Number"
+                                placeholderTextColor="#9CA3AF"
                                 keyboardType="phone-pad"
                                 value={newAddress.phone}
                                 onChangeText={t => setNewAddress({ ...newAddress, phone: t })}
@@ -232,6 +236,7 @@ export default function CheckoutScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Address Line 1 (House No, Street)"
+                                placeholderTextColor="#9CA3AF"
                                 value={newAddress.addressLine1}
                                 onChangeText={t => setNewAddress({ ...newAddress, addressLine1: t })}
                             />       
@@ -239,12 +244,14 @@ export default function CheckoutScreen() {
                                 <TextInput
                                     style={[styles.input, { flex: 1, marginRight: 8 }]}
                                     placeholder="City"
+                                    placeholderTextColor="#9CA3AF"
                                     value={newAddress.city}
                                     onChangeText={t => setNewAddress({ ...newAddress, city: t })}
                                 />
                                 <TextInput
                                     style={[styles.input, { flex: 1 }]}
                                     placeholder="State"
+                                    placeholderTextColor="#9CA3AF"
                                     value={newAddress.state}
                                     onChangeText={t => setNewAddress({ ...newAddress, state: t })}
                                 />    
@@ -253,6 +260,7 @@ export default function CheckoutScreen() {
                                 <TextInput
                                     style={[styles.input, { flex: 1, marginRight: 8 }]}
                                     placeholder="Pincode"
+                                    placeholderTextColor="#9CA3AF"
                                     keyboardType="numeric"
                                     value={newAddress.pincode}
                                     onChangeText={t => setNewAddress({ ...newAddress, pincode: t })}
@@ -260,6 +268,7 @@ export default function CheckoutScreen() {
                                 <TextInput
                                     style={[styles.input, { flex: 1 }]}
                                     placeholder="Country"
+                                    placeholderTextColor="#9CA3AF"
                                     value={newAddress.country}
                                     editable={false}
                                 />
@@ -377,6 +386,7 @@ export default function CheckoutScreen() {
                                 <TextInput
                                     style={styles.referralInput}
                                     placeholder="Enter points to redeem"
+                                    placeholderTextColor="#9CA3AF"
                                     keyboardType="numeric"
                                     value={usePoints > 0 ? String(usePoints) : ''}
                                     onChangeText={(text) => {

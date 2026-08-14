@@ -6,20 +6,44 @@ export interface Order {
     orderNumber: string;
     user: string;
     items: {
-        product: {
+        product?: {
             _id: string;
             name: string;
             thumbnailUrl?: string; // or image
             image?: string;
+            images?: any[];
         };
+        productName?: string;
         quantity: number;
         price: number;
         subtotal: number;
     }[];
-    totalAmount: number;
-    status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
-    paymentStatus: 'pending' | 'completed' | 'failed' | 'refunded';
-    shippingAddress: {
+    pricing?: {
+        subtotal: number;
+        discount: number;
+        shippingCharge: number;
+        tax: number;
+        total: number;
+    };
+    totalAmount?: number;
+    status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled' | 'returned';
+    paymentStatus?: 'pending' | 'processing' | 'completed' | 'failed' | 'refunded';
+    payment?: {
+        method: string;
+        status: string;
+    };
+    deliveryAddress?: {
+        fullName?: string;
+        phone?: string;
+        addressLine1?: string;
+        addressLine2?: string;
+        landmark?: string;
+        city?: string;
+        state?: string;
+        pincode?: string;
+        country?: string;
+    };
+    shippingAddress?: {
         street: string;
         city: string;
         state: string;
@@ -51,7 +75,7 @@ interface OrderState {
     createOrderPaymentLink: (orderId: string) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; expiresAt?: string; message?: string }>;
     confirmOrderPaymentLink: (orderId: string, paymentLinkId: string) => Promise<{ success: boolean; message?: string }>;
     fetchOrderDetails: (orderId: string) => Promise<void>;
-    cancelOrder: (orderId: string) => Promise<void>;
+    cancelOrder: (orderId: string) => Promise<{ success: boolean; message?: string }>;
 }
 
 export const useOrderStore = create<OrderState>((set) => ({
@@ -170,9 +194,13 @@ export const useOrderStore = create<OrderState>((set) => ({
                     currentOrder: state.currentOrder?._id === orderId ? { ...state.currentOrder, status: 'cancelled' } : state.currentOrder,
                     isLoading: false
                 }));
+                return { success: true, message: response.data?.message };
             }
+            set({ isLoading: false });
+            return { success: false, message: response.data?.message || 'Failed to cancel order' };
         } catch (error: any) {
             set({ isLoading: false, error: 'Failed to cancel order' });
+            return { success: false, message: error.response?.data?.message || 'Failed to cancel order' };
         }
     }
 }));

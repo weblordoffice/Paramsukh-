@@ -162,7 +162,7 @@ export const updateBookingStatusAdmin = async (req, res) => {
         // Notify user if status changed
         if (oldStatus !== status) {
             await sendNotification(booking.user, {
-                type: 'booking_status',
+                type: 'counseling_booked',
                 title: `Booking ${status.charAt(0).toUpperCase() + status.slice(1)}`,
                 message: `Your counseling session on ${new Date(booking.bookingDate).toLocaleDateString()} is now ${status}`,
                 icon: '📅',
@@ -204,7 +204,16 @@ export const updateBookingMeetingAdmin = async (req, res) => {
             });
         }
 
-        if (meetingLink !== undefined) booking.meetingLink = meetingLink;
+        if (meetingLink !== undefined) {
+            const trimmed = String(meetingLink).trim();
+            if (trimmed && !/^https?:\/\//i.test(trimmed)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Meeting link must be a valid http(s) URL'
+                });
+            }
+            booking.meetingLink = trimmed || undefined;
+        }
         if (meetingId !== undefined) booking.meetingId = meetingId;
         if (meetingPassword !== undefined) booking.meetingPassword = meetingPassword;
         if (meetingPlatform !== undefined) {
@@ -219,7 +228,7 @@ export const updateBookingMeetingAdmin = async (req, res) => {
         // Notify user when meeting link is added so they can join
         if (meetingLink) {
             await sendNotification(booking.user, {
-                type: 'booking_status',
+                type: 'counseling_reminder',
                 title: 'Session meeting link added',
                 message: `Your counseling session on ${new Date(booking.bookingDate).toLocaleDateString()} at ${booking.bookingTime}: join link has been added. Check your booking details.`,
                 icon: '🔗',

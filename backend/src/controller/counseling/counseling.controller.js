@@ -4,6 +4,7 @@ import CounselingService from '../../models/counselingService.model.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { verifyRazorpaySignature, createRefund, fetchPaymentDetails } from '../../services/razorpayService.js';
 import { recordTransaction } from '../../services/transaction.service.js';
+import { sendCounselingBookingEmail } from '../../services/emailService.js';
 import mongoose from 'mongoose';
 export const getAllServices = async (req, res) => {
   try {
@@ -297,9 +298,11 @@ export const bookCounseling = async (req, res) => {
     // Send notification to user
     await sendNotification(userId, {
       type: 'counseling_booked',
-      title: 'Counseling Session Booked',
-      message: `Your ${bookingTitle} session is scheduled for ${new Date(bookingDate).toLocaleDateString()} at ${bookingTime}`,
-      icon: '📅',
+      title: isFree ? 'Counseling Session Booked' : 'Booking Awaiting Payment',
+      message: isFree
+        ? `Your ${bookingTitle} session is scheduled for ${new Date(bookingDate).toLocaleDateString()} at ${bookingTime}`
+        : `Your ${bookingTitle} session is reserved. Complete payment to confirm your booking.`,
+      icon: isFree ? '📅' : '💳',
       priority: 'high',
       relatedId: booking._id,
       relatedType: 'booking',
@@ -314,9 +317,11 @@ export const bookCounseling = async (req, res) => {
       for (const admin of admins) {
         await sendNotification(admin._id, {
           type: 'counseling_booked',
-          title: 'New Booking Received',
-          message: `${user.displayName} booked ${bookingTitle} on ${new Date(bookingDate).toLocaleDateString()} at ${bookingTime}`,
-          icon: '🔔',
+          title: isFree ? 'New Booking Received' : 'New Booking Request (Payment Pending)',
+          message: isFree
+            ? `${user.displayName} booked ${bookingTitle} on ${new Date(bookingDate).toLocaleDateString()} at ${bookingTime}`
+            : `${user.displayName} requested ${bookingTitle} on ${new Date(bookingDate).toLocaleDateString()} at ${bookingTime} — awaiting payment`,
+          icon: isFree ? '🔔' : '💳',
           priority: 'high',
           relatedId: booking._id,
           relatedType: 'booking'
@@ -697,6 +702,12 @@ export const updatePaymentStatus = async (req, res) => {
       relatedId: booking._id,
       relatedType: 'booking'
     });
+
+    try {
+      await sendCounselingBookingEmail(req.user, booking);
+    } catch (emailErr) {
+      console.error('Counseling booking email failed:', emailErr?.message || emailErr);
+    }
 
     res.status(200).json({
       success: true,

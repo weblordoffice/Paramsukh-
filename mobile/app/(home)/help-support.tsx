@@ -338,6 +338,7 @@ export default function HelpSupportScreen() {
             <TextInput
               className="text-[15px] text-gray-900 min-h-[120px] mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200"
               placeholder="Describe your issue or question..."
+              placeholderTextColor="#9CA3AF"
               multiline
               numberOfLines={6}
               textAlignVertical="top"

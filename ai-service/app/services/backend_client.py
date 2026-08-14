@@ -865,8 +865,6 @@ class BackendClient:
             "counselor_name": item.get("counselorName") or "Expert Counselor",
             "interval_minutes": item.get("intervalMinutes") or 60,
             "is_active": bool(item.get("isActive", True)),
-            "calendly_enabled": bool((item.get("calendlyIntegration") or {}).get("isEnabled")),
-            "calendly_url": (item.get("calendlyIntegration") or {}).get("eventUri") or None,
         }
 
     async def get_counseling_services(self) -> dict[str, Any]:

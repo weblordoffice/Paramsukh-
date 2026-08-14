@@ -27,7 +27,7 @@ import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
 import { recordTransaction } from '../../services/transaction.service.js';
 import { AdminPaymentLink } from '../../models/adminPaymentLink.models.js';
-import { sendMembershipPurchaseEmail } from '../../services/emailService.js';
+import { sendMembershipPurchaseEmail, sendCounselingBookingEmail, sendOrderConfirmationEmail, sendEventRegistrationEmail } from '../../services/emailService.js';
 
 const MAX_ADMIN_LINK_EXPIRY_HOURS = 24 * 30;
 
@@ -233,7 +233,7 @@ export const confirmBookingPaymentLink = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Payment link does not match this booking' });
     }
     if (status !== 'paid' && status !== 'captured') {
-      return res.status(200).json({ success: true, data: { status: link?.status }, message: 'Payment not completed yet' });
+      return res.status(200).json({ success: false, data: { status: link?.status }, message: 'Payment not completed yet' });
     }
     const booking = await Booking.findOne({ _id: bookingId, user: userId });
     if (!booking) {
@@ -719,7 +719,7 @@ export const confirmMembershipPaymentLink = async (req, res) => {
     const isPaid = status === 'paid' || status === 'captured';
     if (!isPaid) {
       return res.status(200).json({
-        success: true,
+        success: false,
         message: 'Payment not completed yet',
         data: { status: link?.status || 'unknown' }
       });
@@ -868,6 +868,12 @@ export const confirmMembershipPaymentLink = async (req, res) => {
     } catch (error) {
       console.error('⚠️ Plan-category sync failed (non-critical):', error.message);
       // Don't fail payment completion when community sync fails.
+    }
+
+    try {
+      sendMembershipPurchaseEmail(user);
+    } catch (emailErr) {
+      console.error('Membership purchase email failed:', emailErr?.message || emailErr);
     }
 
     return res.status(200).json({
@@ -1451,6 +1457,11 @@ export const handleWebhook = async (req, res) => {
                   providerRef: payment.id,
                   metadata: { eventName: `Counseling Booking ${confirmedBooking._id}` },
                 }).catch(err => console.error('Transaction recording failed:', err.message));
+
+                try {
+                  const bUser = await User.findById(confirmedBooking.user).select('email displayName');
+                  if (bUser) await sendCounselingBookingEmail(bUser, confirmedBooking);
+                } catch (e) { console.error('Counseling email failed:', e?.message || e); }
               } else {
                 console.log(`ℹ️ Booking ${pNotes.bookingId} already confirmed`);
               }
@@ -1489,6 +1500,11 @@ export const handleWebhook = async (req, res) => {
                   providerRef: payment.id,
                   metadata: { paymentId: payment.id },
                 }).catch(err => console.error('Transaction recording failed:', err.message));
+
+                try {
+                  const oUser = await User.findById(order.user).select('email displayName');
+                  if (oUser) await sendOrderConfirmationEmail(oUser, confirmedOrder);
+                } catch (e) { console.error('Order email failed:', e?.message || e); }
               } else {
                 console.log(`ℹ️ Order ${pNotes.orderId} already confirmed`);
               }
@@ -1521,6 +1537,12 @@ export const handleWebhook = async (req, res) => {
               providerRef: payment.id,
               metadata: { eventName: `Event Registration ${eventReg._id}`, paymentId: payment.id },
             }).catch(err => console.error('Transaction recording failed:', err.message));
+
+            try {
+              const evt = await Event.findById(pNotes.eventId).select('title').lean();
+              const eUser = await User.findById(eventReg.userId).select('email displayName');
+              if (eUser) await sendEventRegistrationEmail(eUser, evt?.title, eventReg.paymentAmount || 0);
+            } catch (e) { console.error('Event email failed:', e?.message || e); }
           } else {
             console.log(`ℹ️ Event registration ${pNotes.registrationId} already confirmed or not found`);
           }
@@ -1687,6 +1709,10 @@ export const handleWebhook = async (req, res) => {
               );
               if (confirmedBooking) {
                 console.log(`✅ Booking ${notes.bookingId} confirmed via payment_link.paid`);
+                try {
+                  const bUser = await User.findById(confirmedBooking.user).select('email displayName');
+                  if (bUser) await sendCounselingBookingEmail(bUser, confirmedBooking);
+                } catch (e) { console.error('Counseling email failed:', e?.message || e); }
               } else {
                 console.log(`ℹ️ Booking ${notes.bookingId} already confirmed`);
               }
@@ -1719,6 +1745,12 @@ export const handleWebhook = async (req, res) => {
               providerRef: plPaymentId,
               metadata: { eventName: `Event Registration ${eventReg._id}`, paymentId: plPaymentId },
             }).catch(err => console.error('Transaction recording failed:', err.message));
+
+            try {
+              const evt = await Event.findById(notes.eventId).select('title').lean();
+              const eUser = await User.findById(eventReg.userId).select('email displayName');
+              if (eUser) await sendEventRegistrationEmail(eUser, evt?.title, eventReg.paymentAmount || 0);
+            } catch (e) { console.error('Event email failed:', e?.message || e); }
           } else {
             console.log(`ℹ️ Event registration ${notes.registrationId} already confirmed or not found`);
           }

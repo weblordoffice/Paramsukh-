@@ -159,6 +159,7 @@ export default function EditProfileScreen() {
                   value={formData.displayName}    
                   onChangeText={(text) => setFormData({ ...formData, displayName: text })}
                   placeholder="Enter your name"
+                  placeholderTextColor="#9CA3AF"
                 />      
               </View>
 
@@ -170,6 +171,7 @@ export default function EditProfileScreen() {
                   keyboardType="numeric"
                   onChangeText={(text) => setFormData({ ...formData, age: text.replace(/[^0-9]/g, '') })}
                   placeholder="Enter your age"
+                  placeholderTextColor="#9CA3AF"
                 />      
               </View>
 
@@ -180,6 +182,7 @@ export default function EditProfileScreen() {
                   value={formData.occupation}
                   onChangeText={(text) => setFormData({ ...formData, occupation: text })}
                   placeholder="e.g. Professional, Entrepreneur"
+                  placeholderTextColor="#9CA3AF"
                 />      
               </View>
 
@@ -190,6 +193,7 @@ export default function EditProfileScreen() {
                   value={formData.location}
                   onChangeText={(text) => setFormData({ ...formData, location: text })}
                   placeholder="e.g. New Delhi, India"
+                  placeholderTextColor="#9CA3AF"
                 />      
               </View>
 

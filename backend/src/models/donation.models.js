@@ -36,6 +36,14 @@ const donationSchema = new mongoose.Schema({
         unique: true,
         sparse: true
     },
+    receiptNumber: {
+        type: String,
+        unique: true,
+        sparse: true
+    },
+    paymentLinkId: {
+        type: String
+    },
     message: {
         type: String,
         trim: true,
@@ -47,6 +55,18 @@ const donationSchema = new mongoose.Schema({
     }
 }, {
     timestamps: true
+});
+
+// Generate a receipt number
+donationSchema.pre('save', function (next) {
+    if (!this.receiptNumber) {
+        const date = new Date();
+        const year = date.getFullYear().toString().slice(-2);
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const random = Math.floor(100000 + Math.random() * 900000);
+        this.receiptNumber = `DON${year}${month}${random}`;
+    }
+    next();
 });
 
 // Indexes for reporting

@@ -175,7 +175,7 @@ export default function BookingsPage() {
                         placeholder="Search by user, counselor or title..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                        className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-gray-900 placeholder:text-gray-400"
                     />
                 </div>
             </div>
@@ -244,7 +244,7 @@ export default function BookingsPage() {
                             {/* Session Info */}
                             <div className="bg-primary/5 rounded-xl p-4 border border-primary/10">
                                 <h3 className="text-lg font-bold text-secondary mb-2">{selectedBooking.bookingTitle}</h3>
-                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div className="grid grid-cols-2 gap-4 text-sm text-gray-900">
                                     <div>
                                         <p className="text-gray-500">Counselor</p>
                                         <p className="font-medium">{selectedBooking.counselorName} ({selectedBooking.counselorType})</p>
@@ -271,7 +271,7 @@ export default function BookingsPage() {
                             {/* User Info */}
                             <div className="border rounded-xl p-4 space-y-3">
                                 <h3 className="font-semibold text-gray-900 border-b pb-2">User Information</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-900">
                                     <div className="flex items-center space-x-2">
                                         <User className="w-4 h-4 text-gray-400" />
                                         <span>{selectedBooking.user?.displayName || 'N/A'}</span>
@@ -288,7 +288,7 @@ export default function BookingsPage() {
                                 {selectedBooking.userNotes && (
                                     <div className="mt-3 pt-3 border-t">
                                         <p className="text-xs text-gray-500 mb-1">User Notes:</p>
-                                        <p className="text-sm bg-gray-50 p-2 rounded">{selectedBooking.userNotes}</p>
+                                        <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded">{selectedBooking.userNotes}</p>
                                     </div>
                                 )}
                             </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, TextInput, ActivityIndicator, Image } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Alert, TextInput, ActivityIndicator, Image, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,6 +18,7 @@ export default function DonationsScreen() {
   const [message, setMessage] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedDonation, setSelectedDonation] = useState<any>(null);
 
   const presetAmounts = [101, 501, 1001, 5001];
 
@@ -137,7 +138,7 @@ export default function DonationsScreen() {
             <Text style={styles.emptyText}>No donations yet. Be the first to contribute!</Text>
           ) : (
             donations.slice(0, 10).map(d => (
-              <View key={d._id} style={styles.historyCard}>
+              <TouchableOpacity key={d._id} style={styles.historyCard} onPress={() => setSelectedDonation(d)}>
                 <View style={styles.historyRow}>
                   <Ionicons name="heart-circle" size={24} color="#EF4444" />
                   <View style={styles.historyInfo}>
@@ -145,12 +146,71 @@ export default function DonationsScreen() {
                     <Text style={styles.historyDate}>{new Date(d.createdAt).toLocaleDateString('en-IN')}</Text>
                   </View>
                   <Text style={styles.historyStatus}>{d.status}</Text>
+                  <Ionicons name="receipt-outline" size={18} color="#9CA3AF" />
                 </View>
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </View>
       </ScrollView>
+
+      {/* Donation Receipt Modal */}
+      <Modal
+        visible={!!selectedDonation}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setSelectedDonation(null)}
+      >
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelectedDonation(null)}>
+          <TouchableOpacity style={styles.receiptCard} activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.receiptHeader}>
+              <Text style={styles.receiptEmoji}>🙏</Text>
+              <Text style={styles.receiptTitle}>Donation Receipt</Text>
+              <Text style={styles.receiptOrg}>ParamSukh Foundation</Text>
+            </View>
+            <View style={styles.receiptDivider} />
+            <View style={styles.receiptAmountRow}>
+              <Text style={styles.receiptAmountLabel}>Amount Donated</Text>
+              <Text style={styles.receiptAmount}>₹{selectedDonation?.amount}</Text>
+            </View>
+            <View style={styles.receiptRows}>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Receipt No.</Text>
+                <Text style={styles.receiptValue}>{selectedDonation?.receiptNumber || selectedDonation?.transactionId || selectedDonation?._id}</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Payment Method</Text>
+                <Text style={styles.receiptValue}>{selectedDonation?.paymentMethod || 'Razorpay'}</Text>
+              </View>
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Status</Text>
+                <Text style={styles.receiptValue}>{selectedDonation?.status}</Text>
+              </View>
+              {selectedDonation?.transactionId ? (
+                <View style={styles.receiptRow}>
+                  <Text style={styles.receiptLabel}>Payment ID</Text>
+                  <Text style={styles.receiptValue}>{selectedDonation.transactionId}</Text>
+                </View>
+              ) : null}
+              <View style={styles.receiptRow}>
+                <Text style={styles.receiptLabel}>Date</Text>
+                <Text style={styles.receiptValue}>{selectedDonation ? new Date(selectedDonation.createdAt).toLocaleString('en-IN') : ''}</Text>
+              </View>
+              {selectedDonation?.message ? (
+                <View style={styles.receiptRow}>
+                  <Text style={styles.receiptLabel}>Message</Text>
+                  <Text style={styles.receiptValue}>{selectedDonation.message}</Text>
+                </View>
+              ) : null}
+            </View>
+            <View style={styles.receiptDivider} />
+            <Text style={styles.receiptThanks}>Thank you for your generous support! 🙏</Text>
+            <TouchableOpacity style={styles.receiptClose} onPress={() => setSelectedDonation(null)}>
+              <Text style={styles.receiptCloseText}>Close</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -188,4 +248,21 @@ const styles = StyleSheet.create({
   historyAmount: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
   historyDate: { fontSize: 12, color: '#9CA3AF' },
   historyStatus: { fontSize: 12, fontWeight: '600', color: '#10B981', textTransform: 'capitalize' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  receiptCard: { width: '100%', maxWidth: 380, backgroundColor: '#FFF', borderRadius: 16, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 10 },
+  receiptHeader: { alignItems: 'center', marginBottom: 16 },
+  receiptEmoji: { fontSize: 40, marginBottom: 6 },
+  receiptTitle: { fontSize: 20, fontWeight: '800', color: '#1F2937' },
+  receiptOrg: { fontSize: 13, color: '#8B5CF6', fontWeight: '600', marginTop: 2 },
+  receiptDivider: { height: 1, backgroundColor: '#E5E7EB', marginVertical: 16, borderStyle: 'dashed', borderWidth: 1, borderColor: '#E5E7EB' },
+  receiptAmountRow: { alignItems: 'center', marginBottom: 16 },
+  receiptAmountLabel: { fontSize: 13, color: '#6B7280' },
+  receiptAmount: { fontSize: 32, fontWeight: '800', color: '#111827', marginTop: 4 },
+  receiptRows: { gap: 10 },
+  receiptRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  receiptLabel: { fontSize: 13, color: '#6B7280' },
+  receiptValue: { fontSize: 13, color: '#111827', fontWeight: '600', textAlign: 'right', flexShrink: 1 },
+  receiptThanks: { textAlign: 'center', fontSize: 14, color: '#374151', marginBottom: 20 },
+  receiptClose: { backgroundColor: '#8B5CF6', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  receiptCloseText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 });

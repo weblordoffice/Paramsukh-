@@ -7,6 +7,11 @@ export interface Donation {
     message: string;
     status: string;
     createdAt: string;
+    transactionId?: string;
+    receiptNumber?: string;
+    paymentMethod?: string;
+    isAnonymous?: boolean;
+    userName?: string;
 }
 
 interface DonationState {

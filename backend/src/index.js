@@ -40,6 +40,7 @@ import { handleWebhook } from './controller/payments/payments.controller.js';
 import { handlePodcastPaymentWebhook } from './controller/podcast/podcastPayment.controller.js';
 import { handleDonationWebhook } from './controller/donations/donations.controller.js';
 import { setupCounselingCrons } from './services/counselingCron.service.js';
+import { setupOrderCrons } from './services/orderCron.service.js';
 dotenv.config();
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -388,6 +389,9 @@ await connectDatabase();
 
 // Setup counseling system cron jobs (in-app automation)
 setupCounselingCrons();
+
+// Setup order system cron jobs (auto-expire stale pending orders)
+setupOrderCrons();
 
 // GLOBAL ERROR HANDLER - Must be after all routes
 app.use((err, req, res, next) => {

@@ -26,8 +26,8 @@ export default function RootLayout({
                 <SessionProvider>
                     <ThemeProvider
                         attribute="class"
-                        defaultTheme="system"
-                        enableSystem
+                        defaultTheme="light"
+                        enableSystem={false}
                         disableTransitionOnChange
                     >
                         <AuthInitializer />

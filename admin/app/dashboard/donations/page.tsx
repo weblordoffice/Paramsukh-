@@ -14,6 +14,8 @@ interface Donation {
     status: string;
     message?: string;
     isAnonymous: boolean;
+    receiptNumber?: string;
+    transactionId?: string;
     createdAt: string;
 }
 
@@ -128,6 +130,7 @@ export default function DonationsPage() {
                             <tr>
                                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Donor</th>
                                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Amount</th>
+                                <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Receipt No</th>
                                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Method</th>
                                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Status</th>
                                 <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">Message</th>
@@ -139,6 +142,7 @@ export default function DonationsPage() {
                                 <tr key={d._id} className="hover:bg-gray-50">
                                     <td className="px-6 py-4"><span className="font-medium text-gray-900">{d.isAnonymous ? 'Anonymous' : d.userName}</span></td>
                                     <td className="px-6 py-4 font-semibold text-green-600">₹{d.amount}</td>
+                                    <td className="px-6 py-4 text-gray-600 font-mono text-xs">{d.receiptNumber || d.transactionId || '-'}</td>
                                     <td className="px-6 py-4 text-gray-600 capitalize">{d.paymentMethod}</td>
                                     <td className="px-6 py-4"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${d.status === 'completed' ? 'bg-green-100 text-green-800' : d.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>{d.status}</span></td>
                                     <td className="px-6 py-4 text-gray-600 max-w-[200px] truncate">{d.message || '-'}</td>
