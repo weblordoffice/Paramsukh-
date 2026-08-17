@@ -214,6 +214,18 @@ export const selectCourse = async ({ userId, membershipId, courseId, ip = null }
       };
     });
 
+    // Keep plan-category community groups aligned with the newly selected course.
+    try {
+      const { syncUserCommunityMembershipsByPlan } = await import('./planUpgrade.service.js');
+      await syncUserCommunityMembershipsByPlan({
+        userId,
+        planSlug: plan?.slug,
+        membershipActive: true,
+      });
+    } catch (syncError) {
+      console.error(`⚠️ Community sync failed after course selection for user ${userId}:`, syncError.message);
+    }
+
     return result;
   } catch (error) {
     if (error.message === 'CREDIT_CONSUME_FAILED') {
@@ -313,6 +325,18 @@ export const undoCourseSelection = async ({ userId, membershipId, courseId, ip =
         remainingCredits: updated.selectedCourseCredits,
       };
     });
+
+    // Keep plan-category community groups aligned after undoing a selection.
+    try {
+      const { syncUserCommunityMembershipsByPlan } = await import('./planUpgrade.service.js');
+      await syncUserCommunityMembershipsByPlan({
+        userId,
+        planSlug: plan?.slug,
+        membershipActive: true,
+      });
+    } catch (syncError) {
+      console.error(`⚠️ Community sync failed after undo selection for user ${userId}:`, syncError.message);
+    }
 
     return result;
   } catch (error) {

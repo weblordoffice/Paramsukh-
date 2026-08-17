@@ -289,10 +289,9 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
     }
   }
 
-  // Get user's enrolled categories and any categories directly configured on the plan.
-  const enrolledCategories = shouldSyncActivePlan ? await resolveUserEnrolledCategories(normalizedUserId) : [];
-  const planCategories = shouldSyncActivePlan ? await resolvePlanCommunityCategories(normalizedPlan) : [];
-  const categories = Array.from(new Set([...enrolledCategories, ...planCategories]));
+  // Category subgroups are derived only from the courses the user actually enrolled in
+  // (selected via course-selection, or auto-enrolled for entitlement plans).
+  const categories = shouldSyncActivePlan ? await resolveUserEnrolledCategories(normalizedUserId) : [];
 
   // For each plan slug (including inherited), ensure parent group + category subgroups
   const allParentGroups = [];
@@ -357,7 +356,7 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
         ],
       },
     },
-    { $project: { _id: 1, groupId: 1, planSlug: '$group.planSlug' } },
+    { $project: { _id: 1, groupId: 1, planSlug: '$group.planSlug', groupType: '$group.groupType', category: '$group.category' } },
   ]);
 
   const existingByGroupId = new Map(existingMembershipsInTarget.map((membership) => [String(membership.groupId), membership]));
@@ -382,16 +381,24 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
     }
   });
 
-  // Keep other active plans' groups intact (e.g., Brown stays active when Gold is purchased).
+  // Keep other active plans' groups intact (e.g., Brown stays active when Gold is purchased),
+  // and remove category-group memberships for categories the user is no longer enrolled in.
   let deactivationTargets;
   if (shouldSyncActivePlan) {
     const keepActivePlanSlugs = new Set(allPlanSlugs.map((slug) => normalizePlanSlug(slug)));
     const otherActivePlanSlugs = await resolveUserActivePlanSlugs(normalizedUserId);
     otherActivePlanSlugs.forEach((slug) => keepActivePlanSlugs.add(slug));
 
+    const enrolledCategorySet = new Set(categories.map((category) => normalizeCategory(category)));
+
     deactivationTargets = activePlanCategoryMemberships.filter((membership) => {
       const membershipPlanSlug = normalizePlanSlug(membership.planSlug || '');
-      return !keepActivePlanSlugs.has(membershipPlanSlug);
+      if (!keepActivePlanSlugs.has(membershipPlanSlug)) return true;
+      if (membership.groupType === 'category') {
+        const membershipCategory = normalizeCategory(membership.category || '');
+        return !enrolledCategorySet.has(membershipCategory);
+      }
+      return false;
     });
   } else {
     deactivationTargets = activePlanCategoryMemberships;

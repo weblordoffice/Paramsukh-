@@ -131,17 +131,12 @@ export default function CommunityScreen() {
     checkAssessmentStatus();
   }, [checkAssessmentStatus]);
 
-  useEffect(() => {
-    if (token) {
-      fetchMyGroups();
-    }
-  }, [token, fetchMyGroups]);
-
   useFocusEffect(
     useCallback(() => {
       if (!token) return;
+      fetchMyGroups();
       fetchUnreadCount();
-    }, [token, fetchUnreadCount])
+    }, [token, fetchMyGroups, fetchUnreadCount])
   );
 
   // When groups are loaded, auto-select first plan group (combined feed) or first subgroup
