@@ -4,6 +4,8 @@ import { Group, GroupMember } from '../models/community.models.js';
 import { Enrollment } from '../models/enrollment.models.js';
 import { Course } from '../models/course.models.js';
 import { CoursePlan } from '../models/coursePlan.models.js';
+import { UserMembership } from '../models/userMembership.models.js';
+import { MembershipPlan } from '../models/membershipPlan.models.js';
 import { normalizePlanSlug, resolveMembershipPlanInheritanceBySlug } from './membershipPlan.service.js';
 
 const CATEGORY_LABELS = {
@@ -235,6 +237,40 @@ const refreshGroupMemberCounts = async (groupIds = []) => {
   );
 };
 
+const resolveUserActivePlanSlugs = async (userId) => {
+  const now = new Date();
+  const activeMemberships = await UserMembership.find({
+    userId,
+    status: 'active',
+    $or: [
+      { endDate: { $gte: now } },
+      { endDate: null },
+      { endDate: { $exists: false } },
+    ],
+  })
+    .select('planId planSnapshot.slug')
+    .lean();
+
+  const slugs = new Set();
+  for (const membership of activeMemberships) {
+    let slug = normalizePlanSlug(membership?.planSnapshot?.slug || '');
+    if (!slug && membership.planId) {
+      try {
+        const plan = await MembershipPlan.findById(membership.planId).select('slug').lean();
+        slug = normalizePlanSlug(plan?.slug || '');
+      } catch {}
+    }
+    if (!slug || slug === 'free') continue;
+    slugs.add(slug);
+    try {
+      const inheritance = await resolveMembershipPlanInheritanceBySlug(slug);
+      (inheritance.planSlugs || []).forEach((s) => slugs.add(normalizePlanSlug(s)));
+    } catch {}
+  }
+
+  return slugs;
+};
+
 export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, membershipActive = true }) => {
   const normalizedUserId = asObjectId(userId);
   const normalizedPlan = normalizePlanSlug(planSlug || 'free');
@@ -288,7 +324,6 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
     ...allParentGroups.map((g) => String(g._id)),
     ...allCategoryGroups.map((g) => String(g._id)),
   ];
-  const targetGroupIdSet = new Set(targetGroupIds);
 
   const existingMembershipsInTarget = targetGroupIds.length
     ? await GroupMember.find({ userId: normalizedUserId, groupId: { $in: targetGroupIds } })
@@ -322,7 +357,7 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
         ],
       },
     },
-    { $project: { _id: 1, groupId: 1 } },
+    { $project: { _id: 1, groupId: 1, planSlug: '$group.planSlug' } },
   ]);
 
   const existingByGroupId = new Map(existingMembershipsInTarget.map((membership) => [String(membership.groupId), membership]));
@@ -347,9 +382,22 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
     }
   });
 
-  const deactivateMembershipIds = activePlanCategoryMemberships
-    .filter((membership) => !targetGroupIdSet.has(String(membership.groupId)))
-    .map((membership) => membership._id);
+  // Keep other active plans' groups intact (e.g., Brown stays active when Gold is purchased).
+  let deactivationTargets;
+  if (shouldSyncActivePlan) {
+    const keepActivePlanSlugs = new Set(allPlanSlugs.map((slug) => normalizePlanSlug(slug)));
+    const otherActivePlanSlugs = await resolveUserActivePlanSlugs(normalizedUserId);
+    otherActivePlanSlugs.forEach((slug) => keepActivePlanSlugs.add(slug));
+
+    deactivationTargets = activePlanCategoryMemberships.filter((membership) => {
+      const membershipPlanSlug = normalizePlanSlug(membership.planSlug || '');
+      return !keepActivePlanSlugs.has(membershipPlanSlug);
+    });
+  } else {
+    deactivationTargets = activePlanCategoryMemberships;
+  }
+
+  const deactivateMembershipIds = deactivationTargets.map((membership) => membership._id);
 
   if (createMembershipDocs.length > 0) {
     try {
@@ -377,9 +425,7 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
 
   const touchedGroupIds = [
     ...targetGroupIds,
-    ...activePlanCategoryMemberships
-      .filter((membership) => !targetGroupIdSet.has(String(membership.groupId)))
-      .map((membership) => String(membership.groupId)),
+    ...deactivationTargets.map((membership) => String(membership.groupId)),
   ];
 
   await refreshGroupMemberCounts(touchedGroupIds);

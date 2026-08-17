@@ -223,11 +223,13 @@ export default function CoursesScreen() {
     }
   }, [fetchCourses, fetchCurrentSubscription, loadPlanMetadata, fetchMembershipCredits]);
 
-  // Refresh subscription when screen comes into focus (e.g., after purchase)
+  // Refresh subscription + membership credits when screen comes into focus
+  // (e.g., after purchase, course selection, or membership change)
   useFocusEffect(
     useCallback(() => {
       fetchCurrentSubscription();
-    }, [fetchCurrentSubscription])
+      fetchMembershipCredits();
+    }, [fetchCurrentSubscription, fetchMembershipCredits])
   );
 
   const userPlan = currentSubscription?.plan;
@@ -507,15 +509,6 @@ export default function CoursesScreen() {
                       const isEligible = membershipCredits?.enabled && eligibleCourseIds.has(courseIdStr);
                       const hasCredits = membershipCredits?.enabled && (membershipCredits?.remaining || 0) > 0;
 
-                      if (isAlreadyUnlocked) {
-                        return (
-                          <View style={styles.enrolledOverlay}>
-                            <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
-                            <Text style={styles.enrolledOverlayText}>Enrolled</Text>
-                          </View>
-                        );
-                      }
-
                       if (locked && isEligible && hasCredits) {
                         return (
                           <View style={styles.unlockOverlay}>
@@ -529,6 +522,15 @@ export default function CoursesScreen() {
                         return (
                           <View style={styles.lockOverlay}>
                             <Ionicons name="lock-closed" size={32} color="#FFFFFF" />
+                          </View>
+                        );
+                      }
+
+                      if (isAlreadyUnlocked) {
+                        return (
+                          <View style={styles.enrolledOverlay}>
+                            <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+                            <Text style={styles.enrolledOverlayText}>Enrolled</Text>
                           </View>
                         );
                       }

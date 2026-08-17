@@ -40,38 +40,56 @@ async function run() {
   }
 
   const userId = String(user._id);
+  const userIdObjectId = new mongoose.Types.ObjectId(userId);
   console.log(`Found user: ${user.email || user._id} (ID: ${userId})`);
 
   // 1. Delete UserMembership docs
-  const membershipResult = await UserMembership.deleteMany({ userId });
+  const membershipResult = await UserMembership.deleteMany({ userId: userIdObjectId });
   console.log(`Deleted ${membershipResult.deletedCount} UserMembership doc(s)`);
 
   // 2. Reset subscription fields on User
   await User.findByIdAndUpdate(userId, {
-    $set: { subscriptionPlan: 'free', subscriptionStatus: 'inactive' },
-    $unset: { subscriptionStartDate: '', subscriptionEndDate: '' },
-    $set: { payments: [] },
+    $set: {
+      subscriptionPlan: 'free',
+      subscriptionStatus: 'inactive',
+      payments: [],
+      subscriptionPlanVariant: null,
+    },
+    $unset: {
+      subscriptionStartDate: '',
+      subscriptionEndDate: '',
+      trialEndsAt: '',
+      pendingMembershipPaymentLink: '',
+    },
   });
   console.log('Reset subscriptionPlan → free, subscriptionStatus → inactive, cleared payments');
 
   // 3. Delete Enrollments
-  const enrollmentResult = await Enrollment.deleteMany({ userId });
+  const enrollmentResult = await Enrollment.deleteMany({ userId: userIdObjectId });
   console.log(`Deleted ${enrollmentResult.deletedCount} Enrollment(s)`);
 
   // 4. Delete selection logs
-  const logResult = await MembershipSelectionLog.deleteMany({ userId });
+  const logResult = await MembershipSelectionLog.deleteMany({ userId: userIdObjectId });
   console.log(`Deleted ${logResult.deletedCount} MembershipSelectionLog(s)`);
 
   // 5. Delete transactions
-  const txnResult = await Transaction.deleteMany({ userId });
+  const txnResult = await Transaction.deleteMany({ userId: userIdObjectId });
   console.log(`Deleted ${txnResult.deletedCount} Transaction(s)`);
 
-  // 6. Deactivate community group memberships
-  const gmResult = await GroupMember.updateMany(
-    { userId },
-    { $set: { isActive: false, leftAt: new Date() } }
-  );
-  console.log(`Deactivated ${gmResult.modifiedCount} GroupMember(s)`);
+  // 6. Delete community group memberships
+  const Group = mongoose.model('Group', new mongoose.Schema({}, { strict: false, collection: 'groups' }));
+  const gmDocs = await GroupMember.find({ userId: userIdObjectId }).select('groupId').lean();
+  const groupIds = gmDocs.map((doc) => doc.groupId);
+  const gmResult = await GroupMember.deleteMany({ userId: userIdObjectId });
+  console.log(`Deleted ${gmResult.deletedCount} GroupMember(s)`);
+
+  if (groupIds.length > 0) {
+    await Group.updateMany(
+      { _id: { $in: groupIds }, memberCount: { $gt: 0 } },
+      { $inc: { memberCount: -1 } }
+    );
+    console.log(`Decremented memberCount on ${groupIds.length} group(s)`);
+  }
 
   console.log('\nDone. User is now clean. Restart your mobile app and refresh.');
   await mongoose.disconnect();

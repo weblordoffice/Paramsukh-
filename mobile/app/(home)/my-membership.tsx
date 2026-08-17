@@ -241,6 +241,18 @@ export default function MyMembershipScreen() {
         }
     };
 
+    const readPreSelectedCourseIds = async (planSlug: string): Promise<string[]> => {
+        try {
+            const raw = await AsyncStorage.getItem(PRE_SELECT_KEY);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            if (parsed?.planSlug === planSlug && Array.isArray(parsed.courseIds)) {
+                return parsed.courseIds.filter(Boolean).map((id: any) => String(id));
+            }
+        } catch {}
+        return [];
+    };
+
     const handlePurchase = async (plan: UIMembershipPlan) => {
         if (!token || purchasingPlanId) {
             return;
@@ -254,11 +266,13 @@ export default function MyMembershipScreen() {
 
         try {
             const callbackUrl = 'paramsukh://payment-done';
+            const selectedCourseIds = await readPreSelectedCourseIds(plan.parentSlug);
             const linkRes = await apiClient.post('/payments/membership-link', {
                 plan: plan.parentSlug,
                 variantSlug: plan.variantSlug || null,
                 amount: plan.price,
                 callbackUrl,
+                selectedCourseIds,
             });
 
             if (!linkRes.data?.success || !linkRes.data?.data?.url) {
