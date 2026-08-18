@@ -34,7 +34,8 @@
         "buildType": "app-bundle"
       },
       "env": {
-        "EXPO_NO_DOTENV": "1"
+        "EXPO_NO_DOTENV": "1",
+        "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ"
       }
     },
     "production-apk": {
