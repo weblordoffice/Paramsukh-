@@ -10,8 +10,10 @@ import { getPendingPaymentLinks, isPendingPaymentExpired, clearPendingPaymentLin
 import AIAssistantWidget from '../components/AIAssistantWidget';
 import { ClerkProvider, useUser, useAuth } from '@clerk/clerk-expo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useThemeStore } from '../store/themeStore';
 
 const tokenCache = {
   async getToken(key: string) {
@@ -206,7 +208,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!isClerkLoaded || isSyncing) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color="#F1842D" />
       </View>
     );
@@ -214,7 +216,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if ((!user || !token) && !isAuthRoute) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color="#F1842D" />
       </View>
     );
@@ -224,7 +226,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (user && token && hasOnboarded && isAuthRoute) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color="#F1842D" />
       </View>
     );
@@ -232,7 +234,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (user && !hasOnboarded && pathname !== '/verify-phone') {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color="#F1842D" />
       </View>
     );
@@ -240,7 +242,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (user && hasOnboarded && !user.assessmentCompleted && !isOnboardingRoute) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color="#F1842D" />
       </View>
     );
@@ -252,9 +254,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 // Expo Router already provides the top-level NavigationContainer.
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
+  const colors = useThemeStore((s) => s.colors);
 
   useEffect(() => {
     async function initAuth() {
+      await useThemeStore.getState().loadTheme();
       await useAuthStore.getState().loadUser();
       setIsReady(true);
     }
@@ -263,7 +267,7 @@ export default function RootLayout() {
 
   if (!isReady) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color="#F1842D" />
       </View>
     );
@@ -275,7 +279,8 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
         <AuthGuard>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBarStyle} />
             <ErrorBoundary>
               <RootNavigator />
             </ErrorBoundary>
