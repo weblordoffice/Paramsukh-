@@ -148,7 +148,7 @@ export default function SettingsScreen() {
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
-      'This will permanently delete your account and all associated data. You will need to verify your mobile number with an OTP to proceed.',
+      'This will permanently delete your account and ALL associated data (subscriptions, orders, progress, memberships). This action is irreversible. You will need to verify your mobile number with an OTP to proceed.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -182,6 +182,25 @@ export default function SettingsScreen() {
     } finally {
       setVerifyingDelete(false);
     }
+  };
+
+  const requestFinalDelete = () => {
+    if (!otp || otp.trim().length < 4) {
+      Alert.alert('Error', 'Please enter the OTP sent to your phone');
+      return;
+    }
+    Alert.alert(
+      'Delete Permanently?',
+      'This will permanently delete your account and ALL associated data (subscriptions, orders, progress, memberships). This action is irreversible and cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Permanently',
+          style: 'destructive',
+          onPress: confirmDeleteWithOtp,
+        },
+      ]
+    );
   };
 
   const handleLogout = () => {
@@ -481,7 +500,7 @@ export default function SettingsScreen() {
 
               <TouchableOpacity
                 disabled={verifyingDelete}
-                onPress={confirmDeleteWithOtp}
+                onPress={requestFinalDelete}
                 style={{ flex: 1, paddingVertical: 12, marginLeft: 8, borderRadius: 10, backgroundColor: colors.danger, alignItems: 'center' }}
               >
                 {verifyingDelete ? (
