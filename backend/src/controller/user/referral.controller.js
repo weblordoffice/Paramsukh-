@@ -114,26 +114,20 @@ export const applyReferralCode = async (req, res) => {
     const validation = await getReferralValidation(code, req.user._id, req.ip);
     if (!validation.valid) return res.status(400).json({ success: false, message: validation.reason });
 
-    // Atomically link the referral; if the link fails, revert referredBy so we never
-    // end up with an inconsistent state (referredBy set but no Referral record).
-    const session = await User.startSession();
+    // Link the referral; if the Referral row fails to create, revert referredBy so we
+    // never end up with an inconsistent state (referredBy set but no Referral record).
     try {
-      await session.startTransaction();
-      await User.findByIdAndUpdate(req.user._id, { referredBy: validation.referrer._id }, { session });
-      await Referral.create([{
+      await User.findByIdAndUpdate(req.user._id, { referredBy: validation.referrer._id });
+      await Referral.create({
         referrer: validation.referrer._id,
         referredUser: req.user._id,
         referralCode: normalizedCode,
         metadata: { ip: req.ip, userAgent: req.headers['user-agent'] || '', channel: 'app' },
-      }], { session });
-      await session.commitTransaction();
+      });
     } catch (err) {
-      await session.abortTransaction();
       await User.findByIdAndUpdate(req.user._id, { referredBy: null });
       if (err.code === 11000) return res.status(400).json({ success: false, message: 'Already referred' });
       throw err;
-    } finally {
-      await session.endSession();
     }
 
     const { fireTrigger } = await import('../../services/referral.service.js');
