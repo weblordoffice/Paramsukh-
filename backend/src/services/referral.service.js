@@ -27,16 +27,27 @@ export const fireTrigger = async (triggerEvent, { referrerId, referredUserId, am
         if (count >= rule.cooldownPerUser) continue;
       }
 
-      if (config.maxPointsPerReferrerTotal > 0) {
-        if ((referrer.totalPointsEarned || 0) + rule.pointsValue > config.maxPointsPerReferrerTotal) continue;
-      }
+      // Atomic, cap-aware increment so concurrent triggers can't exceed the total cap
+      const capFilter = config.maxPointsPerReferrerTotal > 0
+        ? { _id: referrerId, totalPointsEarned: { $lte: config.maxPointsPerReferrerTotal - rule.pointsValue } }
+        : { _id: referrerId };
+      const updatedReferrer = await User.findOneAndUpdate(
+        capFilter,
+        { $inc: { referralPoints: rule.pointsValue, totalPointsEarned: rule.pointsValue } },
+        { new: true }
+      );
+      if (!updatedReferrer) continue; // total cap reached for this rule
 
       const expiresAt = config.pointsExpireMonths > 0
         ? new Date(Date.now() + config.pointsExpireMonths * 30 * 24 * 60 * 60 * 1000)
         : null;
 
-      const holdUntil = rule.holdDays > 0
-        ? new Date(Date.now() + rule.holdDays * 24 * 60 * 60 * 1000)
+      // Honor per-rule holdDays, falling back to the global purchase hold for first purchases
+      const holdDays = rule.holdDays > 0
+        ? rule.holdDays
+        : (triggerEvent === 'user.first_purchase' ? (config.purchasePointsHoldDays || 0) : 0);
+      const holdUntil = holdDays > 0
+        ? new Date(Date.now() + holdDays * 24 * 60 * 60 * 1000)
         : null;
 
       const tx = await PointTransaction.create({
@@ -45,7 +56,7 @@ export const fireTrigger = async (triggerEvent, { referrerId, referredUserId, am
         ruleId: rule._id,
         type: triggerEvent,
         points: rule.pointsValue,
-        balance: (referrer.referralPoints || 0) + rule.pointsValue,
+        balance: updatedReferrer.referralPoints,
         pointValue: config.pointValueInRupees,
         rupeeValue: rule.pointsValue * config.pointValueInRupees,
         status: holdUntil ? 'held' : 'active',
@@ -53,10 +64,6 @@ export const fireTrigger = async (triggerEvent, { referrerId, referredUserId, am
         expiresAt,
         metadata,
       });
-
-      referrer.referralPoints = (referrer.referralPoints || 0) + rule.pointsValue;
-      referrer.totalPointsEarned = (referrer.totalPointsEarned || 0) + rule.pointsValue;
-      await referrer.save();
 
       awarded.push({ rule: rule.name, points: rule.pointsValue, txId: tx._id.toString() });
     }
@@ -128,33 +135,36 @@ export const redeemPoints = async (userId, points, orderId) => {
     return { success: false, message: `Minimum ${config.minRedemptionPoints} points required` };
   }
 
-  const user = await User.findById(userId);
-  if (!user || (user.referralPoints || 0) < points) {
-    return { success: false, message: 'Insufficient points' };
-  }
+  // Atomic conditional decrement: only succeeds if the user actually has >= points,
+  // preventing negative balances from concurrent redemptions.
+  const user = await User.findOneAndUpdate(
+    { _id: userId, referralPoints: { $gte: points } },
+    { $inc: { referralPoints: -points } },
+    { new: true }
+  );
+  if (!user) return { success: false, message: 'Insufficient points' };
 
   const tx = await PointTransaction.create({
     userId,
     type: 'redeemed',
     points: -points,
-    balance: user.referralPoints - points,
+    balance: user.referralPoints,
     pointValue: config.pointValueInRupees,
     rupeeValue: points * config.pointValueInRupees,
     status: 'redeemed',
     redeemedIn: orderId,
   });
 
-  user.referralPoints -= points;
-  await user.save();
-
   return { success: true, points, discount: points * config.pointValueInRupees, transactionId: tx._id };
 };
 
 export const getReferralValidation = async (code, newUserId, ip) => {
+  const normalizedCode = (code || '').trim().toUpperCase();
+
   const config = await ReferralConfig.findOne();
   if (!config || !config.isActive) return { valid: false, reason: 'Referrals are currently disabled' };
 
-  const referrer = await User.findOne({ referralCode: code.trim() });
+  const referrer = await User.findOne({ referralCode: normalizedCode });
   if (!referrer) return { valid: false, reason: 'Invalid referral code' };
   if (String(referrer._id) === String(newUserId)) return { valid: false, reason: 'Cannot refer yourself' };
 

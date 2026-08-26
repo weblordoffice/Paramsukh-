@@ -14,7 +14,7 @@ export const getUserReferralDashboard = async (req, res) => {
 
     let user = req.user;
     if (!user.referralCode) {
-      const code = await generateUniqueReferralCode();
+      const code = await generateUniqueReferralCode(user.displayName);
       user = await User.findByIdAndUpdate(userId, { referralCode: code }, { new: true });
     }
 
@@ -97,7 +97,7 @@ export const handleRedeemPoints = async (req, res) => {
 
 export const regenerateReferralCode = async (req, res) => {
   try {
-    const code = await generateUniqueReferralCode();
+    const code = await generateUniqueReferralCode(req.user.displayName);
     await User.findByIdAndUpdate(req.user._id, { referralCode: code });
     return res.json({ success: true, referralCode: code });
   } catch (error) {
@@ -110,23 +110,37 @@ export const applyReferralCode = async (req, res) => {
     const { code } = req.body;
     if (!code) return res.status(400).json({ success: false, message: 'Code required' });
 
+    const normalizedCode = code.trim().toUpperCase();
     const validation = await getReferralValidation(code, req.user._id, req.ip);
     if (!validation.valid) return res.status(400).json({ success: false, message: validation.reason });
 
-    await User.findByIdAndUpdate(req.user._id, { referredBy: validation.referrer._id });
-    await Referral.create({
-      referrer: validation.referrer._id,
-      referredUser: req.user._id,
-      referralCode: code,
-      metadata: { ip: req.ip, userAgent: req.headers['user-agent'] || '', channel: 'app' },
-    });
+    // Atomically link the referral; if the link fails, revert referredBy so we never
+    // end up with an inconsistent state (referredBy set but no Referral record).
+    const session = await User.startSession();
+    try {
+      await session.startTransaction();
+      await User.findByIdAndUpdate(req.user._id, { referredBy: validation.referrer._id }, { session });
+      await Referral.create([{
+        referrer: validation.referrer._id,
+        referredUser: req.user._id,
+        referralCode: normalizedCode,
+        metadata: { ip: req.ip, userAgent: req.headers['user-agent'] || '', channel: 'app' },
+      }], { session });
+      await session.commitTransaction();
+    } catch (err) {
+      await session.abortTransaction();
+      await User.findByIdAndUpdate(req.user._id, { referredBy: null });
+      if (err.code === 11000) return res.status(400).json({ success: false, message: 'Already referred' });
+      throw err;
+    } finally {
+      await session.endSession();
+    }
 
     const { fireTrigger } = await import('../../services/referral.service.js');
-    fireTrigger('user.signup', { referrerId: validation.referrer._id, referredUserId: req.user._id });
+    await fireTrigger('user.signup', { referrerId: validation.referrer._id, referredUserId: req.user._id });
 
     return res.json({ success: true, message: 'Referral code applied!' });
   } catch (error) {
-    if (error.code === 11000) return res.status(400).json({ success: false, message: 'Already referred' });
     return res.status(500).json({ success: false, message: error.message });
   }
 };

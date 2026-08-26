@@ -208,7 +208,7 @@ export const verifyOTPController = async (req, res) => {
         }
 
         const { generateUniqueReferralCode } = await import('../../lib/referralHelper.js');
-        const refCode = await generateUniqueReferralCode();
+        const refCode = await generateUniqueReferralCode(name);
 
         user = new User({
           phone: formattedPhone,
@@ -245,12 +245,12 @@ export const verifyOTPController = async (req, res) => {
                 await Referral.create({
                   referrer: validation.referrer._id,
                   referredUser: user._id,
-                  referralCode: referralCode,
+                  referralCode: referralCode.trim().toUpperCase(),
                   metadata: { ip: req.ip, userAgent: req.headers['user-agent'] || '', channel: 'app' }
                 });
 
                 const { fireTrigger } = await import('../../services/referral.service.js');
-                fireTrigger('user.signup', { referrerId: validation.referrer._id, referredUserId: user._id });
+                await fireTrigger('user.signup', { referrerId: validation.referrer._id, referredUserId: user._id });
               } catch (refError) {
                 user.referredBy = null;
                 await user.save();

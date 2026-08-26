@@ -160,7 +160,7 @@ export const clerkSyncController = async (req, res) => {
         if (!user) {
             console.log('[clerkSync] Branch 3 (CREATE) — no existing user found, creating new one');
             const { generateUniqueReferralCode } = await import('../../lib/referralHelper.js');
-            const refCode = await generateUniqueReferralCode();
+            const refCode = await generateUniqueReferralCode(displayName);
 
             user = new User({
                 clerkId,
@@ -197,12 +197,12 @@ export const clerkSyncController = async (req, res) => {
                             await Referral.create({
                                 referrer: validation.referrer._id,
                                 referredUser: user._id,
-                                referralCode: referralCode,
+                                referralCode: referralCode.trim().toUpperCase(),
                                 metadata: { ip: req.ip, userAgent: req.headers['user-agent'] || '', channel: 'app' }
                             });
 
                             const { fireTrigger } = await import('../../services/referral.service.js');
-                            fireTrigger('user.signup', { referrerId: validation.referrer._id, referredUserId: user._id });
+                            await fireTrigger('user.signup', { referrerId: validation.referrer._id, referredUserId: user._id });
                         } catch (refError) {
                             user.referredBy = null;
                             await user.save();
