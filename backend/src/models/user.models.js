@@ -130,7 +130,7 @@ const userSchema = new mongoose.Schema({
     },
     emailNotifications: {
       type: Boolean,
-      default: false
+      default: true
     },
     autoPlay: {
       type: Boolean,

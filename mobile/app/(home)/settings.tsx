@@ -32,7 +32,7 @@ interface UserSettings {
 
 const defaultSettings: UserSettings = {
   pushNotifications: true,
-  emailNotifications: false,
+  emailNotifications: true,
   darkMode: false,
   autoPlay: true,
   dataSaver: false,
@@ -77,7 +77,7 @@ export default function SettingsScreen() {
           const apiPrefs = response.data.user.preferences;
           const loadedSettings = {
             pushNotifications: apiPrefs.notifications ?? defaultSettings.pushNotifications,
-            emailNotifications: apiPrefs.emailNotifications ?? defaultSettings.emailNotifications,
+            emailNotifications: true,
             darkMode: apiPrefs.theme === 'dark',
             autoPlay: apiPrefs.autoPlay ?? defaultSettings.autoPlay,
             dataSaver: apiPrefs.dataSaver ?? defaultSettings.dataSaver,
@@ -106,7 +106,7 @@ export default function SettingsScreen() {
         {
           theme: newSettings.darkMode ? 'dark' : 'light',
           notifications: newSettings.pushNotifications,
-          emailNotifications: newSettings.emailNotifications,
+          emailNotifications: true,
           autoPlay: newSettings.autoPlay,
           dataSaver: newSettings.dataSaver,
         },          
@@ -284,10 +284,10 @@ export default function SettingsScreen() {
               </View>
             </View>
             <Switch     
-              value={settings.emailNotifications}   
-              onValueChange={() => toggleSetting('emailNotifications')}
+              value={true}
+              disabled={true}
               trackColor={{ false: colors.surfaceSecondary, true: colors.primary }}
-              thumbColor={settings.emailNotifications ? colors.primary : colors.surfaceSecondary}
+              thumbColor={colors.primary}
             />
           </View>   
         </View>

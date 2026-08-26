@@ -312,7 +312,8 @@ export const updatePreferences = async (req, res) => {
     }
     
     if (emailNotifications !== undefined) {
-      updateData['preferences.emailNotifications'] = !!emailNotifications;
+      // Email notifications are always enabled by design and cannot be disabled.
+      updateData['preferences.emailNotifications'] = true;
     }
     
     if (autoPlay !== undefined) {

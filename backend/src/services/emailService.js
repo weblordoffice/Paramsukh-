@@ -19,6 +19,13 @@ const safeSend = (fn) => {
     });
 };
 
+// Email notifications are always-on by design (cannot be disabled), but we still
+// honor an explicit opt-out so the preference is properly wired end-to-end.
+export const canSendEmail = (user) => {
+    if (!user || !user.email) return false;
+    return user.preferences?.emailNotifications !== false;
+};
+
 export const sendEmail = async ({ to, subject, html }) => {
     try {
         const instance = getResend();
@@ -55,7 +62,7 @@ ${body}
 </td></tr></table></td></tr></table></body></html>`;
 
 export const sendWelcomeEmail = (user) => {
-    if (!user.email) return;
+    if (!canSendEmail(user)) return;
     safeSend(() => sendEmail({
         to: user.email,
         subject: 'Welcome to ParamSukh!',
@@ -69,7 +76,7 @@ export const sendWelcomeEmail = (user) => {
 };
 
 export const sendOrderConfirmationEmail = (user, order) => {
-    if (!user.email) return;
+    if (!canSendEmail(user)) return;
     safeSend(() => sendEmail({
         to: user.email,
         subject: `Order Confirmed — #${order.orderNumber}`,
@@ -85,22 +92,22 @@ export const sendOrderConfirmationEmail = (user, order) => {
     }));
 };
 
-export const sendReferralRewardEmail = (referrerId, { rewardType, rewardDays, referredUserName }) => {
+export const sendReferralRewardEmail = (referrerId, { rewardType, rewardDays, referredUserName, points } = {}) => {
     safeSend(async () => {
         const { User } = await import('../models/user.models.js');
-        const referrer = await User.findById(referrerId).select('email displayName');
-        if (!referrer || !referrer.email) return;
+        const referrer = await User.findById(referrerId).select('email displayName preferences');
+        if (!canSendEmail(referrer)) return;
 
         const rewardText = rewardType === 'premium_extension'
             ? `${rewardDays} days of Premium membership`
-            : 'a free course unlock';
+            : (points ? `${points} referral points` : 'a free course unlock');
 
         return sendEmail({
             to: referrer.email,
             subject: `Referral Reward Earned!`,
             html: baseTemplate('Referral Reward!', `
                 <p style="font-size:15px;color:#374151;line-height:1.6">Hi <strong>${referrer.displayName}</strong>,</p>
-                <p style="font-size:15px;color:#374151;line-height:1.6">Great news! <strong>${referredUserName || 'Your friend'}</strong> just completed their first course, and you earned a referral reward.</p>
+                <p style="font-size:15px;color:#374151;line-height:1.6">Great news! <strong>${referredUserName || 'Your friend'}</strong> just took action using your referral, and you earned a reward.</p>
                 <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
                     <p style="margin:0;font-size:14px;color:#166534">Your Reward</p>
                     <p style="margin:4px 0 0;font-size:18px;font-weight:700;color:#15803d">${rewardText}</p>
@@ -112,7 +119,7 @@ export const sendReferralRewardEmail = (referrerId, { rewardType, rewardDays, re
 };
 
 export const sendMembershipPurchaseEmail = (user) => {
-    if (!user.email) return;
+    if (!canSendEmail(user)) return;
     safeSend(() => sendEmail({
         to: user.email,
         subject: 'Membership Activated — Welcome to Premium!',
@@ -128,7 +135,7 @@ export const sendMembershipPurchaseEmail = (user) => {
 };
 
 export const sendEventRegistrationEmail = (user, eventTitle, amount) => {
-    if (!user.email) return;
+    if (!canSendEmail(user)) return;
     safeSend(() => sendEmail({
         to: user.email,
         subject: `Registered — ${eventTitle}`,
@@ -145,7 +152,7 @@ export const sendEventRegistrationEmail = (user, eventTitle, amount) => {
 };
 
 export const sendDonationReceiptEmail = (user, donation) => {
-    if (!user?.email) return;
+    if (!canSendEmail(user)) return;
     const amount = donation.amount ?? 0;
     const receiptNo = donation.receiptNumber || donation.transactionId || donation._id;
     safeSend(() => sendEmail({
@@ -184,7 +191,7 @@ export const sendDonationReceiptEmail = (user, donation) => {
 };
 
 export const sendPodcastPurchaseEmail = (user, podcast) => {
-    if (!user?.email) return;
+    if (!canSendEmail(user)) return;
     safeSend(() => sendEmail({
         to: user.email,
         subject: `Podcast Purchase — ${podcast?.title || 'ParamSukh Podcast'}`,
@@ -201,6 +208,7 @@ export const sendPodcastPurchaseEmail = (user, podcast) => {
 };
 
 export const sendCounselingBookingEmail = (user, booking) => {
+    if (user && !canSendEmail(user)) return;
     const email = user?.email || booking?.userEmail;
     if (!email) return;
     const dateStr = booking?.bookingDate
@@ -242,7 +250,7 @@ export const sendCounselingBookingEmail = (user, booking) => {
 };
 
 export const sendCertificateEarnedEmail = (user, courseName, certificateId) => {
-    if (!user.email) return;
+    if (!canSendEmail(user)) return;
     safeSend(() => sendEmail({
         to: user.email,
         subject: `Certificate Earned — ${courseName}`,
