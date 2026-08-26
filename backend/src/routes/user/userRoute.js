@@ -9,6 +9,7 @@ import {
   getUserStats,
   deactivateAccount,
   deleteAccount,
+  requestDeleteAccountOtp,
   purchaseMembership
 } from '../../controller/user/profile.controller.js';
 import {
@@ -65,6 +66,7 @@ router.post('/profile/referrals/redeem', protectedRoutes, handleRedeemPoints);
 router.post('/profile/referrals/regenerate-code', protectedRoutes, regenerateReferralCode);
 router.post('/profile/referrals/apply', protectedRoutes, applyReferralCode);
 router.post('/deactivate', protectedRoutes, deactivateAccount);
+router.post('/account/delete-otp', protectedRoutes, requestDeleteAccountOtp);
 router.delete('/account', protectedRoutes, deleteAccount);
 
 // ========================================

@@ -7,6 +7,7 @@ import {
   Switch,
   Alert,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -46,6 +47,10 @@ export default function SettingsScreen() {
   }));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [otpModalVisible, setOtpModalVisible] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingDelete, setVerifyingDelete] = useState(false);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -127,31 +132,56 @@ export default function SettingsScreen() {
     saveSettings(newSettings);
   };
 
+  const sendDeleteOtp = async () => {
+    setSendingOtp(true);
+    try {
+      await apiClient.post(`${API_URL}/user/account/delete-otp`);
+      setOtp('');
+      setOtpModalVisible(true);
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.message || 'Failed to send OTP. Please try again.');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
   const handleDeleteAccount = () => {
     Alert.alert(
       'Delete Account',
-      'Are you sure you want to delete your account? This will permanently remove all your data including subscriptions, orders, and progress. This action cannot be undone.',
+      'This will permanently delete your account and all associated data. You will need to verify your mobile number with an OTP to proceed.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Delete Permanently',
+          text: 'Send OTP',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              const response = await apiClient.delete(`${API_URL}/user/delete-account`);
-              if (response.data?.success) {
-                await useAuthStore.getState().logout();
-                router.replace('/signin');
-              } else {
-                Alert.alert('Error', response.data?.message || 'Failed to delete account');
-              }
-            } catch (error: any) {
-              Alert.alert('Error', error.response?.data?.message || 'Failed to delete account. Please try again.');
-            }
-          },
+          onPress: sendDeleteOtp,
         },
       ]
     );
+  };
+
+  const confirmDeleteWithOtp = async () => {
+    if (!otp || otp.trim().length < 4) {
+      Alert.alert('Error', 'Please enter the OTP sent to your phone');
+      return;
+    }
+    setVerifyingDelete(true);
+    try {
+      const response = await apiClient.delete(`${API_URL}/user/delete-account`, {
+        data: { confirmDelete: 'DELETE', otp: otp.trim() },
+      });
+      if (response.data?.success) {
+        setOtpModalVisible(false);
+        await useAuthStore.getState().logout();
+        router.replace('/signin');
+      } else {
+        Alert.alert('Error', response.data?.message || 'Failed to delete account');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.response?.data?.message || 'Invalid OTP or deletion failed');
+    } finally {
+      setVerifyingDelete(false);
+    }
   };
 
   const handleLogout = () => {
@@ -397,6 +427,73 @@ export default function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* OTP verification modal for account deletion */}
+      {otpModalVisible && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20, zIndex: 50 }}>
+          <View style={{ width: '100%', maxWidth: 400, backgroundColor: colors.surface, borderRadius: 16, padding: 24, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Verify Mobile Number</Text>
+            <Text style={{ fontSize: 14, color: colors.textSecondary, marginTop: 8, lineHeight: 20 }}>
+              Enter the OTP sent to your registered mobile number to confirm permanent account deletion.
+            </Text>
+
+            <TextInput
+              style={{
+                marginTop: 16,
+                backgroundColor: colors.surfaceSecondary,
+                borderRadius: 10,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                fontSize: 18,
+                letterSpacing: 4,
+                color: colors.text,
+                borderWidth: 1,
+                borderColor: colors.border,
+              }}
+              placeholder="Enter OTP"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="number-pad"
+              maxLength={6}
+              value={otp}
+              onChangeText={setOtp}
+            />
+
+            <View style={{ marginTop: 20, flexDirection: 'row', justifyContent: 'space-between' }}>
+              <TouchableOpacity
+                disabled={sendingOtp}
+                onPress={() => setOtpModalVisible(false)}
+                style={{ flex: 1, paddingVertical: 12, marginRight: 8, borderRadius: 10, backgroundColor: colors.surfaceSecondary, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                disabled={sendingOtp}
+                onPress={sendDeleteOtp}
+                style={{ flex: 1, paddingVertical: 12, marginHorizontal: 4, borderRadius: 10, backgroundColor: colors.surfaceSecondary, alignItems: 'center' }}
+              >
+                {sendingOtp ? (
+                  <ActivityIndicator size="small" color={colors.primary} />
+                ) : (
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: colors.primary }}>Resend OTP</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                disabled={verifyingDelete}
+                onPress={confirmDeleteWithOtp}
+                style={{ flex: 1, paddingVertical: 12, marginLeft: 8, borderRadius: 10, backgroundColor: colors.danger, alignItems: 'center' }}
+              >
+                {verifyingDelete ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF' }}>Delete</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

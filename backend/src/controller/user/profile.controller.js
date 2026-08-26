@@ -13,6 +13,7 @@ import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.ser
 import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
 import { verifyRazorpaySignature, fetchPaymentDetails } from '../../services/razorpayService.js';
 import { sendMembershipPurchaseEmail } from '../../services/emailService.js';
+import { sendOTP, verifyOTP } from '../../services/otpService.js';
 
 /**
  * Get user profile
@@ -507,16 +508,78 @@ export const deactivateAccount = async (req, res) => {
  * Delete account permanently
  * DELETE /api/user/account
  */
+/**
+ * Request an OTP to verify the account owner's mobile number before deletion.
+ * POST /api/user/account/delete-otp
+ * Sends an OTP to the phone number already linked to the authenticated account.
+ */
+export const requestDeleteAccountOtp = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    if (!user.phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'No phone number is linked to this account. Please add a phone number before deleting your account.'
+      });
+    }
+
+    const cleanPhone = user.phone.replace(/^\+91/, '').replace(/\D/g, '');
+    if (cleanPhone.length !== 10) {
+      return res.status(400).json({ success: false, message: 'Linked phone number is invalid.' });
+    }
+
+    await sendOTP(cleanPhone);
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent to your registered mobile number for deletion verification.'
+    });
+  } catch (error) {
+    console.error('❌ Error sending delete-account OTP:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send OTP'
+    });
+  }
+};
+
 export const deleteAccount = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { confirmDelete } = req.body;
+    const { confirmDelete, otp } = req.body;
 
     if (confirmDelete !== 'DELETE') {
       return res.status(400).json({
         success: false,
         message: "Please confirm deletion by sending confirmDelete: 'DELETE'"
       });
+    }
+
+    if (!otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Mobile number verification required. Please provide the OTP sent to your phone.'
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    if (!user.phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'No phone number is linked to this account. Please contact support to delete your account.'
+      });
+    }
+
+    const cleanPhone = user.phone.replace(/^\+91/, '').replace(/\D/g, '');
+    const verification = await verifyOTP(cleanPhone, otp);
+    if (!verification.success) {
+      return res.status(400).json({ success: false, message: verification.message });
     }
 
     // Import models
