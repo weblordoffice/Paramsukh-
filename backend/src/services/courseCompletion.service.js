@@ -11,7 +11,7 @@ export const handleCourseCompletion = async (userId, courseId) => {
     const user = await User.findById(userId).select('referredBy');
     if (user && user.referredBy) {
       const { fireTrigger } = await import('./referral.service.js');
-      fireTrigger('user.course_complete', { referrerId: user.referredBy, referredUserId: userId });
+      await fireTrigger('user.course_complete', { referrerId: user.referredBy, referredUserId: userId });
     }
   } catch (e) {
     console.error('Referral trigger failed on completion:', e.message);
