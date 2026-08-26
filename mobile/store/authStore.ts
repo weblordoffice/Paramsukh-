@@ -269,13 +269,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
-    const token = await getTokenSecurely();
-
     try {
+      const token = await getTokenSecurely();
       if (token) {
         const headers = await getAuthHeaders(token);
         await axios.post(`${API_URL}/auth/logout`, {}, { headers });
       }
+    } catch (_) {
+      // Ignore network/401 errors when logging out — client tokens will be cleared regardless
     } finally {
       if (clerkSignOutRef) {
         try { await clerkSignOutRef(); } catch (_) {}
@@ -375,29 +376,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (error: any) {
       const status = error.response?.status;
       if (status === 401) {
-        const refreshed = await get().refreshAuth();
-        if (refreshed) {
-          const newToken = await getTokenSecurely();
-          if (newToken) {
-            try {
-              const headers = await getAuthHeaders(newToken);
-              const response = await axios.get(`${API_URL}/auth/me`, { headers });
-              if (response.data?.success) {
-                const user = response.data?.user;
-                await AsyncStorage.setItem('user', JSON.stringify(user));
-                if (user.assessmentCompleted) {
-                  await AsyncStorage.setItem('assessment_completed', 'true');
+        try {
+          const refreshed = await get().refreshAuth();
+          if (refreshed) {
+            const newToken = await getTokenSecurely();
+            if (newToken) {
+              try {
+                const headers = await getAuthHeaders(newToken);
+                const response = await axios.get(`${API_URL}/auth/me`, { headers });
+                if (response.data?.success) {
+                  const user = response.data?.user;
+                  await AsyncStorage.setItem('user', JSON.stringify(user));
+                  if (user.assessmentCompleted) {
+                    await AsyncStorage.setItem('assessment_completed', 'true');
+                  }
+                  set({ user, token: newToken, refreshToken: await getRefreshTokenSecurely() });
+                  return { success: true, user };
                 }
-                set({ user, token: newToken, refreshToken: await getRefreshTokenSecurely() });
-                return { success: true, user };
-              }
-            } catch (_) {}
+              } catch (_) {}
+            }
           }
-        }
+        } catch (_) {}
       }
       if (status === 401 || status === 400 || status === 403) {
-        await clearSecureTokens();
-        await AsyncStorage.multiRemove(['user', 'assessment_completed']);
+        try {
+          await clearSecureTokens();
+          await AsyncStorage.multiRemove(['token', 'refreshToken', 'user', 'assessment_completed']);
+        } catch (_) {}
         set({ user: null, token: null, refreshToken: null });
       }
 
@@ -406,12 +411,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refreshAuth: async () => {
-    const currentRefreshToken = await getRefreshTokenSecurely();
-    if (!currentRefreshToken) {
-      return false;
-    }
-
     try {
+      const currentRefreshToken = await getRefreshTokenSecurely();
+      if (!currentRefreshToken) {
+        return false;
+      }
+
       set({ isLoading: true });
       const headers = await getAuthHeaders();
       const response = await axios.post(`${API_URL}/auth/refresh-token`, {
@@ -432,10 +437,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ isLoading: false });
       return false;
     } catch (error) {
+      try {
         await get().logout();
-        set({ isLoading: false });
-        return false;
-      }
+      } catch (_) {}
+      set({ isLoading: false });
+      return false;
+    }
   },
 
   checkBiometricAvailability: async () => {

@@ -1,9 +1,9 @@
 import sys, datetime
 sys.path.insert(0, r'c:\Users\User\Desktop\paramsukh\Paramsukh-\ai-service')
-from app.services.gemini_service import GeminiService
+from app.services.openai_service import OpenAIService
 from app.models.chat import ChatRequest, UserContext, ConversationContext, ConversationMessage
 
-service = GeminiService()
+service = OpenAIService()
 
 # Create a conversation with mock tool executions in the history
 messages = [

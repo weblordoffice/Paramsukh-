@@ -21,25 +21,27 @@ export const registerOrValidateDevice = async (userId, req, authProvider, clerkS
     return { success: true, session };
   }
 
-  // 2. It is a new device. Check switch limits (max 3 registrations in rolling 24 hours)
-  const window24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const registrationLogs = await DeviceRegistrationLog.find({
-    user: userId,
-    registeredAt: { $gte: window24h }
-  }).sort({ registeredAt: 1 });
+  // 2. It is a new device. Check switch limits (max 3 registrations in rolling 24 hours in production)
+  if (process.env.NODE_ENV === 'production') {
+    const window24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const registrationLogs = await DeviceRegistrationLog.find({
+      user: userId,
+      registeredAt: { $gte: window24h }
+    }).sort({ registeredAt: 1 });
 
-  if (registrationLogs.length >= (parseInt(process.env.MAX_DEVICE_REGISTRATIONS_24H || '5', 10))) {
-    const oldestLog = registrationLogs[0];
-    const msElapsed = Date.now() - oldestLog.registeredAt.getTime();
-    const cooldownRemainingMs = (24 * 60 * 60 * 1000) - msElapsed;
-    const cooldownRemainingMinutes = Math.ceil(cooldownRemainingMs / (60 * 1000));
+    if (registrationLogs.length >= (parseInt(process.env.MAX_DEVICE_REGISTRATIONS_24H || '5', 10))) {
+      const oldestLog = registrationLogs[0];
+      const msElapsed = Date.now() - oldestLog.registeredAt.getTime();
+      const cooldownRemainingMs = (24 * 60 * 60 * 1000) - msElapsed;
+      const cooldownRemainingMinutes = Math.ceil(cooldownRemainingMs / (60 * 1000));
 
-    return {
-      success: false,
-      cooldown: true,
-      cooldownRemaining: cooldownRemainingMinutes,
-      message: `New device registration limit exceeded (max 3 per 24 hours). Please wait ${cooldownRemainingMinutes} minute(s) before trying again.`
-    };
+      return {
+        success: false,
+        cooldown: true,
+        cooldownRemaining: cooldownRemainingMinutes,
+        message: `New device registration limit exceeded (max 3 per 24 hours). Please wait ${cooldownRemainingMinutes} minute(s) before trying again.`
+      };
+    }
   }
 
   // 3. Count currently active (non-revoked) sessions for the user

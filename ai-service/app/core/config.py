@@ -5,13 +5,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     ai_service_env: str = "development"
-    ai_service_port: int = 8001
-    gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
-    gemini_max_output_tokens: int = 1024
-    gemini_history_message_limit: int = 8
-    gemini_history_char_limit: int = 500
-    gemini_memory_item_limit: int = 5
+    ai_service_port: int = 8011
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-4.1-mini"
+    openai_max_output_tokens: int = 450
+    openai_history_message_limit: int = 20
+    openai_history_char_limit: int = 500
+    openai_memory_item_limit: int = 5
     backend_base_url: str = "http://127.0.0.1:3000"
     backend_internal_api_key: str | None = None
     ai_service_shared_secret: str | None = None

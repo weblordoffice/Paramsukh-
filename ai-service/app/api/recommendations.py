@@ -1,15 +1,18 @@
 import json
 import re
+from typing import List, Optional
+
 from fastapi import APIRouter, Header, HTTPException
+from openai import OpenAI
 from pydantic import BaseModel
-import google.generativeai as genai
+
 from app.core.config import get_settings
 from app.core.logging import get_logger
-from typing import List, Optional
 
 logger = get_logger(__name__)
 router = APIRouter()
 settings = get_settings()
+
 
 class CourseExplainItem(BaseModel):
     course_id: str
@@ -17,6 +20,7 @@ class CourseExplainItem(BaseModel):
     course_description: str
     issue_type: str
     issue_details: str | None = None
+
 
 class RecommendationExplainRequest(BaseModel):
     course_title: str
@@ -27,8 +31,10 @@ class RecommendationExplainRequest(BaseModel):
     user_occupation: str
     user_location: str | None = None
 
+
 class RecommendationExplainResponse(BaseModel):
     explanation: str
+
 
 class BatchExplainRequest(BaseModel):
     courses: List[CourseExplainItem]
@@ -36,8 +42,10 @@ class BatchExplainRequest(BaseModel):
     user_occupation: str
     user_location: str | None = None
 
+
 class BatchExplainResponse(BaseModel):
     explanations: dict
+
 
 def verify_internal_secret(x_ai_service_secret: str | None) -> None:
     configured_secret = settings.ai_service_shared_secret
@@ -47,29 +55,15 @@ def verify_internal_secret(x_ai_service_secret: str | None) -> None:
         raise HTTPException(status_code=401, detail="Invalid AI service secret.")
 
 
-def _configure_genai() -> genai.GenerativeModel:
-    genai.configure(api_key=settings.gemini_api_key)
-    return genai.GenerativeModel(
-        model_name=settings.gemini_model,
-        generation_config=genai.types.GenerationConfig(max_output_tokens=150),
-    )
-
-
-def _extract_text(response) -> str:
-    if not response.candidates:
-        return ""
-    c = response.candidates[0]
-    if not c.content or not c.content.parts:
-        return ""
-    return "".join(p.text for p in c.content.parts if hasattr(p, "text") and p.text)
-
-
 @router.post("/recommendations/explain", response_model=RecommendationExplainResponse)
 async def explain_recommendation(
     payload: RecommendationExplainRequest,
     x_ai_service_secret: str | None = Header(default=None),
 ) -> RecommendationExplainResponse:
     verify_internal_secret(x_ai_service_secret)
+
+    if not settings.openai_api_key:
+        return RecommendationExplainResponse(explanation="This course aligns with your wellness goals.")
 
     system_prompt = (
         "You are a compassionate, professional wellness advisor at the ParamSukh Scientific Online Gurukul. "
@@ -93,13 +87,16 @@ async def explain_recommendation(
     )
 
     try:
-        model = genai.GenerativeModel(
-            model_name=settings.gemini_model,
-            system_instruction=system_prompt,
-            generation_config=genai.types.GenerationConfig(max_output_tokens=150),
+        client = OpenAI(api_key=settings.openai_api_key)
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            max_tokens=150,
         )
-        response = model.generate_content(contents=[user_message])
-        explanation = _extract_text(response).strip()
+        explanation = (response.choices[0].message.content or "").strip()
         return RecommendationExplainResponse(explanation=explanation)
     except Exception as e:
         logger.error(f"Failed to generate recommendation explanation: {str(e)}")
@@ -113,7 +110,7 @@ async def explain_recommendation_batch(
 ) -> BatchExplainResponse:
     verify_internal_secret(x_ai_service_secret)
 
-    if not payload.courses:
+    if not payload.courses or not settings.openai_api_key:
         return BatchExplainResponse(explanations={})
 
     course_lines = []
@@ -139,13 +136,17 @@ async def explain_recommendation_batch(
     )
 
     try:
-        model = genai.GenerativeModel(
-            model_name=settings.gemini_model,
-            system_instruction="You are a compassionate wellness advisor. Respond ONLY with valid JSON.",
-            generation_config=genai.types.GenerationConfig(max_output_tokens=1000),
+        client = OpenAI(api_key=settings.openai_api_key)
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {"role": "system", "content": "You are a compassionate wellness advisor. Respond ONLY with valid JSON."},
+                {"role": "user", "content": user_message},
+            ],
+            max_tokens=1000,
+            response_format={"type": "json_object"},
         )
-        response = model.generate_content(contents=[user_message])
-        raw = _extract_text(response).strip()
+        raw = (response.choices[0].message.content or "").strip()
         match = re.search(r'\{.*\}', raw, re.DOTALL)
         explanations = json.loads(match.group(0)) if match else {}
         return BatchExplainResponse(explanations=explanations)

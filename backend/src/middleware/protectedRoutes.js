@@ -57,21 +57,50 @@ export const protectedRoutes = async(req, res, next) => {
         }
 
         // Validate active device session
-        const { deviceId } = getDeviceDetails(req);
+        let { deviceId } = getDeviceDetails(req);
 
-        if (decoded.deviceId && decoded.deviceId !== deviceId) {
-            return res.status(401).json({
-                success: false,
-                code: 'TOKEN_DEVICE_MISMATCH',
-                message: 'Token bound to a different device.'
-            });
+        // If client didn't pass explicit x-device-id header (e.g. mobile EventSource SSE), fallback to decoded.deviceId
+        if (!req.headers['x-device-id'] && decoded.deviceId) {
+            deviceId = decoded.deviceId;
         }
 
-        const session = await DeviceSession.findOne({
+        if (decoded.deviceId && deviceId && decoded.deviceId !== deviceId) {
+            const matchingTokenSession = await DeviceSession.findOne({
+                user: user._id,
+                deviceId: decoded.deviceId,
+                isRevoked: false
+            });
+            if (matchingTokenSession) {
+                deviceId = decoded.deviceId;
+            } else {
+                return res.status(401).json({
+                    success: false,
+                    code: 'TOKEN_DEVICE_MISMATCH',
+                    message: 'Token bound to a different device.'
+                });
+            }
+        }
+
+        let session = await DeviceSession.findOne({
             user: user._id,
             deviceId,
             isRevoked: false
         });
+
+        if (!session && decoded.deviceId) {
+            session = await DeviceSession.findOne({
+                user: user._id,
+                deviceId: decoded.deviceId,
+                isRevoked: false
+            });
+        }
+
+        if (!session) {
+            session = await DeviceSession.findOne({
+                user: user._id,
+                isRevoked: false
+            }).sort({ lastSeen: -1 });
+        }
 
         if (!session) {
             return res.status(401).json({

@@ -3,6 +3,7 @@ import * as Device from 'expo-device';
 import * as Crypto from 'expo-crypto';
 import * as Application from 'expo-application';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const DEVICE_ID_KEY = 'stable_device_id';
 
@@ -12,6 +13,37 @@ const DEVICE_ID_KEY = 'stable_device_id';
  * which persist across reinstalls where possible.
  */
 export const getDeviceDetailsMobile = async () => {
+  if (Platform.OS === 'web') {
+    let webDeviceId = '';
+    try {
+      if (typeof localStorage !== 'undefined') {
+        webDeviceId = localStorage.getItem(DEVICE_ID_KEY) || '';
+      }
+    } catch (_) {}
+    if (!webDeviceId) {
+      try {
+        webDeviceId = (await AsyncStorage.getItem(DEVICE_ID_KEY)) || '';
+      } catch (_) {}
+    }
+    if (!webDeviceId) {
+      webDeviceId = Crypto.randomUUID();
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(DEVICE_ID_KEY, webDeviceId);
+        }
+      } catch (_) {}
+      try {
+        await AsyncStorage.setItem(DEVICE_ID_KEY, webDeviceId);
+      } catch (_) {}
+    }
+    return {
+      deviceId: webDeviceId,
+      deviceName: 'Web Browser',
+      os: 'Web',
+      browser: typeof navigator !== 'undefined' ? navigator.userAgent : 'Web Browser',
+    };
+  }
+
   // Try hardware-based installation ID first (survives reinstalls)
   let deviceId = '';
   try {
@@ -27,7 +59,7 @@ export const getDeviceDetailsMobile = async () => {
   // Fallback: SecureStore cached ID → random UUID
   if (!deviceId) {
     try {
-      deviceId = await SecureStore.getItemAsync(DEVICE_ID_KEY) || '';
+      deviceId = (await SecureStore.getItemAsync(DEVICE_ID_KEY)) || '';
     } catch (e) {
       console.warn('[DeviceInfo] Failed to read from SecureStore:', e);
     }
@@ -51,6 +83,6 @@ export const getDeviceDetailsMobile = async () => {
     deviceId,
     deviceName,
     os,
-    browser: 'Native App'
+    browser: 'Native App',
   };
 };
