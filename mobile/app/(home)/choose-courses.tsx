@@ -14,6 +14,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import apiClient from '../../utils/apiClient';
 import { API_URL } from '../../config/api';
+import { useTheme } from '../../hooks/useTheme';
 
 interface EligibleCourse {
   _id: string;
@@ -30,6 +31,112 @@ interface EligibleCourse {
 }
 
 export default function ChooseCoursesScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  loadingText: { marginTop: 12, fontSize: 14, color: '#64748B' },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A', marginTop: 16 },
+  emptySub: { fontSize: 14, color: '#64748B', marginTop: 4 },
+  toast: {
+    position: 'absolute',
+    top: 8,
+    left: 16,
+    right: 16,
+    zIndex: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  toastSuccess: { backgroundColor: '#ECFDF5' },
+  toastError: { backgroundColor: '#FEF2F2' },
+  toastText: { fontSize: 13, fontWeight: '600', flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  backBtn: { padding: 4, marginRight: 8 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A' },
+  headerSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  creditsBadge: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 20,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  creditsBadgeText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
+  list: { padding: 16 },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    marginBottom: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  cardSelected: {
+    borderColor: '#22C55E',
+    backgroundColor: '#F0FDF4',
+    opacity: 0.8,
+  },
+  cardThumb: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  thumbImage: { width: 56, height: 56, borderRadius: 12 },
+  cardBody: { flex: 1 },
+  cardTitle: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
+  cardMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 6 },
+  categoryPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
+  categoryText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
+  durationText: { fontSize: 11, color: 'colors.textSecondary' },
+  metaText: { fontSize: 11, color: 'colors.textSecondary' },
+  cardAction: { marginLeft: 12, width: 70, alignItems: 'center' },
+  selectBtn: { padding: 4 },
+  undoBtn: { alignItems: 'center', gap: 2 },
+  undoText: { fontSize: 10, color: '#EF4444', fontWeight: '500' },
+  footer: {
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    backgroundColor: '#FFF',
+  },
+  footerBtn: {
+    backgroundColor: '#8B5CF6',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  footerBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
+  doneBtn: {
+    marginTop: 16,
+    backgroundColor: '#8B5CF6',
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  doneBtnText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
+});
   const router = useRouter();
   const params = useLocalSearchParams<{ membershipId: string; maxSelectable: string }>();
   const membershipId = params.membershipId;
@@ -280,7 +387,7 @@ export default function ChooseCoursesScreen() {
                       <Text style={styles.undoText}>Tap to remove</Text>
                     </View>
                   ) : remaining <= 0 ? (
-                    <Ionicons name="lock-closed" size={24} color="#9CA3AF" />
+                    <Ionicons name="lock-closed" size={24} color="colors.textSecondary" />
                   ) : (
                     <View style={styles.selectBtn}>
                       <Ionicons name="add-circle-outline" size={28} color="#8B5CF6" />
@@ -315,108 +422,4 @@ export default function ChooseCoursesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
-  centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  loadingText: { marginTop: 12, fontSize: 14, color: '#64748B' },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A', marginTop: 16 },
-  emptySub: { fontSize: 14, color: '#64748B', marginTop: 4 },
-  toast: {
-    position: 'absolute',
-    top: 8,
-    left: 16,
-    right: 16,
-    zIndex: 100,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  toastSuccess: { backgroundColor: '#ECFDF5' },
-  toastError: { backgroundColor: '#FEF2F2' },
-  toastText: { fontSize: 13, fontWeight: '600', flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-  },
-  backBtn: { padding: 4, marginRight: 8 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A' },
-  headerSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
-  creditsBadge: {
-    backgroundColor: '#8B5CF6',
-    borderRadius: 20,
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  creditsBadgeText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
-  list: { padding: 16 },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    marginBottom: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  cardSelected: {
-    borderColor: '#22C55E',
-    backgroundColor: '#F0FDF4',
-    opacity: 0.8,
-  },
-  cardThumb: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  thumbImage: { width: 56, height: 56, borderRadius: 12 },
-  cardBody: { flex: 1 },
-  cardTitle: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  categoryPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
-  categoryText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
-  durationText: { fontSize: 11, color: '#94A3B8' },
-  metaText: { fontSize: 11, color: '#94A3B8' },
-  cardAction: { marginLeft: 12, width: 70, alignItems: 'center' },
-  selectBtn: { padding: 4 },
-  undoBtn: { alignItems: 'center', gap: 2 },
-  undoText: { fontSize: 10, color: '#EF4444', fontWeight: '500' },
-  footer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    backgroundColor: '#FFF',
-  },
-  footerBtn: {
-    backgroundColor: '#8B5CF6',
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  footerBtnText: { color: '#FFF', fontWeight: '700', fontSize: 16 },
-  doneBtn: {
-    marginTop: 16,
-    backgroundColor: '#8B5CF6',
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  doneBtnText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
-});
+

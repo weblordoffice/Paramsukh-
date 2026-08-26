@@ -15,6 +15,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
 import { useAuthStore } from '../../store/authStore';
+import { useTheme } from '../../hooks/useTheme';
 
 interface SupportTicket {
   _id: string;
@@ -34,6 +35,7 @@ interface SupportTicket {
 }
 
 export default function HelpSupportScreen() {
+  const { colors } = useTheme();
   const router = useRouter();
   const [expandedFAQ, setExpandedFAQ] = useState<number | null>(null);
   const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
@@ -181,7 +183,7 @@ export default function HelpSupportScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
         <TouchableOpacity className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" onPress={() => router.push('/(home)/menu')}>
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={24} color="colors.text" />
         </TouchableOpacity>
         <Text className="text-xl font-bold text-gray-900">Help & Support</Text>
         <View className="w-10" />
@@ -218,7 +220,7 @@ export default function HelpSupportScreen() {
                 <Ionicons
                   name={expandedFAQ === index ? 'chevron-up' : 'chevron-down'}
                   size={20}
-                  color="#6B7280"
+                  color="colors.textSecondary"
                 />
               </TouchableOpacity>
               {expandedFAQ === index && (
@@ -284,7 +286,7 @@ export default function HelpSupportScreen() {
                       <Ionicons
                         name={isExpanded ? 'chevron-up' : 'chevron-down'}
                         size={18}
-                        color="#6B7280"
+                        color="colors.textSecondary"
                       />
                     </View>
                   </View>
@@ -338,7 +340,7 @@ export default function HelpSupportScreen() {
             <TextInput
               className="text-[15px] text-gray-900 min-h-[120px] mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200"
               placeholder="Describe your issue or question..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor="colors.textSecondary"
               multiline
               numberOfLines={6}
               textAlignVertical="top"
@@ -353,11 +355,11 @@ export default function HelpSupportScreen() {
               disabled={!message || message.length < 10 || isSubmitting}
             >
               {isSubmitting ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color="colors.surface" />
               ) : (
                 <>
                   <Text className="text-base font-semibold text-white">Submit</Text>
-                  <Ionicons name="send" size={18} color="#FFFFFF" />
+                  <Ionicons name="send" size={18} color="colors.surface" />
                 </>
               )}
             </TouchableOpacity>
@@ -370,17 +372,17 @@ export default function HelpSupportScreen() {
           <TouchableOpacity className="flex-row items-center bg-white p-4 rounded-xl mb-3 shadow-sm">
             <Ionicons name="book-outline" size={24} color="#3B82F6" />
             <Text className="text-[15px] font-semibold text-gray-900 flex-1 ml-3">User Guide</Text>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={20} color="colors.textSecondary" />
           </TouchableOpacity>
           <TouchableOpacity className="flex-row items-center bg-white p-4 rounded-xl mb-3 shadow-sm">
             <Ionicons name="document-text-outline" size={24} color="#3B82F6" />
             <Text className="text-[15px] font-semibold text-gray-900 flex-1 ml-3">Terms of Service</Text>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={20} color="colors.textSecondary" />
           </TouchableOpacity>
           <TouchableOpacity className="flex-row items-center bg-white p-4 rounded-xl mb-3 shadow-sm">
             <Ionicons name="shield-outline" size={24} color="#3B82F6" />
             <Text className="text-[15px] font-semibold text-gray-900 flex-1 ml-3">Privacy Policy</Text>
-            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+            <Ionicons name="chevron-forward" size={20} color="colors.textSecondary" />
           </TouchableOpacity>
         </View>
       </ScrollView>

@@ -11,6 +11,432 @@ import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
 import { useBlogStore } from '../../store/blogStore';
 import { useRecommendationStore } from '../../store/recommendationStore';
 import apiClient from '../../utils/apiClient';
+import { useTheme } from '../../hooks/useTheme';
+const makeStyles = (colors: any) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: 'colors.background',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    // paddingBottom is now handled dynamically via useBottomTabBarHeight hook
+  },
+  // Hero Section - Premium Gradient
+  heroSection: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 24,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: 'colors.surface',
+    shadowColor: '#F1842D',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  heroGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#2C2420',
+    opacity: 0.92,
+  },
+  heroContent: {
+    padding: 28,
+  },
+  heroHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  heroIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: 'rgba(241, 132, 45, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(241, 132, 45, 0.4)',
+  },
+  heroTextContainer: {
+    flex: 1,
+  },
+  heroGreeting: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 3,
+  },
+  heroTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: 'colors.surface',
+    letterSpacing: 0.5,
+  },
+  heroDescription: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 22,
+    marginBottom: 22,
+  },
+  heroButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'colors.surface',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 14,
+    alignSelf: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  heroButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#F1842D',
+  },
+  // Feature Section
+  featureSection: {
+    marginHorizontal: 20,
+    marginBottom: 28,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#2C2420',
+    marginBottom: 18,
+    letterSpacing: 0.3,
+  },
+  featureGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  featureCard: {
+    width: '48%',
+    backgroundColor: 'colors.surface',
+    borderRadius: 24,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#5C4A42',
+    shadowOffset: { width: 4, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  iconContainer: {
+    width: 58,
+    height: 58,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  featureTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2C2420',
+    marginBottom: 4,
+  },
+  featureDescription: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#5C4A42',
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+  // Quick Access Section
+  quickAccessSection: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  quickAccessList: {
+    backgroundColor: 'colors.surface',
+    borderRadius: 24,
+    shadowColor: '#5C4A42',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  quickAccessItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  quickAccessIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  quickAccessEmoji: {
+    fontSize: 22,
+  },
+  quickAccessContent: {
+    flex: 1,
+  },
+  quickAccessTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2C2420',
+    marginBottom: 3,
+  },
+  quickAccessDescription: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#5C4A42',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(244, 243, 235, 0.9)',
+    marginHorizontal: 20,
+  },
+  blogSection: {
+    marginBottom: 28,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginBottom: 14,
+  },
+  seeAllText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#F1842D',
+  },
+  blogScrollContent: {
+    paddingLeft: 20,
+    paddingRight: 8,
+  },
+  blogCard: {
+    width: 200,
+    backgroundColor: 'colors.surface',
+    borderRadius: 20,
+    marginRight: 16,
+    overflow: 'hidden',
+    shadowColor: '#5C4A42',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  blogImageContainer: {
+    height: 120,
+    width: '100%',
+    backgroundColor: '#F4F3EB',
+  },
+  blogImage: {
+    height: '100%',
+    width: '100%',
+    resizeMode: 'cover',
+  },
+  blogPlaceholderImage: {
+    height: '100%',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  blogCardContent: {
+    padding: 12,
+  },
+  blogTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#2C2420',
+    marginBottom: 4,
+    height: 38,
+  },
+  blogAuthor: {
+    fontSize: 11,
+    color: '#8C7B73',
+    fontWeight: '500',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalOverlayDismiss: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 600,
+    backgroundColor: '#1E1613',
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  modalHeaderTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'colors.surface',
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playerContainer: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoPlayerWrapper: {
+    width: '100%',
+    height: '100%',
+  },
+  webViewPlayer: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
+  nativePlayer: {
+    flex: 1,
+  },
+  fallbackPlayerContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  fallbackPlayerText: {
+    color: '#8C7B73',
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  fallbackLinkBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#F1842D',
+  },
+  fallbackLinkText: {
+    color: 'colors.surface',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  recommendationSection: {
+    marginVertical: 12,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: '#8C7B73',
+    marginHorizontal: 20,
+    marginTop: -8,
+    marginBottom: 16,
+  },
+  recommendationScrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 16,
+  },
+  recCard: {
+    width: 280,
+    backgroundColor: 'colors.surface',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#5C4A42',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F4F3EB',
+  },
+  recImageContainer: {
+    height: 140,
+    position: 'relative',
+  },
+  recImage: {
+    width: '100%',
+    height: '100%',
+  },
+  recPlaceholderImage: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recCategoryBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  recCategoryText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  recCardContent: {
+    padding: 16,
+  },
+  recCourseTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#2C2420',
+    marginBottom: 10,
+  },
+  aiExplanationCard: {
+    backgroundColor: 'colors.background',
+    borderWidth: 1,
+    borderColor: '#F1842D30',
+    borderRadius: 12,
+    padding: 10,
+  },
+  aiExplanationLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#F1842D',
+    letterSpacing: 0.5,
+  },
+  aiExplanationText: {
+    fontSize: 12,
+    color: '#5C4A42',
+    lineHeight: 16,
+  },
+});
 
 // Helper functions for video URL parsing
 const isDirectVideoUrl = (url: string): boolean => {
@@ -38,6 +464,8 @@ type NativeVideoPlayerProps = {
 };
 
 const NativeVideoPlayer = ({ videoUrl }: NativeVideoPlayerProps) => {
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
   const player = useVideoPlayer(videoUrl, (p) => {
     p.loop = false;
     p.play();
@@ -60,6 +488,8 @@ type MinimalVideoPlayerProps = {
 };
 
 const MinimalVideoPlayer = ({ videoUrl }: MinimalVideoPlayerProps) => {
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
   const ytId = getYouTubeId(videoUrl);
   const isYouTube = !!ytId;
   const isDirect = !isYouTube && isDirectVideoUrl(videoUrl);
@@ -99,18 +529,18 @@ const CATEGORY_CONFIG: Record<
   string,
   { color: string; bg: string; icon: string; label: string }
 > = {
-  physical: { color: '#FFFFFF', bg: '#EF4444', icon: 'barbell', label: 'Physical' },
-  mental: { color: '#FFFFFF', bg: '#8B5CF6', icon: 'brain', label: 'Mental' },
+  physical: { color: 'colors.surface', bg: '#EF4444', icon: 'barbell', label: 'Physical' },
+  mental: { color: 'colors.surface', bg: '#8B5CF6', icon: 'brain', label: 'Mental' },
   financial: { color: '#1A1A1A', bg: '#22C55E', icon: 'cash', label: 'Financial' },
-  relationship: { color: '#FFFFFF', bg: '#EC4899', icon: 'heart', label: 'Relationship' },
-  spiritual: { color: '#FFFFFF', bg: '#F59E0B', icon: 'sparkles', label: 'Spiritual' },
-  general: { color: '#FFFFFF', bg: '#64748B', icon: 'layers', label: 'General' },
+  relationship: { color: 'colors.surface', bg: '#EC4899', icon: 'heart', label: 'Relationship' },
+  spiritual: { color: 'colors.surface', bg: '#F59E0B', icon: 'sparkles', label: 'Spiritual' },
+  general: { color: 'colors.surface', bg: '#64748B', icon: 'layers', label: 'General' },
 };
 
 function getCategoryConfig(category?: string) {
   if (!category) return null;
   const key = category.toLowerCase().trim();
-  return CATEGORY_CONFIG[key] || { color: '#FFFFFF', bg: '#4F46E5', icon: 'layers', label: category };
+  return CATEGORY_CONFIG[key] || { color: 'colors.surface', bg: '#4F46E5', icon: 'layers', label: category };
 }
 
 interface FeatureCardProps {
@@ -133,6 +563,8 @@ interface QuickAccessItemProps {
 }
 
 function FeatureCard({ icon, title, description, color, bgColor, onPress }: FeatureCardProps) {
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -168,6 +600,8 @@ function FeatureCard({ icon, title, description, color, bgColor, onPress }: Feat
 }
 
 function QuickAccessItem({ icon, emoji, title, description, iconBg, iconColor, onPress }: QuickAccessItemProps) {
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const handlePressIn = () => {
@@ -209,6 +643,8 @@ function QuickAccessItem({ icon, emoji, title, description, iconBg, iconColor, o
 }
 
 export default function HomeTab() {
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
   const router = useRouter();
   const { blogs, fetchBlogs } = useBlogStore();
   const { recommendations, loading: loadingRecs, fetchRecommendations } = useRecommendationStore();
@@ -272,7 +708,7 @@ export default function HomeTab() {
           <View style={styles.heroContent}>
             <View style={styles.heroHeader}>
               <View style={styles.heroIconContainer}>
-                <Ionicons name="sparkles" size={32} color="#FFFFFF" />
+                <Ionicons name="sparkles" size={32} color="colors.surface" />
               </View>
               <View style={styles.heroTextContainer}>
                 <Text style={styles.heroGreeting}>Welcome to</Text>
@@ -370,7 +806,7 @@ export default function HomeTab() {
                         <Image source={{ uri: course.thumbnailUrl }} style={styles.recImage} />
                       ) : (
                         <View style={[styles.recPlaceholderImage, { backgroundColor: course.color || '#F1842D' }]}>
-                          <Ionicons name="book" size={32} color="#FFFFFF" />
+                          <Ionicons name="book" size={32} color="colors.surface" />
                         </View>
                       )}
                       
@@ -527,7 +963,7 @@ export default function HomeTab() {
                 onPress={() => setIsVideoModalVisible(false)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="close" size={24} color="#FFFFFF" />
+                <Ionicons name="close" size={24} color="colors.surface" />
               </TouchableOpacity>
             </View>
 
@@ -546,428 +982,4 @@ export default function HomeTab() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FDF8F3',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    // paddingBottom is now handled dynamically via useBottomTabBarHeight hook
-  },
-  // Hero Section - Premium Gradient
-  heroSection: {
-    marginHorizontal: 20,
-    marginTop: 8,
-    marginBottom: 24,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#F1842D',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 6,
-  },
-  heroGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#2C2420',
-    opacity: 0.92,
-  },
-  heroContent: {
-    padding: 28,
-  },
-  heroHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 18,
-  },
-  heroIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: 'rgba(241, 132, 45, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(241, 132, 45, 0.4)',
-  },
-  heroTextContainer: {
-    flex: 1,
-  },
-  heroGreeting: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 3,
-  },
-  heroTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
-  },
-  heroDescription: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.85)',
-    lineHeight: 22,
-    marginBottom: 22,
-  },
-  heroButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 14,
-    alignSelf: 'flex-start',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  heroButtonText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#F1842D',
-  },
-  // Feature Section
-  featureSection: {
-    marginHorizontal: 20,
-    marginBottom: 28,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#2C2420',
-    marginBottom: 18,
-    letterSpacing: 0.3,
-  },
-  featureGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  featureCard: {
-    width: '48%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 16,
-    shadowColor: '#5C4A42',
-    shadowOffset: { width: 4, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 4,
-  },
-  iconContainer: {
-    width: 58,
-    height: 58,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  featureTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2C2420',
-    marginBottom: 4,
-  },
-  featureDescription: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#5C4A42',
-    textAlign: 'center',
-    lineHeight: 19,
-  },
-  // Quick Access Section
-  quickAccessSection: {
-    marginHorizontal: 20,
-    marginBottom: 24,
-  },
-  quickAccessList: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    shadowColor: '#5C4A42',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 4,
-  },
-  quickAccessItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  quickAccessIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  quickAccessEmoji: {
-    fontSize: 22,
-  },
-  quickAccessContent: {
-    flex: 1,
-  },
-  quickAccessTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2C2420',
-    marginBottom: 3,
-  },
-  quickAccessDescription: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#5C4A42',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(244, 243, 235, 0.9)',
-    marginHorizontal: 20,
-  },
-  blogSection: {
-    marginBottom: 28,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginHorizontal: 20,
-    marginBottom: 14,
-  },
-  seeAllText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#F1842D',
-  },
-  blogScrollContent: {
-    paddingLeft: 20,
-    paddingRight: 8,
-  },
-  blogCard: {
-    width: 200,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    marginRight: 16,
-    overflow: 'hidden',
-    shadowColor: '#5C4A42',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-  },
-  blogImageContainer: {
-    height: 120,
-    width: '100%',
-    backgroundColor: '#F4F3EB',
-  },
-  blogImage: {
-    height: '100%',
-    width: '100%',
-    resizeMode: 'cover',
-  },
-  blogPlaceholderImage: {
-    height: '100%',
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  blogCardContent: {
-    padding: 12,
-  },
-  blogTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#2C2420',
-    marginBottom: 4,
-    height: 38,
-  },
-  blogAuthor: {
-    fontSize: 11,
-    color: '#8C7B73',
-    fontWeight: '500',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  modalOverlayDismiss: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  modalContent: {
-    width: '100%',
-    maxWidth: 600,
-    backgroundColor: '#1E1613',
-    borderRadius: 24,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  modalHeaderTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playerContainer: {
-    width: '100%',
-    aspectRatio: 16 / 9,
-    backgroundColor: '#000000',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  videoPlayerWrapper: {
-    width: '100%',
-    height: '100%',
-  },
-  webViewPlayer: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  nativePlayer: {
-    flex: 1,
-  },
-  fallbackPlayerContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  fallbackPlayerText: {
-    color: '#8C7B73',
-    fontSize: 14,
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  fallbackLinkBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#F1842D',
-  },
-  fallbackLinkText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  recommendationSection: {
-    marginVertical: 12,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: '#8C7B73',
-    marginHorizontal: 20,
-    marginTop: -8,
-    marginBottom: 16,
-  },
-  recommendationScrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    gap: 16,
-  },
-  recCard: {
-    width: 280,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#5C4A42',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F4F3EB',
-  },
-  recImageContainer: {
-    height: 140,
-    position: 'relative',
-  },
-  recImage: {
-    width: '100%',
-    height: '100%',
-  },
-  recPlaceholderImage: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recCategoryBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    gap: 4,
-  },
-  recCategoryText: {
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  recCardContent: {
-    padding: 16,
-  },
-  recCourseTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#2C2420',
-    marginBottom: 10,
-  },
-  aiExplanationCard: {
-    backgroundColor: '#FDF8F3',
-    borderWidth: 1,
-    borderColor: '#F1842D30',
-    borderRadius: 12,
-    padding: 10,
-  },
-  aiExplanationLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#F1842D',
-    letterSpacing: 0.5,
-  },
-  aiExplanationText: {
-    fontSize: 12,
-    color: '#5C4A42',
-    lineHeight: 16,
-  },
-});
+

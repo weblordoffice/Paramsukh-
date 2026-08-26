@@ -6,8 +6,235 @@ import { useCartStore } from '../store/cartStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
+import { useTheme } from '../hooks/useTheme';
 
 export default function CartScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: 'colors.background',
+    },
+    center: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: 50,
+        paddingBottom: 16,
+        backgroundColor: 'colors.surface',
+        borderBottomWidth: 1,
+        borderBottomColor: 'colors.border',
+    },
+    backButton: {
+        padding: 8,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: 'colors.text',
+    },
+    clearButton: {
+        padding: 8,
+    },
+    clearText: {
+        color: '#EF4444',
+        fontWeight: '600',
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    ordersButton: {
+        padding: 8,
+    },
+    myOrdersLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 20,
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+    },
+    myOrdersLinkText: {
+        color: '#3B82F6',
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    scrollContent: {
+        padding: 16,
+        paddingBottom: 100,
+    },
+    emptyText: {
+        fontSize: 18,
+        color: 'colors.textSecondary',
+        marginTop: 16,
+        marginBottom: 24,
+    },
+    startShoppingButton: {
+        backgroundColor: '#EAB308',
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        borderRadius: 24,
+    },
+    startShoppingText: {
+        color: 'colors.surface',
+        fontWeight: '700',
+        fontSize: 16,
+    },
+    cartItem: {
+        flexDirection: 'row',
+        backgroundColor: 'colors.surface',
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    itemImageContainer: {
+        width: 80,
+        height: 80,
+        borderRadius: 8,
+        backgroundColor: 'colors.surfaceSecondary',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+    },
+    itemImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 8,
+    },
+    itemDetails: {
+        flex: 1,
+        justifyContent: 'space-between',
+    },
+    itemName: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: 'colors.text',
+    },
+    itemPrice: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: 'colors.text',
+    },
+    quantityControls: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    quantityBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: 'colors.surfaceSecondary',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'colors.border',
+    },
+    quantityBox: {
+        minWidth: 20,
+        alignItems: 'center',
+    },
+    quantityText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: 'colors.text',
+    },
+    removeBtn: {
+        marginLeft: 'auto',
+        padding: 4,
+    },
+    summaryCard: {
+        backgroundColor: 'colors.surface',
+        borderRadius: 12,
+        padding: 16,
+        marginTop: 8,
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    summaryLabel: {
+        fontSize: 14,
+        color: 'colors.textSecondary',
+    },
+    summaryValue: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: 'colors.text',
+    },
+    divider: {
+        height: 1,
+        backgroundColor: 'colors.border',
+        marginVertical: 12,
+    },
+    totalLabel: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: 'colors.text',
+    },
+    totalValue: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#EAB308',
+    },
+    referralBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFBEB',
+        borderRadius: 12,
+        padding: 12,
+        marginTop: 12,
+        gap: 8,
+        borderWidth: 1,
+        borderColor: '#FDE68A',
+    },
+    referralBannerText: {
+        flex: 1,
+        fontSize: 13,
+        color: '#92400E',
+    },
+    referralBannerValue: {
+        fontWeight: '700',
+        color: '#EAB308',
+    },
+    footer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: 'colors.surface',
+        padding: 16,
+        borderTopWidth: 1,
+        borderTopColor: 'colors.border',
+    },
+    checkoutButton: {
+        backgroundColor: 'colors.text',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 16,
+        borderRadius: 12,
+    },
+    checkoutButtonText: {
+        color: 'colors.surface',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+});
     const router = useRouter();
     const { cart, fetchCart, updateCartItem, removeFromCart, clearCart, isLoading } = useCartStore();
     const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
@@ -69,7 +296,7 @@ export default function CartScreen() {
     if (!cart || cart.items.length === 0) {
         return (
             <View style={[styles.container, styles.center]}>
-                <Ionicons name="cart-outline" size={64} color="#9CA3AF" />
+                <Ionicons name="cart-outline" size={64} color="colors.textSecondary" />
                 <Text style={styles.emptyText}>Your cart is empty</Text>
                 <TouchableOpacity style={styles.startShoppingButton} onPress={() => router.push('/shops')}>
                     <Text style={styles.startShoppingText}>Start Shopping</Text>
@@ -87,12 +314,12 @@ export default function CartScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                    <Ionicons name="arrow-back" size={24} color="#111827" />
+                    <Ionicons name="arrow-back" size={24} color="colors.text" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Cart</Text>
                 <View style={styles.headerActions}>
                     <TouchableOpacity style={styles.ordersButton} onPress={() => router.push('/orders')}>
-                        <Ionicons name="receipt-outline" size={24} color="#111827" />
+                        <Ionicons name="receipt-outline" size={24} color="colors.text" />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.clearButton} onPress={handleClearCart}>
                         <Text style={styles.clearText}>Clear</Text>
@@ -126,7 +353,7 @@ export default function CartScreen() {
                                     onPress={() => handleUpdateQuantity(item._id, item.quantity - 1)}
                                     disabled={item.quantity <= 1 || updatingItemId === item._id}
                                 >
-                                    <Ionicons name="remove" size={16} color="#374151" />
+                                    <Ionicons name="remove" size={16} color="colors.text" />
                                 </TouchableOpacity>
 
                                 <View style={styles.quantityBox}>
@@ -142,7 +369,7 @@ export default function CartScreen() {
                                     onPress={() => handleUpdateQuantity(item._id, item.quantity + 1)}
                                     disabled={updatingItemId === item._id}
                                 >
-                                    <Ionicons name="add" size={16} color="#374151" />
+                                    <Ionicons name="add" size={16} color="colors.text" />
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
@@ -189,7 +416,7 @@ export default function CartScreen() {
                         <Text style={styles.referralBannerText}>
                             You have <Text style={styles.referralBannerValue}>{referralPoints} referral points</Text> — redeem at checkout
                         </Text>
-                        <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+                        <Ionicons name="chevron-forward" size={16} color="colors.textSecondary" />
                     </TouchableOpacity>
                 )}
             </ScrollView>
@@ -201,235 +428,11 @@ export default function CartScreen() {
                     onPress={() => router.push('/checkout')}
                 >
                     <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
-                    <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                    <Ionicons name="arrow-forward" size={20} color="colors.surface" />
                 </TouchableOpacity>
             </View>
         </View>
     );
 }
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#F9FAFB',
-    },
-    center: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingTop: 50,
-        paddingBottom: 16,
-        backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
-    },
-    backButton: {
-        padding: 8,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#111827',
-    },
-    clearButton: {
-        padding: 8,
-    },
-    clearText: {
-        color: '#EF4444',
-        fontWeight: '600',
-    },
-    headerActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    ordersButton: {
-        padding: 8,
-    },
-    myOrdersLink: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginTop: 20,
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-    },
-    myOrdersLinkText: {
-        color: '#3B82F6',
-        fontSize: 15,
-        fontWeight: '600',
-    },
-    scrollContent: {
-        padding: 16,
-        paddingBottom: 100,
-    },
-    emptyText: {
-        fontSize: 18,
-        color: '#6B7280',
-        marginTop: 16,
-        marginBottom: 24,
-    },
-    startShoppingButton: {
-        backgroundColor: '#EAB308',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 24,
-    },
-    startShoppingText: {
-        color: '#FFFFFF',
-        fontWeight: '700',
-        fontSize: 16,
-    },
-    cartItem: {
-        flexDirection: 'row',
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        padding: 12,
-        marginBottom: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    itemImageContainer: {
-        width: 80,
-        height: 80,
-        borderRadius: 8,
-        backgroundColor: '#F3F4F6',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 12,
-    },
-    itemImage: {
-        width: '100%',
-        height: '100%',
-        borderRadius: 8,
-    },
-    itemDetails: {
-        flex: 1,
-        justifyContent: 'space-between',
-    },
-    itemName: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#111827',
-    },
-    itemPrice: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#111827',
-    },
-    quantityControls: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-    },
-    quantityBtn: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: '#F3F4F6',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-    },
-    quantityBox: {
-        minWidth: 20,
-        alignItems: 'center',
-    },
-    quantityText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#374151',
-    },
-    removeBtn: {
-        marginLeft: 'auto',
-        padding: 4,
-    },
-    summaryCard: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        padding: 16,
-        marginTop: 8,
-    },
-    summaryRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 12,
-    },
-    summaryLabel: {
-        fontSize: 14,
-        color: '#6B7280',
-    },
-    summaryValue: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#111827',
-    },
-    divider: {
-        height: 1,
-        backgroundColor: '#E5E7EB',
-        marginVertical: 12,
-    },
-    totalLabel: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#111827',
-    },
-    totalValue: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#EAB308',
-    },
-    referralBanner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFFBEB',
-        borderRadius: 12,
-        padding: 12,
-        marginTop: 12,
-        gap: 8,
-        borderWidth: 1,
-        borderColor: '#FDE68A',
-    },
-    referralBannerText: {
-        flex: 1,
-        fontSize: 13,
-        color: '#92400E',
-    },
-    referralBannerValue: {
-        fontWeight: '700',
-        color: '#EAB308',
-    },
-    footer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: '#FFFFFF',
-        padding: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#E5E7EB',
-    },
-    checkoutButton: {
-        backgroundColor: '#111827',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 16,
-        borderRadius: 12,
-    },
-    checkoutButtonText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '700',
-    },
-});
+

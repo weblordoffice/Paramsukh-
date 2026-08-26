@@ -14,189 +14,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCourseStore } from '../store/courseStore';
+import { useTheme } from '../hooks/useTheme';
 
 export default function AssignmentViewerScreen() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
-  const { currentCourse } = useCourseStore();
-
-  const assignmentId = params.assignmentId as string;
-  const courseColor = (params.courseColor as string) || '#8B5CF6';
-
-  // Find the assignment in the current course
-  const assignment = currentCourse?.assignments?.find(a => a._id === assignmentId) || 
-                     currentCourse?.videos?.flatMap(v => v.assignments || []).find(a => a._id === assignmentId);
-
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({});
-
-  const storageKey = `assignment_answers_${assignmentId}`;
-
-  // Restore persisted answers on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(storageKey);
-        if (raw) setAnswers(JSON.parse(raw));
-      } catch { /* ignore */ }
-    })();
-  }, [storageKey]);
-
-  // Persist answers whenever they change
-  useEffect(() => {
-    if (Object.keys(answers).length > 0) {
-      AsyncStorage.setItem(storageKey, JSON.stringify(answers)).catch(() => {});
-    }
-  }, [answers, storageKey]);
-
-  if (!assignment) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Assignment not found</Text>
-        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.backButton}>
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  const handleSelectOption = (questionId: string, option: string) => {
-    setAnswers(prev => ({ ...prev, [questionId]: option }));
-    setShowExplanation(prev => ({ ...prev, [questionId]: true }));
-  };
-
-  const handleInputChange = (questionId: string, text: string) => {
-    setAnswers(prev => ({ ...prev, [questionId]: text }));
-  };
-
-  return (
-    <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="dark-content" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.closeBtn}>
-          <Ionicons name="close" size={28} color="#1E293B" />
-        </TouchableOpacity>
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{assignment.title}</Text>
-          <Text style={styles.headerSubtitle}>{assignment.questions?.length || 0} Questions</Text>
-        </View>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {assignment.description ? (
-          <Text style={styles.description}>{assignment.description}</Text>
-        ) : null}
-
-        {assignment.questions?.map((q, index) => {
-
-          const showExp = showExplanation[q?._id];
-
-          if (!q) return null;
-
-          return (
-            <View key={q._id || index} style={styles.questionCard}>
-              <View style={styles.questionHeader}>
-                <View style={[styles.qNum, { backgroundColor: courseColor }]}>
-                  <Text style={styles.qNumText}>{index + 1}</Text>
-                </View>
-                <Text style={styles.questionText}>{q.questionText}</Text>
-              </View>
-
-              {q.type === 'mcq' ? (
-                <View style={styles.optionsContainer}>
-                  {q.options?.map((option, oIdx) => {
-                    const isCurrentOption = answers[q._id] === option;
-                    const isActuallyCorrect = option === q.correctAnswer;
-                    
-                    let optionStyle: any[] = [styles.option];
-                    let textStyle: any[] = [styles.optionText];
-                    
-                    if (showExp) {
-                      if (isActuallyCorrect) {
-                        optionStyle.push(styles.optionCorrect);
-                        textStyle.push(styles.textCorrect);
-                      } else if (isCurrentOption) {
-                        optionStyle.push(styles.optionWrong);
-                        textStyle.push(styles.textWrong);
-                      }
-                    } else if (isCurrentOption) {
-                      optionStyle.push({ borderColor: courseColor, backgroundColor: courseColor + '10' });
-                    }
-
-                    return (
-                      <TouchableOpacity
-                        key={oIdx}
-                        disabled={showExp}
-                        onPress={() => handleSelectOption(q._id, option)}
-                        style={optionStyle}
-                      >
-                        <Text style={textStyle}>{option}</Text>
-                        {showExp && isActuallyCorrect && (
-                          <Ionicons name="checkmark-circle" size={20} color="#10B981" />
-                        )}
-                        {showExp && isCurrentOption && !isActuallyCorrect && (
-                          <Ionicons name="close-circle" size={20} color="#EF4444" />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ) : (
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Type your answer here..."
-                    value={answers[q._id] || ''}
-                    onChangeText={(text) => handleInputChange(q._id, text)}
-                    placeholderTextColor="#94A3B8"
-                  />
-                  <TouchableOpacity 
-                    onPress={() => setShowExplanation(prev => ({ ...prev, [q._id]: true }))}
-                    style={[styles.checkBtn, { backgroundColor: courseColor }]}
-                  >
-                    <Text style={styles.checkBtnText}>Check</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {showExp && (
-                <View style={styles.explanationBox}>
-                  <View style={styles.expHeader}>
-                    <Ionicons name="information-circle-outline" size={18} color="#475569" />
-                    <Text style={styles.expTitle}>Explanation</Text>
-                  </View>
-                  {q.type !== 'mcq' && (
-                    <Text style={{ fontSize: 14, fontWeight: '600', marginBottom: 4, color: (answers[q._id] || '').trim().toLowerCase() === (q.correctAnswer || '').trim().toLowerCase() ? '#10B981' : '#EF4444' }}>
-                      {(answers[q._id] || '').trim().toLowerCase() === (q.correctAnswer || '').trim().toLowerCase()
-                        ? '✅ Correct answer!'
-                        : `❌ Your answer: "${answers[q._id]}"`}
-                    </Text>
-                  )}
-                  <Text style={styles.expText}>
-                    {q.explanation || `The correct answer is: ${q.correctAnswer}`}
-                  </Text>
-                </View>
-              )}
-            </View>
-          );
-        })}
-
-        <TouchableOpacity 
-          onPress={() => { if (router.canGoBack()) router.back(); }} 
-          style={[styles.finishBtn, { backgroundColor: courseColor }]}
-        >
-          <Text style={styles.finishBtnText}>Finish Practice</Text>
-        </TouchableOpacity>
-        
-        <View style={{ height: 40 }} />
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-const styles = StyleSheet.create({
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#F8FAFC',
@@ -388,3 +210,184 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   }
 });
+  const router = useRouter();
+  const params = useLocalSearchParams();
+  const { currentCourse } = useCourseStore();
+
+  const assignmentId = params.assignmentId as string;
+  const courseColor = (params.courseColor as string) || '#8B5CF6';
+
+  // Find the assignment in the current course
+  const assignment = currentCourse?.assignments?.find(a => a._id === assignmentId) || 
+                     currentCourse?.videos?.flatMap(v => v.assignments || []).find(a => a._id === assignmentId);
+
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({});
+
+  const storageKey = `assignment_answers_${assignmentId}`;
+
+  // Restore persisted answers on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(storageKey);
+        if (raw) setAnswers(JSON.parse(raw));
+      } catch { /* ignore */ }
+    })();
+  }, [storageKey]);
+
+  // Persist answers whenever they change
+  useEffect(() => {
+    if (Object.keys(answers).length > 0) {
+      AsyncStorage.setItem(storageKey, JSON.stringify(answers)).catch(() => {});
+    }
+  }, [answers, storageKey]);
+
+  if (!assignment) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>Assignment not found</Text>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const handleSelectOption = (questionId: string, option: string) => {
+    setAnswers(prev => ({ ...prev, [questionId]: option }));
+    setShowExplanation(prev => ({ ...prev, [questionId]: true }));
+  };
+
+  const handleInputChange = (questionId: string, text: string) => {
+    setAnswers(prev => ({ ...prev, [questionId]: text }));
+  };
+
+  return (
+    <SafeAreaView style={styles.root}>
+      <StatusBar barStyle="dark-content" />
+      
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.closeBtn}>
+          <Ionicons name="close" size={28} color="#1E293B" />
+        </TouchableOpacity>
+        <View style={styles.headerTitleContainer}>
+          <Text style={styles.headerTitle} numberOfLines={1}>{assignment.title}</Text>
+          <Text style={styles.headerSubtitle}>{assignment.questions?.length || 0} Questions</Text>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {assignment.description ? (
+          <Text style={styles.description}>{assignment.description}</Text>
+        ) : null}
+
+        {assignment.questions?.map((q, index) => {
+
+          const showExp = showExplanation[q?._id];
+
+          if (!q) return null;
+
+          return (
+            <View key={q._id || index} style={styles.questionCard}>
+              <View style={styles.questionHeader}>
+                <View style={[styles.qNum, { backgroundColor: courseColor }]}>
+                  <Text style={styles.qNumText}>{index + 1}</Text>
+                </View>
+                <Text style={styles.questionText}>{q.questionText}</Text>
+              </View>
+
+              {q.type === 'mcq' ? (
+                <View style={styles.optionsContainer}>
+                  {q.options?.map((option, oIdx) => {
+                    const isCurrentOption = answers[q._id] === option;
+                    const isActuallyCorrect = option === q.correctAnswer;
+                    
+                    let optionStyle: any[] = [styles.option];
+                    let textStyle: any[] = [styles.optionText];
+                    
+                    if (showExp) {
+                      if (isActuallyCorrect) {
+                        optionStyle.push(styles.optionCorrect);
+                        textStyle.push(styles.textCorrect);
+                      } else if (isCurrentOption) {
+                        optionStyle.push(styles.optionWrong);
+                        textStyle.push(styles.textWrong);
+                      }
+                    } else if (isCurrentOption) {
+                      optionStyle.push({ borderColor: courseColor, backgroundColor: courseColor + '10' });
+                    }
+
+                    return (
+                      <TouchableOpacity
+                        key={oIdx}
+                        disabled={showExp}
+                        onPress={() => handleSelectOption(q._id, option)}
+                        style={optionStyle}
+                      >
+                        <Text style={textStyle}>{option}</Text>
+                        {showExp && isActuallyCorrect && (
+                          <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                        )}
+                        {showExp && isCurrentOption && !isActuallyCorrect && (
+                          <Ionicons name="close-circle" size={20} color="#EF4444" />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ) : (
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Type your answer here..."
+                    value={answers[q._id] || ''}
+                    onChangeText={(text) => handleInputChange(q._id, text)}
+                    placeholderTextColor="colors.textSecondary"
+                  />
+                  <TouchableOpacity 
+                    onPress={() => setShowExplanation(prev => ({ ...prev, [q._id]: true }))}
+                    style={[styles.checkBtn, { backgroundColor: courseColor }]}
+                  >
+                    <Text style={styles.checkBtnText}>Check</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {showExp && (
+                <View style={styles.explanationBox}>
+                  <View style={styles.expHeader}>
+                    <Ionicons name="information-circle-outline" size={18} color="#475569" />
+                    <Text style={styles.expTitle}>Explanation</Text>
+                  </View>
+                  {q.type !== 'mcq' && (
+                    <Text style={{ fontSize: 14, fontWeight: '600', marginBottom: 4, color: (answers[q._id] || '').trim().toLowerCase() === (q.correctAnswer || '').trim().toLowerCase() ? '#10B981' : '#EF4444' }}>
+                      {(answers[q._id] || '').trim().toLowerCase() === (q.correctAnswer || '').trim().toLowerCase()
+                        ? '✅ Correct answer!'
+                        : `❌ Your answer: "${answers[q._id]}"`}
+                    </Text>
+                  )}
+                  <Text style={styles.expText}>
+                    {q.explanation || `The correct answer is: ${q.correctAnswer}`}
+                  </Text>
+                </View>
+              )}
+            </View>
+          );
+        })}
+
+        <TouchableOpacity 
+          onPress={() => { if (router.canGoBack()) router.back(); }} 
+          style={[styles.finishBtn, { backgroundColor: courseColor }]}
+        >
+          <Text style={styles.finishBtnText}>Finish Practice</Text>
+        </TouchableOpacity>
+        
+        <View style={{ height: 40 }} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+

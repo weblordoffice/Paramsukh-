@@ -7,8 +7,10 @@ import { useAuthStore } from '../store/authStore';
 
 import { getInitials } from '../utils/userUtils';
 import { hasActiveMembership } from '../utils/membership';
+import { useTheme } from '../hooks/useTheme';
 
 export default function ProfileMenuScreen() {
+  const { colors } = useTheme();
   const router = useRouter();
   const { user: authUser, logout, fetchCurrentUser } = useAuthStore();
   const [user, setUser] = useState(authUser);
@@ -97,7 +99,7 @@ export default function ProfileMenuScreen() {
       title: 'Terms & Privacy',
       description: 'Legal information',
       icon: 'document-text-outline',
-      color: '#6B7280',
+      color: 'colors.textSecondary',
       route: '/(home)/terms-privacy',
     },
   ];
@@ -136,7 +138,7 @@ export default function ProfileMenuScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
         <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} className="w-10">
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={24} color="colors.text" />
         </TouchableOpacity>
         <Text className="text-xl font-bold text-gray-900">Profile</Text>
         <View className="w-10" />
@@ -178,7 +180,7 @@ export default function ProfileMenuScreen() {
                   <Text className="text-base font-bold text-gray-900">{item.title}</Text>
                   <Text className="text-xs text-gray-500 mt-0.5">{item.description}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                <Ionicons name="chevron-forward" size={20} color="colors.textSecondary" />
               </TouchableOpacity>
             ))}
           </View>

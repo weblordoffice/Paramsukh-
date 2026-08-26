@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AmbientGlow from '../components/AmbientGlow';
 import { useCourseStore, Video, Assignment, Pdf } from '../store/courseStore';
 import { useAuthStore } from '../store/authStore';
+import { useTheme } from '../hooks/useTheme';
 
 function LessonCard({ children, onPress, style, isLocked, ...props }: any) {
   const scale = React.useRef(new Animated.Value(1)).current;
@@ -57,6 +58,267 @@ function LessonCard({ children, onPress, style, isLocked, ...props }: any) {
 }
 
 export default function CourseDetailScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
+
+  /* ── Back btn ── */
+  backBtn: {
+    position: 'absolute',
+    top: 48,
+    left: 16,
+    zIndex: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+
+  /* ── Loading ── */
+  loadingBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingText: {
+    color: 'colors.textSecondary',
+    fontSize: 14,
+  },
+
+  /* ── Calm Course Intro Section ── */
+  headerSpacer: {
+    height: 104,
+  },
+  introSection: {
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
+  courseThumb: {
+    width: 140,
+    height: 140,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  categoryBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  courseTitleHeader: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#F8FAFC',
+    textAlign: 'center',
+    lineHeight: 32,
+    marginBottom: 12,
+    letterSpacing: 0.3,
+  },
+  courseMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  metaText: {
+    fontSize: 13,
+    color: 'colors.textSecondary',
+    fontWeight: '600',
+  },
+  metaDivider: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+
+  /* ── Progress card ── */
+  progressCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  progressLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'colors.border',
+    letterSpacing: 0.2,
+  },
+  progressPct: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  progressTrack: {
+    height: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressSub: {
+    fontSize: 12,
+    color: 'colors.textSecondary',
+    fontWeight: '600',
+  },
+
+  /* ── Sections ── */
+  section: {
+    marginTop: 26,
+    marginHorizontal: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    marginBottom: 16,
+    letterSpacing: 0.2,
+  },
+  sectionCount: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  descText: {
+    fontSize: 14,
+    color: 'colors.textSecondary',
+    lineHeight: 22,
+  },
+
+  /* ── Empty ── */
+  emptyBox: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 12,
+  },
+  emptyText: {
+    color: '#64748B',
+    fontSize: 14,
+  },
+
+  /* ── Video rows ── */
+  videoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 16,
+    marginBottom: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    padding: 12,
+    gap: 14,
+  },
+  videoThumbWrap: {
+    width: 80,
+    height: 68,
+    borderRadius: 12,
+    overflow: 'hidden',
+    position: 'relative',
+    flexShrink: 0,
+  },
+  videoThumbPlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  videoThumbNum: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  durationPill: {
+    position: 'absolute',
+    bottom: 4,
+    right: 4,
+    backgroundColor: 'rgba(8, 12, 22, 0.8)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  durationText: {
+    fontSize: 10,
+    color: '#F8FAFC',
+    fontWeight: '700',
+  },
+  videoInfo: {
+    flex: 1,
+  },
+  videoIndex: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  videoTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#E2E8F0',
+    lineHeight: 19,
+  },
+  videoDesc: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 4,
+  },
+  completedBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+});
   const router = useRouter();
   const params = useLocalSearchParams();
 
@@ -199,12 +461,12 @@ export default function CourseDetailScreen() {
             
             <View style={styles.courseMetaRow}>
               <View style={styles.metaItem}>
-                <Ionicons name="time-outline" size={14} color="#94A3B8" />
+                <Ionicons name="time-outline" size={14} color="colors.textSecondary" />
                 <Text style={styles.metaText}>{courseDuration}</Text>
               </View>
               <View style={styles.metaDivider} />
               <View style={styles.metaItem}>
-                <Ionicons name="play-circle-outline" size={14} color="#94A3B8" />
+                <Ionicons name="play-circle-outline" size={14} color="colors.textSecondary" />
                 <Text style={styles.metaText}>{videos.length} lessons</Text>
               </View>
             </View>
@@ -412,263 +674,4 @@ export default function CourseDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
 
-  /* ── Back btn ── */
-  backBtn: {
-    position: 'absolute',
-    top: 48,
-    left: 16,
-    zIndex: 20,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-
-  /* ── Loading ── */
-  loadingBox: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    color: '#94A3B8',
-    fontSize: 14,
-  },
-
-  /* ── Calm Course Intro Section ── */
-  headerSpacer: {
-    height: 104,
-  },
-  introSection: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    marginBottom: 16,
-  },
-  courseThumb: {
-    width: 140,
-    height: 140,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-  },
-  categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  categoryBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  courseTitleHeader: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#F8FAFC',
-    textAlign: 'center',
-    lineHeight: 32,
-    marginBottom: 12,
-    letterSpacing: 0.3,
-  },
-  courseMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  metaText: {
-    fontSize: 13,
-    color: '#94A3B8',
-    fontWeight: '600',
-  },
-  metaDivider: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-
-  /* ── Progress card ── */
-  progressCard: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderRadius: 20,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  progressLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#CBD5E1',
-    letterSpacing: 0.2,
-  },
-  progressPct: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  progressTrack: {
-    height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  progressSub: {
-    fontSize: 12,
-    color: '#94A3B8',
-    fontWeight: '600',
-  },
-
-  /* ── Sections ── */
-  section: {
-    marginTop: 26,
-    marginHorizontal: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F8FAFC',
-    marginBottom: 16,
-    letterSpacing: 0.2,
-  },
-  sectionCount: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  descText: {
-    fontSize: 14,
-    color: '#94A3B8',
-    lineHeight: 22,
-  },
-
-  /* ── Empty ── */
-  emptyBox: {
-    alignItems: 'center',
-    paddingVertical: 40,
-    gap: 12,
-  },
-  emptyText: {
-    color: '#64748B',
-    fontSize: 14,
-  },
-
-  /* ── Video rows ── */
-  videoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 16,
-    marginBottom: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-    padding: 12,
-    gap: 14,
-  },
-  videoThumbWrap: {
-    width: 80,
-    height: 68,
-    borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
-    flexShrink: 0,
-  },
-  videoThumbPlaceholder: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 2,
-  },
-  videoThumbNum: {
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  durationPill: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    backgroundColor: 'rgba(8, 12, 22, 0.8)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  durationText: {
-    fontSize: 10,
-    color: '#F8FAFC',
-    fontWeight: '700',
-  },
-  videoInfo: {
-    flex: 1,
-  },
-  videoIndex: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  videoTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#E2E8F0',
-    lineHeight: 19,
-  },
-  videoDesc: {
-    fontSize: 12,
-    color: '#64748B',
-    marginTop: 4,
-  },
-  completedBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-});

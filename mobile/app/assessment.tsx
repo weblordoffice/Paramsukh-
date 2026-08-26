@@ -24,8 +24,367 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiClient from '../utils/apiClient';
 import { useAssessmentStore } from '../store/assessmentStore';
 import { useAuthStore } from '../store/authStore';
+import { useTheme } from '../hooks/useTheme';
+const makeStyles = (colors: any) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: 'colors.surface',
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: 20,
+    backgroundColor: 'colors.surface',
+    borderBottomWidth: 1,
+    borderBottomColor: 'colors.surfaceSecondary',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: 'colors.text',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: 'colors.textSecondary',
+  },
+  progressContainer: {
+    backgroundColor: 'colors.background',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'colors.border',
+  },
+  progressInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressText: {
+    fontSize: 13,
+    color: 'colors.textSecondary',
+    fontWeight: '500',
+  },
+  progressPercent: {
+    fontSize: 13,
+    color: '#3B82F6',
+    fontWeight: '600',
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: 'colors.border',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#3B82F6',
+    borderRadius: 4,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  sectionHeading: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: 'colors.text',
+    marginTop: 24,
+    marginBottom: 4,
+  },
+  sectionSubheading: {
+    fontSize: 13,
+    color: 'colors.textSecondary',
+    marginBottom: 16,
+  },
+  consentBanner: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  consentBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  consentBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1E40AF',
+    marginBottom: 4,
+  },
+  consentBannerText: {
+    fontSize: 13,
+    color: 'colors.text',
+    lineHeight: 18,
+  },
+  consentBannerLink: {
+    color: '#2563EB',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  inputBlock: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'colors.text',
+    marginBottom: 8,
+  },
+  required: {
+    color: '#EF4444',
+  },
+  textInput: {
+    backgroundColor: 'colors.background',
+    borderWidth: 1,
+    borderColor: 'colors.border',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
+    color: 'colors.text',
+  },
+  textInputFilled: {
+    borderColor: '#3B82F6',
+    backgroundColor: 'colors.surface',
+  },
+  pickerWrapper: {
+    backgroundColor: 'colors.background',
+    borderWidth: 1,
+    borderColor: 'colors.border',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  pickerWrapperDisabled: {
+    backgroundColor: 'colors.surfaceSecondary',
+    borderColor: 'colors.border',
+  },
+  picker: {
+    color: 'colors.text',
+  },
+  scaleBlock: {
+    marginBottom: 20,
+    backgroundColor: 'colors.background',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'colors.border',
+  },
+  scaleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  scaleLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'colors.text',
+  },
+  scaleValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  scaleDots: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  scaleDot: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'colors.border',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scaleDotActive: {
+    backgroundColor: '#3B82F6',
+  },
+  scaleDotText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: 'colors.textSecondary',
+  },
+  scaleDotTextActive: {
+    color: 'colors.surface',
+  },
+  scaleLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  scaleMinLabel: {
+    fontSize: 11,
+    color: 'colors.textSecondary',
+  },
+  scaleMaxLabel: {
+    fontSize: 11,
+    color: 'colors.textSecondary',
+  },
+  activityOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'colors.background',
+    borderWidth: 1,
+    borderColor: 'colors.border',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+  },
+  activityOptionSelected: {
+    borderColor: '#3B82F6',
+    backgroundColor: '#EFF6FF',
+    borderWidth: 2,
+  },
+  activityLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'colors.text',
+  },
+  activityLabelSelected: {
+    color: '#1D4ED8',
+  },
+  activityDesc: {
+    fontSize: 12,
+    color: 'colors.textSecondary',
+    marginTop: 2,
+  },
+  questionBlock: {
+    marginBottom: 20,
+  },
+  questionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'colors.text',
+    marginBottom: 12,
+  },
+  yesNoContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  yesNoButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'colors.background',
+    borderWidth: 2,
+    borderColor: 'colors.border',
+    borderRadius: 12,
+    paddingVertical: 14,
+    gap: 6,
+  },
+  yesButtonSelected: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  noButtonSelected: {
+    backgroundColor: '#EF4444',
+    borderColor: '#EF4444',
+  },
+  yesNoText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'colors.text',
+  },
+  selectedYesNoText: {
+    color: 'colors.surface',
+  },
+  detailBlock: {
+    marginTop: 12,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  detailLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#92400E',
+    marginBottom: 6,
+  },
+  detailTextInput: {
+    backgroundColor: 'colors.surface',
+    borderWidth: 1,
+    borderColor: 'colors.border',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 14,
+    color: 'colors.text',
+    minHeight: 50,
+  },
+  footer: {
+    backgroundColor: 'colors.surface',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'colors.surfaceSecondary',
+  },
+  submitButton: {
+    backgroundColor: '#3B82F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  submitButtonDisabled: {
+    backgroundColor: 'colors.border',
+  },
+  submitButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: 'colors.surface',
+  },
+  datePickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateTextFilled: {
+    fontSize: 15,
+    color: 'colors.text',
+  },
+  dateTextPlaceholder: {
+    fontSize: 15,
+    color: 'colors.textSecondary',
+  },
+  datePickerContainer: {
+    marginTop: 8,
+    backgroundColor: 'colors.background',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'colors.border',
+    overflow: 'hidden',
+  },
+  datePickerDoneButton: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'colors.border',
+    backgroundColor: 'colors.surface',
+  },
+  datePickerDoneText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#3B82F6',
+  },
+});
 
 function ScaleInput({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
   return (
     <View style={styles.scaleBlock}>
       <View style={styles.scaleHeader}>
@@ -54,13 +413,15 @@ function ScaleInput({ label, value, onChange }: { label: string; value: number; 
 }
 
 function DetailInput({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (v: string) => void; placeholder: string }) {
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
   return (
     <View style={styles.detailBlock}>
       <Text style={styles.detailLabel}>{label}</Text>
       <TextInput
         style={styles.detailTextInput}
         placeholder={placeholder}
-        placeholderTextColor="#9CA3AF"
+        placeholderTextColor="colors.textSecondary"
         value={value}
         onChangeText={onChange}
         multiline
@@ -80,6 +441,8 @@ const ACTIVITY_LEVELS = [
 ];
 
 export default function AssessmentScreen() {
+  const { colors } = useTheme();
+  const styles = makeStyles(colors);
   const router = useRouter();
   const store = useAssessmentStore();
   const insets = useSafeAreaInsets();
@@ -322,7 +685,7 @@ export default function AssessmentScreen() {
               style={[styles.textInput, birthDate && styles.textInputFilled, styles.datePickerButton]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Ionicons name="calendar-outline" size={18} color={birthDate ? '#3B82F6' : '#9CA3AF'} style={{ marginRight: 8 }} />
+              <Ionicons name="calendar-outline" size={18} color={birthDate ? '#3B82F6' : 'colors.textSecondary'} style={{ marginRight: 8 }} />
               <Text style={birthDate ? styles.dateTextFilled : styles.dateTextPlaceholder}>
                 {birthDate ? formatBirthDate(birthDate) : 'Select your birth date'}
               </Text>
@@ -357,7 +720,7 @@ export default function AssessmentScreen() {
               <TextInput
                 style={[styles.textInput, textInputs[field.id as keyof typeof textInputs] && styles.textInputFilled]}
                 placeholder={field.placeholder}
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor="colors.textSecondary"
                 value={textInputs[field.id as keyof typeof textInputs]}
                 onChangeText={(value) => setTextInput(field.id, value)}
                 keyboardType={field.keyboardType}
@@ -478,7 +841,7 @@ export default function AssessmentScreen() {
                       <Text style={[styles.yesNoText, isSelected && styles.selectedYesNoText]}>
                         {option}
                       </Text>
-                      {isSelected && <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />}
+                      {isSelected && <Ionicons name="checkmark-circle" size={20} color="colors.surface" />}
                     </TouchableOpacity>
                   );
                 })}
@@ -504,7 +867,7 @@ export default function AssessmentScreen() {
           >
             {isSubmitting ? (
               <>
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                <ActivityIndicator color="colors.surface" size="small" />
                 <Text style={styles.submitButtonText}>Submitting...</Text>
               </>
             ) : (
@@ -512,7 +875,7 @@ export default function AssessmentScreen() {
                 <Text style={styles.submitButtonText}>
                   {isComplete ? 'Complete Assessment & Continue' : 'Complete All Required Fields'}
                 </Text>
-                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
+                <Ionicons name="arrow-forward" size={20} color="colors.surface" />
               </>
             )}
           </TouchableOpacity>
@@ -522,359 +885,4 @@ export default function AssessmentScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 20,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  progressContainer: {
-    backgroundColor: '#F9FAFB',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  progressInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  progressText: {
-    fontSize: 13,
-    color: '#6B7280',
-    fontWeight: '500',
-  },
-  progressPercent: {
-    fontSize: 13,
-    color: '#3B82F6',
-    fontWeight: '600',
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#3B82F6',
-    borderRadius: 4,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  sectionHeading: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginTop: 24,
-    marginBottom: 4,
-  },
-  sectionSubheading: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 16,
-  },
-  consentBanner: {
-    backgroundColor: '#EFF6FF',
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  consentBannerContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  consentBannerTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1E40AF',
-    marginBottom: 4,
-  },
-  consentBannerText: {
-    fontSize: 13,
-    color: '#374151',
-    lineHeight: 18,
-  },
-  consentBannerLink: {
-    color: '#2563EB',
-    fontWeight: '600',
-    textDecorationLine: 'underline',
-  },
-  inputBlock: {
-    marginBottom: 20,
-  },
-  inputLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  required: {
-    color: '#EF4444',
-  },
-  textInput: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 15,
-    color: '#111827',
-  },
-  textInputFilled: {
-    borderColor: '#3B82F6',
-    backgroundColor: '#FFFFFF',
-  },
-  pickerWrapper: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  pickerWrapperDisabled: {
-    backgroundColor: '#F3F4F6',
-    borderColor: '#E5E7EB',
-  },
-  picker: {
-    color: '#111827',
-  },
-  scaleBlock: {
-    marginBottom: 20,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  scaleHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  scaleLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  scaleValue: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#3B82F6',
-  },
-  scaleDots: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  scaleDot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scaleDotActive: {
-    backgroundColor: '#3B82F6',
-  },
-  scaleDotText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  scaleDotTextActive: {
-    color: '#FFFFFF',
-  },
-  scaleLabels: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  scaleMinLabel: {
-    fontSize: 11,
-    color: '#9CA3AF',
-  },
-  scaleMaxLabel: {
-    fontSize: 11,
-    color: '#9CA3AF',
-  },
-  activityOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 8,
-  },
-  activityOptionSelected: {
-    borderColor: '#3B82F6',
-    backgroundColor: '#EFF6FF',
-    borderWidth: 2,
-  },
-  activityLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-  },
-  activityLabelSelected: {
-    color: '#1D4ED8',
-  },
-  activityDesc: {
-    fontSize: 12,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  questionBlock: {
-    marginBottom: 20,
-  },
-  questionText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 12,
-  },
-  yesNoContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  yesNoButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F9FAFB',
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderRadius: 12,
-    paddingVertical: 14,
-    gap: 6,
-  },
-  yesButtonSelected: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  noButtonSelected: {
-    backgroundColor: '#EF4444',
-    borderColor: '#EF4444',
-  },
-  yesNoText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  selectedYesNoText: {
-    color: '#FFFFFF',
-  },
-  detailBlock: {
-    marginTop: 12,
-    backgroundColor: '#FFFBEB',
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#FDE68A',
-  },
-  detailLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#92400E',
-    marginBottom: 6,
-  },
-  detailTextInput: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 14,
-    color: '#111827',
-    minHeight: 50,
-  },
-  footer: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
-  },
-  submitButton: {
-    backgroundColor: '#3B82F6',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#D1D5DB',
-  },
-  submitButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  datePickerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  dateTextFilled: {
-    fontSize: 15,
-    color: '#111827',
-  },
-  dateTextPlaceholder: {
-    fontSize: 15,
-    color: '#9CA3AF',
-  },
-  datePickerContainer: {
-    marginTop: 8,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    overflow: 'hidden',
-  },
-  datePickerDoneButton: {
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-  },
-  datePickerDoneText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#3B82F6',
-  },
-});
+

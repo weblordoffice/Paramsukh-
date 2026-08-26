@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 
 import { useCounselingStore } from '../store/counselingStore';
+import { useTheme } from '../hooks/useTheme';
 
 interface ConfirmedBookingSummary {
   _id: string;
@@ -22,6 +23,7 @@ interface ConfirmedBookingSummary {
 
 
 export default function CounselingScreen() {
+  const { colors } = useTheme();
   const router = useRouter();
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBookingSummary | null>(null);
@@ -83,7 +85,7 @@ export default function CounselingScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#FDF8F3' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: 'colors.background' }}>
       {/* Premium Header */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-white shadow-sm z-10">
         <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} className="w-10 h-10 items-center justify-center bg-gray-50 rounded-full">
@@ -97,7 +99,7 @@ export default function CounselingScreen() {
         <View className="p-5">
           {/* Hero Section */}
           <View className="bg-white rounded-3xl p-6 mb-8 shadow-sm border border-gray-100 items-center">
-             <View className="w-16 h-16 bg-[#FDF8F3] rounded-full items-center justify-center mb-4">
+             <View className="w-16 h-16 bg-[colors.background] rounded-full items-center justify-center mb-4">
                <Text className="text-3xl">🙏</Text>
              </View>
              <Text className="text-2xl font-extrabold text-[#2C2420] mb-2 text-center">
@@ -150,7 +152,7 @@ export default function CounselingScreen() {
                   className="mt-4 flex-row items-center justify-center gap-2 py-3 rounded-2xl"
                   style={{ backgroundColor: '#16A34A' }}
                 >
-                  <Ionicons name="videocam" size={18} color="#FFFFFF" />
+                  <Ionicons name="videocam" size={18} color="colors.surface" />
                   <Text className="text-sm font-bold text-white">Join Meeting</Text>
                 </TouchableOpacity>
               ) : (
@@ -186,7 +188,7 @@ export default function CounselingScreen() {
                         isSelected ? 'border-2' : 'border border-gray-100'
                       }`}
                       style={{
-                        borderColor: isSelected ? (type.color || '#F1842D') : '#F3F4F6',
+                        borderColor: isSelected ? (type.color || '#F1842D') : 'colors.surfaceSecondary',
                         shadowColor: '#000', shadowOffset: { width:0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2
                       }}
                     >
@@ -195,7 +197,7 @@ export default function CounselingScreen() {
                           className="w-14 h-14 rounded-2xl items-center justify-center"
                           style={{ backgroundColor: type.color || '#F1842D' }}
                         >
-                          <Ionicons name={type.icon as any} size={24} color="#FFFFFF" />
+                          <Ionicons name={type.icon as any} size={24} color="colors.surface" />
                         </View>
 
                         <View className="flex-1">
@@ -206,7 +208,7 @@ export default function CounselingScreen() {
                                 className="w-6 h-6 rounded-full items-center justify-center"
                                 style={{ backgroundColor: type.color || '#F1842D' }}
                               >
-                                <Ionicons name="checkmark" size={14} color="#FFFFFF" />
+                                <Ionicons name="checkmark" size={14} color="colors.surface" />
                               </View>
                             )}
                           </View>
@@ -251,7 +253,7 @@ export default function CounselingScreen() {
           <View className="bg-white rounded-3xl p-6 mb-8 shadow-sm border border-gray-100">
             <View className="gap-6">
               <View className="flex-row items-center gap-4">
-                <View className="w-12 h-12 rounded-2xl bg-[#FDF8F3] items-center justify-center">
+                <View className="w-12 h-12 rounded-2xl bg-[colors.background] items-center justify-center">
                   <Ionicons name="shield-checkmark" size={20} color="#F1842D" />
                 </View>
                 <View className="flex-1">
@@ -285,7 +287,7 @@ export default function CounselingScreen() {
             }}
           >
             <Text className="text-base font-bold text-white">Continue to Booking</Text>
-            <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            <Ionicons name="arrow-forward" size={18} color="colors.surface" />
           </TouchableOpacity>
         </View>
       )}

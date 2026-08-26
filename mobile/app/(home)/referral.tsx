@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import apiClient from '../../utils/apiClient';
+import { useTheme } from '../../hooks/useTheme';
 
 interface ReferredFriend {
   _id: string;
@@ -22,6 +23,7 @@ interface ReferredFriend {
 }
 
 export default function ReferralScreen() {
+  const { colors } = useTheme();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [referralCode, setReferralCode] = useState('');
@@ -80,7 +82,7 @@ export default function ReferralScreen() {
           className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" 
           onPress={() => router.push('/(home)/menu')}
         >
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={24} color="colors.text" />
         </TouchableOpacity>
         <Text className="text-xl font-bold text-gray-900">Invite & Earn</Text>
         <View className="w-10" />
@@ -101,7 +103,7 @@ export default function ReferralScreen() {
                   <Text className="text-white text-xl font-extrabold mt-1">{referrerRewardText}</Text>
                   <Text className="text-white text-sm mt-2 opacity-85">Plus, unlock the exclusive &quot;Wellness Guide&quot; badge on your profile!</Text>
                 </View>
-                <Ionicons name="gift" size={56} color="#FFFFFF" style={{ opacity: 0.85 }} />
+                <Ionicons name="gift" size={56} color="colors.surface" style={{ opacity: 0.85 }} />
               </View>
             </View>
 
@@ -120,7 +122,7 @@ export default function ReferralScreen() {
                 onPress={handleShare}
                 className="bg-blue-500 w-full py-4 rounded-xl flex-row items-center justify-center shadow-md"
               >
-                <Ionicons name="share-social" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Ionicons name="share-social" size={20} color="colors.surface" style={{ marginRight: 8 }} />
                 <Text className="text-white font-bold text-base">Invite Friends</Text>
               </TouchableOpacity>
             </View>
@@ -168,7 +170,7 @@ export default function ReferralScreen() {
               
               {referrals.length === 0 ? (
                 <View className="bg-white p-6 rounded-2xl border border-dashed border-gray-300 items-center justify-center">
-                  <Ionicons name="people-outline" size={32} color="#9CA3AF" />
+                  <Ionicons name="people-outline" size={32} color="colors.textSecondary" />
                   <Text className="text-sm text-gray-500 text-center mt-2 font-medium">No friends referred yet. Be the first to invite!</Text>
                 </View>
               ) : (

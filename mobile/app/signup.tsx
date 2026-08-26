@@ -9,6 +9,7 @@ import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceSwapModal from '../components/DeviceSwapModal';
+import { useTheme } from '../hooks/useTheme';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -19,6 +20,7 @@ function formatPhone(phone: string) {
 }
 
 export default function SignUpScreen() {
+  const { colors } = useTheme();
   const router = useRouter();     
   const { sendOTP, verifyOTP, isLoading } = useAuthStore();
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
@@ -205,7 +207,7 @@ export default function SignUpScreen() {
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="colors.textSecondary"
                 />
               </View>
 
@@ -218,7 +220,7 @@ export default function SignUpScreen() {
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="colors.textSecondary"
                 />
               </View>
 
@@ -233,7 +235,7 @@ export default function SignUpScreen() {
                     value={phone}
                     onChangeText={setPhone}
                     maxLength={10}
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor="colors.textSecondary"
                   />
                 </View>
               </View>
@@ -246,7 +248,7 @@ export default function SignUpScreen() {
                   value={referralCode}
                   onChangeText={setReferralCode}
                   autoCapitalize="characters"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="colors.textSecondary"
                 />
               </View>
 
@@ -256,7 +258,7 @@ export default function SignUpScreen() {
                 disabled={isLoading || phone.length < 10 || !name.trim() || !email}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color="colors.surface" />
                 ) : (
                   <Text className="text-white font-semibold text-base text-center">Send OTP</Text>
                 )}
@@ -312,7 +314,7 @@ export default function SignUpScreen() {
                   onChangeText={(text) => setOtp(text.replace(/[^0-9]/g, ''))}
                   maxLength={6}
                   autoFocus
-                  placeholderTextColor="#D1D5DB"
+                  placeholderTextColor="colors.border"
                 />
                 <Text className="text-gray-500 text-sm mt-2 text-center">
                   OTP sent to +91{phone}
@@ -325,7 +327,7 @@ export default function SignUpScreen() {
                 disabled={isLoading || otp.length !== 6}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color="colors.surface" />
                 ) : (
                   <Text className="text-white font-semibold text-base text-center">
                     Create Account

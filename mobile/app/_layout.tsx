@@ -60,6 +60,7 @@ const dlog = (...args: any[]) => {
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, token, syncClerkUser, fetchCurrentUser } = useAuthStore();
+  const colors = useThemeStore((s) => s.colors);
   const pathname = usePathname();
   const router = useRouter();
   const [isSyncing, setIsSyncing] = useState(false);

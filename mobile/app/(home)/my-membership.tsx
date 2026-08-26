@@ -23,12 +23,342 @@ import { useAuthStore } from '../../store/authStore';
 import apiClient from '../../utils/apiClient';
 import { fetchPublicMembershipPlans, fetchEligibleCoursePreviews, UIMembershipPlan, EligibleCoursePreview, PENDING_MEMBERSHIP_LINK_KEY } from '../../utils/membershipPlans';
 import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
+import { useTheme } from '../../hooks/useTheme';
 
 const PENDING_LINK_KEY = PENDING_MEMBERSHIP_LINK_KEY;
 const PRE_SELECT_KEY = 'preselected_courses';
 
 /* ─── Component ──────────────────────────────────────────────────────── */
 export default function MyMembershipScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+    root: { flex: 1, backgroundColor: 'colors.background' },
+
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 14,
+    },
+    headerTitle: { fontSize: 20, fontWeight: '700', color: 'colors.text', letterSpacing: 0.3 },
+    backBtn: {
+        width: 38, height: 38, borderRadius: 19,
+        backgroundColor: 'colors.surface',
+        alignItems: 'center', justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+
+    scroll: { paddingHorizontal: 16, paddingTop: 4 },
+    loadingBox: { paddingVertical: 32, alignItems: 'center' },
+
+    /* ── No Plan card ── */
+    noPlanCard: {
+        backgroundColor: 'colors.surface',
+        borderRadius: 20,
+        padding: 24,
+        alignItems: 'center',
+        marginBottom: 24,
+        borderWidth: 1,
+        borderColor: 'colors.border',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 3,
+    },
+    noPlanEmoji: { fontSize: 44, marginBottom: 12 },
+    noPlanTitle: { fontSize: 20, fontWeight: '700', color: 'colors.text', marginBottom: 8 },
+    noPlanSub: { fontSize: 14, color: 'colors.textSecondary', textAlign: 'center', lineHeight: 21, marginBottom: 20 },
+    upgradeCta: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 8, backgroundColor: '#7C3AED',
+        paddingVertical: 14, paddingHorizontal: 28, borderRadius: 14,
+        shadowColor: '#7C3AED',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 4,
+        width: '100%',
+    },
+    upgradeCtaSecondary: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 12, paddingHorizontal: 28, borderRadius: 14,
+        borderWidth: 1.5, borderColor: 'colors.border',
+        backgroundColor: 'colors.background',
+        width: '100%',
+    },
+    upgradeCtaSecondaryText: { fontSize: 14, fontWeight: '600', color: 'colors.textSecondary' },
+    upgradeCtaText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+
+    /* ── Active plan card ── */
+    activePlanCard: {
+        backgroundColor: 'colors.surface',
+        borderRadius: 20,
+        padding: 20,
+        marginBottom: 24,
+        borderWidth: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        elevation: 4,
+    },
+    activePlanTop: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 18 },
+    activePlanEmoji: { fontSize: 42 },
+    activePlanInfo: { flex: 1 },
+    activePlanLabel: { fontSize: 12, color: 'colors.textSecondary', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 },
+    activePlanName: { fontSize: 28, fontWeight: '800', lineHeight: 32, color: 'colors.text' },
+    activePlanTagline: { fontSize: 13, color: 'colors.textSecondary', marginTop: 3, fontWeight: '500' },
+    statusBadge: {
+        flexDirection: 'row', alignItems: 'center', gap: 6,
+        paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
+        borderWidth: 1,
+    },
+    statusDot: { width: 7, height: 7, borderRadius: 4 },
+    statusText: { fontSize: 12, fontWeight: '700' },
+    activePlanFeatures: { 
+        marginBottom: 18,
+        paddingVertical: 12,
+        borderTopWidth: 1,
+        borderTopColor: 'colors.surfaceSecondary',
+    },
+    featuresLabel: {
+        fontSize: 12, fontWeight: '700', color: 'colors.text',
+        textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12,
+    },
+    featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+    featureText: { fontSize: 14, color: '#4B5563', flex: 1, fontWeight: '500' },
+    manageBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 8, paddingVertical: 14, borderRadius: 14,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.18,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    manageBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
+
+    courseSelectBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 13,
+        paddingHorizontal: 16,
+        borderRadius: 14,
+        borderWidth: 1.5,
+        borderColor: '#8B5CF6',
+        backgroundColor: '#F5F3FF',
+        marginTop: 12,
+    },
+    courseSelectBtnText: { fontSize: 14, fontWeight: '600', color: '#8B5CF6' },
+    courseSelectDone: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 10,
+        marginTop: 8,
+    },
+    courseSelectDoneText: { fontSize: 13, color: '#22C55E', fontWeight: '500' },
+
+    /* ── Section title ── */
+    sectionTitle: { fontSize: 19, fontWeight: '700', color: 'colors.text', marginBottom: 14 },
+    noPlansCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        backgroundColor: 'colors.surface',
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: 'colors.border',
+        padding: 14,
+        marginBottom: 12,
+    },
+    noPlansText: { fontSize: 14, color: 'colors.textSecondary', flex: 1 },
+
+    /* ── Plan cards ── */
+    planCard: {
+        backgroundColor: 'colors.surface',
+        borderRadius: 20,
+        padding: 18,
+        marginBottom: 14,
+        borderWidth: 1,
+        borderColor: 'colors.border',
+        position: 'relative',
+        overflow: 'hidden',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
+    },
+    activeBadge: {
+        position: 'absolute',
+        top: 14,
+        left: -1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderTopRightRadius: 8,
+        borderBottomRightRadius: 8,
+        zIndex: 10,
+    },
+    activeBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
+    planHeaderRow: {
+        flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14,
+    },
+    planEmoji: { fontSize: 34 },
+    planTitleBlock: { flex: 1 },
+    planName: { fontSize: 22, fontWeight: '800', color: 'colors.text' },
+    planTagline: { fontSize: 12, color: 'colors.textSecondary', marginTop: 3, fontWeight: '500' },
+    planPriceBlock: { alignItems: 'flex-end' },
+    planPrice: { fontSize: 18, fontWeight: '800' },
+    currentChip: {
+        flexDirection: 'row', alignItems: 'center', gap: 4,
+        paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1.5,
+        marginTop: 6,
+    },
+    currentChipText: { fontSize: 11, fontWeight: '700' },
+    planDivider: { height: 1, backgroundColor: 'colors.border', marginBottom: 14 },
+    planFeatureRow: {
+        flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5,
+    },
+    checkCircle: {
+        width: 20, height: 20, borderRadius: 10,
+        alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    },
+    planFeatureText: { fontSize: 14, color: 'colors.text', flex: 1, fontWeight: '500' },
+    planFeatureTextMuted: { color: 'colors.textSecondary', textDecorationLine: 'line-through' },
+    buyBtn: {
+        paddingVertical: 14, borderRadius: 14,
+        borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
+    },
+    buyBtnText: { fontSize: 14, fontWeight: '700' },
+    purchasedIndicator: {
+        marginTop: 14,
+        paddingVertical: 11,
+        borderRadius: 12,
+        borderWidth: 1.5,
+        borderColor: '#10B981',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    purchasedText: { fontSize: 14, fontWeight: '700' },
+
+    /* ── Purchase history ── */
+    refundNote: { fontSize: 13, color: '#F59E0B', marginBottom: 14, fontWeight: '500' },
+    emptyBox: { alignItems: 'center', paddingVertical: 32, gap: 10 },
+    emptyTitle: { fontSize: 17, fontWeight: '700', color: 'colors.text' },
+    emptySub: { fontSize: 14, color: 'colors.textSecondary' },
+
+    purchaseList: { gap: 12 },
+    purchaseRow: {
+        flexDirection: 'row', alignItems: 'center',
+        backgroundColor: 'colors.surface', borderRadius: 16,
+        padding: 16, gap: 14,
+        borderWidth: 1, borderColor: 'colors.border',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    purchaseIcon: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+    purchaseInfo: { flex: 1 },
+    purchasePlan: { fontSize: 15, fontWeight: '700', color: 'colors.text' },
+    purchaseDate: { fontSize: 13, color: 'colors.textSecondary', marginTop: 3 },
+    purchaseRight: { alignItems: 'flex-end' },
+    purchaseAmt: { fontSize: 16, fontWeight: '700', color: 'colors.text' },
+    purchaseStatusBadge: { marginTop: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    purchaseStatusText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
+
+    // #5 / #7: Preview and pre-select
+    previewBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 10,
+        backgroundColor: 'colors.surfaceSecondary',
+        borderRadius: 12,
+    },
+    previewBtnText: { fontSize: 13, color: 'colors.textSecondary', fontWeight: '500' },
+    buyRow: { flexDirection: 'row', gap: 8 },
+    preSelectBtn: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1.5,
+        backgroundColor: 'colors.surface',
+    },
+    preSelectBtnText: { fontSize: 14, fontWeight: '700' },
+
+    // Modal
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'flex-end',
+    },
+    modalContainer: {
+        backgroundColor: 'colors.surface',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 20,
+        maxHeight: '80%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    modalTitle: { fontSize: 18, fontWeight: '700', color: 'colors.text' },
+    modalSub: { fontSize: 13, color: 'colors.textSecondary', marginTop: 4, marginBottom: 12 },
+    modalCloseBtn: { padding: 4 },
+    modalEmpty: { textAlign: 'center', fontSize: 14, color: 'colors.textSecondary', marginTop: 20 },
+    modalDoneBtn: {
+        backgroundColor: '#8B5CF6',
+        borderRadius: 12,
+        paddingVertical: 14,
+        alignItems: 'center',
+        marginTop: 12,
+    },
+    modalDoneBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
+    previewCourseRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        paddingHorizontal: 4,
+        borderBottomWidth: 1,
+        borderBottomColor: 'colors.surfaceSecondary',
+        gap: 10,
+    },
+    previewThumb: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    previewCourseTitle: { fontSize: 14, fontWeight: '600', color: 'colors.text' },
+    previewCourseMeta: { fontSize: 12, color: 'colors.textSecondary', marginTop: 2 },
+    previewRowSelected: { backgroundColor: '#F0FDF4' },
+    previewRowDisabled: { opacity: 0.4 },
+});
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const bottomTabHeight = useBottomTabBarHeight();
@@ -356,12 +686,12 @@ export default function MyMembershipScreen() {
 
     return (
         <SafeAreaView style={styles.root}>
-            <StatusBar barStyle="dark-content" backgroundColor="#FDF8F3" />
+            <StatusBar barStyle="dark-content" backgroundColor="colors.background" />
 
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                    <Ionicons name="chevron-back" size={22} color="#1F2937" />
+                    <Ionicons name="chevron-back" size={22} color="colors.text" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Membership</Text>
                 <View style={{ width: 38 }} />
@@ -409,10 +739,10 @@ export default function MyMembershipScreen() {
                             activeOpacity={0.85}
                         >
                             {syncingPayment ? (
-                                <ActivityIndicator size="small" color="#6B7280" />
+                                <ActivityIndicator size="small" color="colors.textSecondary" />
                             ) : (
                                 <>
-                                    <Ionicons name="refresh" size={18} color="#6B7280" />
+                                    <Ionicons name="refresh" size={18} color="colors.textSecondary" />
                                     <Text style={styles.upgradeCtaSecondaryText}>I already paid – sync</Text>
                                 </>
                             )}
@@ -519,7 +849,7 @@ export default function MyMembershipScreen() {
                     </View>
                 ) : plans.length === 0 && (
                     <View style={styles.noPlansCard}>
-                        <Ionicons name="information-circle-outline" size={18} color="#6B7280" />
+                        <Ionicons name="information-circle-outline" size={18} color="colors.textSecondary" />
                         <Text style={styles.noPlansText}>No membership plans are available right now. Please check again later.</Text>
                     </View>
                 )}
@@ -610,7 +940,7 @@ export default function MyMembershipScreen() {
                                             onPress={() => openPreview(plan)}
                                             activeOpacity={0.7}
                                         >
-                                            <Ionicons name="eye-outline" size={15} color="#6B7280" />
+                                            <Ionicons name="eye-outline" size={15} color="colors.textSecondary" />
                                             <Text style={styles.previewBtnText}>
                                                 See {plan.courseSelection.maxSelectableCourses} eligible courses
                                             </Text>
@@ -708,11 +1038,11 @@ export default function MyMembershipScreen() {
                                             ₹{typeof p.amount === 'number' ? p.amount.toLocaleString('en-IN') : p.amount}
                                         </Text>
                                         <View style={[styles.purchaseStatusBadge, { 
-                                            backgroundColor: done ? '#F0FDF4' : '#F3F4F6',
-                                            borderColor: done ? '#10B981' : '#D1D5DB',
+                                            backgroundColor: done ? '#F0FDF4' : 'colors.surfaceSecondary',
+                                            borderColor: done ? '#10B981' : 'colors.border',
                                             borderWidth: 1
                                         }]}>
-                                            <Text style={[styles.purchaseStatusText, { color: done ? '#10B981' : '#6B7280' }]}>
+                                            <Text style={[styles.purchaseStatusText, { color: done ? '#10B981' : 'colors.textSecondary' }]}>
                                                 {p.status || 'completed'}
                                             </Text>
                                         </View>
@@ -735,7 +1065,7 @@ export default function MyMembershipScreen() {
                                 Eligible Courses — {previewPlan?.name}
                             </Text>
                             <TouchableOpacity onPress={closePreview} style={styles.modalCloseBtn}>
-                                <Ionicons name="close" size={24} color="#1F2937" />
+                                <Ionicons name="close" size={24} color="colors.text" />
                             </TouchableOpacity>
                         </View>
                         <Text style={styles.modalSub}>
@@ -782,7 +1112,7 @@ export default function MyMembershipScreen() {
                                 Pick Your Courses — {plans.find(p => p.id === preSelectingPlanId)?.name ?? 'Plan'}
                             </Text>
                             <TouchableOpacity onPress={() => { setShowPreSelectModal(false); setPreSelectingPlanId(null); setPreSelectedCourseIds([]); }} style={styles.modalCloseBtn}>
-                                <Ionicons name="close" size={24} color="#1F2937" />
+                                <Ionicons name="close" size={24} color="colors.text" />
                             </TouchableOpacity>
                         </View>
                         <Text style={styles.modalSub}>
@@ -820,7 +1150,7 @@ export default function MyMembershipScreen() {
                                             {isSelected ? (
                                                 <Ionicons name="checkmark-circle" size={24} color="#22C55E" />
                                             ) : disabled ? (
-                                                <Ionicons name="lock-closed" size={20} color="#9CA3AF" />
+                                                <Ionicons name="lock-closed" size={20} color="colors.textSecondary" />
                                             ) : (
                                                 <Ionicons name="add-circle-outline" size={24} color="#8B5CF6" />
                                             )}
@@ -850,331 +1180,4 @@ export default function MyMembershipScreen() {
 }
 
 /* ─── Styles ─────────────────────────────────────────────────────────── */
-const styles = StyleSheet.create({
-    root: { flex: 1, backgroundColor: '#FDF8F3' },
 
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-    },
-    headerTitle: { fontSize: 20, fontWeight: '700', color: '#1F2937', letterSpacing: 0.3 },
-    backBtn: {
-        width: 38, height: 38, borderRadius: 19,
-        backgroundColor: '#FFFFFF',
-        alignItems: 'center', justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-
-    scroll: { paddingHorizontal: 16, paddingTop: 4 },
-    loadingBox: { paddingVertical: 32, alignItems: 'center' },
-
-    /* ── No Plan card ── */
-    noPlanCard: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        padding: 24,
-        alignItems: 'center',
-        marginBottom: 24,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 3,
-    },
-    noPlanEmoji: { fontSize: 44, marginBottom: 12 },
-    noPlanTitle: { fontSize: 20, fontWeight: '700', color: '#1F2937', marginBottom: 8 },
-    noPlanSub: { fontSize: 14, color: '#6B7280', textAlign: 'center', lineHeight: 21, marginBottom: 20 },
-    upgradeCta: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        gap: 8, backgroundColor: '#7C3AED',
-        paddingVertical: 14, paddingHorizontal: 28, borderRadius: 14,
-        shadowColor: '#7C3AED',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
-        width: '100%',
-    },
-    upgradeCtaSecondary: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 12, paddingHorizontal: 28, borderRadius: 14,
-        borderWidth: 1.5, borderColor: '#D1D5DB',
-        backgroundColor: '#F9FAFB',
-        width: '100%',
-    },
-    upgradeCtaSecondaryText: { fontSize: 14, fontWeight: '600', color: '#6B7280' },
-    upgradeCtaText: { fontSize: 15, fontWeight: '700', color: '#fff' },
-
-    /* ── Active plan card ── */
-    activePlanCard: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        padding: 20,
-        marginBottom: 24,
-        borderWidth: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-        elevation: 4,
-    },
-    activePlanTop: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 18 },
-    activePlanEmoji: { fontSize: 42 },
-    activePlanInfo: { flex: 1 },
-    activePlanLabel: { fontSize: 12, color: '#6B7280', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 },
-    activePlanName: { fontSize: 28, fontWeight: '800', lineHeight: 32, color: '#1F2937' },
-    activePlanTagline: { fontSize: 13, color: '#6B7280', marginTop: 3, fontWeight: '500' },
-    statusBadge: {
-        flexDirection: 'row', alignItems: 'center', gap: 6,
-        paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
-        borderWidth: 1,
-    },
-    statusDot: { width: 7, height: 7, borderRadius: 4 },
-    statusText: { fontSize: 12, fontWeight: '700' },
-    activePlanFeatures: { 
-        marginBottom: 18,
-        paddingVertical: 12,
-        borderTopWidth: 1,
-        borderTopColor: '#F3F4F6',
-    },
-    featuresLabel: {
-        fontSize: 12, fontWeight: '700', color: '#374151',
-        textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12,
-    },
-    featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
-    featureText: { fontSize: 14, color: '#4B5563', flex: 1, fontWeight: '500' },
-    manageBtn: {
-        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
-        gap: 8, paddingVertical: 14, borderRadius: 14,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.18,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    manageBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
-
-    courseSelectBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 13,
-        paddingHorizontal: 16,
-        borderRadius: 14,
-        borderWidth: 1.5,
-        borderColor: '#8B5CF6',
-        backgroundColor: '#F5F3FF',
-        marginTop: 12,
-    },
-    courseSelectBtnText: { fontSize: 14, fontWeight: '600', color: '#8B5CF6' },
-    courseSelectDone: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        paddingVertical: 10,
-        marginTop: 8,
-    },
-    courseSelectDoneText: { fontSize: 13, color: '#22C55E', fontWeight: '500' },
-
-    /* ── Section title ── */
-    sectionTitle: { fontSize: 19, fontWeight: '700', color: '#1F2937', marginBottom: 14 },
-    noPlansCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        padding: 14,
-        marginBottom: 12,
-    },
-    noPlansText: { fontSize: 14, color: '#6B7280', flex: 1 },
-
-    /* ── Plan cards ── */
-    planCard: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 20,
-        padding: 18,
-        marginBottom: 14,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        position: 'relative',
-        overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-        elevation: 2,
-    },
-    activeBadge: {
-        position: 'absolute',
-        top: 14,
-        left: -1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderTopRightRadius: 8,
-        borderBottomRightRadius: 8,
-        zIndex: 10,
-    },
-    activeBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
-    planHeaderRow: {
-        flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14,
-    },
-    planEmoji: { fontSize: 34 },
-    planTitleBlock: { flex: 1 },
-    planName: { fontSize: 22, fontWeight: '800', color: '#1F2937' },
-    planTagline: { fontSize: 12, color: '#6B7280', marginTop: 3, fontWeight: '500' },
-    planPriceBlock: { alignItems: 'flex-end' },
-    planPrice: { fontSize: 18, fontWeight: '800' },
-    currentChip: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1.5,
-        marginTop: 6,
-    },
-    currentChipText: { fontSize: 11, fontWeight: '700' },
-    planDivider: { height: 1, backgroundColor: '#E5E7EB', marginBottom: 14 },
-    planFeatureRow: {
-        flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5,
-    },
-    checkCircle: {
-        width: 20, height: 20, borderRadius: 10,
-        alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    },
-    planFeatureText: { fontSize: 14, color: '#374151', flex: 1, fontWeight: '500' },
-    planFeatureTextMuted: { color: '#9CA3AF', textDecorationLine: 'line-through' },
-    buyBtn: {
-        paddingVertical: 14, borderRadius: 14,
-        borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
-    },
-    buyBtnText: { fontSize: 14, fontWeight: '700' },
-    purchasedIndicator: {
-        marginTop: 14,
-        paddingVertical: 11,
-        borderRadius: 12,
-        borderWidth: 1.5,
-        borderColor: '#10B981',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-    },
-    purchasedText: { fontSize: 14, fontWeight: '700' },
-
-    /* ── Purchase history ── */
-    refundNote: { fontSize: 13, color: '#F59E0B', marginBottom: 14, fontWeight: '500' },
-    emptyBox: { alignItems: 'center', paddingVertical: 32, gap: 10 },
-    emptyTitle: { fontSize: 17, fontWeight: '700', color: '#374151' },
-    emptySub: { fontSize: 14, color: '#6B7280' },
-
-    purchaseList: { gap: 12 },
-    purchaseRow: {
-        flexDirection: 'row', alignItems: 'center',
-        backgroundColor: '#FFFFFF', borderRadius: 16,
-        padding: 16, gap: 14,
-        borderWidth: 1, borderColor: '#E5E7EB',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.04,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    purchaseIcon: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-    purchaseInfo: { flex: 1 },
-    purchasePlan: { fontSize: 15, fontWeight: '700', color: '#1F2937' },
-    purchaseDate: { fontSize: 13, color: '#6B7280', marginTop: 3 },
-    purchaseRight: { alignItems: 'flex-end' },
-    purchaseAmt: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
-    purchaseStatusBadge: { marginTop: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-    purchaseStatusText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
-
-    // #5 / #7: Preview and pre-select
-    previewBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        paddingVertical: 10,
-        backgroundColor: '#F3F4F6',
-        borderRadius: 12,
-    },
-    previewBtnText: { fontSize: 13, color: '#6B7280', fontWeight: '500' },
-    buyRow: { flexDirection: 'row', gap: 8 },
-    preSelectBtn: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1.5,
-        backgroundColor: '#FFFFFF',
-    },
-    preSelectBtnText: { fontSize: 14, fontWeight: '700' },
-
-    // Modal
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'flex-end',
-    },
-    modalContainer: {
-        backgroundColor: '#FFFFFF',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        padding: 20,
-        maxHeight: '80%',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
-    modalTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
-    modalSub: { fontSize: 13, color: '#6B7280', marginTop: 4, marginBottom: 12 },
-    modalCloseBtn: { padding: 4 },
-    modalEmpty: { textAlign: 'center', fontSize: 14, color: '#9CA3AF', marginTop: 20 },
-    modalDoneBtn: {
-        backgroundColor: '#8B5CF6',
-        borderRadius: 12,
-        paddingVertical: 14,
-        alignItems: 'center',
-        marginTop: 12,
-    },
-    modalDoneBtnText: { color: '#FFF', fontWeight: '700', fontSize: 15 },
-    previewCourseRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 4,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F3F4F6',
-        gap: 10,
-    },
-    previewThumb: {
-        width: 40,
-        height: 40,
-        borderRadius: 10,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    previewCourseTitle: { fontSize: 14, fontWeight: '600', color: '#1F2937' },
-    previewCourseMeta: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
-    previewRowSelected: { backgroundColor: '#F0FDF4' },
-    previewRowDisabled: { opacity: 0.4 },
-});

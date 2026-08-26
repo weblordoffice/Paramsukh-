@@ -18,18 +18,19 @@ import { useMembershipStore } from '../../store/membershipStore';
 import { fetchPublicMembershipPlans, UIMembershipPlan } from '../../utils/membershipPlans';
 import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
 import apiClient from '../../utils/apiClient';
+import { useTheme } from '../../hooks/useTheme';
 
 /* ─── Category badge config ──────────────────────────────────────────── */
 const CATEGORY_CONFIG: Record<
   string,
   { color: string; bg: string; icon: string; label: string }
 > = {
-  physical: { color: '#FFFFFF', bg: '#EF4444', icon: 'barbell', label: 'Physical' },
-  mental: { color: '#FFFFFF', bg: '#8B5CF6', icon: 'brain', label: 'Mental' },
+  physical: { color: 'colors.surface', bg: '#EF4444', icon: 'barbell', label: 'Physical' },
+  mental: { color: 'colors.surface', bg: '#8B5CF6', icon: 'brain', label: 'Mental' },
   financial: { color: '#1A1A1A', bg: '#22C55E', icon: 'cash', label: 'Financial' },
-  relationship: { color: '#FFFFFF', bg: '#EC4899', icon: 'heart', label: 'Relationship' },
-  spiritual: { color: '#FFFFFF', bg: '#F59E0B', icon: 'sparkles', label: 'Spiritual' },
-  general: { color: '#FFFFFF', bg: '#64748B', icon: 'layers', label: 'General' },
+  relationship: { color: 'colors.surface', bg: '#EC4899', icon: 'heart', label: 'Relationship' },
+  spiritual: { color: 'colors.surface', bg: '#F59E0B', icon: 'sparkles', label: 'Spiritual' },
+  general: { color: 'colors.surface', bg: '#64748B', icon: 'layers', label: 'General' },
 };
 
 type PlanVisual = {
@@ -82,7 +83,7 @@ function getPlanBadges(
 function getCategoryConfig(category?: string) {
   if (!category) return null;
   const key = category.toLowerCase().trim();
-  return CATEGORY_CONFIG[key] || { color: '#FFFFFF', bg: '#4F46E5', icon: 'layers', label: category };
+  return CATEGORY_CONFIG[key] || { color: 'colors.surface', bg: '#4F46E5', icon: 'layers', label: category };
 }
 
 /**
@@ -111,6 +112,224 @@ function isCourseAccessible(
 
 /* ─── Screen ─────────────────────────────────────────────────────────── */
 export default function CoursesScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: 'colors.background',
+  },
+  scrollContent: {
+    padding: 16,
+  },
+  sectionHeader: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: 'colors.text',
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 15,
+    color: 'colors.textSecondary',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: 'colors.surfaceSecondary',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 20,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 6,
+  },
+  tabActive: {
+    backgroundColor: '#EAB308',
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'colors.textSecondary',
+  },
+  tabTextActive: {
+    color: 'colors.surface',
+  },
+  creditsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F5F3FF',
+    borderWidth: 1,
+    borderColor: '#DDD6FE',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 20,
+  },
+  creditsBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  creditsBannerText: { fontSize: 14, color: '#4C1D95' },
+  creditsBannerBold: { fontWeight: '700' },
+  creditsBannerLink: { fontSize: 13, fontWeight: '700', color: '#7C3AED' },
+  creditsBannerDone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 20,
+  },
+  creditsBannerDoneText: { fontSize: 14, color: '#065F46', flex: 1 },
+  creditsBannerDoneLink: { fontWeight: '700', color: '#059669', textDecorationLine: 'underline' },
+  card: {
+    backgroundColor: 'colors.surface',
+    borderRadius: 16,
+    marginBottom: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  cardLocked: {
+    opacity: 0.7,
+  },
+  imageContainer: {
+    position: 'relative',
+    height: 180,
+  },
+  courseImage: {
+    width: '100%',
+    height: '100%',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  categoryBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 4,
+  },
+  categoryText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  unlockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(139, 92, 246, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  unlockOverlayText: {
+    color: 'colors.surface',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  enrolledOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(34, 197, 94, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  enrolledOverlayText: {
+    color: 'colors.surface',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  courseInfo: {
+    padding: 16,
+  },
+  courseTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: 'colors.text',
+    marginBottom: 6,
+  },
+  courseDescription: {
+    fontSize: 14,
+    color: 'colors.textSecondary',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  planBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  planBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  statText: {
+    fontSize: 13,
+    color: 'colors.textSecondary',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: 'colors.textSecondary',
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: 'colors.textSecondary',
+  },
+});
   const router = useRouter();
   const { courses, fetchCourses, isLoading } = useCourseStore();
   const { currentSubscription, fetchCurrentSubscription } = useMembershipStore();
@@ -356,7 +575,7 @@ export default function CoursesScreen() {
               <Ionicons
                 name={activeTab === 'free' ? 'lock-open' : 'lock-open-outline'}
                 size={16}
-                color={activeTab === 'free' ? '#FFFFFF' : '#6B7280'}
+                color={activeTab === 'free' ? 'colors.surface' : 'colors.textSecondary'}
               />
               <Text style={[styles.tabText, activeTab === 'free' && styles.tabTextActive]}>
                 Free
@@ -370,7 +589,7 @@ export default function CoursesScreen() {
               <Ionicons
                 name={activeTab === 'paid' ? 'lock-closed' : 'lock-closed-outline'}
                 size={16}
-                color={activeTab === 'paid' ? '#FFFFFF' : '#6B7280'}
+                color={activeTab === 'paid' ? 'colors.surface' : 'colors.textSecondary'}
               />
               <Text style={[styles.tabText, activeTab === 'paid' && styles.tabTextActive]}>
                 Paid
@@ -420,7 +639,7 @@ export default function CoursesScreen() {
             <ActivityIndicator size="large" color="#EAB308" style={{ marginTop: 20 }} />
           ) : enrichedCourses.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="book-outline" size={64} color="#D1D5DB" />
+              <Ionicons name="book-outline" size={64} color="colors.border" />
               <Text style={styles.emptyTitle}>No courses available</Text>
               <Text style={styles.emptySubtitle}>Check back soon for new content</Text>
             </View>
@@ -429,7 +648,7 @@ export default function CoursesScreen() {
               <Ionicons
                 name={activeTab === 'free' ? 'lock-open-outline' : 'lock-closed-outline'}
                 size={64}
-                color="#D1D5DB"
+                color="colors.border"
               />
               <Text style={styles.emptyTitle}>
                 No {activeTab === 'free' ? 'free' : 'paid'} courses
@@ -488,7 +707,7 @@ export default function CoursesScreen() {
                       />
                     ) : (
                       <View style={[styles.imagePlaceholder, { backgroundColor: course.color || '#4F46E5' }]}>
-                        <Ionicons name="book" size={48} color="#FFFFFF" />
+                        <Ionicons name="book" size={48} color="colors.surface" />
                       </View>
                     )}
 
@@ -512,7 +731,7 @@ export default function CoursesScreen() {
                       if (locked && isEligible && hasCredits) {
                         return (
                           <View style={styles.unlockOverlay}>
-                            <Ionicons name="lock-open-outline" size={20} color="#FFFFFF" />
+                            <Ionicons name="lock-open-outline" size={20} color="colors.surface" />
                             <Text style={styles.unlockOverlayText}>Unlock Course</Text>
                           </View>
                         );
@@ -521,7 +740,7 @@ export default function CoursesScreen() {
                       if (locked) {
                         return (
                           <View style={styles.lockOverlay}>
-                            <Ionicons name="lock-closed" size={32} color="#FFFFFF" />
+                            <Ionicons name="lock-closed" size={32} color="colors.surface" />
                           </View>
                         );
                       }
@@ -529,7 +748,7 @@ export default function CoursesScreen() {
                       if (isAlreadyUnlocked) {
                         return (
                           <View style={styles.enrolledOverlay}>
-                            <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
+                            <Ionicons name="checkmark-circle" size={24} color="colors.surface" />
                             <Text style={styles.enrolledOverlayText}>Enrolled</Text>
                           </View>
                         );
@@ -567,11 +786,11 @@ export default function CoursesScreen() {
                     {/* Course Stats */}
                     <View style={styles.statsRow}>
                       <View style={styles.statItem}>
-                        <Ionicons name="time-outline" size={16} color="#6B7280" />
+                        <Ionicons name="time-outline" size={16} color="colors.textSecondary" />
                         <Text style={styles.statText}>{course.duration}</Text>
                       </View>
                       <View style={styles.statItem}>
-                        <Ionicons name="play-circle-outline" size={16} color="#6B7280" />
+                        <Ionicons name="play-circle-outline" size={16} color="colors.textSecondary" />
                         <Text style={styles.statText}>{course.totalVideos || 0} videos</Text>
                       </View>
                     </View>
@@ -586,220 +805,4 @@ export default function CoursesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  scrollContent: {
-    padding: 16,
-  },
-  sectionHeader: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 15,
-    color: '#6B7280',
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 20,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    gap: 6,
-  },
-  tabActive: {
-    backgroundColor: '#EAB308',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  tabTextActive: {
-    color: '#FFFFFF',
-  },
-  creditsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#F5F3FF',
-    borderWidth: 1,
-    borderColor: '#DDD6FE',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 20,
-  },
-  creditsBannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  creditsBannerText: { fontSize: 14, color: '#4C1D95' },
-  creditsBannerBold: { fontWeight: '700' },
-  creditsBannerLink: { fontSize: 13, fontWeight: '700', color: '#7C3AED' },
-  creditsBannerDone: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    backgroundColor: '#ECFDF5',
-    borderWidth: 1,
-    borderColor: '#A7F3D0',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 20,
-  },
-  creditsBannerDoneText: { fontSize: 14, color: '#065F46', flex: 1 },
-  creditsBannerDoneLink: { fontWeight: '700', color: '#059669', textDecorationLine: 'underline' },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    marginBottom: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  cardLocked: {
-    opacity: 0.7,
-  },
-  imageContainer: {
-    position: 'relative',
-    height: 180,
-  },
-  courseImage: {
-    width: '100%',
-    height: '100%',
-  },
-  imagePlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  categoryBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 20,
-    gap: 4,
-  },
-  categoryText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  lockOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  unlockOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(139, 92, 246, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  unlockOverlayText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  enrolledOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(34, 197, 94, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 8,
-  },
-  enrolledOverlayText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  courseInfo: {
-    padding: 16,
-  },
-  courseTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 6,
-  },
-  courseDescription: {
-    fontSize: 14,
-    color: '#6B7280',
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  badgeContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 12,
-  },
-  planBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  planBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  statText: {
-    fontSize: 13,
-    color: '#6B7280',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginTop: 16,
-    marginBottom: 4,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#9CA3AF',
-  },
-});
+

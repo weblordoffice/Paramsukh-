@@ -9,8 +9,342 @@ import { useAddressStore } from '../store/addressStore';
 import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../utils/paymentBrowser';
+import { useTheme } from '../hooks/useTheme';
 
 export default function CheckoutScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: 'colors.background',
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+        paddingTop: 50,
+        paddingBottom: 16,
+        backgroundColor: 'colors.surface',
+        borderBottomWidth: 1,
+        borderBottomColor: 'colors.border',
+    },
+    backButton: {
+        padding: 8,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: 'colors.text',
+    },
+    scrollContent: {
+        padding: 16,
+        paddingBottom: 100,
+    },
+    section: {
+        marginBottom: 24,
+    },
+    sectionHeader: {      
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+        gap: 8,
+    },
+    sectionTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: 'colors.text',
+    },
+    card: {
+        backgroundColor: 'colors.surface',
+        borderRadius: 12,
+        padding: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    formCard: {
+        backgroundColor: 'colors.surface',
+        borderRadius: 12,
+        padding: 16,
+    },
+    formTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+        marginBottom: 16,
+        color: 'colors.text',
+    },
+    input: {
+        backgroundColor: 'colors.background',
+        borderWidth: 1,
+        borderColor: 'colors.border',
+        borderRadius: 8,
+        padding: 12,
+        fontSize: 14,
+        marginBottom: 12,
+        color: 'colors.text',
+    },
+    row: {
+        flexDirection: 'row',
+    },
+    formActions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 12,
+        marginTop: 8,
+    },
+    cancelButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: 'colors.border',
+    },
+    cancelButtonText: {
+        color: 'colors.text',
+        fontWeight: '600',
+    },
+    saveButton: {
+        backgroundColor: 'colors.text',
+        paddingVertical: 10,
+        paddingHorizontal: 24,
+        borderRadius: 8,
+    },
+    saveButtonText: {
+        color: 'colors.surface',
+        fontWeight: '600',
+    },
+    addressHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 8,
+    },
+    addressType: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: 'colors.textSecondary',
+        backgroundColor: 'colors.surfaceSecondary',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    defaultBadge: {      
+        fontSize: 12,
+        color: '#10B981',
+        fontWeight: '600',
+    },
+    addressName: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: 'colors.text',
+        marginBottom: 4,
+    },
+    addressText: {
+        fontSize: 14,
+        color: '#4B5563',
+        marginBottom: 2,
+    },
+    phoneText: {
+        fontSize: 14,
+        color: 'colors.text',
+        marginTop: 6,
+        fontWeight: '500',
+    },
+    changeButton: {
+        marginTop: 12,
+        alignSelf: 'flex-start',
+    },
+    changeText: {
+        color: '#3B82F6',
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    addressList: {
+        marginTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: 'colors.border',
+        paddingTop: 12,
+    },
+    otherAddressLabel: {
+        fontSize: 13,
+        color: 'colors.textSecondary',
+        marginBottom: 8,
+    },
+    otherAddressItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        gap: 8,
+    },
+    otherAddressText: {
+        fontSize: 14,
+        color: 'colors.text',
+    },
+    paymentOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'colors.surface',
+        padding: 16,
+        borderRadius: 12,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: 'colors.border',
+    },
+    paymentOptionActive: {
+        borderColor: '#3B82F6',
+        backgroundColor: '#EFF6FF',
+    },
+    radioCircle: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        borderWidth: 2,
+        borderColor: 'colors.textSecondary',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+    },
+    radioDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#3B82F6',
+    },
+    paymentText: {
+        fontSize: 15,
+        fontWeight: '500',
+        color: 'colors.text',
+    },
+    referralBalanceRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    referralBalanceText: {
+        fontSize: 14,
+        color: '#4B5563',
+    },
+    referralBalanceValue: {
+        fontWeight: '700',
+        color: '#EAB308',
+    },
+    referralRateText: {
+        fontSize: 12,
+        color: 'colors.textSecondary',
+    },
+    referralInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    referralInput: {
+        flex: 1,
+        backgroundColor: 'colors.background',
+        borderWidth: 1,
+        borderColor: 'colors.border',
+        borderRadius: 8,
+        padding: 12,
+        fontSize: 14,
+        color: 'colors.text',
+    },
+    referralClearButton: {
+        marginLeft: 8,
+        padding: 8,
+    },
+    referralDiscountRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 12,
+        gap: 6,
+    },
+    referralDiscountText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#10B981',
+    },
+    summaryRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    summaryLabel: {
+        fontSize: 14,
+        color: 'colors.textSecondary',
+    },
+    summaryValue: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: 'colors.text',
+    },
+    divider: {
+        height: 1,
+        backgroundColor: 'colors.border',
+        marginVertical: 12,
+    },
+    totalLabel: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: 'colors.text',
+    },
+    totalValue: {    
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#EAB308',
+    },
+    footer: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: 'colors.surface',
+        padding: 16,
+        borderTopWidth: 1,
+        borderTopColor: 'colors.border',
+    },
+    placeOrderButton: {
+        backgroundColor: 'colors.text',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 16,
+        borderRadius: 12,
+    },
+    disabledButton: {
+        opacity: 0.6,
+    },
+  placeOrderText: {
+    color: 'colors.surface',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptyCart: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  emptyCartText: {
+    fontSize: 16,
+    color: 'colors.textSecondary',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  shopButton: {
+    backgroundColor: 'colors.text',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  shopButtonText: {
+    color: 'colors.surface',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { cart, clearCart } = useCartStore();
@@ -177,13 +511,13 @@ export default function CheckoutScreen() {
         <View style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-              <Ionicons name="arrow-back" size={24} color="#111827" />
+              <Ionicons name="arrow-back" size={24} color="colors.text" />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Checkout</Text>
             <View style={{ width: 40 }} />
           </View>
           <View style={styles.emptyCart}>
-            <Ionicons name="cart-outline" size={64} color="#D1D5DB" />
+            <Ionicons name="cart-outline" size={64} color="colors.border" />
             <Text style={styles.emptyCartText}>Your cart is empty</Text>
             <TouchableOpacity style={styles.shopButton} onPress={() => router.replace('/shops')}>
               <Text style={styles.shopButtonText}>Continue Shopping</Text>
@@ -199,7 +533,7 @@ export default function CheckoutScreen() {
         <View style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                    <Ionicons name="arrow-back" size={24} color="#111827" />
+                    <Ionicons name="arrow-back" size={24} color="colors.text" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Checkout</Text>
                 <View style={{ width: 40 }} />
@@ -210,7 +544,7 @@ export default function CheckoutScreen() {
                 {/* Shipping Address Section */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Ionicons name="location-outline" size={20} color="#111827" />
+                        <Ionicons name="location-outline" size={20} color="colors.text" />
                         <Text style={styles.sectionTitle}>Shipping Address</Text>
                     </View>
 
@@ -221,14 +555,14 @@ export default function CheckoutScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Full Name"
-                                placeholderTextColor="#9CA3AF"
+                                placeholderTextColor="colors.textSecondary"
                                 value={newAddress.fullName}
                                 onChangeText={t => setNewAddress({ ...newAddress, fullName: t })}
                             />
                             <TextInput
                                 style={styles.input}
                                 placeholder="Phone Number"
-                                placeholderTextColor="#9CA3AF"
+                                placeholderTextColor="colors.textSecondary"
                                 keyboardType="phone-pad"
                                 value={newAddress.phone}
                                 onChangeText={t => setNewAddress({ ...newAddress, phone: t })}
@@ -236,7 +570,7 @@ export default function CheckoutScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Address Line 1 (House No, Street)"
-                                placeholderTextColor="#9CA3AF"
+                                placeholderTextColor="colors.textSecondary"
                                 value={newAddress.addressLine1}
                                 onChangeText={t => setNewAddress({ ...newAddress, addressLine1: t })}
                             />       
@@ -244,14 +578,14 @@ export default function CheckoutScreen() {
                                 <TextInput
                                     style={[styles.input, { flex: 1, marginRight: 8 }]}
                                     placeholder="City"
-                                    placeholderTextColor="#9CA3AF"
+                                    placeholderTextColor="colors.textSecondary"
                                     value={newAddress.city}
                                     onChangeText={t => setNewAddress({ ...newAddress, city: t })}
                                 />
                                 <TextInput
                                     style={[styles.input, { flex: 1 }]}
                                     placeholder="State"
-                                    placeholderTextColor="#9CA3AF"
+                                    placeholderTextColor="colors.textSecondary"
                                     value={newAddress.state}
                                     onChangeText={t => setNewAddress({ ...newAddress, state: t })}
                                 />    
@@ -260,7 +594,7 @@ export default function CheckoutScreen() {
                                 <TextInput
                                     style={[styles.input, { flex: 1, marginRight: 8 }]}
                                     placeholder="Pincode"
-                                    placeholderTextColor="#9CA3AF"
+                                    placeholderTextColor="colors.textSecondary"
                                     keyboardType="numeric"
                                     value={newAddress.pincode}
                                     onChangeText={t => setNewAddress({ ...newAddress, pincode: t })}
@@ -268,7 +602,7 @@ export default function CheckoutScreen() {
                                 <TextInput
                                     style={[styles.input, { flex: 1 }]}
                                     placeholder="Country"
-                                    placeholderTextColor="#9CA3AF"
+                                    placeholderTextColor="colors.textSecondary"
                                     value={newAddress.country}
                                     editable={false}
                                 />
@@ -289,7 +623,7 @@ export default function CheckoutScreen() {
                                     disabled={isAddressLoading}
                                 >
                                     {isAddressLoading ? (
-                                        <ActivityIndicator color="#FFFFFF" size="small" />
+                                        <ActivityIndicator color="colors.surface" size="small" />
                                     ) : (
                                         <Text style={styles.saveButtonText}>Save & Use</Text>
                                     )}
@@ -326,7 +660,7 @@ export default function CheckoutScreen() {
                                                     style={styles.otherAddressItem}
                                                     onPress={() => setSelectedAddressId(addr._id)}
                                                 >
-                                                    <Ionicons name="location-outline" size={16} color="#6B7280" />
+                                                    <Ionicons name="location-outline" size={16} color="colors.textSecondary" />
                                                     <Text style={styles.otherAddressText} numberOfLines={1}>
                                                         {addr.fullName}, {addr.city}
                                                     </Text>
@@ -345,7 +679,7 @@ export default function CheckoutScreen() {
                 {/* Payment Method */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Ionicons name="card-outline" size={20} color="#111827" />
+                        <Ionicons name="card-outline" size={20} color="colors.text" />
                         <Text style={styles.sectionTitle}>Payment Method</Text>
                     </View>
                     <TouchableOpacity
@@ -372,7 +706,7 @@ export default function CheckoutScreen() {
                 {referralPoints > 0 && (
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
-                            <Ionicons name="gift-outline" size={20} color="#111827" />
+                            <Ionicons name="gift-outline" size={20} color="colors.text" />
                             <Text style={styles.sectionTitle}>Use Referral Points</Text>
                         </View>
                         <View style={styles.card}>
@@ -386,7 +720,7 @@ export default function CheckoutScreen() {
                                 <TextInput
                                     style={styles.referralInput}
                                     placeholder="Enter points to redeem"
-                                    placeholderTextColor="#9CA3AF"
+                                    placeholderTextColor="colors.textSecondary"
                                     keyboardType="numeric"
                                     value={usePoints > 0 ? String(usePoints) : ''}
                                     onChangeText={(text) => {
@@ -399,7 +733,7 @@ export default function CheckoutScreen() {
                                         style={styles.referralClearButton}
                                         onPress={() => setUsePoints(0)}
                                     >
-                                        <Ionicons name="close-circle" size={20} color="#9CA3AF" />
+                                        <Ionicons name="close-circle" size={20} color="colors.textSecondary" />
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -449,11 +783,11 @@ export default function CheckoutScreen() {
                     disabled={isOrderLoading || isAddingAddress || isProcessing}
                 >
                     {isOrderLoading || isProcessing ? (
-                        <ActivityIndicator color="#FFFFFF" />
+                        <ActivityIndicator color="colors.surface" />
                     ) : (
                         <>
                             <Text style={styles.placeOrderText}>Place Order</Text>
-                            <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
+                            <Ionicons name="checkmark-circle-outline" size={20} color="colors.surface" />
                         </>
                     )}
                 </TouchableOpacity>
@@ -462,335 +796,4 @@ export default function CheckoutScreen() {
     );
 }     
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#F9FAFB',
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingTop: 50,
-        paddingBottom: 16,
-        backgroundColor: '#FFFFFF',
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
-    },
-    backButton: {
-        padding: 8,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#111827',
-    },
-    scrollContent: {
-        padding: 16,
-        paddingBottom: 100,
-    },
-    section: {
-        marginBottom: 24,
-    },
-    sectionHeader: {      
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-        gap: 8,
-    },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#374151',
-    },
-    card: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        padding: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 4,
-        elevation: 2,
-    },
-    formCard: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        padding: 16,
-    },
-    formTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        marginBottom: 16,
-        color: '#111827',
-    },
-    input: {
-        backgroundColor: '#F9FAFB',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        borderRadius: 8,
-        padding: 12,
-        fontSize: 14,
-        marginBottom: 12,
-        color: '#111827',
-    },
-    row: {
-        flexDirection: 'row',
-    },
-    formActions: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: 12,
-        marginTop: 8,
-    },
-    cancelButton: {
-        paddingVertical: 10,
-        paddingHorizontal: 16,
-        borderRadius: 8,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-    },
-    cancelButtonText: {
-        color: '#374151',
-        fontWeight: '600',
-    },
-    saveButton: {
-        backgroundColor: '#111827',
-        paddingVertical: 10,
-        paddingHorizontal: 24,
-        borderRadius: 8,
-    },
-    saveButtonText: {
-        color: '#FFFFFF',
-        fontWeight: '600',
-    },
-    addressHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 8,
-    },
-    addressType: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#6B7280',
-        backgroundColor: '#F3F4F6',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 4,
-    },
-    defaultBadge: {      
-        fontSize: 12,
-        color: '#10B981',
-        fontWeight: '600',
-    },
-    addressName: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#111827',
-        marginBottom: 4,
-    },
-    addressText: {
-        fontSize: 14,
-        color: '#4B5563',
-        marginBottom: 2,
-    },
-    phoneText: {
-        fontSize: 14,
-        color: '#111827',
-        marginTop: 6,
-        fontWeight: '500',
-    },
-    changeButton: {
-        marginTop: 12,
-        alignSelf: 'flex-start',
-    },
-    changeText: {
-        color: '#3B82F6',
-        fontWeight: '600',
-        fontSize: 14,
-    },
-    addressList: {
-        marginTop: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#E5E7EB',
-        paddingTop: 12,
-    },
-    otherAddressLabel: {
-        fontSize: 13,
-        color: '#6B7280',
-        marginBottom: 8,
-    },
-    otherAddressItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 8,
-        gap: 8,
-    },
-    otherAddressText: {
-        fontSize: 14,
-        color: '#374151',
-    },
-    paymentOption: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FFFFFF',
-        padding: 16,
-        borderRadius: 12,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-    },
-    paymentOptionActive: {
-        borderColor: '#3B82F6',
-        backgroundColor: '#EFF6FF',
-    },
-    radioCircle: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        borderWidth: 2,
-        borderColor: '#9CA3AF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 12,
-    },
-    radioDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: '#3B82F6',
-    },
-    paymentText: {
-        fontSize: 15,
-        fontWeight: '500',
-        color: '#111827',
-    },
-    referralBalanceRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    referralBalanceText: {
-        fontSize: 14,
-        color: '#4B5563',
-    },
-    referralBalanceValue: {
-        fontWeight: '700',
-        color: '#EAB308',
-    },
-    referralRateText: {
-        fontSize: 12,
-        color: '#9CA3AF',
-    },
-    referralInputRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    referralInput: {
-        flex: 1,
-        backgroundColor: '#F9FAFB',
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        borderRadius: 8,
-        padding: 12,
-        fontSize: 14,
-        color: '#111827',
-    },
-    referralClearButton: {
-        marginLeft: 8,
-        padding: 8,
-    },
-    referralDiscountRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginTop: 12,
-        gap: 6,
-    },
-    referralDiscountText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#10B981',
-    },
-    summaryRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 12,
-    },
-    summaryLabel: {
-        fontSize: 14,
-        color: '#6B7280',
-    },
-    summaryValue: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#111827',
-    },
-    divider: {
-        height: 1,
-        backgroundColor: '#E5E7EB',
-        marginVertical: 12,
-    },
-    totalLabel: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#111827',
-    },
-    totalValue: {    
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#EAB308',
-    },
-    footer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: '#FFFFFF',
-        padding: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#E5E7EB',
-    },
-    placeOrderButton: {
-        backgroundColor: '#111827',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 16,
-        borderRadius: 12,
-    },
-    disabledButton: {
-        opacity: 0.6,
-    },
-  placeOrderText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  emptyCart: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  emptyCartText: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  shopButton: {
-    backgroundColor: '#111827',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-  },
-  shopButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
+

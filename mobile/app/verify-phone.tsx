@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
 import { useAuth } from '@clerk/clerk-expo';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '../hooks/useTheme';
 
 function formatPhone(phone: string) {
   const digits = phone.replace(/\D/g, '');
@@ -12,6 +13,7 @@ function formatPhone(phone: string) {
 }
 
 export default function VerifyPhoneScreen() {
+  const { colors } = useTheme();
   const router = useRouter();
   const { sendOTP, verifyOTP, logout, isLoading, user } = useAuthStore();
   const { signOut: clerkSignOut } = useAuth();
@@ -144,7 +146,7 @@ export default function VerifyPhoneScreen() {
                     value={phone}
                     onChangeText={setPhone}
                     maxLength={10}
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor="colors.textSecondary"
                   />
                 </View>
               </View>
@@ -155,7 +157,7 @@ export default function VerifyPhoneScreen() {
                 disabled={isLoading || phone.length < 10}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color="colors.surface" />
                 ) : (
                   <Text className="text-white font-semibold text-base text-center">Request OTP Code</Text>
                 )}
@@ -174,7 +176,7 @@ export default function VerifyPhoneScreen() {
                   onChangeText={(text) => setOtp(text.replace(/[^0-9]/g, ''))}
                   maxLength={6}
                   autoFocus
-                  placeholderTextColor="#D1D5DB"
+                  placeholderTextColor="colors.border"
                 />
                 <Text className="text-gray-500 text-xs mt-2 text-center">
                   6-digit code sent to +91 {phone}
@@ -187,7 +189,7 @@ export default function VerifyPhoneScreen() {
                 disabled={isLoading || otp.length !== 6}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color="colors.surface" />
                 ) : (
                   <Text className="text-white font-semibold text-base text-center">
                     Link Phone Number

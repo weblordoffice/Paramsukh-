@@ -4,6 +4,7 @@ import { View, TouchableOpacity, Modal, ScrollView, Text, StyleSheet } from 'rea
 import { useState, useRef, useEffect } from 'react';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../../hooks/useTheme';
 
 
 
@@ -11,6 +12,83 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 
 export default function HomeLayout() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(44, 36, 32, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: 'colors.surface',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 24,
+    maxHeight: '85%',
+    shadowColor: '#F1842D',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 16,
+  },
+  handleBar: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#F4F3EB',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginTop: 16,
+    marginBottom: 24,
+  },
+  modalHeader: {
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F4F3EB',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#2C2420',
+    textAlign: 'center',
+    letterSpacing: 0.25,
+  },
+  menuOptions: {
+    gap: 12,
+  },
+  menuItem: {
+    backgroundColor: 'colors.surface',
+    borderWidth: 1,
+    borderColor: '#F4F3EB',
+    borderRadius: 20,
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#5C4A42',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  menuItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  menuEmoji: {
+    fontSize: 22,
+    marginRight: 16,
+  },
+  menuText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#2C2420',
+  },
+  menuArrow: {
+    fontSize: 24,
+    color: '#8C7B73',
+  },
+});
   const [menuModalVisible, setMenuModalVisible] = useState(false);
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -34,7 +112,7 @@ export default function HomeLayout() {
           tabBarActiveTintColor: '#F1842D',
           tabBarInactiveTintColor: '#8C7B73',
           tabBarStyle: {
-            backgroundColor: '#FFFFFF',
+            backgroundColor: 'colors.surface',
             borderTopWidth: 0,
             paddingHorizontal: 0,
             paddingBottom: insets.bottom,
@@ -266,79 +344,4 @@ export default function HomeLayout() {
   );
 }
 
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(44, 36, 32, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    paddingHorizontal: 24,
-    maxHeight: '85%',
-    shadowColor: '#F1842D',
-    shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 16,
-  },
-  handleBar: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#F4F3EB',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  modalHeader: {
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F4F3EB',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2C2420',
-    textAlign: 'center',
-    letterSpacing: 0.25,
-  },
-  menuOptions: {
-    gap: 12,
-  },
-  menuItem: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#F4F3EB',
-    borderRadius: 20,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#5C4A42',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  menuItemContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  menuEmoji: {
-    fontSize: 22,
-    marginRight: 16,
-  },
-  menuText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#2C2420',
-  },
-  menuArrow: {
-    fontSize: 24,
-    color: '#8C7B73',
-  },
-});
+

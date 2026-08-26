@@ -5,10 +5,182 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useProductStore } from '../store/productStore';
 import { useCartStore } from '../store/cartStore';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../hooks/useTheme';
 
 const { width } = Dimensions.get('window');
 
 export default function ProductDetailScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: 'colors.surface',
+    },
+    center: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    header: {
+        position: 'absolute',
+        top: 50,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+    },
+    backButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    cartButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.9)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    scrollContent: {
+        paddingBottom: 100,
+    },
+    imageGallery: {
+        height: 350,
+        backgroundColor: 'colors.surfaceSecondary',
+        position: 'relative',
+    },
+    imageWrapper: {
+        width: width,
+        height: 350,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    productImage: {
+        width: '100%',
+        height: '100%',
+    },
+    placeholderEmoji: {
+        fontSize: 80,
+    },
+    pagination: {
+        position: 'absolute',
+        bottom: 16,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    paginationDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: 'rgba(0,0,0,0.2)',
+    },
+    paginationDotActive: {
+        backgroundColor: 'colors.text',
+    },
+    infoContainer: {
+        padding: 20,
+    },
+    productName: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: 'colors.text',
+        marginBottom: 8,
+    },
+    ratingRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 16,
+    },
+    ratingText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: 'colors.textSecondary',
+    },
+    price: {
+        fontSize: 28,
+        fontWeight: '700',
+        color: 'colors.text',
+        marginBottom: 24,
+    },
+    amazonHint: {
+        fontSize: 14,
+        color: 'colors.textSecondary',
+        marginBottom: 24,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: 'colors.text',
+        marginBottom: 12,
+        marginTop: 12,
+    },
+    description: {
+        fontSize: 15,
+        lineHeight: 24,
+        color: '#4B5563',
+        marginBottom: 16,
+    },
+    specRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: 'colors.border',
+    },
+    specKey: {
+        fontSize: 14,
+        color: 'colors.textSecondary',
+    },
+    specValue: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: 'colors.text',
+    },
+    bottomBar: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: 'colors.surface',
+        padding: 16,
+        borderTopWidth: 1,
+        borderTopColor: 'colors.border',
+    },
+    addToCartButton: {
+        backgroundColor: 'colors.text',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        paddingVertical: 16,
+        borderRadius: 12,
+    },
+    addToCartText: {
+        fontSize: 16,
+        fontWeight: '700',
+        color: 'colors.surface',
+    },
+});
     const { productId } = useLocalSearchParams();
     const router = useRouter();
     const { currentProduct, fetchProductById, isLoading } = useProductStore();
@@ -51,10 +223,10 @@ export default function ProductDetailScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                    <Ionicons name="arrow-back" size={24} color="#111827" />
+                    <Ionicons name="arrow-back" size={24} color="colors.text" />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.cartButton} onPress={() => router.push('/cart')}>
-                    <Ionicons name="cart-outline" size={24} color="#111827" />
+                    <Ionicons name="cart-outline" size={24} color="colors.text" />
                 </TouchableOpacity>
             </View>
 
@@ -136,12 +308,12 @@ export default function ProductDetailScreen() {
                 {isExternal ? (
                     <TouchableOpacity style={[styles.addToCartButton, { backgroundColor: '#3B82F6' }]} onPress={handleOpenExternalLink}>
                         <Text style={styles.addToCartText}>View on Website</Text>
-                        <Ionicons name="open-outline" size={20} color="#FFFFFF" />
+                        <Ionicons name="open-outline" size={20} color="colors.surface" />
                     </TouchableOpacity>
                 ) : (
                     <TouchableOpacity style={styles.addToCartButton} onPress={handleAddToCart}>
                         <Text style={styles.addToCartText}>Add to Cart</Text>
-                        <Ionicons name="cart" size={20} color="#FFFFFF" />
+                        <Ionicons name="cart" size={20} color="colors.surface" />
                     </TouchableOpacity>
                 )}
             </View>
@@ -149,173 +321,4 @@ export default function ProductDetailScreen() {
     );
 }
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#FFFFFF',
-    },
-    center: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    header: {
-        position: 'absolute',
-        top: 50,
-        left: 0,
-        right: 0,
-        zIndex: 10,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-    },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    cartButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    scrollContent: {
-        paddingBottom: 100,
-    },
-    imageGallery: {
-        height: 350,
-        backgroundColor: '#F3F4F6',
-        position: 'relative',
-    },
-    imageWrapper: {
-        width: width,
-        height: 350,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    productImage: {
-        width: '100%',
-        height: '100%',
-    },
-    placeholderEmoji: {
-        fontSize: 80,
-    },
-    pagination: {
-        position: 'absolute',
-        bottom: 16,
-        left: 0,
-        right: 0,
-        flexDirection: 'row',
-        justifyContent: 'center',
-        gap: 8,
-    },
-    paginationDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: 'rgba(0,0,0,0.2)',
-    },
-    paginationDotActive: {
-        backgroundColor: '#111827',
-    },
-    infoContainer: {
-        padding: 20,
-    },
-    productName: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: '#111827',
-        marginBottom: 8,
-    },
-    ratingRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginBottom: 16,
-    },
-    ratingText: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: '#6B7280',
-    },
-    price: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: '#111827',
-        marginBottom: 24,
-    },
-    amazonHint: {
-        fontSize: 14,
-        color: '#6B7280',
-        marginBottom: 24,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#111827',
-        marginBottom: 12,
-        marginTop: 12,
-    },
-    description: {
-        fontSize: 15,
-        lineHeight: 24,
-        color: '#4B5563',
-        marginBottom: 16,
-    },
-    specRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
-    },
-    specKey: {
-        fontSize: 14,
-        color: '#6B7280',
-    },
-    specValue: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#111827',
-    },
-    bottomBar: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: '#FFFFFF',
-        padding: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#E5E7EB',
-    },
-    addToCartButton: {
-        backgroundColor: '#111827',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        paddingVertical: 16,
-        borderRadius: 12,
-    },
-    addToCartText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#FFFFFF',
-    },
-});
+

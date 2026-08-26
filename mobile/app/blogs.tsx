@@ -5,8 +5,125 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useBlogStore, Blog } from '../store/blogStore';
+import { useTheme } from '../hooks/useTheme';
 
 export default function BlogsScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: 'colors.background',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F4F3EB',
+    backgroundColor: 'colors.surface',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'colors.background',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#2C2420',
+  },
+  headerRightPlaceholder: {
+    width: 40,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  listContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  blogCard: {
+    backgroundColor: 'colors.surface',
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 20,
+    shadowColor: '#5C4A42',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  cardImageContainer: {
+    height: 180,
+    width: '100%',
+    backgroundColor: '#F4F3EB',
+  },
+  cardImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  placeholderImage: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardContent: {
+    padding: 20,
+  },
+  blogTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#2C2420',
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  blogAuthor: {
+    fontSize: 12,
+    color: '#8C7B73',
+    fontWeight: '600',
+  },
+  bullet: {
+    fontSize: 12,
+    color: '#8C7B73',
+    marginHorizontal: 8,
+  },
+  blogDate: {
+    fontSize: 12,
+    color: '#8C7B73',
+    fontWeight: '600',
+  },
+  blogSnippet: {
+    fontSize: 14,
+    color: '#5C4A42',
+    lineHeight: 20,
+    fontWeight: '400',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 15,
+    color: '#8C7B73',
+    fontWeight: '600',
+    marginTop: 12,
+  },
+});
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { blogs, fetchBlogs, isLoading } = useBlogStore();
@@ -119,118 +236,4 @@ export default function BlogsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FDF8F3',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F4F3EB',
-    backgroundColor: '#FFFFFF',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FDF8F3',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2C2420',
-  },
-  headerRightPlaceholder: {
-    width: 40,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  listContent: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  blogCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    overflow: 'hidden',
-    marginBottom: 20,
-    shadowColor: '#5C4A42',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  cardImageContainer: {
-    height: 180,
-    width: '100%',
-    backgroundColor: '#F4F3EB',
-  },
-  cardImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  placeholderImage: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardContent: {
-    padding: 20,
-  },
-  blogTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#2C2420',
-    lineHeight: 24,
-    marginBottom: 8,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  blogAuthor: {
-    fontSize: 12,
-    color: '#8C7B73',
-    fontWeight: '600',
-  },
-  bullet: {
-    fontSize: 12,
-    color: '#8C7B73',
-    marginHorizontal: 8,
-  },
-  blogDate: {
-    fontSize: 12,
-    color: '#8C7B73',
-    fontWeight: '600',
-  },
-  blogSnippet: {
-    fontSize: 14,
-    color: '#5C4A42',
-    lineHeight: 20,
-    fontWeight: '400',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  emptyText: {
-    fontSize: 15,
-    color: '#8C7B73',
-    fontWeight: '600',
-    marginTop: 12,
-  },
-});
+

@@ -18,6 +18,7 @@ import { useCourseStore, Assignment } from '../store/courseStore';
 import { useAuthStore } from '../store/authStore';
 import { useOfflineVideoStore } from '../store/offlineVideoStore';
 import { hasActiveMembership } from '../utils/membership';
+import { useTheme } from '../hooks/useTheme';
 
 const { width } = Dimensions.get('window');
 
@@ -43,6 +44,247 @@ function getYouTubeId(url: string): string | null {
 }
 
 export default function VideoPlayerScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#0F172A',
+  },
+
+  /* Header */
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 48,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  backBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerText: { flex: 1 },
+  headerCourse: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'colors.surface',
+  },
+  headerVideo: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.75)',
+    marginTop: 1,
+  },
+
+  /* Video */
+  videoArea: {
+    width: '100%',
+    backgroundColor: '#000',
+  },
+  videoBox: {
+    width: '100%',
+    height: VIDEO_HEIGHT,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  videoView: {
+    width: '100%',
+    height: '100%',
+  },
+  videoOverlay: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  errorText: {
+    color: '#FFF',
+    fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
+  dismissBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 4,
+  },
+  dismissText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+
+  /* External player */
+  extPlayerBg: {
+    ...StyleSheet.absoluteFillObject as any,
+    backgroundColor: 'colors.text',
+  },
+  extPlayBtn: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  extPlayHint: {
+    position: 'absolute',
+    bottom: 16,
+    color: 'rgba(255,255,255,0.55)',
+    fontSize: 13,
+  },
+
+  /* Info */
+  infoSection: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(148,163,184,0.1)',
+  },
+  infoTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#F1F5F9',
+    marginBottom: 10,
+    lineHeight: 24,
+  },
+  infoMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  infoMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  infoMetaText: {
+    fontSize: 13,
+    color: 'colors.textSecondary',
+    fontWeight: '500',
+  },
+  infoMetaDivider: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'colors.text',
+    marginHorizontal: 10,
+  },
+  downloadSection: {
+    marginTop: 18,
+  },
+  downloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#2563EB',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  downloadBtnDisabled: {
+    backgroundColor: '#64748B',
+  },
+  downloadBtnText: {
+    color: 'colors.surface',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  removeDownloadBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  removeDownloadText: {
+    color: '#DC2626',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  downloadHint: {
+    marginTop: 10,
+    color: 'colors.textSecondary',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+
+  /* Assignments */
+  assignmentSection: {
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(148,163,184,0.1)',
+  },
+  assignmentHeading: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'colors.textSecondary',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 12,
+  },
+  assignmentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1E293B',
+    padding: 12,
+    borderRadius: 12,
+    gap: 12,
+  },
+  assignmentIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  assignmentInfo: {
+    flex: 1,
+  },
+  assignmentTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#F1F5F9',
+  },
+  assignmentMeta: {
+    fontSize: 11,
+    color: 'colors.textSecondary',
+    marginTop: 1,
+  },
+
+  /* Action */
+  actionSection: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  markBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  markBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: 'colors.surface',
+  },
+});
   const router = useRouter();
   const params = useLocalSearchParams();
   const { markVideoComplete, currentCourse } = useCourseStore();
@@ -210,7 +452,7 @@ export default function VideoPlayerScreen() {
       {/* ── Header ── */}
       <View style={[styles.header, { backgroundColor: courseColor }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
-          <Ionicons name="arrow-back" size={22} color="#FFFFFF" />
+          <Ionicons name="arrow-back" size={22} color="colors.surface" />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerCourse} numberOfLines={1}>{courseTitle}</Text>
@@ -246,7 +488,7 @@ export default function VideoPlayerScreen() {
             />
             {loading && (
             <View style={styles.videoOverlay}>
-                <ActivityIndicator size="large" color="#FFFFFF" />
+                <ActivityIndicator size="large" color="colors.surface" />
               </View>
             )}
             {error && (
@@ -271,7 +513,7 @@ export default function VideoPlayerScreen() {
               onPress={handleExternalPlay}
               activeOpacity={0.8}
             >
-              <Ionicons name="play" size={48} color="#FFFFFF" />
+              <Ionicons name="play" size={48} color="colors.surface" />
             </TouchableOpacity>
             <Text style={styles.extPlayHint}>Tap to open in browser</Text>
           </View>
@@ -283,12 +525,12 @@ export default function VideoPlayerScreen() {
         <Text style={styles.infoTitle}>{videoTitle}</Text>
         <View style={styles.infoMeta}>
           <View style={styles.infoMetaItem}>
-            <Ionicons name="time-outline" size={15} color="#9CA3AF" />
+            <Ionicons name="time-outline" size={15} color="colors.textSecondary" />
             <Text style={styles.infoMetaText}>{videoDuration}</Text>
           </View>
           <View style={styles.infoMetaDivider} />
           <View style={styles.infoMetaItem}>
-            <Ionicons name="videocam-outline" size={15} color="#9CA3AF" />
+            <Ionicons name="videocam-outline" size={15} color="colors.textSecondary" />
             <Text style={styles.infoMetaText}>
               {isOfflinePlayback ? 'Offline in app' : isYouTube ? 'YouTube' : useNativePlayer ? 'In-app player' : 'External link'}
             </Text>
@@ -317,9 +559,9 @@ export default function VideoPlayerScreen() {
                 disabled={!isPremiumMember || downloadInProgress}
               >
                 {downloadInProgress ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
+                  <ActivityIndicator size="small" color="colors.surface" />
                 ) : (
-                  <Ionicons name="download-outline" size={18} color="#FFFFFF" />
+                  <Ionicons name="download-outline" size={18} color="colors.surface" />
                 )}
                 <Text style={styles.downloadBtnText}>
                   {downloadInProgress
@@ -381,7 +623,7 @@ export default function VideoPlayerScreen() {
             <Ionicons
               name={marked ? 'checkmark-circle' : 'checkmark-circle-outline'}
               size={20}
-              color="#FFFFFF"
+              color="colors.surface"
             />
             <Text style={styles.markBtnText}>
               {marked ? 'Completed ✓' : 'Mark as Complete'}
@@ -395,243 +637,4 @@ export default function VideoPlayerScreen() {
 
 const VIDEO_HEIGHT = width * 0.5625; // 16:9
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-  },
 
-  /* Header */
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 48,
-    paddingBottom: 14,
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  backBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerText: { flex: 1 },
-  headerCourse: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  headerVideo: {
-    fontSize: 12,
-    color: 'rgba(255,255,255,0.75)',
-    marginTop: 1,
-  },
-
-  /* Video */
-  videoArea: {
-    width: '100%',
-    backgroundColor: '#000',
-  },
-  videoBox: {
-    width: '100%',
-    height: VIDEO_HEIGHT,
-    backgroundColor: '#000',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  videoView: {
-    width: '100%',
-    height: '100%',
-  },
-  videoOverlay: {
-    ...StyleSheet.absoluteFillObject as any,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  errorText: {
-    color: '#FFF',
-    fontSize: 14,
-    textAlign: 'center',
-    paddingHorizontal: 24,
-  },
-  dismissBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginTop: 4,
-  },
-  dismissText: {
-    color: '#FFF',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-
-  /* External player */
-  extPlayerBg: {
-    ...StyleSheet.absoluteFillObject as any,
-    backgroundColor: '#111827',
-  },
-  extPlayBtn: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  extPlayHint: {
-    position: 'absolute',
-    bottom: 16,
-    color: 'rgba(255,255,255,0.55)',
-    fontSize: 13,
-  },
-
-  /* Info */
-  infoSection: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(148,163,184,0.1)',
-  },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#F1F5F9',
-    marginBottom: 10,
-    lineHeight: 24,
-  },
-  infoMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  infoMetaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  infoMetaText: {
-    fontSize: 13,
-    color: '#9CA3AF',
-    fontWeight: '500',
-  },
-  infoMetaDivider: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#374151',
-    marginHorizontal: 10,
-  },
-  downloadSection: {
-    marginTop: 18,
-  },
-  downloadBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#2563EB',
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-  },
-  downloadBtnDisabled: {
-    backgroundColor: '#64748B',
-  },
-  downloadBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  removeDownloadBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#FEF2F2',
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: '#FECACA',
-  },
-  removeDownloadText: {
-    color: '#DC2626',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  downloadHint: {
-    marginTop: 10,
-    color: '#94A3B8',
-    fontSize: 12,
-    lineHeight: 18,
-  },
-
-  /* Assignments */
-  assignmentSection: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(148,163,184,0.1)',
-  },
-  assignmentHeading: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 12,
-  },
-  assignmentBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1E293B',
-    padding: 12,
-    borderRadius: 12,
-    gap: 12,
-  },
-  assignmentIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  assignmentInfo: {
-    flex: 1,
-  },
-  assignmentTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#F1F5F9',
-  },
-  assignmentMeta: {
-    fontSize: 11,
-    color: '#94A3B8',
-    marginTop: 1,
-  },
-
-  /* Action */
-  actionSection: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  markBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
-  },
-  markBtnText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-});

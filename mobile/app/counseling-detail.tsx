@@ -4,8 +4,43 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCounselingStore } from '../store/counselingStore';
+import { useTheme } from '../hooks/useTheme';
 
 export default function CounselingDetailScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: 'colors.background' },
+    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: 'colors.surface', borderBottomWidth: 1, borderBottomColor: 'colors.surfaceSecondary' },
+    backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: 'colors.background', borderRadius: 20 },
+    headerTitle: { fontSize: 18, fontWeight: '700', color: 'colors.text' },
+    scrollContent: { padding: 16, paddingBottom: 40 },
+    card: { backgroundColor: 'colors.surface', borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: 'colors.surfaceSecondary' },
+    statusRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 },
+    sessionTitle: { fontSize: 20, fontWeight: '800', color: 'colors.text', flex: 1, marginRight: 8 },
+    statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    statusConfirmed: { backgroundColor: '#DCFCE7' },
+    statusPending: { backgroundColor: '#FEF3C7' },
+    statusText: { fontSize: 10, fontWeight: '700', color: '#166534' },
+    counselorText: { fontSize: 14, color: 'colors.textSecondary', marginBottom: 12 },
+    infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+    infoText: { fontSize: 14, color: 'colors.text' },
+    sectionTitle: { fontSize: 16, fontWeight: '700', color: 'colors.text', marginBottom: 12 },
+    platformRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+    platformText: { fontSize: 16, fontWeight: '700', color: 'colors.text' },
+    detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: 'colors.surfaceSecondary' },
+    detailLabel: { fontSize: 14, color: 'colors.textSecondary' },
+    detailValue: { fontSize: 14, fontWeight: '600', color: 'colors.text', flexShrink: 1, marginLeft: 12, textAlign: 'right' },
+    linkValue: { color: '#2563EB', textDecorationLine: 'underline' },
+    joinButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F1842D', borderRadius: 12, paddingVertical: 16, marginTop: 16 },
+    joinButtonText: { color: 'colors.surface', fontSize: 16, fontWeight: '700' },
+    hint: { textAlign: 'center', fontSize: 12, color: 'colors.textSecondary', marginTop: 10 },
+    waitingCard: { alignItems: 'center', paddingVertical: 12 },
+    waitingTitle: { fontSize: 15, fontWeight: '700', color: 'colors.text', marginTop: 8 },
+    waitingText: { fontSize: 13, color: 'colors.textSecondary', textAlign: 'center', marginTop: 4, lineHeight: 19 },
+    notesText: { fontSize: 14, color: 'colors.text', lineHeight: 20 },
+    emptyText: { fontSize: 16, color: 'colors.textSecondary', marginTop: 12 },
+});
     const router = useRouter();
     const { bookingId } = useLocalSearchParams();
     const { fetchBookingDetails } = useCounselingStore();
@@ -45,7 +80,7 @@ export default function CounselingDetailScreen() {
             <SafeAreaView style={styles.container}>
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                        <Ionicons name="arrow-back" size={24} color="#111827" />
+                        <Ionicons name="arrow-back" size={24} color="colors.text" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Session Details</Text>
                     <View style={{ width: 40 }} />
@@ -62,13 +97,13 @@ export default function CounselingDetailScreen() {
             <SafeAreaView style={styles.container}>
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                        <Ionicons name="arrow-back" size={24} color="#111827" />
+                        <Ionicons name="arrow-back" size={24} color="colors.text" />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Session Details</Text>
                     <View style={{ width: 40 }} />
                 </View>
                 <View style={styles.center}>
-                    <Ionicons name="calendar-outline" size={64} color="#9CA3AF" />
+                    <Ionicons name="calendar-outline" size={64} color="colors.textSecondary" />
                     <Text style={styles.emptyText}>Booking not found</Text>
                 </View>
             </SafeAreaView>
@@ -79,7 +114,7 @@ export default function CounselingDetailScreen() {
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                    <Ionicons name="arrow-back" size={24} color="#111827" />
+                    <Ionicons name="arrow-back" size={24} color="colors.text" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Session Details</Text>
                 <View style={{ width: 40 }} />
@@ -97,18 +132,18 @@ export default function CounselingDetailScreen() {
                     <Text style={styles.counselorText}>with {booking.counselorName || 'Expert Counselor'}</Text>
 
                     <View style={styles.infoRow}>
-                        <Ionicons name="calendar-outline" size={16} color="#6B7280" />
+                        <Ionicons name="calendar-outline" size={16} color="colors.textSecondary" />
                         <Text style={styles.infoText}>
                             {new Date(booking.bookingDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                         </Text>
                     </View>
                     <View style={styles.infoRow}>
-                        <Ionicons name="time-outline" size={16} color="#6B7280" />
+                        <Ionicons name="time-outline" size={16} color="colors.textSecondary" />
                         <Text style={styles.infoText}>{booking.bookingTime}{booking.duration ? ` · ${booking.duration} mins` : ''}</Text>
                     </View>
                     {booking.amount > 0 && (
                         <View style={styles.infoRow}>
-                            <Ionicons name="wallet-outline" size={16} color="#6B7280" />
+                            <Ionicons name="wallet-outline" size={16} color="colors.textSecondary" />
                             <Text style={styles.infoText}>₹{booking.amount} · {booking.paymentStatus || 'paid'}</Text>
                         </View>
                     )}
@@ -145,7 +180,7 @@ export default function CounselingDetailScreen() {
                             ) : null}
 
                             <TouchableOpacity style={styles.joinButton} onPress={openMeeting}>
-                                <Ionicons name="videocam" size={20} color="#FFFFFF" />
+                                <Ionicons name="videocam" size={20} color="colors.surface" />
                                 <Text style={styles.joinButtonText}>Join Meeting</Text>
                             </TouchableOpacity>
 
@@ -173,36 +208,4 @@ export default function CounselingDetailScreen() {
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#FDF8F3' },
-    center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFFFFF', borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
-    backButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F9FAFB', borderRadius: 20 },
-    headerTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-    scrollContent: { padding: 16, paddingBottom: 40 },
-    card: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#F3F4F6' },
-    statusRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 6 },
-    sessionTitle: { fontSize: 20, fontWeight: '800', color: '#111827', flex: 1, marginRight: 8 },
-    statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-    statusConfirmed: { backgroundColor: '#DCFCE7' },
-    statusPending: { backgroundColor: '#FEF3C7' },
-    statusText: { fontSize: 10, fontWeight: '700', color: '#166534' },
-    counselorText: { fontSize: 14, color: '#6B7280', marginBottom: 12 },
-    infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-    infoText: { fontSize: 14, color: '#374151' },
-    sectionTitle: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 12 },
-    platformRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-    platformText: { fontSize: 16, fontWeight: '700', color: '#111827' },
-    detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
-    detailLabel: { fontSize: 14, color: '#6B7280' },
-    detailValue: { fontSize: 14, fontWeight: '600', color: '#111827', flexShrink: 1, marginLeft: 12, textAlign: 'right' },
-    linkValue: { color: '#2563EB', textDecorationLine: 'underline' },
-    joinButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F1842D', borderRadius: 12, paddingVertical: 16, marginTop: 16 },
-    joinButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-    hint: { textAlign: 'center', fontSize: 12, color: '#9CA3AF', marginTop: 10 },
-    waitingCard: { alignItems: 'center', paddingVertical: 12 },
-    waitingTitle: { fontSize: 15, fontWeight: '700', color: '#111827', marginTop: 8 },
-    waitingText: { fontSize: 13, color: '#6B7280', textAlign: 'center', marginTop: 4, lineHeight: 19 },
-    notesText: { fontSize: 14, color: '#374151', lineHeight: 20 },
-    emptyText: { fontSize: 16, color: '#6B7280', marginTop: 12 },
-});
+

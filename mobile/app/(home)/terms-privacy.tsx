@@ -10,8 +10,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { Linking } from 'react-native';
+import { useTheme } from '../../hooks/useTheme';
 
 export default function TermsPrivacyScreen() {
+  const { colors } = useTheme();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'terms' | 'privacy'>('terms');
 
@@ -20,7 +22,7 @@ export default function TermsPrivacyScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
         <TouchableOpacity className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" onPress={() => router.push('/(home)/menu')}>
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={24} color="colors.text" />
         </TouchableOpacity>
         <Text className="text-xl font-bold text-gray-900">Terms & Privacy</Text>
         <View className="w-10" />

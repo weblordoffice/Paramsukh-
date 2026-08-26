@@ -14,8 +14,10 @@ import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../store/authStore';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
+import { useTheme } from '../../hooks/useTheme';
 
 export default function EditProfileScreen() {
+  const { colors } = useTheme();
   const router = useRouter();
   const { user, fetchCurrentUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
@@ -127,7 +129,7 @@ export default function EditProfileScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
         <TouchableOpacity className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" onPress={() => router.push('/(home)/menu')}>
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={24} color="colors.text" />
         </TouchableOpacity>
         <Text className="text-xl font-bold text-gray-900">Edit Profile</Text>
         <View className="w-10" />
@@ -159,7 +161,7 @@ export default function EditProfileScreen() {
                   value={formData.displayName}    
                   onChangeText={(text) => setFormData({ ...formData, displayName: text })}
                   placeholder="Enter your name"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="colors.textSecondary"
                 />      
               </View>
 
@@ -171,7 +173,7 @@ export default function EditProfileScreen() {
                   keyboardType="numeric"
                   onChangeText={(text) => setFormData({ ...formData, age: text.replace(/[^0-9]/g, '') })}
                   placeholder="Enter your age"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="colors.textSecondary"
                 />      
               </View>
 
@@ -182,7 +184,7 @@ export default function EditProfileScreen() {
                   value={formData.occupation}
                   onChangeText={(text) => setFormData({ ...formData, occupation: text })}
                   placeholder="e.g. Professional, Entrepreneur"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="colors.textSecondary"
                 />      
               </View>
 
@@ -193,7 +195,7 @@ export default function EditProfileScreen() {
                   value={formData.location}
                   onChangeText={(text) => setFormData({ ...formData, location: text })}
                   placeholder="e.g. New Delhi, India"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="colors.textSecondary"
                 />      
               </View>
 
@@ -218,7 +220,7 @@ export default function EditProfileScreen() {
                         <Ionicons 
                           name={area.icon as any} 
                           size={16} 
-                          color={isActive ? '#FFFFFF' : '#4B5563'} 
+                          color={isActive ? 'colors.surface' : '#4B5563'} 
                           style={{ marginRight: 6 }}
                         />
                         <Text 
@@ -242,7 +244,7 @@ export default function EditProfileScreen() {
               disabled={isSaving}
             >
               {isSaving ? (
-                <ActivityIndicator size="small" color="#FFFFFF" />
+                <ActivityIndicator size="small" color="colors.surface" />
               ) : (
                 <Text className="text-base font-bold text-white">Save Profile Details</Text>
               )}

@@ -15,8 +15,43 @@ import axios from 'axios';
 import { API_URL } from '../../config/api';
 import { useAuthStore } from '../../store/authStore';
 import CertificateViewerModal from '../../components/CertificateViewerModal';
+import { useTheme } from '../../hooks/useTheme';
 
 export default function MyProgressScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+  circularContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 4,
+    borderColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    overflow: 'hidden'
+  },
+  circularFill: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 4,
+    borderColor: '#3B82F6',
+    borderTopColor: 'transparent',
+    borderLeftColor: 'transparent'
+  },
+  circularInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'colors.surface',
+    justifyContent: 'center',
+    alignItems: 'center'
+  }
+});
   const router = useRouter();          
   const { token, user: authUser } = useAuthStore();
   const [loading, setLoading] = useState(true);
@@ -126,7 +161,7 @@ export default function MyProgressScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
         <TouchableOpacity className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" onPress={() => router.push('/(home)/menu')}>
-          <Ionicons name="arrow-back" size={24} color="#111827" />
+          <Ionicons name="arrow-back" size={24} color="colors.text" />
         </TouchableOpacity>
         <Text className="text-xl font-bold text-gray-900">My Progress</Text>
         <View className="w-10" />
@@ -174,7 +209,7 @@ export default function MyProgressScreen() {
               <Text className="text-xl font-bold text-gray-900 mb-4">Verifiable Certificates</Text>
               {certificates.length === 0 ? (
                 <View className="bg-white p-6 rounded-xl border border-dashed border-gray-300 items-center justify-center">
-                  <Ionicons name="ribbon-outline" size={36} color="#9CA3AF" />
+                  <Ionicons name="ribbon-outline" size={36} color="colors.textSecondary" />
                   <Text className="text-sm text-gray-500 text-center mt-2 font-medium">Complete courses to 100% to earn certificates.</Text>
                 </View>
               ) : (
@@ -189,7 +224,7 @@ export default function MyProgressScreen() {
                         onPress={() => handleViewCert(cert)}
                         className="bg-amber-500 px-4 py-2 rounded-lg flex-row items-center"
                       >
-                        <Ionicons name="eye-outline" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+                        <Ionicons name="eye-outline" size={16} color="colors.surface" style={{ marginRight: 4 }} />
                         <Text className="text-xs font-bold text-white">View</Text>
                       </TouchableOpacity>
                     </View>
@@ -242,36 +277,4 @@ export default function MyProgressScreen() {
   );                       
 }
 
-const styles = StyleSheet.create({
-  circularContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderWidth: 4,
-    borderColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
-    overflow: 'hidden'
-  },
-  circularFill: {
-    position: 'absolute',
-    top: -4,
-    left: -4,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderWidth: 4,
-    borderColor: '#3B82F6',
-    borderTopColor: 'transparent',
-    borderLeftColor: 'transparent'
-  },
-  circularInner: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center'
-  }
-});
+

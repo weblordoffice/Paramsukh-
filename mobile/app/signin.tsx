@@ -9,6 +9,7 @@ import * as Linking from 'expo-linking';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DeviceSwapModal from '../components/DeviceSwapModal';
+import { useTheme } from '../hooks/useTheme';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -19,6 +20,7 @@ function formatPhone(phone: string) {
 }
 
 export default function SignInScreen() {
+  const { colors } = useTheme();
   const router = useRouter();
   const { sendOTP, verifyOTP, isLoading } = useAuthStore();
   const { startOAuthFlow } = useOAuth({ strategy: 'oauth_google' });
@@ -188,7 +190,7 @@ export default function SignInScreen() {
                     value={phone}
                     onChangeText={setPhone}
                     maxLength={10}
-                    placeholderTextColor="#9CA3AF"
+                    placeholderTextColor="colors.textSecondary"
                   />
                 </View>
               </View>
@@ -199,7 +201,7 @@ export default function SignInScreen() {
                 disabled={isLoading || phone.length < 10}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color="colors.surface" />
                 ) : (
                   <Text className="text-white font-semibold text-base text-center">Send OTP</Text>
                 )}
@@ -219,7 +221,7 @@ export default function SignInScreen() {
                   value={referralCode}
                   onChangeText={(text) => setReferralCode(text.toUpperCase().replace(/[^A-Z0-9-]/g, ''))}
                   autoCapitalize="characters"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="colors.textSecondary"
                 />
               </View>
 
@@ -267,7 +269,7 @@ export default function SignInScreen() {
                   onChangeText={(text) => setOtp(text.replace(/[^0-9]/g, ''))}
                   maxLength={6}
                   autoFocus
-                  placeholderTextColor="#D1D5DB"
+                  placeholderTextColor="colors.border"
                 />
                 <Text className="text-gray-500 text-sm mt-2 text-center">
                   OTP sent to +91{phone}
@@ -280,7 +282,7 @@ export default function SignInScreen() {
                 disabled={isLoading || otp.length !== 6}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" />
+                  <ActivityIndicator color="colors.surface" />
                 ) : (
                   <Text className="text-white font-semibold text-base text-center">
                     Sign In

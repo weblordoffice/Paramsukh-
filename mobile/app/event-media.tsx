@@ -5,6 +5,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 
 import { useEventStore, EventVideo, EventPhoto } from '../store/eventStore';
+import { useTheme } from '../hooks/useTheme';
 
 function getYouTubeId(url: string): string | null {
   if (!url || typeof url !== 'string') return null;
@@ -17,6 +18,108 @@ const { width } = Dimensions.get('window');
 const PHOTO_SIZE = (width - 48) / 3;
 
 export default function EventMediaScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+  videoCard: {
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: 'colors.surface',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  photoItem: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: 'colors.border',
+  },
+  photoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12,
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  modalTopBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+  },
+  modalButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCounter: {
+    color: 'colors.surface',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalPhotoContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalPhotoWrapper: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalPhoto: {
+    width: '100%',
+    height: '100%',
+  },
+  modalPhotoPlaceholder: {
+    width: '80%',
+    height: '60%',
+    borderRadius: 20,
+  },
+  modalPlaceholderText: {
+    marginTop: 20,
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+    paddingHorizontal: 20,
+  },
+  navArrow: {
+    position: 'absolute',
+    top: '50%',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: -25,
+  },
+  navArrowLeft: {
+    left: 20,
+  },
+  navArrowRight: {
+    right: 20,
+  },
+  modalBottomBar: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 20,
+  },
+  modalCaption: {
+    color: 'colors.surface',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+});
   const router = useRouter();
   const params = useLocalSearchParams();
 
@@ -94,7 +197,7 @@ export default function EventMediaScreen() {
           className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3"
           onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/'); }}
         >
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          <Ionicons name="arrow-back" size={24} color="colors.surface" />
         </TouchableOpacity>
         <View className="flex-1">
           <Text className="text-base font-semibold text-white" numberOfLines={1}>
@@ -113,7 +216,7 @@ export default function EventMediaScreen() {
           style={{ borderColor: activeTab === 'videos' ? eventColor : 'transparent' }}
           onPress={() => setActiveTab('videos')}
         >
-          <Text style={{ color: activeTab === 'videos' ? eventColor : '#6B7280', fontWeight: activeTab === 'videos' ? '700' : '500' }}>
+          <Text style={{ color: activeTab === 'videos' ? eventColor : 'colors.textSecondary', fontWeight: activeTab === 'videos' ? '700' : '500' }}>
             Recordings ({videos.length})
           </Text>
         </TouchableOpacity>
@@ -122,7 +225,7 @@ export default function EventMediaScreen() {
           style={{ borderColor: activeTab === 'photos' ? eventColor : 'transparent' }}
           onPress={() => setActiveTab('photos')}
         >
-          <Text style={{ color: activeTab === 'photos' ? eventColor : '#6B7280', fontWeight: activeTab === 'photos' ? '700' : '500' }}>
+          <Text style={{ color: activeTab === 'photos' ? eventColor : 'colors.textSecondary', fontWeight: activeTab === 'photos' ? '700' : '500' }}>
             Gallery ({photos.length})
           </Text>
         </TouchableOpacity>
@@ -141,7 +244,7 @@ export default function EventMediaScreen() {
               {videos.length === 0 ? (
                 <View className="py-20 items-center justify-center">
                   <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center mb-4">
-                    <Ionicons name="videocam-off" size={40} color="#9CA3AF" />
+                    <Ionicons name="videocam-off" size={40} color="colors.textSecondary" />
                   </View>
                   <Text className="text-lg font-bold text-gray-900 mb-1">No Recordings Yet</Text>
                   <Text className="text-sm text-gray-500 text-center px-6">
@@ -178,7 +281,7 @@ export default function EventMediaScreen() {
                             className="w-16 h-16 rounded-full items-center justify-center"
                             style={{ backgroundColor: eventColor + 'E6' }}
                           >
-                            <Ionicons name="play" size={28} color="#FFFFFF" />
+                            <Ionicons name="play" size={28} color="colors.surface" />
                           </View>
                         </View>
                         {/* Duration Badge */}
@@ -210,11 +313,11 @@ export default function EventMediaScreen() {
                       )}
                       <View className="flex-row items-center gap-3">
                         <View className="flex-row items-center gap-1.5">
-                          <Ionicons name="time-outline" size={14} color="#6B7280" />
+                          <Ionicons name="time-outline" size={14} color="colors.textSecondary" />
                           <Text className="text-xs text-gray-500">{video.duration || 'Full length'}</Text>
                         </View>
                         <View className="flex-row items-center gap-1.5">
-                          <Ionicons name="play-circle-outline" size={14} color="#6B7280" />
+                          <Ionicons name="play-circle-outline" size={14} color="colors.textSecondary" />
                           <Text className="text-xs text-gray-500">Watch Now</Text>
                         </View>
                       </View>
@@ -228,7 +331,7 @@ export default function EventMediaScreen() {
               {photos.length === 0 ? (
                 <View className="py-20 items-center justify-center">
                   <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center mb-4">
-                    <Ionicons name="images-outline" size={40} color="#9CA3AF" />
+                    <Ionicons name="images-outline" size={40} color="colors.textSecondary" />
                   </View>
                   <Text className="text-lg font-bold text-gray-900 mb-1">No Photos Yet</Text>
                   <Text className="text-sm text-gray-500 text-center px-6">
@@ -288,7 +391,7 @@ export default function EventMediaScreen() {
           {/* Top Bar */}
           <View style={styles.modalTopBar}>
             <TouchableOpacity onPress={closeModal} style={styles.modalButton}>
-              <Ionicons name="close" size={28} color="#FFFFFF" />
+              <Ionicons name="close" size={28} color="colors.surface" />
             </TouchableOpacity>
             <Text style={styles.modalCounter}>
               {currentPhotoIndex} / {photos.length}
@@ -329,7 +432,7 @@ export default function EventMediaScreen() {
               <Ionicons
                 name="chevron-back"
                 size={32}
-                color={currentPhotoIndex <= 1 ? '#666' : '#FFFFFF'}
+                color={currentPhotoIndex <= 1 ? '#666' : 'colors.surface'}
               />
             </TouchableOpacity>
             <TouchableOpacity
@@ -340,7 +443,7 @@ export default function EventMediaScreen() {
               <Ionicons
                 name="chevron-forward"
                 size={32}
-                color={currentPhotoIndex >= photos.length ? '#666' : '#FFFFFF'}
+                color={currentPhotoIndex >= photos.length ? '#666' : 'colors.surface'}
               />
             </TouchableOpacity>
           </View>
@@ -359,104 +462,4 @@ export default function EventMediaScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  videoCard: {
-    marginBottom: 16,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  photoItem: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#E5E7EB',
-  },
-  photoImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 12,
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-  },
-  modalTopBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  modalButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCounter: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  modalPhotoContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalPhotoWrapper: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalPhoto: {
-    width: '100%',
-    height: '100%',
-  },
-  modalPhotoPlaceholder: {
-    width: '80%',
-    height: '60%',
-    borderRadius: 20,
-  },
-  modalPlaceholderText: {
-    marginTop: 20,
-    fontSize: 16,
-    fontWeight: '500',
-    textAlign: 'center',
-    paddingHorizontal: 20,
-  },
-  navArrow: {
-    position: 'absolute',
-    top: '50%',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: -25,
-  },
-  navArrowLeft: {
-    left: 20,
-  },
-  navArrowRight: {
-    right: 20,
-  },
-  modalBottomBar: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-    paddingTop: 20,
-  },
-  modalCaption: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-});
+

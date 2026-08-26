@@ -5,8 +5,122 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useBlogStore } from '../store/blogStore';
+import { useTheme } from '../hooks/useTheme';
 
 export default function BlogDetailScreen() {
+  const { colors } = useTheme();
+  const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: 'colors.background',
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'colors.background',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#8C7B73',
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  backButtonInline: {
+    backgroundColor: '#F1842D',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  backButtonTextInline: {
+    color: 'colors.surface',
+    fontWeight: '700',
+    fontSize: 15,
+  },
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    zIndex: 10,
+  },
+  circleButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#5C4A42',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  imageContainer: {
+    height: 280,
+    width: '100%',
+    backgroundColor: '#F4F3EB',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  placeholderContainer: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  contentContainer: {
+    paddingHorizontal: 24,
+    paddingTop: 24,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 16,
+  },
+  metaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  metaIcon: {
+    marginRight: 6,
+  },
+  metaText: {
+    fontSize: 13,
+    color: '#8C7B73',
+    fontWeight: '600',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#2C2420',
+    lineHeight: 32,
+    marginBottom: 16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#F4F3EB',
+    marginBottom: 20,
+  },
+  content: {
+    fontSize: 16,
+    color: '#5C4A42',
+    lineHeight: 26,
+    fontWeight: '400',
+  },
+});
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
@@ -133,115 +247,4 @@ export default function BlogDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FDF8F3',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FDF8F3',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#8C7B73',
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  backButtonInline: {
-    backgroundColor: '#F1842D',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  backButtonTextInline: {
-    color: '#FFFFFF',
-    fontWeight: '700',
-    fontSize: 15,
-  },
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    zIndex: 10,
-  },
-  circleButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#5C4A42',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  imageContainer: {
-    height: 280,
-    width: '100%',
-    backgroundColor: '#F4F3EB',
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  placeholderContainer: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  contentContainer: {
-    paddingHorizontal: 24,
-    paddingTop: 24,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 16,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  metaIcon: {
-    marginRight: 6,
-  },
-  metaText: {
-    fontSize: 13,
-    color: '#8C7B73',
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: '#2C2420',
-    lineHeight: 32,
-    marginBottom: 16,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#F4F3EB',
-    marginBottom: 20,
-  },
-  content: {
-    fontSize: 16,
-    color: '#5C4A42',
-    lineHeight: 26,
-    fontWeight: '400',
-  },
-});
+

@@ -6,8 +6,10 @@ import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } fro
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEventStore } from '../store/eventStore';
 import { useAuthStore } from '../store/authStore';
+import { useTheme } from '../hooks/useTheme';
 
 export default function EventDetailScreen() {
+  const { colors } = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams();
@@ -238,14 +240,14 @@ export default function EventDetailScreen() {
 
   if (isLoading || !event) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: 'colors.surface', justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={eventColor} />
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+    <View style={{ flex: 1, backgroundColor: 'colors.surface' }}>
       <ScrollView 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -278,7 +280,7 @@ export default function EventDetailScreen() {
             }}
             onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/'); }}
           >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={24} color="colors.surface" />
           </TouchableOpacity>
 
           {/* Gradient Overlay for Title if no banner */}
@@ -298,7 +300,7 @@ export default function EventDetailScreen() {
                   </Text>
                 </View>
                 <View style={{ width: 8 }} />
-                <View style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, backgroundColor: '#F3F4F6' }}>
+                <View style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, backgroundColor: 'colors.surfaceSecondary' }}>
                   <Text style={{ fontSize: 12, fontWeight: '700', color: '#4B5563', textTransform: 'uppercase' }}>
                     {event.status === 'cancelled' 
                       ? 'Cancelled' 
@@ -306,7 +308,7 @@ export default function EventDetailScreen() {
                   </Text>
                 </View>
               </View>
-              <Text style={{ fontSize: 28, fontWeight: '800', color: '#111827', lineHeight: 34 }}>
+              <Text style={{ fontSize: 28, fontWeight: '800', color: 'colors.text', lineHeight: 34 }}>
                 {event.title}
               </Text>
             </View>
@@ -317,34 +319,34 @@ export default function EventDetailScreen() {
 
           {/* Quick Info Grid */}
           <View style={{ flexDirection: 'row', marginTop: 24, gap: 12 }}>
-            <View style={{ flex: 1, backgroundColor: '#F9FAFB', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#F3F4F6' }}>
+            <View style={{ flex: 1, backgroundColor: 'colors.background', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: 'colors.surfaceSecondary' }}>
               <Ionicons name="calendar" size={20} color={eventColor} />
-              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8, fontWeight: '600' }}>DATE</Text>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937', marginTop: 2 }}>
+              <Text style={{ fontSize: 12, color: 'colors.textSecondary', marginTop: 8, fontWeight: '600' }}>DATE</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: 'colors.text', marginTop: 2 }}>
                 {formattedDate.split(',')[1]?.trim() || formattedDate}
               </Text>
             </View>
-            <View style={{ flex: 1, backgroundColor: '#F9FAFB', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#F3F4F6' }}>
+            <View style={{ flex: 1, backgroundColor: 'colors.background', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: 'colors.surfaceSecondary' }}>
               <Ionicons name="time" size={20} color={eventColor} />
-              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8, fontWeight: '600' }}>TIME</Text>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937', marginTop: 2 }}>
+              <Text style={{ fontSize: 12, color: 'colors.textSecondary', marginTop: 8, fontWeight: '600' }}>TIME</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: 'colors.text', marginTop: 2 }}>
                 {event.eventTime}
               </Text>
             </View>
           </View>
 
           <View style={{ flexDirection: 'row', marginTop: 12, gap: 12 }}>
-            <View style={{ flex: 1, backgroundColor: '#F9FAFB', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#F3F4F6' }}>
+            <View style={{ flex: 1, backgroundColor: 'colors.background', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: 'colors.surfaceSecondary' }}>
               <Ionicons name="location" size={20} color={eventColor} />
-              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8, fontWeight: '600' }}>LOCATION</Text>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937', marginTop: 2 }} numberOfLines={1}>
+              <Text style={{ fontSize: 12, color: 'colors.textSecondary', marginTop: 8, fontWeight: '600' }}>LOCATION</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: 'colors.text', marginTop: 2 }} numberOfLines={1}>
                 {event.location}
               </Text>
             </View>
-            <View style={{ flex: 1, backgroundColor: '#F9FAFB', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#F3F4F6' }}>
+            <View style={{ flex: 1, backgroundColor: 'colors.background', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: 'colors.surfaceSecondary' }}>
               <Ionicons name="people" size={20} color={eventColor} />
-              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 8, fontWeight: '600' }}>SPOTS</Text>
-              <Text style={{ fontSize: 15, fontWeight: '700', color: '#1F2937', marginTop: 2 }}>
+              <Text style={{ fontSize: 12, color: 'colors.textSecondary', marginTop: 8, fontWeight: '600' }}>SPOTS</Text>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: 'colors.text', marginTop: 2 }}>
                 {spotsLeft !== null ? `${spotsLeft} Left` : 'Unlimited'}
               </Text>
             </View>
@@ -352,7 +354,7 @@ export default function EventDetailScreen() {
 
           {/* Description Section */}
           <View style={{ marginTop: 32 }}>
-            <Text style={{ fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 12 }}>About the Event</Text>
+            <Text style={{ fontSize: 18, fontWeight: '800', color: 'colors.text', marginBottom: 12 }}>About the Event</Text>
             <Text style={{ fontSize: 16, color: '#4B5563', lineHeight: 24 }}>
               {event.description || event.shortDescription || 'No detailed description available for this event.'}
             </Text>
@@ -360,12 +362,12 @@ export default function EventDetailScreen() {
 
           {/* Requirements & Info */}
           {((event.requirements && event.requirements.length > 0) || (event.whatToBring && event.whatToBring.length > 0) || event.additionalInfo) ? (
-            <View style={{ marginTop: 32, backgroundColor: '#F9FAFB', borderRadius: 24, padding: 24 }}>
-              <Text style={{ fontSize: 18, fontWeight: '800', color: '#111827', marginBottom: 16 }}>Important Information</Text>
+            <View style={{ marginTop: 32, backgroundColor: 'colors.background', borderRadius: 24, padding: 24 }}>
+              <Text style={{ fontSize: 18, fontWeight: '800', color: 'colors.text', marginBottom: 16 }}>Important Information</Text>
               
               {(event.requirements && event.requirements.length > 0) ? (
                 <View style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 6 }}>Requirements</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: 'colors.text', marginBottom: 6 }}>Requirements</Text>
                   {event.requirements.map((item: string, idx: number) => (
                     <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                       <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: eventColor, marginRight: 10 }} />
@@ -377,7 +379,7 @@ export default function EventDetailScreen() {
 
               {(event.whatToBring && event.whatToBring.length > 0) ? (
                 <View style={{ marginBottom: 16 }}>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 6 }}>What to Bring</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: 'colors.text', marginBottom: 6 }}>What to Bring</Text>
                   {event.whatToBring.map((item: string, idx: number) => (
                     <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                       <Ionicons name="add-circle" size={14} color={eventColor} style={{ marginRight: 6 }} />
@@ -389,7 +391,7 @@ export default function EventDetailScreen() {
 
               {event.additionalInfo && (
                 <View>
-                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 6 }}>Notes</Text>
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: 'colors.text', marginBottom: 6 }}>Notes</Text>
                   <Text style={{ fontSize: 15, color: '#4B5563' }}>{event.additionalInfo}</Text>
                 </View>
               )}
@@ -412,7 +414,7 @@ export default function EventDetailScreen() {
               onPress={() => { if (event.onlineMeetingLink) Linking.openURL(event.onlineMeetingLink).catch(() => {}); }}
             >
               <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
-                <Ionicons name="videocam" size={24} color="#FFFFFF" />
+                <Ionicons name="videocam" size={24} color="colors.surface" />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 16, fontWeight: '700', color: '#1E40AF' }}>Join Online Meeting</Text>
@@ -424,15 +426,15 @@ export default function EventDetailScreen() {
 
           {/* Organizer */}
           {event.organizer && (
-            <View style={{ marginTop: 32, borderTopWidth: 1, borderTopColor: '#F3F4F6', paddingTop: 24 }}>
-              <Text style={{ fontSize: 14, color: '#6B7280', fontWeight: '600' }}>ORGANIZER</Text>
+            <View style={{ marginTop: 32, borderTopWidth: 1, borderTopColor: 'colors.surfaceSecondary', paddingTop: 24 }}>
+              <Text style={{ fontSize: 14, color: 'colors.textSecondary', fontWeight: '600' }}>ORGANIZER</Text>
               <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
-                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="business" size={24} color="#9CA3AF" />
+                <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: 'colors.surfaceSecondary', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="business" size={24} color="colors.textSecondary" />
                 </View>
                 <View style={{ marginLeft: 12 }}>
-                  <Text style={{ fontSize: 17, fontWeight: '700', color: '#1F2937' }}>{event.organizer}</Text>
-                  <Text style={{ fontSize: 14, color: '#6B7280' }}>Event Host</Text>
+                  <Text style={{ fontSize: 17, fontWeight: '700', color: 'colors.text' }}>{event.organizer}</Text>
+                  <Text style={{ fontSize: 14, color: 'colors.textSecondary' }}>Event Host</Text>
                 </View>
               </View>
             </View>
@@ -447,12 +449,12 @@ export default function EventDetailScreen() {
           bottom: 0, 
           left: 0, 
           right: 0, 
-          backgroundColor: '#FFFFFF', 
+          backgroundColor: 'colors.surface', 
           paddingHorizontal: 24, 
           paddingTop: 16, 
           paddingBottom: Math.max(insets.bottom, 16),
           borderTopWidth: 1,
-          borderTopColor: '#F3F4F6',
+          borderTopColor: 'colors.surfaceSecondary',
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -464,14 +466,14 @@ export default function EventDetailScreen() {
         }}
       >
         <View>
-          <Text style={{ fontSize: 14, color: '#6B7280', fontWeight: '600' }}>PRICING</Text>
-          <Text style={{ fontSize: 24, fontWeight: '800', color: '#111827' }}>
+          <Text style={{ fontSize: 14, color: 'colors.textSecondary', fontWeight: '600' }}>PRICING</Text>
+          <Text style={{ fontSize: 24, fontWeight: '800', color: 'colors.text' }}>
             {event.isPaid ? `Rs. ${priceValue}` : 'Free'}
           </Text>
         </View>
 
         {isCheckingRegistration ? (
-          <View style={{ width: 160, height: 56, borderRadius: 16, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ width: 160, height: 56, borderRadius: 16, backgroundColor: 'colors.surfaceSecondary', alignItems: 'center', justifyContent: 'center' }}>
             <ActivityIndicator size="small" color={eventColor} />
           </View>
         ) : event.hasAttended ? (
@@ -484,8 +486,8 @@ export default function EventDetailScreen() {
             justifyContent: 'center',
             flexDirection: 'row'
           }}>
-            <Ionicons name="star" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Attended</Text>
+            <Ionicons name="star" size={20} color="colors.surface" style={{ marginRight: 8 }} />
+            <Text style={{ color: 'colors.surface', fontSize: 16, fontWeight: '700' }}>Attended</Text>
           </View>
         ) : isRegistered ? (
           <TouchableOpacity
@@ -502,18 +504,18 @@ export default function EventDetailScreen() {
             disabled={processing}
           >
             {processing ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color="colors.surface" />
             ) : (
               <>
-                <Ionicons name="close-circle" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
-                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>Cancel</Text>
+                <Ionicons name="close-circle" size={20} color="colors.surface" style={{ marginRight: 8 }} />
+                <Text style={{ color: 'colors.surface', fontSize: 16, fontWeight: '700' }}>Cancel</Text>
               </>
             )}
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
             style={{ 
-              backgroundColor: canRegister ? eventColor : '#9CA3AF', 
+              backgroundColor: canRegister ? eventColor : 'colors.textSecondary', 
               paddingHorizontal: 32, 
               height: 56, 
               borderRadius: 16, 
@@ -529,9 +531,9 @@ export default function EventDetailScreen() {
             onPress={() => setShowRegisterForm(true)}
           >
             {processing ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color="colors.surface" />
             ) : (
-              <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '700' }}>
+              <Text style={{ color: 'colors.surface', fontSize: 16, fontWeight: '700' }}>
                 {canRegister ? 'Register Now' : 'Closed'}
               </Text>
             )}
@@ -542,49 +544,49 @@ export default function EventDetailScreen() {
       {/* Register Form Modal */}
       {showRegisterForm && (
         <View style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', padding: 20, zIndex: 100 }}>
-          <View style={{ backgroundColor: '#FFFFFF', width: '100%', maxWidth: 450, borderRadius: 32, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.2, shadowRadius: 40, elevation: 25 }}>
+          <View style={{ backgroundColor: 'colors.surface', width: '100%', maxWidth: 450, borderRadius: 32, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 20 }, shadowOpacity: 0.2, shadowRadius: 40, elevation: 25 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
               <View>
-                <Text style={{ fontSize: 22, fontWeight: '800', color: '#111827' }}>Registration</Text>
-                <Text style={{ fontSize: 14, color: '#6B7280', marginTop: 2 }}>Confirm your details</Text>
+                <Text style={{ fontSize: 22, fontWeight: '800', color: 'colors.text' }}>Registration</Text>
+                <Text style={{ fontSize: 14, color: 'colors.textSecondary', marginTop: 2 }}>Confirm your details</Text>
               </View>
-              <TouchableOpacity onPress={() => setShowRegisterForm(false)} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="close" size={20} color="#6B7280" />
+              <TouchableOpacity onPress={() => setShowRegisterForm(false)} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'colors.surfaceSecondary', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="close" size={20} color="colors.textSecondary" />
               </TouchableOpacity>
             </View>
 
             <View style={{ gap: 20 }}>
               <View>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 8, marginLeft: 4 }}>Full Name</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: 'colors.text', marginBottom: 8, marginLeft: 4 }}>Full Name</Text>
                 <TextInput
                   value={form.name}
                   onChangeText={(text) => setForm({ ...form, name: text })}
                   placeholder="Enter your name"
-                  placeholderTextColor="#9CA3AF"
-                  style={{ width: '100%', height: 56, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6', borderRadius: 16, paddingHorizontal: 16, fontSize: 16, color: '#111827' }}
+                  placeholderTextColor="colors.textSecondary"
+                  style={{ width: '100%', height: 56, backgroundColor: 'colors.background', borderWidth: 1, borderColor: 'colors.surfaceSecondary', borderRadius: 16, paddingHorizontal: 16, fontSize: 16, color: 'colors.text' }}
                 />
               </View>
               <View>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 8, marginLeft: 4 }}>Email Address</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: 'colors.text', marginBottom: 8, marginLeft: 4 }}>Email Address</Text>
                 <TextInput
                   value={form.email}
                   onChangeText={(text) => setForm({ ...form, email: text })}
                   placeholder="you@example.com"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="colors.textSecondary"
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  style={{ width: '100%', height: 56, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6', borderRadius: 16, paddingHorizontal: 16, fontSize: 16, color: '#111827' }}
+                  style={{ width: '100%', height: 56, backgroundColor: 'colors.background', borderWidth: 1, borderColor: 'colors.surfaceSecondary', borderRadius: 16, paddingHorizontal: 16, fontSize: 16, color: 'colors.text' }}
                 />
               </View>
               <View>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: '#374151', marginBottom: 8, marginLeft: 4 }}>Phone Number</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: 'colors.text', marginBottom: 8, marginLeft: 4 }}>Phone Number</Text>
                 <TextInput
                   value={form.phone}
                   onChangeText={(text) => setForm({ ...form, phone: text })}
                   placeholder="Your mobile number"
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor="colors.textSecondary"
                   keyboardType="phone-pad"
-                  style={{ width: '100%', height: 56, backgroundColor: '#F9FAFB', borderWidth: 1, borderColor: '#F3F4F6', borderRadius: 16, paddingHorizontal: 16, fontSize: 16, color: '#111827' }}
+                  style={{ width: '100%', height: 56, backgroundColor: 'colors.background', borderWidth: 1, borderColor: 'colors.surfaceSecondary', borderRadius: 16, paddingHorizontal: 16, fontSize: 16, color: 'colors.text' }}
                 />
               </View>
             </View>
@@ -603,7 +605,7 @@ export default function EventDetailScreen() {
                     disabled={processing}
                     onPress={handlePaidEventPayment}
                   >
-                    <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800' }}>
+                    <Text style={{ color: 'colors.surface', fontSize: 18, fontWeight: '800' }}>
                       {processing ? 'Processing...' : `Pay Rs. ${priceValue}`}
                     </Text>
                   </TouchableOpacity>
@@ -614,7 +616,7 @@ export default function EventDetailScreen() {
                   disabled={processing}
                   onPress={() => submitRegistration(false)}
                 >
-                  <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '800' }}>
+                  <Text style={{ color: 'colors.surface', fontSize: 18, fontWeight: '800' }}>
                     {processing ? 'Processing...' : 'Confirm Registration'}
                   </Text>
                 </TouchableOpacity>
