@@ -138,6 +138,27 @@ export const sendOTP = async (phone) => {
 export const verifyOTP = async (phone, otp) => {
   try {
     const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '');
+    const isTestNumber =
+      cleanPhone === '9999999999' ||
+      cleanPhone === '9888888888' ||
+      cleanPhone === (process.env.PLAYSTORE_REVIEW_MOBILE || '').replace(/\D/g, '');
+    const reviewOtp = process.env.PLAYSTORE_REVIEW_OTP || '123456';
+
+    // 1. Always accept test OTP for test/review numbers
+    if (isTestNumber && (otp.toString() === '123456' || otp.toString() === reviewOtp)) {
+      return {
+        success: true,
+        message: 'OTP verified successfully'
+      };
+    }
+
+    // 2. In development mode, accept 123456 for any phone number
+    if (process.env.NODE_ENV !== 'production' && otp.toString() === '123456') {
+      return {
+        success: true,
+        message: 'OTP verified successfully'
+      };
+    }
 
     const stored = otpStore.get(cleanPhone);
 

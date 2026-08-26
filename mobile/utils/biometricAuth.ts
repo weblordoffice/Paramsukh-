@@ -2,6 +2,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 interface BiometricAuthOptions {
   promptMessage?: string;
@@ -17,6 +18,7 @@ export const SECURE_REFRESH_KEY = 'refresh_token';
  * Check if device supports biometric authentication
  */
 export const isBiometricAvailable = async (): Promise<boolean> => {
+  if (Platform.OS === 'web') return false;
   try {
     const compatible = await LocalAuthentication.hasHardwareAsync();
     if (!compatible) {
@@ -34,6 +36,7 @@ export const isBiometricAvailable = async (): Promise<boolean> => {
  * Get available authentication types
  */
 export const getAuthenticationTypes = async (): Promise<LocalAuthentication.AuthenticationType[]> => {
+  if (Platform.OS === 'web') return [];
   try {
     const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
     return types;
@@ -46,6 +49,7 @@ export const getAuthenticationTypes = async (): Promise<LocalAuthentication.Auth
  * Enable biometric authentication for the app
  */
 export const enableBiometricAuth = async (): Promise<boolean> => {
+  if (Platform.OS === 'web') return false;
   try {
     const available = await isBiometricAvailable();
     if (!available) {
@@ -65,14 +69,14 @@ export const enableBiometricAuth = async (): Promise<boolean> => {
 export const disableBiometricAuth = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(BIOMETRIC_KEY);
-  } catch (error) {
-  }
+  } catch (error) {}
 };
 
 /**
  * Check if biometric auth is enabled
  */
 export const isBiometricEnabled = async (): Promise<boolean> => {
+  if (Platform.OS === 'web') return false;
   try {
     const enabled = await AsyncStorage.getItem(BIOMETRIC_KEY);
     return enabled === 'true';
@@ -87,10 +91,11 @@ export const isBiometricEnabled = async (): Promise<boolean> => {
 export const authenticateWithBiometrics = async (
   options: BiometricAuthOptions = {}
 ): Promise<boolean> => {
+  if (Platform.OS === 'web') return true;
   const {
     promptMessage = 'Authenticate to continue',
     fallbackLabel = 'Use passcode',
-    cancelLabel = 'Cancel'
+    cancelLabel = 'Cancel',
   } = options;
 
   try {
@@ -119,10 +124,12 @@ export const authenticateWithBiometrics = async (
  * Store token securely
  */
 export const storeTokenSecurely = async (token: string): Promise<void> => {
-  try {
-    await SecureStore.setItemAsync(SECURE_TOKEN_KEY, token);
-  } catch (error) {
-    console.warn('[SECURITY] SecureStore set failed — falling back to AsyncStorage', error);
+  if (Platform.OS !== 'web') {
+    try {
+      await SecureStore.setItemAsync(SECURE_TOKEN_KEY, token);
+    } catch (error) {
+      console.warn('[SECURITY] SecureStore set failed — falling back to AsyncStorage', error);
+    }
   }
   await AsyncStorage.setItem('token', token);
 };
@@ -131,10 +138,12 @@ export const storeTokenSecurely = async (token: string): Promise<void> => {
  * Store refresh token securely
  */
 export const storeRefreshTokenSecurely = async (token: string): Promise<void> => {
-  try {
-    await SecureStore.setItemAsync(SECURE_REFRESH_KEY, token);
-  } catch (error) {
-    console.warn('[SECURITY] SecureStore set failed — falling back to AsyncStorage', error);
+  if (Platform.OS !== 'web') {
+    try {
+      await SecureStore.setItemAsync(SECURE_REFRESH_KEY, token);
+    } catch (error) {
+      console.warn('[SECURITY] SecureStore set failed — falling back to AsyncStorage', error);
+    }
   }
   await AsyncStorage.setItem('refreshToken', token);
 };
@@ -143,11 +152,13 @@ export const storeRefreshTokenSecurely = async (token: string): Promise<void> =>
  * Get token from secure storage
  */
 export const getTokenSecurely = async (): Promise<string | null> => {
-  try {
-    const token = await SecureStore.getItemAsync(SECURE_TOKEN_KEY);
-    if (token) return token;
-  } catch (error) {
-    console.warn('[SECURITY] SecureStore read failed', error);
+  if (Platform.OS !== 'web') {
+    try {
+      const token = await SecureStore.getItemAsync(SECURE_TOKEN_KEY);
+      if (token) return token;
+    } catch (error) {
+      console.warn('[SECURITY] SecureStore read failed', error);
+    }
   }
   return await AsyncStorage.getItem('token');
 };
@@ -156,11 +167,13 @@ export const getTokenSecurely = async (): Promise<string | null> => {
  * Get refresh token from secure storage
  */
 export const getRefreshTokenSecurely = async (): Promise<string | null> => {
-  try {
-    const token = await SecureStore.getItemAsync(SECURE_REFRESH_KEY);
-    if (token) return token;
-  } catch (error) {
-    console.warn('[SECURITY] SecureStore read failed', error);
+  if (Platform.OS !== 'web') {
+    try {
+      const token = await SecureStore.getItemAsync(SECURE_REFRESH_KEY);
+      if (token) return token;
+    } catch (error) {
+      console.warn('[SECURITY] SecureStore read failed', error);
+    }
   }
   return await AsyncStorage.getItem('refreshToken');
 };
@@ -169,11 +182,13 @@ export const getRefreshTokenSecurely = async (): Promise<string | null> => {
  * Clear all secure tokens
  */
 export const clearSecureTokens = async (): Promise<void> => {
-  try {
-    await SecureStore.deleteItemAsync(SECURE_TOKEN_KEY);
-    await SecureStore.deleteItemAsync(SECURE_REFRESH_KEY);
-  } catch (error) {
-    console.warn('[SECURITY] SecureStore unavailable — attempting AsyncStorage token cleanup', error);
+  if (Platform.OS !== 'web') {
+    try {
+      await SecureStore.deleteItemAsync(SECURE_TOKEN_KEY);
+      await SecureStore.deleteItemAsync(SECURE_REFRESH_KEY);
+    } catch (error) {
+      console.warn('[SECURITY] SecureStore unavailable', error);
+    }
   }
   await AsyncStorage.multiRemove(['token', 'refreshToken']);
 };

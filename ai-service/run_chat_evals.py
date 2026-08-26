@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from app.models.chat import ChatRequest, ConversationContext, UserContext
-from app.services.gemini_service import GeminiService
+from app.services.openai_service import OpenAIService
 
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -88,7 +88,7 @@ def build_failure_reason(
 
 
 def run_live_cases(case_id: str | None = None) -> list[dict[str, Any]]:
-    service = GeminiService()
+    service = OpenAIService()
     selected_cases = [
         case for case in load_cases()
         if case_id is None or case["id"] == case_id
@@ -147,7 +147,7 @@ def print_summary(results: list[dict[str, Any]], *, live: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run ParamSukh AI chat evaluation cases.")
-    parser.add_argument("--live", action="store_true", help="Call the configured Gemini model and inspect tool selection.")
+    parser.add_argument("--live", action="store_true", help="Call the configured OpenAI model and inspect tool selection.")
     parser.add_argument("--case", dest="case_id", help="Run or inspect only one case id.")
     parser.add_argument("--json", action="store_true", help="Print JSON instead of the text summary.")
     args = parser.parse_args()

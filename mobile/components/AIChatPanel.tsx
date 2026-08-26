@@ -39,6 +39,7 @@ import { pollPaymentConfirmation } from '../utils/paymentBrowser';
 import { AIScreenContext } from '../utils/aiScreenContext';
 import EventSource from 'react-native-sse';
 import { getTokenSecurely } from '../utils/biometricAuth';
+import { getDeviceDetailsMobile } from '../utils/deviceInfo';
 import { API_URL } from '../config/api';
 
 type AIChatPanelProps = {
@@ -633,6 +634,7 @@ export default function AIChatPanel({
       const messageId = await appendMessage('assistant', '', { actionStatus: 'Thinking...' });
 
       const token = await getTokenSecurely();
+      const device = await getDeviceDetailsMobile();
       const payload = {
         message: text,
         conversation_id: sessionId || undefined,
@@ -653,6 +655,10 @@ export default function AIChatPanel({
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
+          'x-device-id': device.deviceId,
+          'x-device-name': device.deviceName,
+          'x-device-os': device.os,
+          'x-device-browser': device.browser,
         },
         method: 'POST',
         body: JSON.stringify(payload),

@@ -12,7 +12,7 @@ from app.models.chat import (
     ToolExecution,
     MemoryItem,
 )
-from app.services.gemini_service import GeminiService
+from app.services.openai_service import OpenAIService
 from app.services.orchestrator import ChatOrchestrator
 from app.services.suggestions import generate_follow_up, generate_status_text, generate_suggested_actions
 from app.services.result_builder import build_result_sections
@@ -87,12 +87,12 @@ class StreamingChatOrchestrator:
             yield StreamEvent(event="done", data={"session_id": session_id})
             return
 
-        if not self.settings.gemini_api_key:
-            yield StreamEvent(event="text_delta", data={"text": "AI service is scaffolded, but GEMINI_API_KEY is not configured yet. Add it to ai-service/.env before enabling chat responses."})
+        if not self.settings.openai_api_key:
+            yield StreamEvent(event="text_delta", data={"text": "AI service is scaffolded, but OPENAI_API_KEY is not configured yet. Add it to ai-service/.env before enabling chat responses."})
             yield StreamEvent(event="done", data={"session_id": session_id})
             return
 
-        service = GeminiService()
+        service = OpenAIService()
         extracted_memory = service.extract_memory_items(payload)
         
         # 2. Check for Intent fallbacks (Direct tool execution)

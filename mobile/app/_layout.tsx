@@ -2,7 +2,7 @@ import { Stack, usePathname, useRouter } from 'expo-router';
 import './global.css';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Platform } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { setClerkSignOut } from '../store/authStore';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -12,19 +12,33 @@ import { ClerkProvider, useUser, useAuth } from '@clerk/clerk-expo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
 const tokenCache = {
   async getToken(key: string) {
     try {
+      if (Platform.OS === 'web') {
+        return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+      }
       const item = await SecureStore.getItemAsync(key);
       return item;
     } catch (error) {
-      await SecureStore.deleteItemAsync(key);
+      try {
+        if (Platform.OS === 'web') {
+          if (typeof localStorage !== 'undefined') localStorage.removeItem(key);
+        } else {
+          await SecureStore.deleteItemAsync(key);
+        }
+      } catch {}
       return null;
     }
   },
   async saveToken(key: string, value: string) {
     try {
+      if (Platform.OS === 'web') {
+        if (typeof localStorage !== 'undefined') localStorage.setItem(key, value);
+        return;
+      }
       return SecureStore.setItemAsync(key, value);
     } catch (err) {
       return;
@@ -202,43 +216,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [user, token, isAuthRoute, isOnboardingRoute, pathname, isClerkLoaded, isSyncing]);
 
-  // ── Render-phase guards (prevent UI flash during redirects) ──
+  // ── Render-phase guards ──
 
-  if (!isClerkLoaded || isSyncing) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
-        <ActivityIndicator size="large" color="#F1842D" />
-      </View>
-    );
-  }
-
-  if ((!user || !token) && !isAuthRoute) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
-        <ActivityIndicator size="large" color="#F1842D" />
-      </View>
-    );
-  }
-
-  const hasOnboarded = user?.onboardingCompleted || !!user?.phone;
-
-  if (user && token && hasOnboarded && isAuthRoute) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
-        <ActivityIndicator size="large" color="#F1842D" />
-      </View>
-    );
-  }
-
-  if (user && !hasOnboarded && pathname !== '/verify-phone') {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
-        <ActivityIndicator size="large" color="#F1842D" />
-      </View>
-    );
-  }
-
-  if (user && hasOnboarded && !user.assessmentCompleted && !isOnboardingRoute) {
+  if (isSyncing) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFFFFF' }}>
         <ActivityIndicator size="large" color="#F1842D" />
@@ -269,7 +249,10 @@ export default function RootLayout() {
     );
   }
 
-  const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || '';
+  const publishableKey =
+    process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+    (Constants?.expoConfig?.extra as any)?.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ||
+    'pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ';
 
   return (
     <SafeAreaProvider>

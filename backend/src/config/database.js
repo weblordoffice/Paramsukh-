@@ -14,14 +14,21 @@ const connectDatabase = async () => {
     const maxRetries = Number(process.env.MONGO_MAX_RETRIES || 12);
     const retryDelayMs = Number(process.env.MONGO_RETRY_DELAY_MS || 5000);
 
+    const isAtlasOrSsl = uri.includes('mongodb+srv') || uri.includes('ssl=true') || process.env.MONGO_SSL === 'true';
+
     for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
         try {
-            const conn = await mongoose.connect(uri, {
+            const options = {
                 serverSelectionTimeoutMS: 15000,
-                ssl: true,
-                tls: true,
-                tlsAllowInvalidCertificates: process.env.NODE_ENV !== 'production' ? true : false,
-            });
+                ...(isAtlasOrSsl
+                    ? {
+                          ssl: true,
+                          tls: true,
+                          tlsAllowInvalidCertificates: process.env.NODE_ENV !== 'production',
+                      }
+                    : {}),
+            };
+            const conn = await mongoose.connect(uri, options);
             console.log(`MongoDB Connected: ${conn.connection.host}`);
             return;
         } catch (error) {
