@@ -3,7 +3,7 @@ import Product from '../../models/product.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 
 // @desc    Update order status (Admin only)
-// @route   PATCH /api/orders/admin/:id/status
+// @route   PATCH /api/orders/:id/status
 // @access  Admin
 export const updateOrderStatusAdmin = async (req, res) => {
     try {
@@ -26,7 +26,7 @@ export const updateOrderStatusAdmin = async (req, res) => {
         order.statusHistory.push({
             status,
             comment: remarks || `Status updated to ${status} by admin`,
-            updatedBy: req.user?._id || 'admin' // Assuming adminAuth attaches user, or use 'admin'
+            updatedBy: req.admin?._id || null // adminAuth attaches the admin as req.admin
         });
 
         // Handle specific status logic
@@ -35,16 +35,26 @@ export const updateOrderStatusAdmin = async (req, res) => {
             order.payment.status = 'completed'; // Assume payment collected on delivery if COD
         } else if (status === 'shipped') {
             order.shippedAt = Date.now();
-        } else if (status === 'cancelled' && oldStatus !== 'cancelled') {
-            // Restore inventory if cancelled
+        } else if (status === 'confirmed') {
+            order.confirmedAt = Date.now();
+        } else if ((status === 'cancelled' || status === 'returned') && oldStatus !== status) {
+            // Restore inventory if cancelled or returned
             for (const item of order.items) {
-                const product = await Product.findById(item.product);
-                if (product) {
-                    product.inventory.quantity += item.quantity;
-                    await product.save();
+                try {
+                    const product = await Product.findById(item.product);
+                    if (product) {
+                        product.inventory.stock += item.quantity;
+                        await product.save();
+                    }
+                } catch (invErr) {
+                    console.error(`Failed to restore inventory for product ${item.product}:`, invErr.message);
                 }
             }
-            order.cancelledAt = Date.now();
+            if (status === 'cancelled') {
+                order.cancelledAt = Date.now();
+            } else {
+                order.returnedAt = Date.now();
+            }
         }
 
         await order.save();
@@ -76,7 +86,7 @@ export const updateOrderStatusAdmin = async (req, res) => {
 };
 
 // @desc    Get order details (Admin)
-// @route   GET /api/orders/admin/:id
+// @route   GET /api/orders/:id/admin
 // @access  Admin
 export const getOrderDetailsAdmin = async (req, res) => {
     try {
