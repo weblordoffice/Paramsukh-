@@ -86,26 +86,38 @@ export const fireTrigger = async (triggerEvent, { referrerId, referredUserId, am
 export const releaseHeldPoints = async () => {
   const now = new Date();
   const held = await PointTransaction.find({ status: 'held', holdUntil: { $lte: now } });
+  let released = 0;
   for (const tx of held) {
-    tx.status = 'active';
-    await tx.save();
+    try {
+      tx.status = 'active';
+      await tx.save();
+      released++;
+    } catch (err) {
+      console.error('❌ Failed to release held points tx', tx._id?.toString(), err.message);
+    }
   }
-  return held.length;
+  return released;
 };
 
 export const expireOldPoints = async () => {
   const now = new Date();
   const expired = await PointTransaction.find({ status: 'active', expiresAt: { $lte: now, $ne: null } });
+  let expiredCount = 0;
   for (const tx of expired) {
-    const user = await User.findById(tx.userId);
-    if (user) {
-      user.referralPoints = Math.max(0, (user.referralPoints || 0) - tx.points);
-      await user.save();
+    try {
+      const user = await User.findById(tx.userId);
+      if (user) {
+        user.referralPoints = Math.max(0, (user.referralPoints || 0) - tx.points);
+        await user.save();
+      }
+      tx.status = 'expired';
+      await tx.save();
+      expiredCount++;
+    } catch (err) {
+      console.error('❌ Failed to expire points tx', tx._id?.toString(), err.message);
     }
-    tx.status = 'expired';
-    await tx.save();
   }
-  return expired.length;
+  return expiredCount;
 };
 
 export const redeemPoints = async (userId, points, orderId) => {

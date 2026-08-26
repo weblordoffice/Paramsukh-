@@ -142,11 +142,23 @@ export const createOrder = async (req, res) => {
     let referralPointsDiscount = 0;
     let referralPointsRedeemed = 0;
     if (useReferralPoints && parseInt(useReferralPoints) > 0) {
-      const pointsToRedeem = parseInt(useReferralPoints);
       const refConfig = await ReferralConfig.findOne();
       if (!refConfig || !refConfig.isActive) {
         return res.status(400).json({ success: false, message: 'Referral system is currently inactive' });
       }
+
+      const pointValue = refConfig.pointValueInRupees || 1;
+      let pointsToRedeem = parseInt(useReferralPoints);
+
+      // Enforce admin-configured cap: referral discount cannot exceed
+      // maxRedemptionPercent of the order total.
+      const maxRedemptionPercent = refConfig.maxRedemptionPercent || 100;
+      const maxRedeemableValue = (cart.total * maxRedemptionPercent) / 100;
+      const maxRedeemablePoints = Math.floor(maxRedeemableValue / pointValue);
+      if (pointsToRedeem > maxRedeemablePoints) {
+        pointsToRedeem = maxRedeemablePoints;
+      }
+
       if (pointsToRedeem < refConfig.minRedemptionPoints) {
         return res.status(400).json({ success: false, message: `Minimum ${refConfig.minRedemptionPoints} points required for redemption` });
       }
@@ -154,7 +166,6 @@ export const createOrder = async (req, res) => {
       if (!currentUser || (currentUser.referralPoints || 0) < pointsToRedeem) {
         return res.status(400).json({ success: false, message: 'Insufficient referral points' });
       }
-      const pointValue = refConfig.pointValueInRupees || 1;
       referralPointsDiscount = pointsToRedeem * pointValue;
       referralPointsRedeemed = pointsToRedeem;
     }

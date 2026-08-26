@@ -41,6 +41,7 @@ import { handlePodcastPaymentWebhook } from './controller/podcast/podcastPayment
 import { handleDonationWebhook } from './controller/donations/donations.controller.js';
 import { setupCounselingCrons } from './services/counselingCron.service.js';
 import { setupOrderCrons } from './services/orderCron.service.js';
+import { setupReferralCrons } from './services/referralCron.service.js';
 dotenv.config();
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -392,6 +393,9 @@ setupCounselingCrons();
 
 // Setup order system cron jobs (auto-expire stale pending orders)
 setupOrderCrons();
+
+// Setup referral system cron jobs (release held points / expire old points)
+setupReferralCrons();
 
 // GLOBAL ERROR HANDLER - Must be after all routes
 app.use((err, req, res, next) => {
