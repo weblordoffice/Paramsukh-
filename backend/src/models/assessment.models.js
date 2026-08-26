@@ -9,8 +9,12 @@ const assessmentSchema = new mongoose.Schema({
   },
   // Personal Information
   birthDate: {
-    type: Date,
-    required: true
+    type: Date
+  },
+  age: {
+    type: Number,
+    min: 0,
+    max: 120
   },
   occupation: {
     type: String,

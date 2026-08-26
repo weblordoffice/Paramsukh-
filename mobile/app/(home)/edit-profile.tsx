@@ -39,6 +39,14 @@ export default function EditProfileScreen() {
     fetchUserProfile();
   }, []);
 
+  const computeAge = (dob: string | Date | undefined): string => {
+    if (!dob) return '';
+    const d = new Date(dob);
+    if (isNaN(d.getTime())) return '';
+    const ageNum = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000));
+    return ageNum > 0 && ageNum <= 120 ? ageNum.toString() : '';
+  };
+
   const fetchUserProfile = async () => {
     try {
       const token = await useAuthStore.getState().token;
@@ -50,7 +58,7 @@ export default function EditProfileScreen() {
         const details = response.data.profileDetails || {};
         setFormData({
           displayName: userData.displayName || '',
-          age: details.age ? details.age.toString() : '',
+          age: details.age ? details.age.toString() : computeAge(details.birthDate || userData.birthDate),
           occupation: details.occupation || '',
           location: details.location || '',
           physicalIssue: !!details.physicalIssue,
