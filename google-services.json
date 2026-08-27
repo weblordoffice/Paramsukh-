@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "677565869993",
+    "project_id": "paramskh-gurukul",
+    "storage_bucket": "paramskh-gurukul.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:677565869993:android:4280f220f1ee1233ef1eb8",
+        "android_client_info": {
+          "package_name": "com.paramsukh.onlinegurukul"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBVf7R5gVwb8s350EDZEuWBx6ywPUUZdqQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -35,8 +35,13 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <Text style={styles.icon}>⚠</Text>
           <Text style={styles.title}>Something went wrong</Text>
           <Text style={styles.message}>
-            The app encountered an unexpected error. Please try again.
+            {this.state.error?.message || 'The app encountered an unexpected error. Please try again.'}
           </Text>
+          {this.state.error?.stack && (
+            <Text style={{ fontSize: 10, color: '#9CA3AF', marginHorizontal: 16, marginBottom: 16 }} numberOfLines={4}>
+              {this.state.error.stack}
+            </Text>
+          )}
           <TouchableOpacity style={styles.button} onPress={this.handleRetry}>
             <Text style={styles.buttonText}>Try Again</Text>
           </TouchableOpacity>

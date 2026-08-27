@@ -11,7 +11,9 @@
       "supportsTablet": true,
       "buildNumber": "7",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -33,7 +35,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#ffffff",          
+          "backgroundColor": "#ffffff",
           "image": "./assets/images/splash-icon.png",
           "dark": {
             "backgroundColor": "#ffffff"
@@ -58,13 +60,13 @@
     },
     "extra": {
       "router": {},
-      "eas": {
-        "projectId": "97449424-f4d1-490f-a8d8-30ceb8a9f75e"
-      },
       "apiUrl": "https://api.paramsukhonlinegurukul.com",
       "privacyPolicyUrl": "https://ps-pp.vercel.app/",
-      "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ"
+      "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ",
+      "eas": {
+        "projectId": "d49ac848-8a56-4fe6-bfb3-7b4ad8a7a570"
+      }
     },
-    "owner": "weblordoffices-team"
+    "owner": "akash01010101"
   }
 }

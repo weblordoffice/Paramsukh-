@@ -14,7 +14,8 @@
         "simulator": true
       },
       "env": {
-        "EXPO_NO_DOTENV": "1"
+        "EXPO_NO_DOTENV": "1",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
     },
     "preview": {    
@@ -26,6 +27,7 @@
       },   
       "env": {
         "EXPO_NO_DOTENV": "1",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ"
       }
     },
@@ -35,6 +37,7 @@
       },
       "env": {
         "EXPO_NO_DOTENV": "1",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ"
       }
     },
@@ -44,6 +47,7 @@
       },
       "env": {
         "EXPO_NO_DOTENV": "1",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ"
       }
     }
