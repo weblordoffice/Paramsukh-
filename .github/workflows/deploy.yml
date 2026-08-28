@@ -177,8 +177,14 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
+
+            # 1. Free up disk space before git fetch
+            docker system prune -af || true
+            docker builder prune -af || true
+            journalctl --vacuum-time=1d 2>/dev/null || true
+            apt-get clean 2>/dev/null || true
+
             cd "${{ secrets.VPS_PROJECT_PATH }}"
-            docker image prune -f || true
             git fetch "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" master
             git reset --hard FETCH_HEAD
 
