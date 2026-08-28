@@ -212,7 +212,7 @@ jobs:
 
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
             BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" AI_SERVICE_IMAGE="${{ needs.build-and-push.outputs.ai_service_image }}" docker compose pull backend ai-service
-            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" AI_SERVICE_IMAGE="${{ needs.build-and-push.outputs.ai_service_image }}" NEXT_PUBLIC_ADMIN_API_KEY="${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" docker compose build --no-cache admin
+            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" AI_SERVICE_IMAGE="${{ needs.build-and-push.outputs.ai_service_image }}" NEXT_PUBLIC_ADMIN_API_KEY="${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" docker compose build admin
 
             if ! BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" NEXT_PUBLIC_ADMIN_API_KEY="${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" docker compose up -d ai-service backend admin; then
               echo "docker compose up failed; dumping ai-service/backend/admin logs"
