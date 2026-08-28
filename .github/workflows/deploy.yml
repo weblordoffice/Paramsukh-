@@ -177,6 +177,7 @@ jobs:
           script: |
             set -euo pipefail
             cd "${{ secrets.VPS_PROJECT_PATH }}"
+            docker image prune -f || true
             git fetch "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" master
             git reset --hard FETCH_HEAD
 
