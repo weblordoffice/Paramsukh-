@@ -1,7 +1,7 @@
 import { Stack, usePathname, useRouter } from 'expo-router';
 import './global.css';
 import { usePushNotifications } from '../hooks/usePushNotifications';
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuthStore, setClerkSignOut } from '../store/authStore';
 import { ErrorBoundary } from '../components/ErrorBoundary';
@@ -21,15 +21,13 @@ const tokenCache = {
       const item = await SecureStore.getItemAsync(key);
       return item;
     } catch (error) {
-      try {
-        await SecureStore.deleteItemAsync(key);
-      } catch (_) {}
+      await SecureStore.deleteItemAsync(key);
       return null;
     }
   },
   async saveToken(key: string, value: string) {
     try {
-      return await SecureStore.setItemAsync(key, value);
+      return SecureStore.setItemAsync(key, value);
     } catch (err) {
       return;
     }
@@ -76,6 +74,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     setClerkSignOut(clerkSignOut);
   }, [clerkSignOut]);
 
+  // Effect 1: Clerk -> Backend sync
   useEffect(() => {
     if (!isClerkLoaded || !clerkUser) return;
     if (user && token) return;
@@ -98,7 +97,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           displayName: clerkUser.fullName || clerkUser.firstName || 'Gurukul Member',
           photoURL: clerkUser.imageUrl,
           clerkToken: clerkToken || undefined,
-          referralCode: pendingReferralCode || undefined
+          referralCode: pendingReferralCode || undefined,
         });
         if (!cancelled && !result?.success) {
           dlog('Effect1: sync failed, redirecting to signin');
@@ -118,15 +117,19 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     };
     performSync();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [clerkUser, isClerkLoaded]);
 
+  // Effect 2: Fetch latest user data when session is authenticated
   useEffect(() => {
     if (user && token && user.phone && !isSyncing) {
       fetchCurrentUser();
     }
   }, [user?._id, !!token, isSyncing]);
 
+  // Effect 2b: Clean up expired pending payment links
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -142,9 +145,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         console.warn('[AuthGuard] Failed to clean pending payment links', e);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  // Effect 3: Route guard — enforces auth-based navigation
   useEffect(() => {
     if (!isClerkLoaded || isSyncing) return;
 
@@ -164,29 +170,29 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       hasOnboarded,
       assessmentCompleted: user.assessmentCompleted,
       pathname,
-      isAuthRoute
+      isAuthRoute,
     });
 
     if (hasOnboarded && isAuthRoute) {
-      dlog('Effect3: → / (onboarded auth route)');
+      dlog('Effect3: -> / (onboarded auth route)');
       router.replace('/');
       return;
     }
 
     if (hasOnboarded && pathname === '/verify-phone') {
-      dlog('Effect3: → / (onboarded on verify-phone)');
+      dlog('Effect3: -> / (onboarded on verify-phone)');
       router.replace('/');
       return;
     }
 
     if (!hasOnboarded && pathname !== '/verify-phone') {
-      dlog('Effect3: → /verify-phone');
+      dlog('Effect3: -> /verify-phone');
       router.replace('/verify-phone');
       return;
     }
 
     if (hasOnboarded && !user.assessmentCompleted && !isOnboardingRoute) {
-      dlog('Effect3: → /assessment');
+      dlog('Effect3: -> /assessment');
       router.replace('/assessment');
       return;
     }
@@ -261,21 +267,21 @@ export default function RootLayout() {
   const publishableKey =
     process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ||
     (Constants?.expoConfig?.extra as any)?.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY ||
-    'pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ';
+    '';
 
   return (
-    <ErrorBoundary>
-      <SafeAreaProvider>
-        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-          <AuthGuard>
-            <View style={{ flex: 1, backgroundColor: colors.background }}>
-              <StatusBar style={colors.statusBarStyle} />
+    <SafeAreaProvider>
+      <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+        <AuthGuard>
+          <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <StatusBar style={colors.statusBarStyle} />
+            <ErrorBoundary>
               <RootNavigator />
-              <AIAssistantWidget />
-            </View>
-          </AuthGuard>
-        </ClerkProvider>
-      </SafeAreaProvider>
-    </ErrorBoundary>
+            </ErrorBoundary>
+            <AIAssistantWidget />
+          </View>
+        </AuthGuard>
+      </ClerkProvider>
+    </SafeAreaProvider>
   );
 }

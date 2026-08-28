@@ -651,95 +651,183 @@ export default function AIChatPanel({
         },
       };
 
-      const es = new EventSource(`${API_URL}/chat/stream`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'x-device-id': device.deviceId,
-          'x-device-name': device.deviceName,
-          'x-device-os': device.os,
-          'x-device-browser': device.browser,
-        },
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-
-      let isDone = false;
-
       // Initialize the streaming buffer for this message
       streamBufferRef.current = { text: '', messageId, rafId: null, dirty: false };
 
-      es.addEventListener('message', (e) => {
-        try {
-          if (!e.data) return;
-          const payload = JSON.parse(e.data);
-          const event = payload.event;
-          const data = payload.data;
+      const handleEventPayload = (
+        payloadData: any,
+        onDone: (data: any) => void,
+        onError: (data: any) => void
+      ) => {
+        const event = payloadData.event;
+        const data = payloadData.data;
 
-          if (event === 'text_delta') {
-            appendStreamChunk(data.text || '');
-          } else if (event === 'action_status') {
-            updateMessage(messageId, (msg) => ({ ...msg, actionStatus: data.message || null }));
-          } else if (event === 'results') {
-            updateMessage(messageId, (msg) => ({
-              ...msg,
-              presentation: data,
-            }));
-          } else if (event === 'follow_up') {
-            updateMessage(messageId, (msg) => ({
-              ...msg,
-              narrative: { ...msg.narrative, outro: data.message },
-            }));
-          } else if (event === 'done') {
-            isDone = true;
-            // Flush any remaining buffered text before finishing
-            const buf = streamBufferRef.current;
-            if (buf.rafId !== null) {
-              cancelAnimationFrame(buf.rafId);
-              buf.rafId = null;
-            }
-            if (buf.dirty && buf.messageId) {
-              updateMessage(buf.messageId, (msg) => ({ ...msg, text: buf.text }));
-              buf.dirty = false;
-            }
-            if (data.session_id) {
-              setSessionId(data.session_id);
-              fetchConversations();
-              fetchMemoryItems();
-            }
-            es.close();
-            setIsSending(false);
-            setActiveThinkingMessage('');
-            // Persist full finished message state to AsyncStorage once at the end
-            useAIAssistantStore.getState().replaceMessages(useAIAssistantStore.getState().messages);
-          } else if (event === 'error') {
-            updateMessage(messageId, (msg) => ({
-              ...msg,
-              text: msg.text + (msg.text ? '\n\n' : '') + 'Error: ' + data.message,
-            }));
-            es.close();
-            setIsSending(false);
-            setActiveThinkingMessage('');
-            useAIAssistantStore.getState().replaceMessages(useAIAssistantStore.getState().messages);
-          }
-        } catch (err) {
-          // ignore parsing errors
-        }
-      });
-
-      es.addEventListener('error', (err) => {
-        if (!isDone) {
-          es.close();
+        if (event === 'text_delta') {
+          appendStreamChunk(data.text || '');
+        } else if (event === 'action_status') {
+          updateMessage(messageId, (msg) => ({ ...msg, actionStatus: data.message || null }));
+        } else if (event === 'results') {
           updateMessage(messageId, (msg) => ({
-             ...msg,
-             text: msg.text || 'Sorry, I could not reach the AI assistant right now. Please try again.',
-             actionStatus: null,
+            ...msg,
+            presentation: data,
+          }));
+        } else if (event === 'follow_up') {
+          updateMessage(messageId, (msg) => ({
+            ...msg,
+            narrative: { ...msg.narrative, outro: data.message },
+          }));
+        } else if (event === 'done') {
+          onDone(data);
+        } else if (event === 'error') {
+          onError(data);
+        }
+      };
+
+      if (Platform.OS === 'web') {
+        const response = await fetch(`${API_URL}/chat/stream`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'x-device-id': device.deviceId,
+            'x-device-name': device.deviceName,
+            'x-device-os': device.os,
+            'x-device-browser': device.browser,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Chat stream failed with status ${response.status}`);
+        }
+
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        const finishDone = (data: any) => {
+          const buf = streamBufferRef.current;
+          if (buf.rafId !== null) {
+            cancelAnimationFrame(buf.rafId);
+            buf.rafId = null;
+          }
+          if (buf.dirty && buf.messageId) {
+            updateMessage(buf.messageId, (msg) => ({ ...msg, text: buf.text }));
+            buf.dirty = false;
+          }
+          if (data?.session_id) {
+            setSessionId(data.session_id);
+            fetchConversations();
+            fetchMemoryItems();
+          }
+          setIsSending(false);
+          setActiveThinkingMessage('');
+          useAIAssistantStore.getState().replaceMessages(useAIAssistantStore.getState().messages);
+        };
+
+        const finishError = (data: any) => {
+          updateMessage(messageId, (msg) => ({
+            ...msg,
+            text: msg.text + (msg.text ? '\n\n' : '') + 'Error: ' + data.message,
           }));
           setIsSending(false);
           setActiveThinkingMessage('');
           useAIAssistantStore.getState().replaceMessages(useAIAssistantStore.getState().messages);
+        };
+
+        if (reader) {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+            for (const line of lines) {
+              const trimmed = line.trim();
+              if (trimmed.startsWith('data: ')) {
+                try {
+                  const parsed = JSON.parse(trimmed.slice(6).trim());
+                  handleEventPayload(parsed, finishDone, finishError);
+                } catch {
+                  // ignore JSON parse error
+                }
+              }
+            }
+          }
         }
-      });
+      } else {
+        const es = new EventSource(`${API_URL}/chat/stream`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'x-device-id': device.deviceId,
+            'x-device-name': device.deviceName,
+            'x-device-os': device.os,
+            'x-device-browser': device.browser,
+          },
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+
+        let isDone = false;
+
+        es.addEventListener('message', (e) => {
+          try {
+            if (!e.data) return;
+            const payloadData = JSON.parse(e.data);
+            handleEventPayload(
+              payloadData,
+              (data) => {
+                isDone = true;
+                const buf = streamBufferRef.current;
+                if (buf.rafId !== null) {
+                  cancelAnimationFrame(buf.rafId);
+                  buf.rafId = null;
+                }
+                if (buf.dirty && buf.messageId) {
+                  updateMessage(buf.messageId, (msg) => ({ ...msg, text: buf.text }));
+                  buf.dirty = false;
+                }
+                if (data?.session_id) {
+                  setSessionId(data.session_id);
+                  fetchConversations();
+                  fetchMemoryItems();
+                }
+                es.close();
+                setIsSending(false);
+                setActiveThinkingMessage('');
+                useAIAssistantStore.getState().replaceMessages(useAIAssistantStore.getState().messages);
+              },
+              (data) => {
+                updateMessage(messageId, (msg) => ({
+                  ...msg,
+                  text: msg.text + (msg.text ? '\n\n' : '') + 'Error: ' + data.message,
+                }));
+                es.close();
+                setIsSending(false);
+                setActiveThinkingMessage('');
+                useAIAssistantStore.getState().replaceMessages(useAIAssistantStore.getState().messages);
+              }
+            );
+          } catch {
+            // ignore parsing errors
+          }
+        });
+
+        es.addEventListener('error', () => {
+          if (!isDone) {
+            es.close();
+            updateMessage(messageId, (msg) => ({
+              ...msg,
+              text: msg.text || 'Sorry, I could not reach the AI assistant right now. Please try again.',
+              actionStatus: null,
+            }));
+            setIsSending(false);
+            setActiveThinkingMessage('');
+            useAIAssistantStore.getState().replaceMessages(useAIAssistantStore.getState().messages);
+          }
+        });
+      }
 
     } catch (error: any) {
       const fallback =
