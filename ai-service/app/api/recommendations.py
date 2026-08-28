@@ -62,7 +62,7 @@ async def explain_recommendation(
 ) -> RecommendationExplainResponse:
     verify_internal_secret(x_ai_service_secret)
 
-    if not settings.openai_api_key:
+    if not settings.api_key:
         return RecommendationExplainResponse(explanation="This course aligns with your wellness goals.")
 
     system_prompt = (
@@ -87,7 +87,7 @@ async def explain_recommendation(
     )
 
     try:
-        client = OpenAI(api_key=settings.openai_api_key)
+        client = OpenAI(api_key=settings.api_key)
         response = client.chat.completions.create(
             model=settings.openai_model,
             messages=[
@@ -110,7 +110,7 @@ async def explain_recommendation_batch(
 ) -> BatchExplainResponse:
     verify_internal_secret(x_ai_service_secret)
 
-    if not payload.courses or not settings.openai_api_key:
+    if not payload.courses or not settings.api_key:
         return BatchExplainResponse(explanations={})
 
     course_lines = []
@@ -136,7 +136,7 @@ async def explain_recommendation_batch(
     )
 
     try:
-        client = OpenAI(api_key=settings.openai_api_key)
+        client = OpenAI(api_key=settings.api_key)
         response = client.chat.completions.create(
             model=settings.openai_model,
             messages=[

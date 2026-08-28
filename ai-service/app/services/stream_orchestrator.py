@@ -87,7 +87,7 @@ class StreamingChatOrchestrator:
             yield StreamEvent(event="done", data={"session_id": session_id})
             return
 
-        if not self.settings.openai_api_key:
+        if not self.settings.api_key:
             yield StreamEvent(event="text_delta", data={"text": "AI service is scaffolded, but OPENAI_API_KEY is not configured yet. Add it to ai-service/.env before enabling chat responses."})
             yield StreamEvent(event="done", data={"session_id": session_id})
             return

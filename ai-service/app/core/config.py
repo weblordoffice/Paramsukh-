@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     ai_service_env: str = "development"
     ai_service_port: int = 8011
     openai_api_key: str | None = None
+    gemini_api_key: str | None = None
     openai_model: str = "gpt-4.1-mini"
     openai_max_output_tokens: int = 450
     openai_history_message_limit: int = 20
@@ -16,6 +17,16 @@ class Settings(BaseSettings):
     backend_internal_api_key: str | None = None
     ai_service_shared_secret: str | None = None
     request_timeout_seconds: int = 30
+
+    @property
+    def api_key(self) -> str | None:
+        import os
+        return (
+            self.openai_api_key
+            or self.gemini_api_key
+            or os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("GEMINI_API_KEY")
+        )
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -683,6 +683,43 @@ export default function AIChatPanel({
         }
       };
 
+      const fallbackToNonStreaming = async () => {
+        try {
+          const res = await apiClient.post('/chat/message', payload);
+          const responseData = res.data?.data;
+          const answer = responseData?.answer || responseData?.text || 'I could not generate a response right now.';
+          const presentation = responseData?.presentation || null;
+          const narrative = responseData?.response_narrative || null;
+
+          if (responseData?.session_id) {
+            setSessionId(responseData.session_id);
+            fetchConversations();
+            fetchMemoryItems();
+          }
+
+          updateMessage(messageId, (msg) => ({
+            ...msg,
+            text: answer,
+            presentation,
+            narrative,
+            actionStatus: null,
+          }));
+        } catch (err: any) {
+          const fallback =
+            err?.response?.data?.message ||
+            'Sorry, I could not reach the AI assistant right now. Please try again.';
+          updateMessage(messageId, (msg) => ({
+            ...msg,
+            text: fallback,
+            actionStatus: null,
+          }));
+        } finally {
+          setIsSending(false);
+          setActiveThinkingMessage('');
+          useAIAssistantStore.getState().replaceMessages(useAIAssistantStore.getState().messages);
+        }
+      };
+
       if (Platform.OS === 'web') {
         const response = await fetch(`${API_URL}/chat/stream`, {
           method: 'POST',
@@ -817,25 +854,24 @@ export default function AIChatPanel({
         es.addEventListener('error', () => {
           if (!isDone) {
             es.close();
-            updateMessage(messageId, (msg) => ({
-              ...msg,
-              text: msg.text || 'Sorry, I could not reach the AI assistant right now. Please try again.',
-              actionStatus: null,
-            }));
-            setIsSending(false);
-            setActiveThinkingMessage('');
-            useAIAssistantStore.getState().replaceMessages(useAIAssistantStore.getState().messages);
+            if (streamBufferRef.current.text) {
+              setIsSending(false);
+              setActiveThinkingMessage('');
+              useAIAssistantStore.getState().replaceMessages(useAIAssistantStore.getState().messages);
+            } else {
+              fallbackToNonStreaming();
+            }
           }
         });
       }
 
     } catch (error: any) {
-      const fallback =
-        error?.response?.data?.message ||
-        'Sorry, I could not reach the AI assistant right now. Please try again.';
-      await appendMessage('assistant', fallback);
-      setIsSending(false);
-      setActiveThinkingMessage('');
+      if (streamBufferRef.current.text) {
+        setIsSending(false);
+        setActiveThinkingMessage('');
+      } else {
+        await fallbackToNonStreaming();
+      }
     }
   }, [input, isSending, sessionId, compact, context, appendMessage, updateMessage, setSessionId, fetchConversations, fetchMemoryItems]);
 

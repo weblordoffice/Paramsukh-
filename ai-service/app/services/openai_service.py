@@ -98,10 +98,11 @@ class OpenAIService:
     def __init__(self) -> None:
         self.settings = get_settings()
         self.registry = ToolRegistry()
-        if not self.settings.openai_api_key:
-            raise ConfigurationError("OPENAI_API_KEY is not configured.")
-        self.client = OpenAI(api_key=self.settings.openai_api_key)
-        self.async_client = AsyncOpenAI(api_key=self.settings.openai_api_key)
+        api_key = self.settings.api_key
+        if not api_key:
+            raise ConfigurationError("OPENAI_API_KEY / GEMINI_API_KEY is not configured.")
+        self.client = OpenAI(api_key=api_key)
+        self.async_client = AsyncOpenAI(api_key=api_key)
 
     @staticmethod
     def normalize_role(role: str) -> str:

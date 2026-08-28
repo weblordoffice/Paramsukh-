@@ -375,7 +375,7 @@ class ChatOrchestrator:
                 response_narrative=self.build_response_narrative(lightweight_response, has_structured_results=False),
             )
 
-        if not self.settings.openai_api_key:
+        if not self.settings.api_key:
             return ChatResponse(
                 answer=(
                     "AI service is scaffolded, but OPENAI_API_KEY is not configured yet. "
