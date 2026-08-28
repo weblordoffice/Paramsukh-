@@ -15,7 +15,7 @@ import { useTheme } from '../../hooks/useTheme';
 const makeStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
   },
   scrollView: {
     flex: 1,
@@ -30,7 +30,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     marginBottom: 24,
     borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     shadowColor: '#F1842D',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.15,
@@ -77,7 +77,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   heroTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
     letterSpacing: 0.5,
   },
   heroDescription: {
@@ -91,7 +91,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 14,
@@ -529,18 +529,18 @@ const CATEGORY_CONFIG: Record<
   string,
   { color: string; bg: string; icon: string; label: string }
 > = {
-  physical: { color: 'colors.surface', bg: '#EF4444', icon: 'barbell', label: 'Physical' },
-  mental: { color: 'colors.surface', bg: '#8B5CF6', icon: 'brain', label: 'Mental' },
+  physical: { color: '#FFFFFF', bg: '#EF4444', icon: 'barbell', label: 'Physical' },
+  mental: { color: '#FFFFFF', bg: '#8B5CF6', icon: 'brain', label: 'Mental' },
   financial: { color: '#1A1A1A', bg: '#22C55E', icon: 'cash', label: 'Financial' },
-  relationship: { color: 'colors.surface', bg: '#EC4899', icon: 'heart', label: 'Relationship' },
-  spiritual: { color: 'colors.surface', bg: '#F59E0B', icon: 'sparkles', label: 'Spiritual' },
-  general: { color: 'colors.surface', bg: '#64748B', icon: 'layers', label: 'General' },
+  relationship: { color: '#FFFFFF', bg: '#EC4899', icon: 'heart', label: 'Relationship' },
+  spiritual: { color: '#FFFFFF', bg: '#F59E0B', icon: 'sparkles', label: 'Spiritual' },
+  general: { color: '#FFFFFF', bg: '#64748B', icon: 'layers', label: 'General' },
 };
 
 function getCategoryConfig(category?: string) {
   if (!category) return null;
   const key = category.toLowerCase().trim();
-  return CATEGORY_CONFIG[key] || { color: 'colors.surface', bg: '#4F46E5', icon: 'layers', label: category };
+  return CATEGORY_CONFIG[key] || { color: '#FFFFFF', bg: '#4F46E5', icon: 'layers', label: category };
 }
 
 interface FeatureCardProps {

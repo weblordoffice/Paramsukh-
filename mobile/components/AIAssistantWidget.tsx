@@ -52,7 +52,9 @@ export default function AIAssistantWidget() {
   const pathname = usePathname();
   const params = useGlobalSearchParams();
   const insets = useSafeAreaInsets();
-  const { width: initialWidth, height: initialHeight } = Dimensions.get('window');
+  const { width: winWidth, height: winHeight } = Dimensions.get('window');
+  const initialWidth = winWidth || 390;
+  const initialHeight = winHeight || 844;
   const user = useAuthStore((state) => state.user);
 
   const widgetPosition = useAIAssistantStore((state) => state.widgetPosition);
@@ -63,16 +65,27 @@ export default function AIAssistantWidget() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [layout, setLayout] = useState({ width: initialWidth, height: initialHeight });
-  const position = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-  const interactionScale = useRef(new Animated.Value(1)).current;
-  const dragStateRef = useRef({ moved: false, releasedAt: 0 });
 
-  const shouldShow = useMemo(() => !HIDDEN_PATHS.has(pathname), [pathname]);
-  const isTabScreen = useMemo(() => TAB_SCREEN_PATHS.has(pathname), [pathname]);
+  const normalizedPath = (pathname?.replace(/^\/\(home\)/, '') || pathname) || '/';
+  const shouldShow = useMemo(
+    () => !HIDDEN_PATHS.has(pathname) && !HIDDEN_PATHS.has(normalizedPath),
+    [pathname, normalizedPath]
+  );
+  const isTabScreen = useMemo(
+    () => TAB_SCREEN_PATHS.has(pathname) || TAB_SCREEN_PATHS.has(normalizedPath),
+    [pathname, normalizedPath]
+  );
   const bottomOffset = useMemo(
     () => (isTabScreen ? 94 + insets.bottom : 28 + insets.bottom),
     [insets.bottom, isTabScreen]
   );
+
+  const defaultInitX = Math.max(FAB_MARGIN, initialWidth - FAB_SIZE - FAB_MARGIN);
+  const defaultInitY = clamp(420, insets.top + TOP_SAFE_OFFSET, initialHeight - FAB_SIZE - bottomOffset);
+  const position = useRef(new Animated.ValueXY({ x: defaultInitX, y: defaultInitY })).current;
+  const interactionScale = useRef(new Animated.Value(1)).current;
+  const dragStateRef = useRef({ moved: false, releasedAt: 0 });
+
   const screenContext = useMemo(
     () => buildAIScreenContext(pathname, params),
     [pathname, params]
@@ -92,7 +105,7 @@ export default function AIAssistantWidget() {
   }, [hydrateAssistant, user?._id]);
 
   useEffect(() => {
-    if (!hydrated || !shouldShow) {
+    if (!shouldShow) {
       return;
     }
 
@@ -161,7 +174,7 @@ export default function AIAssistantWidget() {
     [animateInteractionScale, finalizePosition, position]
   );
 
-  if (!shouldShow || !hydrated) {
+  if (!shouldShow) {
     return null;
   }
 
@@ -169,10 +182,15 @@ export default function AIAssistantWidget() {
     <>
       <View
         pointerEvents="box-none"
-        style={StyleSheet.absoluteFill}
+        style={[
+          StyleSheet.absoluteFill,
+          { zIndex: 9999, elevation: 9999, pointerEvents: 'box-none' as any },
+        ]}
         onLayout={(event) => {
           const { width, height } = event.nativeEvent.layout;
-          setLayout({ width, height });
+          if (width > 0 && height > 0) {
+            setLayout({ width, height });
+          }
         }}
       >
         <Animated.View
@@ -289,7 +307,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 11 },
     shadowOpacity: 0.28,
     shadowRadius: 18,
-    elevation: 14,
+    elevation: 9999,
+    zIndex: 9999,
   },
   fabMotion: {
     flex: 1,

@@ -20,7 +20,7 @@ export default function HomeLayout() {
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     paddingHorizontal: 24,
@@ -57,7 +57,7 @@ export default function HomeLayout() {
     gap: 12,
   },
   menuItem: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: '#F4F3EB',
     borderRadius: 20,
@@ -112,7 +112,7 @@ export default function HomeLayout() {
           tabBarActiveTintColor: '#F1842D',
           tabBarInactiveTintColor: '#8C7B73',
           tabBarStyle: {
-            backgroundColor: 'colors.surface',
+            backgroundColor: colors.surface,
             borderTopWidth: 0,
             paddingHorizontal: 0,
             paddingBottom: insets.bottom,
