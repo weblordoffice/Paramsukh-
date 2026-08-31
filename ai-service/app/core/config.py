@@ -21,12 +21,10 @@ class Settings(BaseSettings):
     @property
     def api_key(self) -> str | None:
         import os
-        return (
-            self.openai_api_key
-            or self.gemini_api_key
-            or os.environ.get("OPENAI_API_KEY")
-            or os.environ.get("GEMINI_API_KEY")
-        )
+        key = self.openai_api_key or os.environ.get("OPENAI_API_KEY")
+        if key and not str(key).strip().startswith("sk-"):
+            return None
+        return key
 
     model_config = SettingsConfigDict(
         env_file=".env",
