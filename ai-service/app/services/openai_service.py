@@ -589,7 +589,7 @@ class OpenAIService:
             ],
             tools=self.build_tools(),
             max_output_tokens=self.settings.openai_max_output_tokens,
-            parallel_tool_calls=False,
+            parallel_tool_calls=True,
         )
 
     def create_followup_response(
@@ -603,7 +603,7 @@ class OpenAIService:
             previous_response_id=previous_response_id,
             input=tool_outputs,
             max_output_tokens=self.settings.openai_max_output_tokens,
-            parallel_tool_calls=False,
+            parallel_tool_calls=True,
         )
 
     @staticmethod
@@ -628,7 +628,7 @@ class OpenAIService:
             ],
             tools=self.build_tools(),
             max_output_tokens=self.settings.openai_max_output_tokens,
-            parallel_tool_calls=False,
+            parallel_tool_calls=True,
             stream=True,
         )
         async for chunk in response:
@@ -645,7 +645,7 @@ class OpenAIService:
             previous_response_id=previous_response_id,
             input=tool_outputs,
             max_output_tokens=self.settings.openai_max_output_tokens,
-            parallel_tool_calls=False,
+            parallel_tool_calls=True,
             stream=True,
         )
         async for chunk in response:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import time
 from typing import Any
 
 import httpx
@@ -9,6 +11,34 @@ from app.core.exceptions import ConfigurationError, ToolExecutionError
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Global persistent AsyncClient with connection pooling & keep-alive
+_HTTP_CLIENT: httpx.AsyncClient | None = None
+
+# Global TTL cache for read-only catalog endpoints
+_CACHE_STORE: dict[str, tuple[float, dict[str, Any]]] = {}
+_CACHE_TTL_SECONDS = 60.0  # 60s cache for fast catalog lookups
+
+_CACHEABLE_PREFIXES = (
+    "/api/courses/all",
+    "/api/events/all",
+    "/api/membership-plans",
+    "/api/products/all",
+    "/api/shops/all",
+    "/api/podcasts/all",
+    "/api/blogs/all",
+    "/api/config",
+)
+
+
+def _get_http_client(timeout_seconds: int = 30) -> httpx.AsyncClient:
+    global _HTTP_CLIENT
+    if _HTTP_CLIENT is None or _HTTP_CLIENT.is_closed:
+        _HTTP_CLIENT = httpx.AsyncClient(
+            timeout=timeout_seconds,
+            limits=httpx.Limits(max_keepalive_connections=20, max_connections=50, keepalive_expiry=60.0),
+        )
+    return _HTTP_CLIENT
 
 
 class BackendClient:
@@ -45,9 +75,22 @@ class BackendClient:
         url = f"{base_url}{path}"
         headers = self._build_headers(auth_token=auth_token, use_admin_key=use_admin_key)
 
+        # In-memory TTL cache lookup for unauthenticated read-only GET requests
+        is_cacheable = method.upper() == "GET" and not auth_token and any(path.startswith(cp) for cp in _CACHEABLE_PREFIXES)
+        cache_key = f"{method}:{url}:{json.dumps(params, sort_keys=True) if params else ''}"
+
+        if is_cacheable:
+            cached = _CACHE_STORE.get(cache_key)
+            if cached:
+                cache_time, cached_payload = cached
+                if time.time() - cache_time < _CACHE_TTL_SECONDS:
+                    logger.debug("Serving cached backend response for %s", path)
+                    return cached_payload
+
+        client = _get_http_client(self.settings.request_timeout_seconds)
+
         try:
-            async with httpx.AsyncClient(timeout=self.settings.request_timeout_seconds) as client:
-                response = await client.request(method, url, params=params, json=json_body, headers=headers)
+            response = await client.request(method, url, params=params, json=json_body, headers=headers)
         except httpx.TimeoutException as exc:
             logger.warning("Backend timeout calling %s", url)
             raise ToolExecutionError("backend_request", "Backend request timed out.", details=str(exc)) from exc
@@ -79,6 +122,10 @@ class BackendClient:
 
         if isinstance(payload, dict) and payload.get("success") is False:
             raise ToolExecutionError("backend_request", payload.get("message", "Backend request was unsuccessful."))
+
+        # Cache successful read-only response in memory
+        if is_cacheable and response.status_code == 200:
+            _CACHE_STORE[cache_key] = (time.time(), payload)
 
         return payload
 

@@ -196,19 +196,26 @@ class StreamingChatOrchestrator:
             yield StreamEvent(event="done", data={"session_id": session_id})
             return
 
-        # 4. Handle tool execution
+        # 4. Handle parallel tool execution
+        import asyncio
+
+        async def _run_single_call(call_item: Any):
+            args = service.parse_tool_arguments(call_item.arguments)
+            execution, events = await self._execute_tool_with_events(call_item.name, args, payload)
+            return call_item, execution, events
+
+        call_results = await asyncio.gather(*[_run_single_call(c) for c in tool_calls])
+
         tool_history = []
         tool_outputs = []
-        
-        for call in tool_calls:
-            args = service.parse_tool_arguments(call.arguments)
-            execution, events = await self._execute_tool_with_events(call.name, args, payload)
+
+        for call_item, execution, events in call_results:
             for event in events:
                 yield event
             tool_history.append(execution)
             tool_outputs.append({
                 "type": "function_call_output",
-                "call_id": call.call_id,
+                "call_id": call_item.call_id,
                 "output": json.dumps(execution.result, ensure_ascii=True),
             })
             
