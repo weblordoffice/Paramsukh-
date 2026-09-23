@@ -12,9 +12,12 @@
       "buildNumber": "8",
       "infoPlist": {
         "UIBackgroundModes": [
+          "audio",
           "audio"
-        ]
-      }
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.paramsukh.onlinegurukul"
     },
     "android": {
       "package": "com.paramsukh.onlinegurukul",

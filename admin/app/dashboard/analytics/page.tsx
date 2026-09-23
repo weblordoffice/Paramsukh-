@@ -1,6 +1,7 @@
 'use client';
           
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api/client';
 import {                                                                                     
   Users, 
@@ -13,7 +14,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   LineChart as LineChartIcon,
-  BarChart as BarChartIcon
+  BarChart as BarChartIcon,
+  ArrowRight
 } from 'lucide-react';
 import {
   LineChart,
@@ -40,6 +42,7 @@ interface AnalyticsData {
     dropOutRate: number;
   };
   revenue: {
+    totalRevenue?: number;
     renewalRate: number;
     totalOrders: number;
   };
@@ -55,6 +58,7 @@ interface AnalyticsData {
 }
 
 export default function AnalyticsPage() {
+  const router = useRouter();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -89,11 +93,12 @@ export default function AnalyticsPage() {
       title: 'User Health',
       label: 'Active vs Inactive',
       value: `${data.users.activePercentage}%`,
-      subValue: `${data.users.active} / ${data.users.total} active`,
+      subValue: `${data.users.active} / ${data.users.total} active users`,
       icon: Users,
       color: 'blue',
       status: data.users.activePercentage > 50 ? 'up' : 'down',
-      desc: 'Active users logged in within 30 days.'
+      desc: 'Active users logged in within 30 days.',
+      link: '/dashboard/users'
     },
     {
       title: 'Course Engagement',
@@ -103,17 +108,19 @@ export default function AnalyticsPage() {
       icon: BookOpen,
       color: 'orange',
       status: data.courses.dropOutRate < 30 ? 'up' : 'down',
-      desc: 'Percentage of users who started but haven\'t finished.'
+      desc: 'Percentage of users who started but haven\'t finished.',
+      link: '/dashboard/courses'
     },
     {
       title: 'Revenue Loyalty',
       label: 'Renewal Rate',
       value: `${data.revenue.renewalRate}%`,
-      subValue: `${data.revenue.totalOrders} unique customers`,
+      subValue: data.revenue.totalRevenue !== undefined ? `₹${data.revenue.totalRevenue.toLocaleString('en-IN')} total revenue` : `${data.revenue.totalOrders} unique customers`,
       icon: DollarSign,
       color: 'green',
       status: data.revenue.renewalRate > 20 ? 'up' : 'down',
-      desc: 'Percentage of customers with more than one order.'
+      desc: 'Overall financial performance & renewal analytics.',
+      link: '/dashboard/revenue'
     },
     {
       title: 'Event Success',
@@ -123,7 +130,8 @@ export default function AnalyticsPage() {
       icon: Calendar,
       color: 'purple',
       status: data.events.avgRegistrationsPerEvent > 5 ? 'up' : 'down',
-      desc: 'Average registrations confirmed per event.'
+      desc: 'Average registrations confirmed per event.',
+      link: '/dashboard/events'
     }
   ];
 
@@ -138,28 +146,35 @@ export default function AnalyticsPage() {
     <div className="p-6 max-w-7xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-800">Platform Analytics</h1>
-        <p className="text-gray-500">Real-time health indicators and performance metrics.</p>
+        <p className="text-gray-500">Real-time health indicators and performance metrics. Click any card to view detailed management pages.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {cards.map((card, i) => (
-          <div key={i} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-hover hover:shadow-md">
-            <div className="flex justify-between items-start mb-4">
-              <div className={`p-3 rounded-lg ${colorMap[card.color]}`}>
-                <card.icon className="w-6 h-6" />
+          <div
+            key={i}
+            onClick={() => router.push(card.link)}
+            className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 transition-all duration-200 hover:shadow-lg hover:border-primary/40 hover:-translate-y-0.5 cursor-pointer group flex flex-col justify-between"
+          >
+            <div>
+              <div className="flex justify-between items-start mb-4">
+                <div className={`p-3 rounded-lg ${colorMap[card.color]} group-hover:scale-110 transition-transform`}>
+                  <card.icon className="w-6 h-6" />
+                </div>
+                <div className={`flex items-center text-sm font-medium ${card.status === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+                  {card.status === 'up' ? <ArrowUpRight className="w-4 h-4 mr-1" /> : <ArrowDownRight className="w-4 h-4 mr-1" />}
+                  {card.status === 'up' ? 'Healthy' : 'Needs attention'}
+                </div>
               </div>
-              <div className={`flex items-center text-sm font-medium ${card.status === 'up' ? 'text-green-600' : 'text-red-600'}`}>
-                {card.status === 'up' ? <ArrowUpRight className="w-4 h-4 mr-1" /> : <ArrowDownRight className="w-4 h-4 mr-1" />}
-                {card.status === 'up' ? 'Healthy' : 'Needs attention'}
-              </div>
+              
+              <h3 className="text-gray-500 text-sm font-medium mb-1">{card.title}</h3>
+              <div className="text-3xl font-bold text-gray-900 mb-1">{card.value}</div>
+              <div className="text-sm text-gray-600 mb-4 font-medium">{card.subValue}</div>
             </div>
             
-            <h3 className="text-gray-500 text-sm font-medium mb-1">{card.title}</h3>
-            <div className="text-3xl font-bold text-gray-900 mb-1">{card.value}</div>
-            <div className="text-sm text-gray-600 mb-4">{card.subValue}</div>
-            
-            <div className="pt-4 border-t border-gray-50">
+            <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
                 <p className="text-xs text-gray-400 italic leading-relaxed">{card.desc}</p>
+                <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0 ml-2" />
             </div>
           </div>
         ))}

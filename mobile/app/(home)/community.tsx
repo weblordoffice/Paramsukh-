@@ -13,6 +13,7 @@ import {
   Dimensions,
   Platform,
   FlatList,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -630,11 +631,12 @@ export default function CommunityScreen() {
   fullModalOverlay: {
     flex: 1,
     backgroundColor: 'colors.surface',
+    paddingHorizontal: 20,
+    paddingTop: 16,
   },
   fullModalContent: {
     flex: 1,
     backgroundColor: 'colors.surface',
-    padding: 24,
   },
   modalOverlay: {
     flex: 1,
@@ -658,7 +660,10 @@ export default function CommunityScreen() {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(92, 74, 66, 0.08)',
   },
   modalTitle: {
     fontSize: 20,
@@ -670,16 +675,31 @@ export default function CommunityScreen() {
     borderWidth: 1,
     borderColor: 'rgba(92, 74, 66, 0.12)',
     borderRadius: 16,
-    padding: 18,
+    padding: 16,
     fontSize: 15,
     color: '#2C2420',
-    minHeight: 120,
+    minHeight: 110,
     textAlignVertical: 'top',
-    marginBottom: 16,
     backgroundColor: 'rgba(255, 254, 249, 0.5)',
   },
   selectedMediaContainer: {
-    marginBottom: 16,
+    position: 'relative',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(241, 132, 45, 0.3)',
+    backgroundColor: '#000',
+  },
+  selectedMediaImage: {
+    width: '100%',
+    height: 200,
+  },
+  removeMediaBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: 15,
   },
   selectedMediaPreview: {
     flexDirection: 'row',
@@ -1702,101 +1722,124 @@ export default function CommunityScreen() {
       <Modal
         visible={showCreatePost}
         animationType="slide"
-        transparent={true}
+        transparent={false}
         onRequestClose={() => {
           setShowCreatePost(false);
         }}
       >
         <SafeAreaView style={styles.fullModalOverlay}>
-          <View style={[styles.fullModalContent, { paddingBottom: bottomTabHeight + 24 }]}>
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          >
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Create Post</Text>
-              <TouchableOpacity onPress={() => {
-                setShowCreatePost(false);
-              }}>
+              <TouchableOpacity
+                style={{ padding: 4 }}
+                onPress={() => {
+                  setShowCreatePost(false);
+                }}
+              >
                 <Ionicons name="close" size={28} color="colors.textSecondary" />
               </TouchableOpacity>
             </View>
 
-            <TextInput
-              style={styles.postInput}
-              placeholder="What's on your mind?"
-              placeholderTextColor="colors.textSecondary"
-              multiline
-              value={postContent}
-              onChangeText={setPostContent}
-              maxLength={500}
-            />
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: bottomTabHeight + 30, gap: 16 }}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <TextInput
+                style={styles.postInput}
+                placeholder="What's on your mind?"
+                placeholderTextColor="colors.textSecondary"
+                multiline
+                value={postContent}
+                onChangeText={setPostContent}
+                maxLength={500}
+              />
 
-            {selectedMedia && (
-              <View style={styles.selectedMediaContainer}>
-                <View style={styles.selectedMediaPreview}>
-                  <Text style={styles.selectedMediaText}>📷 Image selected</Text>
-                  <TouchableOpacity onPress={() => {
-                    setSelectedMedia(null);
-                  }}>
-                    <Ionicons name="close-circle" size={24} color="#EF4444" />
+              {selectedMedia && (
+                <View style={styles.selectedMediaContainer}>
+                  <Image
+                    source={{ uri: selectedMedia }}
+                    style={styles.selectedMediaImage}
+                    resizeMode="cover"
+                  />
+                  <TouchableOpacity
+                    style={styles.removeMediaBadge}
+                    onPress={() => setSelectedMedia(null)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="close-circle" size={26} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
+              )}
+
+              <View>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#5C4A42', marginBottom: 8 }}>
+                  Tags
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {['meditation', 'spiritual', 'wellness', 'learning', 'community'].map(tag => (
+                    <TouchableOpacity
+                      key={tag}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 16,
+                        backgroundColor: createPostTags.includes(tag) ? '#F1842D' : 'colors.surfaceSecondary',
+                        marginRight: 8,
+                        borderWidth: 1,
+                        borderColor: createPostTags.includes(tag) ? '#F1842D' : 'colors.border'
+                      }}
+                      onPress={() => {
+                        if (createPostTags.includes(tag)) {
+                          setCreatePostTags(prev => prev.filter(t => t !== tag));
+                        } else {
+                          setCreatePostTags(prev => [...prev, tag]);
+                        }
+                      }}
+                    >
+                      <Text style={{
+                        fontSize: 12,
+                        color: createPostTags.includes(tag) ? '#FFF' : '#4B5563',
+                        fontWeight: '500'
+                      }}>
+                        {tag.charAt(0).toUpperCase() + tag.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
-            )}
 
-            <View style={{ marginBottom: 16 }}>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: '#5C4A42', marginBottom: 8 }}>Tags</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {['meditation', 'spiritual', 'wellness', 'learning', 'community'].map(tag => (
-                  <TouchableOpacity
-                    key={tag}
-                    style={{
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 16,
-                      backgroundColor: createPostTags.includes(tag) ? '#F1842D' : 'colors.surfaceSecondary',
-                      marginRight: 8,
-                      borderWidth: 1,
-                      borderColor: createPostTags.includes(tag) ? '#F1842D' : 'colors.border'
-                    }}
-                    onPress={() => {
-                      if (createPostTags.includes(tag)) {
-                        setCreatePostTags(prev => prev.filter(t => t !== tag));
-                      } else {
-                        setCreatePostTags(prev => [...prev, tag]);
-                      }
-                    }}
-                  >
-                    <Text style={{
-                      fontSize: 12,
-                      color: createPostTags.includes(tag) ? '#FFF' : '#4B5563',
-                      fontWeight: '500'
-                    }}>
-                      {tag.charAt(0).toUpperCase() + tag.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+              <View style={styles.mediaButtons}>
+                <TouchableOpacity
+                  style={styles.mediaButton}
+                  onPress={handlePickImage}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="image-outline" size={24} color="#F1842D" />
+                  <Text style={styles.mediaButtonText}>
+                    {selectedMedia ? 'Change Photo' : 'Add Photo'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
 
-            <View style={styles.mediaButtons}>
               <TouchableOpacity
-                style={styles.mediaButton}
-                onPress={handlePickImage}
+                style={[
+                  styles.publishButton,
+                  (!postContent.trim() && !selectedMedia) && styles.publishButtonDisabled
+                ]}
+                onPress={handleCreatePost}
+                disabled={!postContent.trim() && !selectedMedia}
+                activeOpacity={0.85}
               >
-                <Ionicons name="image-outline" size={24} color="#F1842D" />
-                <Text style={styles.mediaButtonText}>Photo</Text>
+                <Text style={styles.publishButtonText}>Publish Post</Text>
               </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[
-                styles.publishButton,
-                (!postContent.trim() && !selectedMedia) && styles.publishButtonDisabled
-              ]}
-              onPress={handleCreatePost}
-              disabled={!postContent.trim() && !selectedMedia}
-            >
-              <Text style={styles.publishButtonText}>Publish Post</Text>
-            </TouchableOpacity>
-          </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 

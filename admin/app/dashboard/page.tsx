@@ -11,7 +11,9 @@ import {
     ArrowRight,
     Plus,
     Activity,
-    Clock
+    Clock,
+    DollarSign,
+    FileText
 } from 'lucide-react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
@@ -25,6 +27,7 @@ interface Stats {
     products: number;
     orders: number;
     bookings: number;
+    totalRevenue: number;
 }
 
 export default function DashboardPage() {
@@ -36,6 +39,7 @@ export default function DashboardPage() {
         products: 0,
         orders: 0,
         bookings: 0,
+        totalRevenue: 0,
     });
     const [loading, setLoading] = useState(true);
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -48,14 +52,18 @@ export default function DashboardPage() {
 
     const fetchStats = async () => {
         try {
-            const [usersRes, coursesRes, eventsRes, productsRes, ordersRes, bookingsRes] = await Promise.allSettled([
+            const [usersRes, coursesRes, eventsRes, productsRes, ordersRes, bookingsRes, revenueRes] = await Promise.allSettled([
                 apiClient.get('/api/user/all').catch(() => ({ data: { users: [] } })),
                 apiClient.get('/api/courses/all').catch(() => ({ data: { courses: [] } })),
                 apiClient.get('/api/events/all').catch(() => ({ data: { events: [] } })),
                 apiClient.get('/api/products').catch(() => ({ data: { products: [] } })),
                 apiClient.get('/api/orders/all').catch(() => ({ data: { data: { orders: [] } } })),
                 apiClient.get('/api/counseling/all').catch(() => ({ data: { data: { bookings: [] } } })),
+                apiClient.get('/api/admin/revenue/dashboard').catch(() => ({ data: { data: { overview: { netRevenue: 0, totalRevenue: 0 } } } })),
             ]);
+
+            const revData = revenueRes.status === 'fulfilled' ? revenueRes.value.data?.data?.overview : null;
+            const revTotal = revData ? (revData.netRevenue || revData.totalRevenue || 0) : 0;
 
             setStats({
                 users: usersRes.status === 'fulfilled' ? (usersRes.value.data.users?.length || 0) : 0,
@@ -64,6 +72,7 @@ export default function DashboardPage() {
                 products: productsRes.status === 'fulfilled' ? (productsRes.value.data.products?.length || 0) : 0,
                 orders: ordersRes.status === 'fulfilled' ? (ordersRes.value.data.data?.orders?.length || 0) : 0,
                 bookings: bookingsRes.status === 'fulfilled' ? (bookingsRes.value.data.data?.bookings?.length || 0) : 0,
+                totalRevenue: revTotal,
             });
         } catch (error) {
             toast.error('Failed to fetch statistics');
@@ -82,36 +91,44 @@ export default function DashboardPage() {
 
     const statCards = [
         {
+            title: 'Total Revenue',
+            count: `₹${stats.totalRevenue.toLocaleString('en-IN')}`,
+            icon: DollarSign,
+            bg: 'bg-emerald-50',
+            text: 'text-emerald-600',
+            path: '/dashboard/revenue'
+        },
+        {
             title: 'Total Users',
-            count: stats.users,
+            count: stats.users.toLocaleString('en-IN'),
             icon: Users,
-            color: 'from-orange-500 to-orange-600',
             bg: 'bg-orange-50',
-            text: 'text-orange-600'
+            text: 'text-orange-600',
+            path: '/dashboard/users'
         },
         {
             title: 'Active Courses',
-            count: stats.courses,
+            count: stats.courses.toLocaleString('en-IN'),
             icon: BookOpen,
-            color: 'from-blue-500 to-blue-600',
             bg: 'bg-blue-50',
-            text: 'text-blue-600'
+            text: 'text-blue-600',
+            path: '/dashboard/courses'
         },
         {
             title: 'Upcoming Events',
-            count: stats.events,
+            count: stats.events.toLocaleString('en-IN'),
             icon: Calendar,
-            color: 'from-purple-500 to-purple-600',
             bg: 'bg-purple-50',
-            text: 'text-purple-600'
+            text: 'text-purple-600',
+            path: '/dashboard/events'
         },
         {
             title: 'Total Orders',
-            count: stats.orders,
+            count: stats.orders.toLocaleString('en-IN'),
             icon: Package,
-            color: 'from-green-500 to-green-600',
             bg: 'bg-green-50',
-            text: 'text-green-600'
+            text: 'text-green-600',
+            path: '/dashboard/orders'
         },
     ];
 
@@ -171,31 +188,40 @@ export default function DashboardPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition shadow-sm">
+                    <button
+                        onClick={() => router.push('/dashboard/analytics')}
+                        className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition shadow-sm"
+                        title="Platform Analytics"
+                    >
                         <Activity className="w-5 h-5" />
                     </button>
-                    <button className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition font-medium shadow-lg shadow-black/20 flex items-center gap-2">
-                        <Plus className="w-4 h-4" />
-                        <span>New Report</span>
+                    <button
+                        onClick={() => router.push('/dashboard/revenue')}
+                        className="px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition font-medium shadow-lg shadow-black/20 flex items-center gap-2"
+                    >
+                        <FileText className="w-4 h-4" />
+                        <span>Financial Report</span>
                     </button>
                 </div>
             </div>
 
             {/* Stats Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-5">
                 {statCards.map((stat, idx) => (
                     <div
                         key={idx}
-                        className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 group cursor-default"
+                        onClick={() => router.push(stat.path)}
+                        className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-300 group cursor-pointer flex flex-col justify-between"
                     >
-                        <div className="flex items-center justify-between mb-4">
-                            <div className={`p-3 rounded-xl ${stat.bg} ${stat.text} transition-colors`}>
-                                <stat.icon className="w-6 h-6" />
+                        <div className="flex items-center justify-between mb-3">
+                            <div className={`p-3 rounded-xl ${stat.bg} ${stat.text} group-hover:scale-110 transition-transform`}>
+                                <stat.icon className="w-5 h-5" />
                             </div>
+                            <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-primary group-hover:translate-x-1 transition-all" />
                         </div>
                         <div>
-                            <h3 className="text-gray-500 text-sm font-medium">{stat.title}</h3>
-                            <p className="text-3xl font-bold text-gray-900 mt-1">{stat.count}</p>
+                            <h3 className="text-gray-500 text-xs font-semibold uppercase tracking-wider">{stat.title}</h3>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">{stat.count}</p>
                         </div>
                     </div>
                 ))}

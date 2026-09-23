@@ -349,6 +349,18 @@ export default function VideoPlayerScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [marked, setMarked] = useState(false);
+  const [watchProgressRatio, setWatchProgressRatio] = useState(0);
+  const [hasReached99, setHasReached99] = useState(false);
+
+  // Sync initial completion status from store if already completed
+  const enrollmentProgress = useCourseStore((s) => s.enrollmentProgress);
+  useEffect(() => {
+    if (enrollmentProgress?.completedVideos?.includes(videoId)) {
+      setMarked(true);
+      setHasReached99(true);
+      setWatchProgressRatio(1);
+    }
+  }, [enrollmentProgress, videoId]);
 
   // expo-video player (only created when needed)
   const player = useVideoPlayer(
@@ -373,19 +385,146 @@ export default function VideoPlayerScreen() {
     if (ok) setMarked(true);
   }, [courseId, videoId, token, marked, markVideoComplete]);
 
-  // Mark video complete only when the user actually finishes watching
+  // Auto-trigger completion when 99% progress is reached
+  useEffect(() => {
+    if (hasReached99 && !marked) {
+      markComplete();
+    }
+  }, [hasReached99, marked, markComplete]);
+
+  // Expo native player tracking
   React.useEffect(() => {
     if (!player || !useNativePlayer) return;
+
+    const interval = setInterval(() => {
+      try {
+        if (player.duration > 0 && player.currentTime > 0) {
+          const ratio = player.currentTime / player.duration;
+          setWatchProgressRatio((prev) => {
+            const next = Math.max(prev, ratio);
+            if (next >= 0.99) {
+              setHasReached99(true);
+            }
+            return next;
+          });
+        }
+      } catch (err) {}
+    }, 1000);
+
     const sub = player.addListener('statusChange', (status: any) => {
       if (status === 'readyToPlay') setLoading(false);
-      if (status === 'ended') markComplete();
+      if (status === 'ended') {
+        setWatchProgressRatio(1);
+        setHasReached99(true);
+        markComplete();
+      }
     });
-    return () => sub?.remove?.();
+
+    return () => {
+      clearInterval(interval);
+      sub?.remove?.();
+    };
   }, [player, useNativePlayer, markComplete]);
+
+  // YouTube webview message handler
+  const handleWebViewMessage = (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'ready') {
+        setLoading(false);
+      } else if (data.type === 'timeUpdate') {
+        if (typeof data.ratio === 'number' && !isNaN(data.ratio)) {
+          setWatchProgressRatio((prev) => {
+            const next = Math.max(prev, data.ratio);
+            if (next >= 0.99) {
+              setHasReached99(true);
+            }
+            return next;
+          });
+        }
+      } else if (data.type === 'ended') {
+        setWatchProgressRatio(1);
+        setHasReached99(true);
+        markComplete();
+      }
+    } catch (e) {}
+  };
+
+  const getYouTubeHtml = (id: string) => `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; overflow: hidden; height: 100vh; width: 100vw; }
+        #player { width: 100%; height: 100%; }
+      </style>
+    </head>
+    <body>
+      <div id="player"></div>
+      <script>
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        var player;
+        function onYouTubeIframeAPIReady() {
+          player = new YT.Player('player', {
+            height: '100%',
+            width: '100%',
+            videoId: '${id}',
+            playerVars: { 'playsinline': 1, 'autoplay': 1, 'controls': 1, 'modestbranding': 1 },
+            events: {
+              'onReady': function() {
+                if (window.ReactNativeWebView) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' }));
+                }
+                setInterval(function() {
+                  if (player && player.getDuration && player.getCurrentTime) {
+                    var dur = player.getDuration();
+                    var cur = player.getCurrentTime();
+                    if (dur > 0) {
+                      window.ReactNativeWebView.postMessage(JSON.stringify({
+                        type: 'timeUpdate',
+                        currentTime: cur,
+                        duration: dur,
+                        ratio: cur / dur
+                      }));
+                    }
+                  }
+                }, 1000);
+              },
+              'onStateChange': function(event) {
+                if (event.data === 0 && window.ReactNativeWebView) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ended' }));
+                }
+              }
+            }
+          });
+        }
+      </script>
+    </body>
+    </html>
+  `;
 
   const handleExternalPlay = async () => {
     if (!videoUrl) return;
     await WebBrowser.openBrowserAsync(videoUrl);
+  };
+
+  const handleMarkCompletePress = () => {
+    if (marked) return;
+    if (!hasReached99 && watchProgressRatio < 0.99) {
+      const currentPercent = Math.round(watchProgressRatio * 100);
+      Alert.alert(
+        'Watch Progress Required',
+        `Admin requires watching at least 99% of the video duration to mark it as complete.\n\nCurrent progress: ${currentPercent}%.`
+      );
+      return;
+    }
+    markComplete();
   };
 
   const handleAssignmentPress = (assignment: Assignment) => {
@@ -466,10 +605,11 @@ export default function VideoPlayerScreen() {
           <View style={styles.videoBox}>
             <WebView
               style={styles.videoView}
-              source={{ uri: `https://www.youtube.com/embed/${ytId}?playsinline=1` }}
+              source={{ html: getYouTubeHtml(ytId) }}
               allowsFullscreenVideo
               javaScriptEnabled
               scrollEnabled={false}
+              onMessage={handleWebViewMessage}
               onLoad={() => {
                 setLoading(false);
               }}
@@ -610,23 +750,35 @@ export default function VideoPlayerScreen() {
       {token && (
         <View style={styles.actionSection}>
           <TouchableOpacity
-            onPress={markComplete}
+            onPress={handleMarkCompletePress}
             style={[
               styles.markBtn,
               marked
                 ? { backgroundColor: '#10B981' }
-                : { backgroundColor: courseColor },
+                : (hasReached99 || watchProgressRatio >= 0.99)
+                  ? { backgroundColor: courseColor }
+                  : { backgroundColor: '#475569', opacity: 0.8 },
             ]}
             activeOpacity={0.85}
             disabled={marked}
           >
             <Ionicons
-              name={marked ? 'checkmark-circle' : 'checkmark-circle-outline'}
+              name={
+                marked
+                  ? 'checkmark-circle'
+                  : (hasReached99 || watchProgressRatio >= 0.99)
+                    ? 'checkmark-circle-outline'
+                    : 'lock-closed-outline'
+              }
               size={20}
               color="colors.surface"
             />
             <Text style={styles.markBtnText}>
-              {marked ? 'Completed ✓' : 'Mark as Complete'}
+              {marked
+                ? 'Completed ✓'
+                : (hasReached99 || watchProgressRatio >= 0.99)
+                  ? 'Mark as Complete'
+                  : `Watch 99% to Complete (${Math.round(watchProgressRatio * 100)}%)`}
             </Text>
           </TouchableOpacity>
         </View>

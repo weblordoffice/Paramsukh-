@@ -31,16 +31,23 @@ export const getBasicAnalytics = async (req, res) => {
             ? Math.round(((totalEnrollments - completedEnrollments) / totalEnrollments) * 100) 
             : 0;
 
-        // 3. Revenue Analytics: Renewal Rate (Basic approximation based on multiple orders)
-        const renewalAggr = await Order.aggregate([
-            { $match: { status: 'completed' } },
-            { $group: { _id: "$userId", count: { $sum: 1 } } },
-            { $group: { _id: null, repeatUsers: { $sum: { $cond: [{ $gt: ["$count", 1] }, 1, 0] } }, totalUsers: { $sum: 1 } } }
+        // 3. Revenue Analytics: Renewal Rate & Total Revenue
+        const [renewalAggr, totalRevAggr] = await Promise.all([
+            Order.aggregate([
+                { $match: { status: 'completed' } },
+                { $group: { _id: "$userId", count: { $sum: 1 } } },
+                { $group: { _id: null, repeatUsers: { $sum: { $cond: [{ $gt: ["$count", 1] }, 1, 0] } }, totalUsers: { $sum: 1 } } }
+            ]),
+            Order.aggregate([
+                { $match: { status: 'completed' } },
+                { $group: { _id: null, total: { $sum: "$totalAmount" } } }
+            ])
         ]);
         
         const renewalRate = (renewalAggr.length > 0 && renewalAggr[0].totalUsers > 0)
             ? Math.round((renewalAggr[0].repeatUsers / renewalAggr[0].totalUsers) * 100)
             : 0;
+        const totalRevenue = totalRevAggr.length > 0 ? (totalRevAggr[0].total || 0) : 0;
 
         // 4. Event Analytics: Conversion Rate
         // Simplified: (Confirmed Registrations / Total Events) or vs a target
@@ -68,6 +75,7 @@ export const getBasicAnalytics = async (req, res) => {
                     dropOutRate
                 },
                 revenue: {
+                    totalRevenue,
                     renewalRate,
                     totalOrders: renewalAggr.length > 0 ? renewalAggr[0].totalUsers : 0
                 },
