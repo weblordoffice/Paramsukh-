@@ -85,7 +85,7 @@ export default function CounselingScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'colors.background' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Premium Header */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-white shadow-sm z-10">
         <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} className="w-10 h-10 items-center justify-center bg-gray-50 rounded-full">
@@ -152,7 +152,7 @@ export default function CounselingScreen() {
                   className="mt-4 flex-row items-center justify-center gap-2 py-3 rounded-2xl"
                   style={{ backgroundColor: '#16A34A' }}
                 >
-                  <Ionicons name="videocam" size={18} color="colors.surface" />
+                  <Ionicons name="videocam" size={18} color={colors.surface} />
                   <Text className="text-sm font-bold text-white">Join Meeting</Text>
                 </TouchableOpacity>
               ) : (
@@ -188,7 +188,7 @@ export default function CounselingScreen() {
                         isSelected ? 'border-2' : 'border border-gray-100'
                       }`}
                       style={{
-                        borderColor: isSelected ? (type.color || '#F1842D') : 'colors.surfaceSecondary',
+                        borderColor: isSelected ? (type.color || '#F1842D') : colors.surfaceSecondary,
                         shadowColor: '#000', shadowOffset: { width:0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2
                       }}
                     >
@@ -197,7 +197,7 @@ export default function CounselingScreen() {
                           className="w-14 h-14 rounded-2xl items-center justify-center"
                           style={{ backgroundColor: type.color || '#F1842D' }}
                         >
-                          <Ionicons name={type.icon as any} size={24} color="colors.surface" />
+                          <Ionicons name={type.icon as any} size={24} color={colors.surface} />
                         </View>
 
                         <View className="flex-1">
@@ -208,7 +208,7 @@ export default function CounselingScreen() {
                                 className="w-6 h-6 rounded-full items-center justify-center"
                                 style={{ backgroundColor: type.color || '#F1842D' }}
                               >
-                                <Ionicons name="checkmark" size={14} color="colors.surface" />
+                                <Ionicons name="checkmark" size={14} color={colors.surface} />
                               </View>
                             )}
                           </View>
@@ -287,7 +287,7 @@ export default function CounselingScreen() {
             }}
           >
             <Text className="text-base font-bold text-white">Continue to Booking</Text>
-            <Ionicons name="arrow-forward" size={18} color="colors.surface" />
+            <Ionicons name="arrow-forward" size={18} color={colors.surface} />
           </TouchableOpacity>
         </View>
       )}

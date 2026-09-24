@@ -17,14 +17,14 @@ export default function EventsScreen() {
   const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
   },
   tabContainer: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     paddingHorizontal: 20,
     paddingTop: 10,
     borderBottomWidth: 1,
-    borderBottomColor: 'colors.surfaceSecondary',
+    borderBottomColor: colors.surfaceSecondary,
   },
   tabBar: {
     flexDirection: 'row',
@@ -39,10 +39,10 @@ export default function EventsScreen() {
   tabText: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   tabTextActive: {
-    color: 'colors.text',
+    color: colors.text,
   },
   tabIndicator: {
     position: 'absolute',
@@ -60,7 +60,7 @@ export default function EventsScreen() {
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   emptyContainer: {
@@ -72,7 +72,7 @@ export default function EventsScreen() {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: 'colors.surfaceSecondary',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
@@ -80,12 +80,12 @@ export default function EventsScreen() {
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 8,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -94,9 +94,9 @@ export default function EventsScreen() {
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'colors.border',
+    borderColor: colors.border,
   },
   emptyActionText: {
     fontSize: 14,
@@ -105,7 +105,7 @@ export default function EventsScreen() {
   },
   card: {
     marginBottom: 20,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     overflow: 'hidden',
     ...Platform.select({
@@ -125,7 +125,7 @@ export default function EventsScreen() {
   cardImageContainer: {
     width: '100%',
     height: 160,
-    backgroundColor: 'colors.surfaceSecondary',
+    backgroundColor: colors.surfaceSecondary,
     position: 'relative',
   },
   cardImage: {
@@ -170,7 +170,7 @@ export default function EventsScreen() {
     gap: 4,
   },
   registeredBadgeText: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -184,7 +184,7 @@ export default function EventsScreen() {
     borderRadius: 10,
   },
   priceText: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontSize: 14,
     fontWeight: '700',
   },
@@ -194,7 +194,7 @@ export default function EventsScreen() {
   cardTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 8,
   },
   cardMetaRow: {
@@ -210,14 +210,14 @@ export default function EventsScreen() {
   },
   cardMetaText: {
     fontSize: 13,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   cardMetaDot: {
     width: 3,
     height: 3,
     borderRadius: 1.5,
-    backgroundColor: 'colors.border',
+    backgroundColor: colors.border,
   },
   cardFooter: {
     marginTop: 16,
@@ -226,7 +226,7 @@ export default function EventsScreen() {
     justifyContent: 'space-between',
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: 'colors.surfaceSecondary',
+    borderTopColor: colors.surfaceSecondary,
   },
   attendeesContainer: {
     flexDirection: 'row',
@@ -242,13 +242,13 @@ export default function EventsScreen() {
     height: 20,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: 'colors.surface',
+    borderColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   attendeeCount: {
     fontSize: 12,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   cardActionBtn: {
@@ -260,7 +260,7 @@ export default function EventsScreen() {
     borderRadius: 12,
   },
   cardActionBtnText: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontSize: 13,
     fontWeight: '700',
   },
@@ -277,7 +277,7 @@ export default function EventsScreen() {
   },
   ticketCard: {
     width: '100%',
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 32,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -303,7 +303,7 @@ export default function EventsScreen() {
     marginBottom: 4,
   },
   ticketEventTitle: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontSize: 24,
     fontWeight: '800',
     width: width * 0.5,
@@ -321,7 +321,7 @@ export default function EventsScreen() {
   },
   ticketBody: {
     padding: 24,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     marginTop: -16,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
@@ -336,14 +336,14 @@ export default function EventsScreen() {
   ticketLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     letterSpacing: 1,
     marginBottom: 4,
   },
   ticketValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -372,7 +372,7 @@ export default function EventsScreen() {
     height: 1,
     borderStyle: 'dashed',
     borderWidth: 1,
-    borderColor: 'colors.border',
+    borderColor: colors.border,
     borderRadius: 1,
   },
   separatorDotLeft: {
@@ -398,18 +398,18 @@ export default function EventsScreen() {
   qrPlaceholder: {
     width: 160,
     height: 160,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'colors.surfaceSecondary',
+    borderColor: colors.surfaceSecondary,
   },
   qrCodeText: {
     marginTop: 12,
     fontSize: 12,
     fontWeight: '600',
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     letterSpacing: 1,
   },
@@ -422,7 +422,7 @@ export default function EventsScreen() {
     justifyContent: 'center',
   },
   ticketCloseBtnText: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontSize: 16,
     fontWeight: '700',
   }
@@ -536,7 +536,7 @@ export default function EventsScreen() {
               </View>
               {isRegistered && (
                 <View style={[styles.registeredBadge, hasAttended && { backgroundColor: '#3B82F6' }]}>
-                  <Ionicons name={hasAttended ? "star" : "checkmark-circle"} size={14} color="colors.surface" />
+                  <Ionicons name={hasAttended ? "star" : "checkmark-circle"} size={14} color={colors.surface} />
                   <Text style={styles.registeredBadgeText}>{hasAttended ? 'Attended' : 'Registered'}</Text>
                 </View>
               )}
@@ -555,19 +555,19 @@ export default function EventsScreen() {
             
             <View style={styles.cardMetaRow}>
               <View style={styles.cardMetaItem}>
-                <Ionicons name="calendar-outline" size={14} color="colors.textSecondary" />
+                <Ionicons name="calendar-outline" size={14} color={colors.textSecondary} />
                 <Text style={styles.cardMetaText}>{formatDate(event.eventDate)}</Text>
               </View>
               <View style={styles.cardMetaDot} />
               <View style={styles.cardMetaItem}>
-                <Ionicons name="time-outline" size={14} color="colors.textSecondary" />
+                <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
                 <Text style={styles.cardMetaText}>{event.eventTime}</Text>
               </View>
             </View>
 
             <View style={[styles.cardMetaRow, { marginTop: 4 }]}>
               <View style={styles.cardMetaItem}>
-                <Ionicons name="location-outline" size={14} color="colors.textSecondary" />
+                <Ionicons name="location-outline" size={14} color={colors.textSecondary} />
                 <Text style={styles.cardMetaText} numberOfLines={1}>{event.location}</Text>
               </View>
             </View>
@@ -577,8 +577,8 @@ export default function EventsScreen() {
               <View style={styles.attendeesContainer}>
                 <View style={styles.attendeeAvatars}>
                   {[1, 2, 3].map((i) => (
-                    <View key={i} style={[styles.avatarCircle, { marginLeft: i === 1 ? 0 : -8, backgroundColor: 'colors.surfaceSecondary', zIndex: 4-i }]}>
-                       <Ionicons name="person" size={10} color="colors.textSecondary" />
+                    <View key={i} style={[styles.avatarCircle, { marginLeft: i === 1 ? 0 : -8, backgroundColor: colors.surfaceSecondary, zIndex: 4-i }]}>
+                       <Ionicons name="person" size={10} color={colors.textSecondary} />
                     </View>
                   ))}
                 </View>
@@ -599,7 +599,7 @@ export default function EventsScreen() {
                 <Ionicons 
                   name={isRegistered ? "qr-code" : isPast ? "chevron-forward" : "arrow-forward"} 
                   size={14} 
-                  color="colors.surface" 
+                  color={colors.surface} 
                 />
               </TouchableOpacity>
             </View>
@@ -663,7 +663,7 @@ export default function EventsScreen() {
         ) : events.length === 0 ? (
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconContainer}>
-              <Ionicons name="calendar-outline" size={64} color="colors.border" />
+              <Ionicons name="calendar-outline" size={64} color={colors.border} />
             </View>
             <Text style={styles.emptyTitle}>No Events Found</Text>
             <Text style={styles.emptySubtitle}>
@@ -747,7 +747,7 @@ export default function EventsScreen() {
 
                 <View style={styles.qrSection}>
                    <View style={styles.qrPlaceholder}>
-                      <Ionicons name="qr-code" size={140} color="colors.text" />
+                      <Ionicons name="qr-code" size={140} color={colors.text} />
                    </View>
                    <Text style={styles.qrCodeText}>EVT-{ticketModal.event?._id?.slice(-8).toUpperCase()}</Text>
                 </View>

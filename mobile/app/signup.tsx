@@ -202,25 +202,25 @@ export default function SignUpScreen() {
               <View className="mb-5">
                 <Text className="text-gray-700 font-medium mb-2">Full Name</Text>
                 <TextInput
-                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-base shadow-sm"
+                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-base text-gray-900 shadow-sm"
                   placeholder="Enter your full name"
                   value={name}
                   onChangeText={setName}
                   autoCapitalize="words"
-                  placeholderTextColor="colors.textSecondary"
+                  placeholderTextColor={colors.textSecondary || '#6B7280'}
                 />
               </View>
 
               <View className="mb-5">
                 <Text className="text-gray-700 font-medium mb-2">Email</Text>
                 <TextInput
-                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-base shadow-sm"
+                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-base text-gray-900 shadow-sm"
                   placeholder="Enter your email"
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  placeholderTextColor="colors.textSecondary"
+                  placeholderTextColor={colors.textSecondary || '#6B7280'}
                 />
               </View>
 
@@ -229,13 +229,13 @@ export default function SignUpScreen() {
                 <View className="flex-row items-center bg-white rounded-xl px-4 py-4 border border-gray-300 shadow-sm">
                   <Text className="text-gray-600 mr-2 text-base font-medium">+91</Text>
                   <TextInput
-                    className="flex-1 text-base"
+                    className="flex-1 text-base text-gray-900"
                     placeholder="9876543210"
                     keyboardType="phone-pad"
                     value={phone}
                     onChangeText={setPhone}
                     maxLength={10}
-                    placeholderTextColor="colors.textSecondary"
+                    placeholderTextColor={colors.textSecondary || '#6B7280'}
                   />
                 </View>
               </View>
@@ -243,12 +243,12 @@ export default function SignUpScreen() {
               <View className="mb-5">
                 <Text className="text-gray-700 font-medium mb-2">Referral Code (Optional)</Text>
                 <TextInput
-                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-base shadow-sm"
+                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-base text-gray-900 shadow-sm"
                   placeholder="Enter referral code (e.g. PARAM-ZK8WM4N2)"
                   value={referralCode}
                   onChangeText={setReferralCode}
                   autoCapitalize="characters"
-                  placeholderTextColor="colors.textSecondary"
+                  placeholderTextColor={colors.textSecondary || '#6B7280'}
                 />
               </View>
 
@@ -258,7 +258,7 @@ export default function SignUpScreen() {
                 disabled={isLoading || phone.length < 10 || !name.trim() || !email}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="colors.surface" />
+                  <ActivityIndicator color={colors.surface} />
                 ) : (
                   <Text className="text-white font-semibold text-base text-center">Send OTP</Text>
                 )}
@@ -307,14 +307,14 @@ export default function SignUpScreen() {
                 <Text className="text-gray-700 font-medium mb-2">Enter OTP</Text>
                 <TextInput
                   ref={otpInputRef}
-                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-2xl text-center tracking-widest font-bold shadow-sm"
+                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-2xl text-center tracking-widest font-bold text-gray-900 shadow-sm"
                   placeholder="000000"
                   keyboardType="number-pad"
                   value={otp}
                   onChangeText={(text) => setOtp(text.replace(/[^0-9]/g, ''))}
                   maxLength={6}
                   autoFocus
-                  placeholderTextColor="colors.border"
+                  placeholderTextColor="#9CA3AF"
                 />
                 <Text className="text-gray-500 text-sm mt-2 text-center">
                   OTP sent to +91{phone}
@@ -327,7 +327,7 @@ export default function SignUpScreen() {
                 disabled={isLoading || otp.length !== 6}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="colors.surface" />
+                  <ActivityIndicator color={colors.surface} />
                 ) : (
                   <Text className="text-white font-semibold text-base text-center">
                     Create Account

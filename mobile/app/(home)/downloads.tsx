@@ -15,7 +15,7 @@ export default function DownloadsScreen() {
   const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -23,22 +23,22 @@ export default function DownloadsScreen() {
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 14,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: 'colors.border',
+    borderBottomColor: colors.border,
   },
   backBtn: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'colors.surfaceSecondary',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
   },
   content: {
     padding: 20,
@@ -46,19 +46,19 @@ export default function DownloadsScreen() {
   },
   subtitle: {
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     marginBottom: 16,
     lineHeight: 20,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 12,
     marginTop: 8,
   },
   emptyCard: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 24,
     alignItems: 'center',
@@ -67,16 +67,16 @@ export default function DownloadsScreen() {
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
   },
   emptyText: {
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 20,
   },
   card: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 16,
     marginBottom: 12,
@@ -101,7 +101,7 @@ export default function DownloadsScreen() {
     width: 54,
     height: 54,
     borderRadius: 12,
-    backgroundColor: 'colors.surfaceSecondary',
+    backgroundColor: colors.surfaceSecondary,
   },
   meta: {
     flex: 1,
@@ -110,19 +110,19 @@ export default function DownloadsScreen() {
   courseTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     marginBottom: 4,
   },
   videoTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
   },
   metaText: {
     marginTop: 6,
     fontSize: 12,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   removeBtn: {
     marginTop: 14,
@@ -150,14 +150,14 @@ export default function DownloadsScreen() {
     marginTop: 14,
     fontSize: 20,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
   },
   lockText: {
     marginTop: 8,
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   membershipBtn: {
     marginTop: 18,
@@ -167,7 +167,7 @@ export default function DownloadsScreen() {
     borderRadius: 14,
   },
   membershipBtnText: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontWeight: '700',
     fontSize: 14,
   },
@@ -248,14 +248,14 @@ export default function DownloadsScreen() {
       <SafeAreaView style={styles.root}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
-            <Ionicons name="arrow-back" size={24} color="colors.text" />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Downloads</Text>
           <View style={{ width: 40 }} />
         </View>
 
         <View style={styles.centered}>
-          <Ionicons name="lock-closed-outline" size={52} color="colors.textSecondary" />
+          <Ionicons name="lock-closed-outline" size={52} color={colors.textSecondary} />
           <Text style={styles.lockTitle}>Premium Only</Text>
           <Text style={styles.lockText}>
             Offline downloads are available only with an active membership.
@@ -272,7 +272,7 @@ export default function DownloadsScreen() {
     <SafeAreaView style={styles.root}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
-          <Ionicons name="arrow-back" size={24} color="colors.text" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Downloads</Text>
         <View style={{ width: 40 }} />
@@ -285,7 +285,7 @@ export default function DownloadsScreen() {
 
         {totalDownloads === 0 ? (
           <View style={styles.emptyCard}>
-            <Ionicons name="download-outline" size={48} color="colors.textSecondary" />
+            <Ionicons name="download-outline" size={48} color={colors.textSecondary} />
             <Text style={styles.emptyTitle}>No Downloads Yet</Text>
             <Text style={styles.emptyText}>
               Open a course video or podcast and tap the download button to save it offline.
@@ -302,8 +302,8 @@ export default function DownloadsScreen() {
                       {item.thumbnailUrl && item.thumbnailUrl.startsWith('http') ? (
                         <Image source={{ uri: item.thumbnailUrl }} style={styles.thumbImage} />
                       ) : (
-                        <View style={[styles.iconWrap, { backgroundColor: 'colors.surfaceSecondary' }]}>
-                          <Ionicons name="musical-note" size={22} color="colors.textSecondary" />
+                        <View style={[styles.iconWrap, { backgroundColor: colors.surfaceSecondary }]}>
+                          <Ionicons name="musical-note" size={22} color={colors.textSecondary} />
                         </View>
                       )}
                       <View style={styles.meta}>

@@ -12,7 +12,7 @@ export default function ShopDetailScreen() {
   const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -21,22 +21,22 @@ export default function ShopDetailScreen() {
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 16,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: 'colors.border',
+    borderBottomColor: colors.border,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     flex: 1,
     textAlign: 'center',
     marginHorizontal: 16,
@@ -45,7 +45,7 @@ export default function ShopDetailScreen() {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -65,10 +65,10 @@ export default function ShopDetailScreen() {
   cartBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
   },
   shopInfoCard: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     padding: 20,
     marginBottom: 16,
   },
@@ -80,7 +80,7 @@ export default function ShopDetailScreen() {
     width: 80,
     height: 80,
     borderRadius: 12,
-    backgroundColor: 'colors.surfaceSecondary',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 16,
@@ -95,7 +95,7 @@ export default function ShopDetailScreen() {
   shopName: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 6,
   },
   ratingRow: {
@@ -106,7 +106,7 @@ export default function ShopDetailScreen() {
   },
   ratingText: {
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   locationRow: {
     flexDirection: 'row',
@@ -115,11 +115,11 @@ export default function ShopDetailScreen() {
   },
   locationText: {
     fontSize: 13,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   shopDescription: {
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     lineHeight: 20,
     marginBottom: 16,
   },
@@ -134,7 +134,7 @@ export default function ShopDetailScreen() {
   },
   statText: {
     fontSize: 13,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   productsSection: {
@@ -149,7 +149,7 @@ export default function ShopDetailScreen() {
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
   },
   filterText: {
     fontSize: 14,
@@ -158,7 +158,7 @@ export default function ShopDetailScreen() {
   },
   productCard: {
     flexDirection: 'row',
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
@@ -172,7 +172,7 @@ export default function ShopDetailScreen() {
     width: 90,
     height: 90,
     borderRadius: 8,
-    backgroundColor: 'colors.surfaceSecondary',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -192,7 +192,7 @@ export default function ShopDetailScreen() {
   outOfStockText: {
     fontSize: 9,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
   },
   productInfo: {
     flex: 1,
@@ -200,12 +200,12 @@ export default function ShopDetailScreen() {
   productName: {
     fontSize: 15,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 4,
   },
   productDescription: {
     fontSize: 12,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     marginBottom: 6,
   },
   productMeta: {
@@ -220,7 +220,7 @@ export default function ShopDetailScreen() {
   },
   productRatingText: {
     fontSize: 12,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   productFooter: {
     flexDirection: 'row',
@@ -230,7 +230,7 @@ export default function ShopDetailScreen() {
   productPrice: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
   },
   addToCartButton: {
     flexDirection: 'row',
@@ -242,7 +242,7 @@ export default function ShopDetailScreen() {
     borderRadius: 8,
   },
   addToCartButtonDisabled: {
-    backgroundColor: 'colors.textSecondary',
+    backgroundColor: colors.textSecondary,
   },
   addToCartButtonActive: {
     backgroundColor: '#10B981',
@@ -250,7 +250,7 @@ export default function ShopDetailScreen() {
   addToCartText: {
     fontSize: 13,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
   },
   checkoutContainer: {
     position: 'absolute',
@@ -258,9 +258,9 @@ export default function ShopDetailScreen() {
     left: 0,
     right: 0,
     padding: 16,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderTopWidth: 1,
-    borderTopColor: 'colors.border',
+    borderTopColor: colors.border,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.1,
@@ -281,14 +281,14 @@ export default function ShopDetailScreen() {
   },
   checkoutItems: {
     fontSize: 12,
-    color: 'colors.surface',
+    color: colors.surface,
     opacity: 0.9,
     marginBottom: 2,
   },
   checkoutPrice: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
   },
   checkoutAction: {
     flexDirection: 'row',
@@ -298,7 +298,7 @@ export default function ShopDetailScreen() {
   checkoutText: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
   },
 });
   const router = useRouter();
@@ -343,11 +343,11 @@ export default function ShopDetailScreen() {
           style={styles.backButton}
           onPress={() => { if (router.canGoBack()) router.back(); }}
         >
-          <Ionicons name="arrow-back" size={24} color="colors.text" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Shop Details</Text>
         <TouchableOpacity style={styles.cartButton}>
-          <Ionicons name="cart-outline" size={24} color="colors.text" />
+          <Ionicons name="cart-outline" size={24} color={colors.text} />
           {cart.length > 0 && (
             <View style={styles.cartBadge}>
               <Text style={styles.cartBadgeText}>{cart.length}</Text>
@@ -375,7 +375,7 @@ export default function ShopDetailScreen() {
               </View>
 
               <View style={styles.locationRow}>
-                <Ionicons name="location" size={14} color="colors.textSecondary" />
+                <Ionicons name="location" size={14} color={colors.textSecondary} />
                 <Text style={styles.locationText}>{currentShop.location}</Text>
               </View>
             </View>
@@ -448,7 +448,7 @@ export default function ShopDetailScreen() {
                     <Ionicons
                       name={isInCart(product.id) ? "checkmark" : "cart"}
                       size={16}
-                      color="colors.surface"
+                      color={colors.surface}
                     />
                     <Text style={styles.addToCartText}>
                       {isInCart(product.id) ? 'Added' : 'Add'}
@@ -477,7 +477,7 @@ export default function ShopDetailScreen() {
             </View>
             <View style={styles.checkoutAction}>
               <Text style={styles.checkoutText}>Checkout</Text>
-              <Ionicons name="arrow-forward" size={20} color="colors.surface" />
+              <Ionicons name="arrow-forward" size={20} color={colors.surface} />
             </View>
           </TouchableOpacity>
         </View>

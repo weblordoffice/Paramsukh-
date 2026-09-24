@@ -356,12 +356,12 @@ export default function MembershipScreen() {
                       </View>
                     </View>
                     {isExpanded && (
-                      <Ionicons name="chevron-up" size={22} color="colors.textSecondary" />
+                      <Ionicons name="chevron-up" size={22} color={colors.textSecondary} />
                     )}
                     {!isExpanded && hasCourseSelection && (
                       <View className="flex-row items-center gap-1">
                         <Text className="text-xs text-gray-500">Pick courses</Text>
-                        <Ionicons name="chevron-down" size={22} color="colors.textSecondary" />
+                        <Ionicons name="chevron-down" size={22} color={colors.textSecondary} />
                       </View>
                     )}
                   </View>
@@ -380,11 +380,11 @@ export default function MembershipScreen() {
                       <View key={idx} className="flex-row items-center gap-2.5">
                         <View
                           className="w-5 h-5 rounded-full items-center justify-center"
-                          style={{ backgroundColor: feature.included ? plan.color : 'colors.border' }}
+                          style={{ backgroundColor: feature.included ? plan.color : colors.border }}
                         >
                           <Ionicons
                             name={feature.included ? "checkmark" : "close"}
-                            size={12} color="colors.surface"
+                            size={12} color={colors.surface}
                           />
                         </View>
                         <Text className={`text-sm flex-1 ${!feature.included ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
@@ -403,7 +403,7 @@ export default function MembershipScreen() {
                       disabled={purchasingPlanId !== null || isPlanActive(plan.id)}
                     >
                       {purchasingPlanId === plan.id ? (
-                        <ActivityIndicator color="colors.surface" />
+                        <ActivityIndicator color={colors.surface} />
                       ) : (
                         <Text className="text-base font-bold text-white">
                           {isPlanActive(plan.id) ? '✓ Active Plan' : 'Purchase Now'}
@@ -507,7 +507,7 @@ export default function MembershipScreen() {
                       disabled={purchasingPlanId !== null || isPlanActive(plan.id) || selectedCount === 0}
                     >
                       {purchasingPlanId === plan.id ? (
-                        <ActivityIndicator color="colors.surface" />
+                        <ActivityIndicator color={colors.surface} />
                       ) : (
                         <>
                           <Ionicons name="lock-open-outline" size={18} color="#FFF" />

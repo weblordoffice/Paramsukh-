@@ -344,7 +344,7 @@ export default function AssignmentViewerScreen() {
                     placeholder="Type your answer here..."
                     value={answers[q._id] || ''}
                     onChangeText={(text) => handleInputChange(q._id, text)}
-                    placeholderTextColor="colors.textSecondary"
+                    placeholderTextColor={colors.textSecondary}
                   />
                   <TouchableOpacity 
                     onPress={() => setShowExplanation(prev => ({ ...prev, [q._id]: true }))}

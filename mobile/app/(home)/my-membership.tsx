@@ -33,7 +33,7 @@ const PRE_SELECT_KEY = 'preselected_courses';
 export default function MyMembershipScreen() {
   const { colors } = useTheme();
   const styles = StyleSheet.create({
-    root: { flex: 1, backgroundColor: 'colors.background' },
+    root: { flex: 1, backgroundColor: colors.background },
 
     header: {
         flexDirection: 'row',
@@ -42,10 +42,10 @@ export default function MyMembershipScreen() {
         paddingHorizontal: 16,
         paddingVertical: 14,
     },
-    headerTitle: { fontSize: 20, fontWeight: '700', color: 'colors.text', letterSpacing: 0.3 },
+    headerTitle: { fontSize: 20, fontWeight: '700', color: colors.text, letterSpacing: 0.3 },
     backBtn: {
         width: 38, height: 38, borderRadius: 19,
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
         alignItems: 'center', justifyContent: 'center',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
@@ -59,13 +59,13 @@ export default function MyMembershipScreen() {
 
     /* ── No Plan card ── */
     noPlanCard: {
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
         borderRadius: 20,
         padding: 24,
         alignItems: 'center',
         marginBottom: 24,
         borderWidth: 1,
-        borderColor: 'colors.border',
+        borderColor: colors.border,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
@@ -73,8 +73,8 @@ export default function MyMembershipScreen() {
         elevation: 3,
     },
     noPlanEmoji: { fontSize: 44, marginBottom: 12 },
-    noPlanTitle: { fontSize: 20, fontWeight: '700', color: 'colors.text', marginBottom: 8 },
-    noPlanSub: { fontSize: 14, color: 'colors.textSecondary', textAlign: 'center', lineHeight: 21, marginBottom: 20 },
+    noPlanTitle: { fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 8 },
+    noPlanSub: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', lineHeight: 21, marginBottom: 20 },
     upgradeCta: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
         gap: 8, backgroundColor: '#7C3AED',
@@ -90,16 +90,16 @@ export default function MyMembershipScreen() {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
         gap: 8,
         paddingVertical: 12, paddingHorizontal: 28, borderRadius: 14,
-        borderWidth: 1.5, borderColor: 'colors.border',
-        backgroundColor: 'colors.background',
+        borderWidth: 1.5, borderColor: colors.border,
+        backgroundColor: colors.background,
         width: '100%',
     },
-    upgradeCtaSecondaryText: { fontSize: 14, fontWeight: '600', color: 'colors.textSecondary' },
+    upgradeCtaSecondaryText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
     upgradeCtaText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 
     /* ── Active plan card ── */
     activePlanCard: {
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
         borderRadius: 20,
         padding: 20,
         marginBottom: 24,
@@ -113,9 +113,9 @@ export default function MyMembershipScreen() {
     activePlanTop: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 18 },
     activePlanEmoji: { fontSize: 42 },
     activePlanInfo: { flex: 1 },
-    activePlanLabel: { fontSize: 12, color: 'colors.textSecondary', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 },
-    activePlanName: { fontSize: 28, fontWeight: '800', lineHeight: 32, color: 'colors.text' },
-    activePlanTagline: { fontSize: 13, color: 'colors.textSecondary', marginTop: 3, fontWeight: '500' },
+    activePlanLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 },
+    activePlanName: { fontSize: 28, fontWeight: '800', lineHeight: 32, color: colors.text },
+    activePlanTagline: { fontSize: 13, color: colors.textSecondary, marginTop: 3, fontWeight: '500' },
     statusBadge: {
         flexDirection: 'row', alignItems: 'center', gap: 6,
         paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20,
@@ -127,10 +127,10 @@ export default function MyMembershipScreen() {
         marginBottom: 18,
         paddingVertical: 12,
         borderTopWidth: 1,
-        borderTopColor: 'colors.surfaceSecondary',
+        borderTopColor: colors.surfaceSecondary,
     },
     featuresLabel: {
-        fontSize: 12, fontWeight: '700', color: 'colors.text',
+        fontSize: 12, fontWeight: '700', color: colors.text,
         textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12,
     },
     featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
@@ -171,28 +171,28 @@ export default function MyMembershipScreen() {
     courseSelectDoneText: { fontSize: 13, color: '#22C55E', fontWeight: '500' },
 
     /* ── Section title ── */
-    sectionTitle: { fontSize: 19, fontWeight: '700', color: 'colors.text', marginBottom: 14 },
+    sectionTitle: { fontSize: 19, fontWeight: '700', color: colors.text, marginBottom: 14 },
     noPlansCard: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
         borderRadius: 14,
         borderWidth: 1,
-        borderColor: 'colors.border',
+        borderColor: colors.border,
         padding: 14,
         marginBottom: 12,
     },
-    noPlansText: { fontSize: 14, color: 'colors.textSecondary', flex: 1 },
+    noPlansText: { fontSize: 14, color: colors.textSecondary, flex: 1 },
 
     /* ── Plan cards ── */
     planCard: {
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
         borderRadius: 20,
         padding: 18,
         marginBottom: 14,
         borderWidth: 1,
-        borderColor: 'colors.border',
+        borderColor: colors.border,
         position: 'relative',
         overflow: 'hidden',
         shadowColor: '#000',
@@ -220,8 +220,8 @@ export default function MyMembershipScreen() {
     },
     planEmoji: { fontSize: 34 },
     planTitleBlock: { flex: 1 },
-    planName: { fontSize: 22, fontWeight: '800', color: 'colors.text' },
-    planTagline: { fontSize: 12, color: 'colors.textSecondary', marginTop: 3, fontWeight: '500' },
+    planName: { fontSize: 22, fontWeight: '800', color: colors.text },
+    planTagline: { fontSize: 12, color: colors.textSecondary, marginTop: 3, fontWeight: '500' },
     planPriceBlock: { alignItems: 'flex-end' },
     planPrice: { fontSize: 18, fontWeight: '800' },
     currentChip: {
@@ -230,7 +230,7 @@ export default function MyMembershipScreen() {
         marginTop: 6,
     },
     currentChipText: { fontSize: 11, fontWeight: '700' },
-    planDivider: { height: 1, backgroundColor: 'colors.border', marginBottom: 14 },
+    planDivider: { height: 1, backgroundColor: colors.border, marginBottom: 14 },
     planFeatureRow: {
         flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5,
     },
@@ -238,8 +238,8 @@ export default function MyMembershipScreen() {
         width: 20, height: 20, borderRadius: 10,
         alignItems: 'center', justifyContent: 'center', flexShrink: 0,
     },
-    planFeatureText: { fontSize: 14, color: 'colors.text', flex: 1, fontWeight: '500' },
-    planFeatureTextMuted: { color: 'colors.textSecondary', textDecorationLine: 'line-through' },
+    planFeatureText: { fontSize: 14, color: colors.text, flex: 1, fontWeight: '500' },
+    planFeatureTextMuted: { color: colors.textSecondary, textDecorationLine: 'line-through' },
     buyBtn: {
         paddingVertical: 14, borderRadius: 14,
         borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
@@ -261,15 +261,15 @@ export default function MyMembershipScreen() {
     /* ── Purchase history ── */
     refundNote: { fontSize: 13, color: '#F59E0B', marginBottom: 14, fontWeight: '500' },
     emptyBox: { alignItems: 'center', paddingVertical: 32, gap: 10 },
-    emptyTitle: { fontSize: 17, fontWeight: '700', color: 'colors.text' },
-    emptySub: { fontSize: 14, color: 'colors.textSecondary' },
+    emptyTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
+    emptySub: { fontSize: 14, color: colors.textSecondary },
 
     purchaseList: { gap: 12 },
     purchaseRow: {
         flexDirection: 'row', alignItems: 'center',
-        backgroundColor: 'colors.surface', borderRadius: 16,
+        backgroundColor: colors.surface, borderRadius: 16,
         padding: 16, gap: 14,
-        borderWidth: 1, borderColor: 'colors.border',
+        borderWidth: 1, borderColor: colors.border,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.04,
@@ -278,10 +278,10 @@ export default function MyMembershipScreen() {
     },
     purchaseIcon: { width: 46, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
     purchaseInfo: { flex: 1 },
-    purchasePlan: { fontSize: 15, fontWeight: '700', color: 'colors.text' },
-    purchaseDate: { fontSize: 13, color: 'colors.textSecondary', marginTop: 3 },
+    purchasePlan: { fontSize: 15, fontWeight: '700', color: colors.text },
+    purchaseDate: { fontSize: 13, color: colors.textSecondary, marginTop: 3 },
     purchaseRight: { alignItems: 'flex-end' },
-    purchaseAmt: { fontSize: 16, fontWeight: '700', color: 'colors.text' },
+    purchaseAmt: { fontSize: 16, fontWeight: '700', color: colors.text },
     purchaseStatusBadge: { marginTop: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
     purchaseStatusText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
 
@@ -292,10 +292,10 @@ export default function MyMembershipScreen() {
         justifyContent: 'center',
         gap: 6,
         paddingVertical: 10,
-        backgroundColor: 'colors.surfaceSecondary',
+        backgroundColor: colors.surfaceSecondary,
         borderRadius: 12,
     },
-    previewBtnText: { fontSize: 13, color: 'colors.textSecondary', fontWeight: '500' },
+    previewBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
     buyRow: { flexDirection: 'row', gap: 8 },
     preSelectBtn: {
         flex: 1,
@@ -304,7 +304,7 @@ export default function MyMembershipScreen() {
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1.5,
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
     },
     preSelectBtnText: { fontSize: 14, fontWeight: '700' },
 
@@ -315,7 +315,7 @@ export default function MyMembershipScreen() {
         justifyContent: 'flex-end',
     },
     modalContainer: {
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         padding: 20,
@@ -327,10 +327,10 @@ export default function MyMembershipScreen() {
         alignItems: 'center',
         marginBottom: 4,
     },
-    modalTitle: { fontSize: 18, fontWeight: '700', color: 'colors.text' },
-    modalSub: { fontSize: 13, color: 'colors.textSecondary', marginTop: 4, marginBottom: 12 },
+    modalTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+    modalSub: { fontSize: 13, color: colors.textSecondary, marginTop: 4, marginBottom: 12 },
     modalCloseBtn: { padding: 4 },
-    modalEmpty: { textAlign: 'center', fontSize: 14, color: 'colors.textSecondary', marginTop: 20 },
+    modalEmpty: { textAlign: 'center', fontSize: 14, color: colors.textSecondary, marginTop: 20 },
     modalDoneBtn: {
         backgroundColor: '#8B5CF6',
         borderRadius: 12,
@@ -345,7 +345,7 @@ export default function MyMembershipScreen() {
         paddingVertical: 10,
         paddingHorizontal: 4,
         borderBottomWidth: 1,
-        borderBottomColor: 'colors.surfaceSecondary',
+        borderBottomColor: colors.surfaceSecondary,
         gap: 10,
     },
     previewThumb: {
@@ -355,8 +355,8 @@ export default function MyMembershipScreen() {
         alignItems: 'center',
         justifyContent: 'center',
     },
-    previewCourseTitle: { fontSize: 14, fontWeight: '600', color: 'colors.text' },
-    previewCourseMeta: { fontSize: 12, color: 'colors.textSecondary', marginTop: 2 },
+    previewCourseTitle: { fontSize: 14, fontWeight: '600', color: colors.text },
+    previewCourseMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
     previewRowSelected: { backgroundColor: '#F0FDF4' },
     previewRowDisabled: { opacity: 0.4 },
 });
@@ -746,12 +746,12 @@ export default function MyMembershipScreen() {
 
     return (
         <SafeAreaView style={styles.root}>
-            <StatusBar barStyle="dark-content" backgroundColor="colors.background" />
+            <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
 
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                    <Ionicons name="chevron-back" size={22} color="colors.text" />
+                    <Ionicons name="chevron-back" size={22} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Membership</Text>
                 <View style={{ width: 38 }} />
@@ -799,10 +799,10 @@ export default function MyMembershipScreen() {
                             activeOpacity={0.85}
                         >
                             {syncingPayment ? (
-                                <ActivityIndicator size="small" color="colors.textSecondary" />
+                                <ActivityIndicator size="small" color={colors.textSecondary} />
                             ) : (
                                 <>
-                                    <Ionicons name="refresh" size={18} color="colors.textSecondary" />
+                                    <Ionicons name="refresh" size={18} color={colors.textSecondary} />
                                     <Text style={styles.upgradeCtaSecondaryText}>I already paid – sync</Text>
                                 </>
                             )}
@@ -909,7 +909,7 @@ export default function MyMembershipScreen() {
                     </View>
                 ) : plans.length === 0 && (
                     <View style={styles.noPlansCard}>
-                        <Ionicons name="information-circle-outline" size={18} color="colors.textSecondary" />
+                        <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
                         <Text style={styles.noPlansText}>No membership plans are available right now. Please check again later.</Text>
                     </View>
                 )}
@@ -1000,7 +1000,7 @@ export default function MyMembershipScreen() {
                                             onPress={() => openPreview(plan)}
                                             activeOpacity={0.7}
                                         >
-                                            <Ionicons name="eye-outline" size={15} color="colors.textSecondary" />
+                                            <Ionicons name="eye-outline" size={15} color={colors.textSecondary} />
                                             <Text style={styles.previewBtnText}>
                                                 See {plan.courseSelection.maxSelectableCourses} eligible courses
                                             </Text>
@@ -1098,11 +1098,11 @@ export default function MyMembershipScreen() {
                                             ₹{typeof p.amount === 'number' ? p.amount.toLocaleString('en-IN') : p.amount}
                                         </Text>
                                         <View style={[styles.purchaseStatusBadge, { 
-                                            backgroundColor: done ? '#F0FDF4' : 'colors.surfaceSecondary',
-                                            borderColor: done ? '#10B981' : 'colors.border',
+                                            backgroundColor: done ? '#F0FDF4' : colors.surfaceSecondary,
+                                            borderColor: done ? '#10B981' : colors.border,
                                             borderWidth: 1
                                         }]}>
-                                            <Text style={[styles.purchaseStatusText, { color: done ? '#10B981' : 'colors.textSecondary' }]}>
+                                            <Text style={[styles.purchaseStatusText, { color: done ? '#10B981' : colors.textSecondary }]}>
                                                 {p.status || 'completed'}
                                             </Text>
                                         </View>
@@ -1125,7 +1125,7 @@ export default function MyMembershipScreen() {
                                 Eligible Courses — {previewPlan?.name}
                             </Text>
                             <TouchableOpacity onPress={closePreview} style={styles.modalCloseBtn}>
-                                <Ionicons name="close" size={24} color="colors.text" />
+                                <Ionicons name="close" size={24} color={colors.text} />
                             </TouchableOpacity>
                         </View>
                         <Text style={styles.modalSub}>
@@ -1172,7 +1172,7 @@ export default function MyMembershipScreen() {
                                 Pick Your Courses — {plans.find(p => p.id === preSelectingPlanId)?.name ?? 'Plan'}
                             </Text>
                             <TouchableOpacity onPress={() => { setShowPreSelectModal(false); setPreSelectingPlanId(null); setPreSelectedCourseIds([]); }} style={styles.modalCloseBtn}>
-                                <Ionicons name="close" size={24} color="colors.text" />
+                                <Ionicons name="close" size={24} color={colors.text} />
                             </TouchableOpacity>
                         </View>
                         <Text style={styles.modalSub}>
@@ -1210,7 +1210,7 @@ export default function MyMembershipScreen() {
                                             {isSelected ? (
                                                 <Ionicons name="checkmark-circle" size={24} color="#22C55E" />
                                             ) : disabled ? (
-                                                <Ionicons name="lock-closed" size={20} color="colors.textSecondary" />
+                                                <Ionicons name="lock-closed" size={20} color={colors.textSecondary} />
                                             ) : (
                                                 <Ionicons name="add-circle-outline" size={24} color="#8B5CF6" />
                                             )}

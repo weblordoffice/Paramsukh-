@@ -146,7 +146,7 @@ export default function VerifyPhoneScreen() {
                     value={phone}
                     onChangeText={setPhone}
                     maxLength={10}
-                    placeholderTextColor="colors.textSecondary"
+                    placeholderTextColor={colors.textSecondary || '#6B7280'}
                   />
                 </View>
               </View>
@@ -157,7 +157,7 @@ export default function VerifyPhoneScreen() {
                 disabled={isLoading || phone.length < 10}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="colors.surface" />
+                  <ActivityIndicator color={colors.surface} />
                 ) : (
                   <Text className="text-white font-semibold text-base text-center">Request OTP Code</Text>
                 )}
@@ -169,14 +169,14 @@ export default function VerifyPhoneScreen() {
                 <Text className="text-gray-700 font-semibold mb-2">Enter Verification Code</Text>
                 <TextInput
                   ref={otpInputRef}
-                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-2xl text-center tracking-widest font-bold shadow-sm"
+                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-2xl text-center tracking-widest font-bold text-gray-900 shadow-sm"
                   placeholder="000000"
                   keyboardType="number-pad"
                   value={otp}
                   onChangeText={(text) => setOtp(text.replace(/[^0-9]/g, ''))}
                   maxLength={6}
                   autoFocus
-                  placeholderTextColor="colors.border"
+                  placeholderTextColor="#9CA3AF"
                 />
                 <Text className="text-gray-500 text-xs mt-2 text-center">
                   6-digit code sent to +91 {phone}
@@ -189,7 +189,7 @@ export default function VerifyPhoneScreen() {
                 disabled={isLoading || otp.length !== 6}
               >
                 {isLoading ? (
-                  <ActivityIndicator color="colors.surface" />
+                  <ActivityIndicator color={colors.surface} />
                 ) : (
                   <Text className="text-white font-semibold text-base text-center">
                     Link Phone Number

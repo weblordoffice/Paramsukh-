@@ -24,7 +24,7 @@ export default function BookCounselingScreen() {
   const counselorName = service?.counselorName || 'Expert Counselor';
   const duration = service?.duration || '60 mins';
   const color = service?.color || '#F1842D';
-  const bgColor = service?.bgColor || 'colors.background';
+  const bgColor = service?.bgColor || colors.background;
   const isFree = service?.isFree ? 'true' : 'false';
 
   // Set today as initial date
@@ -195,9 +195,9 @@ export default function BookCounselingScreen() {
   const displayBgColor = (bgColor as string) || '#EFF6FF';
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'colors.background' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: 'colors.surface', borderBottomWidth: 1, borderBottomColor: 'colors.surfaceSecondary' }}>
-        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: 'colors.background', borderRadius: 20 }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.surfaceSecondary }}>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background, borderRadius: 20 }}>
           <Ionicons name="arrow-back" size={20} color="#2C2420" />
         </TouchableOpacity>
         <Text style={{ fontSize: 18, fontWeight: '700', color: '#2C2420' }}>Book Session</Text>
@@ -205,7 +205,7 @@ export default function BookCounselingScreen() {
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, paddingBottom: 36 }} showsVerticalScrollIndicator={false}>
-        <View style={{ borderRadius: 24, padding: 20, marginBottom: 20, backgroundColor: 'colors.surface', borderWidth: 1, borderColor: 'colors.surfaceSecondary' }}>
+        <View style={{ borderRadius: 24, padding: 20, marginBottom: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surfaceSecondary }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
             <View style={{ flex: 1, paddingRight: 12 }}>
               <Text style={{ fontSize: 22, fontWeight: '800', color: '#2C2420', marginBottom: 4 }}>{title}</Text>
@@ -220,7 +220,7 @@ export default function BookCounselingScreen() {
 
           <Text style={{ fontSize: 14, color: '#5C4A42', marginBottom: 14, lineHeight: 20 }}>{description}</Text>
 
-          <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 16, borderTopWidth: 1, borderTopColor: 'colors.background', paddingTop: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 16, borderTopWidth: 1, borderTopColor: colors.background, paddingTop: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Ionicons name="time-outline" size={16} color="#8C7B73" />
               <Text style={{ fontSize: 12, fontWeight: '600', color: '#8C7B73', marginLeft: 6 }}>{duration || '60 mins'}</Text>
@@ -234,7 +234,7 @@ export default function BookCounselingScreen() {
 
         <View style={{ marginBottom: 20 }}>
           <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420', marginBottom: 10 }}>Select Date</Text>
-          <View style={{ backgroundColor: 'colors.surface', borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: 'colors.surfaceSecondary', padding: 8 }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: colors.surfaceSecondary, padding: 8 }}>
             <Calendar
               current={today}
               minDate={today}
@@ -249,7 +249,7 @@ export default function BookCounselingScreen() {
                 selectedDayTextColor: '#ffffff',
                 todayTextColor: displayColor,
                 dayTextColor: '#2C2420',
-                textDisabledColor: 'colors.border',
+                textDisabledColor: colors.border,
                 dotColor: displayColor,
                 selectedDotColor: '#ffffff',
                 arrowColor: displayColor,
@@ -270,7 +270,7 @@ export default function BookCounselingScreen() {
           <View style={{ marginBottom: 20 }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420', marginBottom: 10 }}>Select Time</Text>
             {fetchingSlots ? (
-              <View style={{ backgroundColor: 'colors.surface', padding: 16, borderRadius: 24, borderWidth: 1, borderColor: 'colors.surfaceSecondary', flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
+              <View style={{ backgroundColor: colors.surface, padding: 16, borderRadius: 24, borderWidth: 1, borderColor: colors.surfaceSecondary, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
                 <ActivityIndicator size="small" color={displayColor} />
                 <Text style={{ color: '#8C7B73', fontWeight: '500', marginLeft: 10 }}>Finding available slots...</Text>
               </View>
@@ -292,9 +292,9 @@ export default function BookCounselingScreen() {
                         paddingHorizontal: 16,
                         paddingVertical: 10,
                         borderRadius: 16,
-                        backgroundColor: isSelected ? displayColor + '10' : 'colors.surface',
+                        backgroundColor: isSelected ? displayColor + '10' : colors.surface,
                         borderWidth: isSelected ? 2 : 1,
-                        borderColor: isSelected ? displayColor : 'colors.surfaceSecondary'
+                        borderColor: isSelected ? displayColor : colors.surfaceSecondary
                       }}
                     >
                       <Text style={{ fontSize: 14, fontWeight: '700', color: isSelected ? displayColor : '#5C4A42' }}>{time}</Text>
@@ -310,9 +310,9 @@ export default function BookCounselingScreen() {
           <View style={{ marginBottom: 20 }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420', marginBottom: 10 }}>Additional Notes (Optional)</Text>
             <TextInput
-              style={{ backgroundColor: 'colors.surface', borderWidth: 1, borderColor: 'colors.surfaceSecondary', borderRadius: 24, padding: 16, minHeight: 96, color: '#2C2420' }}
+              style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surfaceSecondary, borderRadius: 24, padding: 16, minHeight: 96, color: '#2C2420' }}
               placeholder="Share any specific concerns or topics you'd like to discuss before the session..."
-              placeholderTextColor="colors.textSecondary"
+              placeholderTextColor={colors.textSecondary}
               multiline
               numberOfLines={4}
               textAlignVertical="top"
@@ -323,13 +323,13 @@ export default function BookCounselingScreen() {
         )}
 
         {selectedTime && showPayment && (
-          <View style={{ backgroundColor: 'colors.surface', borderRadius: 24, padding: 16, borderWidth: 1, borderColor: 'colors.surfaceSecondary' }}>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 16, borderWidth: 1, borderColor: colors.surfaceSecondary }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420', marginBottom: 12 }}>Payment Summary</Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <Text style={{ fontSize: 14, fontWeight: '500', color: '#5C4A42' }}>Session Fee</Text>
               <Text style={{ fontSize: 14, fontWeight: '600', color: '#2C2420' }}>₹{price}</Text>
             </View>
-            <View style={{ borderTopWidth: 1, borderTopColor: 'colors.border', marginTop: 8, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: 8, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420' }}>Total Amount</Text>
               <Text style={{ fontSize: 20, fontWeight: '800', color: '#F1842D' }}>₹{price}</Text>
             </View>
@@ -338,7 +338,7 @@ export default function BookCounselingScreen() {
       </ScrollView>
 
       {selectedDate && selectedTime && (
-        <View style={{ backgroundColor: 'colors.surface', paddingTop: 12, paddingBottom: 24, paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: 'colors.surfaceSecondary' }}>
+        <View style={{ backgroundColor: colors.surface, paddingTop: 12, paddingBottom: 24, paddingHorizontal: 20, borderTopWidth: 1, borderTopColor: colors.surfaceSecondary }}>
           <TouchableOpacity
             onPress={handleBooking}
             disabled={isLoading || processing}
@@ -354,11 +354,11 @@ export default function BookCounselingScreen() {
             }}
           >
             {processing || isLoading ? (
-              <ActivityIndicator size="small" color="colors.surface" />
+              <ActivityIndicator size="small" color={colors.surface} />
             ) : (
-              <Ionicons name="calendar" size={20} color="colors.surface" />
+              <Ionicons name="calendar" size={20} color={colors.surface} />
             )}
-            <Text style={{ fontSize: 16, fontWeight: '700', color: 'colors.surface', marginLeft: 8 }}>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.surface, marginLeft: 8 }}>
               {processing || isLoading
                 ? (showPayment ? 'Opening secure payment...' : 'Confirming booking...')
                 : showPayment

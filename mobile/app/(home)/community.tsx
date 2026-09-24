@@ -53,10 +53,10 @@ export default function CommunityScreen() {
   const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
   },
   customHeader: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(92, 74, 66, 0.06)',
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
@@ -127,7 +127,7 @@ export default function CommunityScreen() {
   notificationBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
   },
   profileButton: {
     padding: 4,
@@ -167,7 +167,7 @@ export default function CommunityScreen() {
     left: 0,
     width: SIDEBAR_WIDTH,
     height: '100%',
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     zIndex: 999,
     shadowColor: '#2C2420',
     shadowOffset: { width: 4, height: 0 },
@@ -347,7 +347,7 @@ export default function CommunityScreen() {
     padding: 20,
   },
   postTypeModalContent: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 24,
     width: '100%',
@@ -407,7 +407,7 @@ export default function CommunityScreen() {
   postTypeCancelText: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   groupChip: {
     flexDirection: 'row',
@@ -416,16 +416,16 @@ export default function CommunityScreen() {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: 'colors.surfaceSecondary',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: 'colors.border',
+    borderColor: colors.border,
   },
   groupChipActive: {
     backgroundColor: '#F1842D',
     borderColor: '#F1842D',
   },
   groupChipSub: {
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
   },
   groupChipText: {
     fontSize: 13,
@@ -434,7 +434,7 @@ export default function CommunityScreen() {
     maxWidth: 120,
   },
   groupChipTextActive: {
-    color: 'colors.surface',
+    color: colors.surface,
   },
   groupChipSubText: {
     fontSize: 12,
@@ -479,7 +479,7 @@ export default function CommunityScreen() {
     color: '#60A5FA',
   },
   createPostButton: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     marginHorizontal: 20,
     marginTop: 16,
@@ -524,7 +524,7 @@ export default function CommunityScreen() {
     letterSpacing: 0.3,
   },
   postCard: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 20,
     marginBottom: 18,
@@ -587,7 +587,7 @@ export default function CommunityScreen() {
     borderColor: 'rgba(92, 74, 66, 0.08)',
   },
   groupCard: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     marginBottom: 18,
     shadowColor: '#5C4A42',
@@ -630,13 +630,13 @@ export default function CommunityScreen() {
   },
   fullModalOverlay: {
     flex: 1,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     paddingHorizontal: 20,
     paddingTop: 16,
   },
   fullModalContent: {
     flex: 1,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
   },
   modalOverlay: {
     flex: 1,
@@ -644,7 +644,7 @@ export default function CommunityScreen() {
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 24,
@@ -756,7 +756,7 @@ export default function CommunityScreen() {
   publishButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
   },
   filterButtonsContainer: {
     flexDirection: 'row',
@@ -771,7 +771,7 @@ export default function CommunityScreen() {
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: 'rgba(92, 74, 66, 0.08)',
   },
@@ -793,7 +793,7 @@ export default function CommunityScreen() {
     backgroundColor: 'rgba(44, 36, 32, 0.5)',
   },
   filterModalContent: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 24,
@@ -1145,7 +1145,7 @@ export default function CommunityScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.notificationIconContainer}>
-                <Ionicons name="notifications-outline" size={24} color="colors.text" />
+                <Ionicons name="notifications-outline" size={24} color={colors.text} />
                 {unreadCount > 0 && (
                   <View style={styles.notificationBadge}>
                     <Text style={styles.notificationBadgeText}>{notificationBadgeCount}</Text>
@@ -1188,7 +1188,7 @@ export default function CommunityScreen() {
         <View style={styles.sidebarHeader}>
           <Text style={styles.sidebarTitle}>Menu</Text>
           <TouchableOpacity onPress={() => setShowSidebar(false)}>
-            <Ionicons name="close" size={24} color="colors.text" />
+            <Ionicons name="close" size={24} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -1266,7 +1266,7 @@ export default function CommunityScreen() {
                         <Ionicons 
                           name="shield-outline" 
                           size={14} 
-                          color={isPlanActive ? 'colors.surface' : '#F1842D'} 
+                          color={isPlanActive ? colors.surface : '#F1842D'} 
                         />
                       </View>
                       <View style={{ flex: 1 }}>
@@ -1431,7 +1431,7 @@ export default function CommunityScreen() {
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 12, gap: 8 }}
-                    style={{ backgroundColor: 'colors.background', borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}
+                    style={{ backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}
                   >
                     <TouchableOpacity
                       style={[styles.groupChip, !activeGroup?._id && styles.groupChipActive]}
@@ -1483,7 +1483,7 @@ export default function CommunityScreen() {
                         <Text style={styles.bannerTitle}>Complete Your Assessment</Text>
                         <Text style={styles.bannerSubtitle}>Help us personalize your experience</Text>
                       </View>
-                      <Ionicons name="chevron-forward" size={20} color="colors.textSecondary" />
+                      <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
                     </View>
                   </TouchableOpacity>
                 )}
@@ -1501,7 +1501,7 @@ export default function CommunityScreen() {
                     </Text>
                   </View>
                   <View style={styles.mediaIcons}>
-                    <Ionicons name="image-outline" size={20} color="colors.textSecondary" />
+                    <Ionicons name="image-outline" size={20} color={colors.textSecondary} />
                   </View>
                 </TouchableOpacity>
 
@@ -1544,7 +1544,7 @@ export default function CommunityScreen() {
                     </View>
                   </View>
                   <TouchableOpacity onPress={() => handlePostMenu(post)}>
-                    <Ionicons name="ellipsis-horizontal" size={20} color="colors.textSecondary" />
+                    <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
 
@@ -1555,8 +1555,8 @@ export default function CommunityScreen() {
                 {post.tags && post.tags.length > 0 && (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                     {post.tags.map(tag => (
-                      <View key={tag} style={{ backgroundColor: 'colors.surfaceSecondary', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-                        <Text style={{ fontSize: 12, color: 'colors.textSecondary' }}>#{tag}</Text>
+                      <View key={tag} style={{ backgroundColor: colors.surfaceSecondary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
+                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>#{tag}</Text>
                       </View>
                     ))}
                   </View>
@@ -1578,7 +1578,7 @@ export default function CommunityScreen() {
                     <Ionicons
                       name={post.userLiked ? "heart" : "heart-outline"}
                       size={22}
-                      color={post.userLiked ? "#EF4444" : "colors.textSecondary"}
+                      color={post.userLiked ? "#EF4444" : colors.textSecondary}
                     />
                     <Text style={[styles.actionText, post.userLiked && styles.likedText]}>
                       {post.likeCount}
@@ -1592,12 +1592,12 @@ export default function CommunityScreen() {
                       setShowCommentsModal(true);
                     }}
                   >
-                    <Ionicons name="chatbubble-outline" size={20} color="colors.textSecondary" />
+                    <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} />
                     <Text style={styles.actionText}>{post.commentCount}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity style={styles.actionButton}>
-                    <Ionicons name="share-social-outline" size={20} color="colors.textSecondary" />
+                    <Ionicons name="share-social-outline" size={20} color={colors.textSecondary} />
                     <Text style={styles.actionText}>0</Text>
                   </TouchableOpacity>
                 </View>
@@ -1611,7 +1611,7 @@ export default function CommunityScreen() {
                 <Text style={styles.sectionTitle}>My Communities</Text>
                 {planGroups.length === 0 && groups.length === 0 ? (
                   <View style={styles.emptyState}>
-                    <Ionicons name="lock-closed-outline" size={64} color="colors.textSecondary" />
+                    <Ionicons name="lock-closed-outline" size={64} color={colors.textSecondary} />
                     <Text style={styles.emptyStateText}>
                       {communityAccessDenied ? 'Membership Required' : 'No groups yet'}
                     </Text>
@@ -1706,7 +1706,7 @@ export default function CommunityScreen() {
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Messages</Text>
                 <View style={styles.emptyState}>
-                  <Ionicons name="chatbubbles-outline" size={64} color="colors.textSecondary" />
+                  <Ionicons name="chatbubbles-outline" size={64} color={colors.textSecondary} />
                   <Text style={styles.emptyStateText}>No messages yet</Text>
                   <Text style={styles.emptyStateSubtext}>
                     Start a conversation with community members
@@ -1740,7 +1740,7 @@ export default function CommunityScreen() {
                   setShowCreatePost(false);
                 }}
               >
-                <Ionicons name="close" size={28} color="colors.textSecondary" />
+                <Ionicons name="close" size={28} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -1753,7 +1753,7 @@ export default function CommunityScreen() {
               <TextInput
                 style={styles.postInput}
                 placeholder="What's on your mind?"
-                placeholderTextColor="colors.textSecondary"
+                placeholderTextColor={colors.textSecondary}
                 multiline
                 value={postContent}
                 onChangeText={setPostContent}
@@ -1789,10 +1789,10 @@ export default function CommunityScreen() {
                         paddingHorizontal: 12,
                         paddingVertical: 6,
                         borderRadius: 16,
-                        backgroundColor: createPostTags.includes(tag) ? '#F1842D' : 'colors.surfaceSecondary',
+                        backgroundColor: createPostTags.includes(tag) ? '#F1842D' : colors.surfaceSecondary,
                         marginRight: 8,
                         borderWidth: 1,
-                        borderColor: createPostTags.includes(tag) ? '#F1842D' : 'colors.border'
+                        borderColor: createPostTags.includes(tag) ? '#F1842D' : colors.border
                       }}
                       onPress={() => {
                         if (createPostTags.includes(tag)) {
@@ -1860,7 +1860,7 @@ export default function CommunityScreen() {
             <View style={styles.filterModalHeader}>
               <Text style={styles.filterModalTitle}>Filter by Post Type</Text>
               <TouchableOpacity onPress={() => setShowPostTypeFilter(false)}>
-                <Ionicons name="close" size={24} color="colors.textSecondary" />
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -1961,7 +1961,7 @@ export default function CommunityScreen() {
             <View style={styles.filterModalHeader}>
               <Text style={styles.filterModalTitle}>Filter by Tag</Text>
               <TouchableOpacity onPress={() => setShowTagFilter(false)}>
-                <Ionicons name="close" size={24} color="colors.textSecondary" />
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 

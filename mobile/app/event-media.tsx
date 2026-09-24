@@ -24,7 +24,7 @@ export default function EventMediaScreen() {
     marginBottom: 16,
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -34,7 +34,7 @@ export default function EventMediaScreen() {
   photoItem: {
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: 'colors.border',
+    backgroundColor: colors.border,
   },
   photoImage: {
     width: '100%',
@@ -60,7 +60,7 @@ export default function EventMediaScreen() {
     justifyContent: 'center',
   },
   modalCounter: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -114,7 +114,7 @@ export default function EventMediaScreen() {
     paddingTop: 20,
   },
   modalCaption: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 20,
@@ -197,7 +197,7 @@ export default function EventMediaScreen() {
           className="w-10 h-10 rounded-full bg-white/20 items-center justify-center mr-3"
           onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/'); }}
         >
-          <Ionicons name="arrow-back" size={24} color="colors.surface" />
+          <Ionicons name="arrow-back" size={24} color={colors.surface} />
         </TouchableOpacity>
         <View className="flex-1">
           <Text className="text-base font-semibold text-white" numberOfLines={1}>
@@ -216,7 +216,7 @@ export default function EventMediaScreen() {
           style={{ borderColor: activeTab === 'videos' ? eventColor : 'transparent' }}
           onPress={() => setActiveTab('videos')}
         >
-          <Text style={{ color: activeTab === 'videos' ? eventColor : 'colors.textSecondary', fontWeight: activeTab === 'videos' ? '700' : '500' }}>
+          <Text style={{ color: activeTab === 'videos' ? eventColor : colors.textSecondary, fontWeight: activeTab === 'videos' ? '700' : '500' }}>
             Recordings ({videos.length})
           </Text>
         </TouchableOpacity>
@@ -225,7 +225,7 @@ export default function EventMediaScreen() {
           style={{ borderColor: activeTab === 'photos' ? eventColor : 'transparent' }}
           onPress={() => setActiveTab('photos')}
         >
-          <Text style={{ color: activeTab === 'photos' ? eventColor : 'colors.textSecondary', fontWeight: activeTab === 'photos' ? '700' : '500' }}>
+          <Text style={{ color: activeTab === 'photos' ? eventColor : colors.textSecondary, fontWeight: activeTab === 'photos' ? '700' : '500' }}>
             Gallery ({photos.length})
           </Text>
         </TouchableOpacity>
@@ -244,7 +244,7 @@ export default function EventMediaScreen() {
               {videos.length === 0 ? (
                 <View className="py-20 items-center justify-center">
                   <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center mb-4">
-                    <Ionicons name="videocam-off" size={40} color="colors.textSecondary" />
+                    <Ionicons name="videocam-off" size={40} color={colors.textSecondary} />
                   </View>
                   <Text className="text-lg font-bold text-gray-900 mb-1">No Recordings Yet</Text>
                   <Text className="text-sm text-gray-500 text-center px-6">
@@ -281,7 +281,7 @@ export default function EventMediaScreen() {
                             className="w-16 h-16 rounded-full items-center justify-center"
                             style={{ backgroundColor: eventColor + 'E6' }}
                           >
-                            <Ionicons name="play" size={28} color="colors.surface" />
+                            <Ionicons name="play" size={28} color={colors.surface} />
                           </View>
                         </View>
                         {/* Duration Badge */}
@@ -313,11 +313,11 @@ export default function EventMediaScreen() {
                       )}
                       <View className="flex-row items-center gap-3">
                         <View className="flex-row items-center gap-1.5">
-                          <Ionicons name="time-outline" size={14} color="colors.textSecondary" />
+                          <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
                           <Text className="text-xs text-gray-500">{video.duration || 'Full length'}</Text>
                         </View>
                         <View className="flex-row items-center gap-1.5">
-                          <Ionicons name="play-circle-outline" size={14} color="colors.textSecondary" />
+                          <Ionicons name="play-circle-outline" size={14} color={colors.textSecondary} />
                           <Text className="text-xs text-gray-500">Watch Now</Text>
                         </View>
                       </View>
@@ -331,7 +331,7 @@ export default function EventMediaScreen() {
               {photos.length === 0 ? (
                 <View className="py-20 items-center justify-center">
                   <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center mb-4">
-                    <Ionicons name="images-outline" size={40} color="colors.textSecondary" />
+                    <Ionicons name="images-outline" size={40} color={colors.textSecondary} />
                   </View>
                   <Text className="text-lg font-bold text-gray-900 mb-1">No Photos Yet</Text>
                   <Text className="text-sm text-gray-500 text-center px-6">
@@ -391,7 +391,7 @@ export default function EventMediaScreen() {
           {/* Top Bar */}
           <View style={styles.modalTopBar}>
             <TouchableOpacity onPress={closeModal} style={styles.modalButton}>
-              <Ionicons name="close" size={28} color="colors.surface" />
+              <Ionicons name="close" size={28} color={colors.surface} />
             </TouchableOpacity>
             <Text style={styles.modalCounter}>
               {currentPhotoIndex} / {photos.length}
@@ -432,7 +432,7 @@ export default function EventMediaScreen() {
               <Ionicons
                 name="chevron-back"
                 size={32}
-                color={currentPhotoIndex <= 1 ? '#666' : 'colors.surface'}
+                color={currentPhotoIndex <= 1 ? '#666' : colors.surface}
               />
             </TouchableOpacity>
             <TouchableOpacity
@@ -443,7 +443,7 @@ export default function EventMediaScreen() {
               <Ionicons
                 name="chevron-forward"
                 size={32}
-                color={currentPhotoIndex >= photos.length ? '#666' : 'colors.surface'}
+                color={currentPhotoIndex >= photos.length ? '#666' : colors.surface}
               />
             </TouchableOpacity>
           </View>

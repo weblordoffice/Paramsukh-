@@ -25,12 +25,12 @@ const CATEGORY_CONFIG: Record<
   string,
   { color: string; bg: string; icon: string; label: string }
 > = {
-  physical: { color: 'colors.surface', bg: '#EF4444', icon: 'barbell', label: 'Physical' },
-  mental: { color: 'colors.surface', bg: '#8B5CF6', icon: 'brain', label: 'Mental' },
+  physical: { color: '#FFFFFF', bg: '#EF4444', icon: 'barbell', label: 'Physical' },
+  mental: { color: '#FFFFFF', bg: '#8B5CF6', icon: 'brain', label: 'Mental' },
   financial: { color: '#1A1A1A', bg: '#22C55E', icon: 'cash', label: 'Financial' },
-  relationship: { color: 'colors.surface', bg: '#EC4899', icon: 'heart', label: 'Relationship' },
-  spiritual: { color: 'colors.surface', bg: '#F59E0B', icon: 'sparkles', label: 'Spiritual' },
-  general: { color: 'colors.surface', bg: '#64748B', icon: 'layers', label: 'General' },
+  relationship: { color: '#FFFFFF', bg: '#EC4899', icon: 'heart', label: 'Relationship' },
+  spiritual: { color: '#FFFFFF', bg: '#F59E0B', icon: 'sparkles', label: 'Spiritual' },
+  general: { color: '#FFFFFF', bg: '#64748B', icon: 'layers', label: 'General' },
 };
 
 type PlanVisual = {
@@ -83,7 +83,7 @@ function getPlanBadges(
 function getCategoryConfig(category?: string) {
   if (!category) return null;
   const key = category.toLowerCase().trim();
-  return CATEGORY_CONFIG[key] || { color: 'colors.surface', bg: '#4F46E5', icon: 'layers', label: category };
+  return CATEGORY_CONFIG[key] || { color: '#FFFFFF', bg: '#4F46E5', icon: 'layers', label: category };
 }
 
 /**
@@ -116,7 +116,7 @@ export default function CoursesScreen() {
   const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
   },
   scrollContent: {
     padding: 16,
@@ -127,16 +127,16 @@ export default function CoursesScreen() {
   sectionTitle: {
     fontSize: 28,
     fontWeight: '800',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 15,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: 'colors.surfaceSecondary',
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 12,
     padding: 4,
     marginBottom: 20,
@@ -157,10 +157,10 @@ export default function CoursesScreen() {
   tabText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   tabTextActive: {
-    color: 'colors.surface',
+    color: colors.surface,
   },
   creditsBanner: {
     flexDirection: 'row',
@@ -196,7 +196,7 @@ export default function CoursesScreen() {
   creditsBannerDoneText: { fontSize: 14, color: '#065F46', flex: 1 },
   creditsBannerDoneLink: { fontWeight: '700', color: '#059669', textDecorationLine: 'underline' },
   card: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     marginBottom: 16,
     overflow: 'hidden',
@@ -253,7 +253,7 @@ export default function CoursesScreen() {
     gap: 8,
   },
   unlockOverlayText: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontSize: 15,
     fontWeight: '700',
   },
@@ -266,7 +266,7 @@ export default function CoursesScreen() {
     gap: 8,
   },
   enrolledOverlayText: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontSize: 15,
     fontWeight: '700',
   },
@@ -276,12 +276,12 @@ export default function CoursesScreen() {
   courseTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 6,
   },
   courseDescription: {
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     lineHeight: 20,
     marginBottom: 12,
   },
@@ -311,7 +311,7 @@ export default function CoursesScreen() {
   },
   statText: {
     fontSize: 13,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   emptyState: {
     alignItems: 'center',
@@ -321,13 +321,13 @@ export default function CoursesScreen() {
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     marginTop: 16,
     marginBottom: 4,
   },
   emptySubtitle: {
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
 });
   const router = useRouter();
@@ -575,7 +575,7 @@ export default function CoursesScreen() {
               <Ionicons
                 name={activeTab === 'free' ? 'lock-open' : 'lock-open-outline'}
                 size={16}
-                color={activeTab === 'free' ? 'colors.surface' : 'colors.textSecondary'}
+                color={activeTab === 'free' ? colors.surface : colors.textSecondary}
               />
               <Text style={[styles.tabText, activeTab === 'free' && styles.tabTextActive]}>
                 Free
@@ -589,7 +589,7 @@ export default function CoursesScreen() {
               <Ionicons
                 name={activeTab === 'paid' ? 'lock-closed' : 'lock-closed-outline'}
                 size={16}
-                color={activeTab === 'paid' ? 'colors.surface' : 'colors.textSecondary'}
+                color={activeTab === 'paid' ? colors.surface : colors.textSecondary}
               />
               <Text style={[styles.tabText, activeTab === 'paid' && styles.tabTextActive]}>
                 Paid
@@ -639,7 +639,7 @@ export default function CoursesScreen() {
             <ActivityIndicator size="large" color="#EAB308" style={{ marginTop: 20 }} />
           ) : enrichedCourses.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="book-outline" size={64} color="colors.border" />
+              <Ionicons name="book-outline" size={64} color={colors.border} />
               <Text style={styles.emptyTitle}>No courses available</Text>
               <Text style={styles.emptySubtitle}>Check back soon for new content</Text>
             </View>
@@ -648,7 +648,7 @@ export default function CoursesScreen() {
               <Ionicons
                 name={activeTab === 'free' ? 'lock-open-outline' : 'lock-closed-outline'}
                 size={64}
-                color="colors.border"
+                color={colors.border}
               />
               <Text style={styles.emptyTitle}>
                 No {activeTab === 'free' ? 'free' : 'paid'} courses
@@ -707,7 +707,7 @@ export default function CoursesScreen() {
                       />
                     ) : (
                       <View style={[styles.imagePlaceholder, { backgroundColor: course.color || '#4F46E5' }]}>
-                        <Ionicons name="book" size={48} color="colors.surface" />
+                        <Ionicons name="book" size={48} color={colors.surface} />
                       </View>
                     )}
 
@@ -731,7 +731,7 @@ export default function CoursesScreen() {
                       if (locked && isEligible && hasCredits) {
                         return (
                           <View style={styles.unlockOverlay}>
-                            <Ionicons name="lock-open-outline" size={20} color="colors.surface" />
+                            <Ionicons name="lock-open-outline" size={20} color={colors.surface} />
                             <Text style={styles.unlockOverlayText}>Unlock Course</Text>
                           </View>
                         );
@@ -740,7 +740,7 @@ export default function CoursesScreen() {
                       if (locked) {
                         return (
                           <View style={styles.lockOverlay}>
-                            <Ionicons name="lock-closed" size={32} color="colors.surface" />
+                            <Ionicons name="lock-closed" size={32} color={colors.surface} />
                           </View>
                         );
                       }
@@ -748,7 +748,7 @@ export default function CoursesScreen() {
                       if (isAlreadyUnlocked) {
                         return (
                           <View style={styles.enrolledOverlay}>
-                            <Ionicons name="checkmark-circle" size={24} color="colors.surface" />
+                            <Ionicons name="checkmark-circle" size={24} color={colors.surface} />
                             <Text style={styles.enrolledOverlayText}>Enrolled</Text>
                           </View>
                         );
@@ -786,11 +786,11 @@ export default function CoursesScreen() {
                     {/* Course Stats */}
                     <View style={styles.statsRow}>
                       <View style={styles.statItem}>
-                        <Ionicons name="time-outline" size={16} color="colors.textSecondary" />
+                        <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
                         <Text style={styles.statText}>{course.duration}</Text>
                       </View>
                       <View style={styles.statItem}>
-                        <Ionicons name="play-circle-outline" size={16} color="colors.textSecondary" />
+                        <Ionicons name="play-circle-outline" size={16} color={colors.textSecondary} />
                         <Text style={styles.statText}>{course.totalVideos || 0} videos</Text>
                       </View>
                     </View>

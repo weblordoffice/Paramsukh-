@@ -72,7 +72,7 @@ export default function VideoPlayerScreen() {
   headerCourse: {
     fontSize: 15,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
   },
   headerVideo: {
     fontSize: 12,
@@ -125,7 +125,7 @@ export default function VideoPlayerScreen() {
   /* External player */
   extPlayerBg: {
     ...StyleSheet.absoluteFillObject as any,
-    backgroundColor: 'colors.text',
+    backgroundColor: colors.text,
   },
   extPlayBtn: {
     width: 88,
@@ -167,14 +167,14 @@ export default function VideoPlayerScreen() {
   },
   infoMetaText: {
     fontSize: 13,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   infoMetaDivider: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'colors.text',
+    backgroundColor: colors.text,
     marginHorizontal: 10,
   },
   downloadSection: {
@@ -194,7 +194,7 @@ export default function VideoPlayerScreen() {
     backgroundColor: '#64748B',
   },
   downloadBtnText: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontWeight: '700',
     fontSize: 14,
   },
@@ -217,7 +217,7 @@ export default function VideoPlayerScreen() {
   },
   downloadHint: {
     marginTop: 10,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 18,
   },
@@ -232,7 +232,7 @@ export default function VideoPlayerScreen() {
   assignmentHeading: {
     fontSize: 13,
     fontWeight: '700',
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 12,
@@ -262,7 +262,7 @@ export default function VideoPlayerScreen() {
   },
   assignmentMeta: {
     fontSize: 11,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     marginTop: 1,
   },
 
@@ -282,7 +282,7 @@ export default function VideoPlayerScreen() {
   markBtnText: {
     fontSize: 15,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
   },
 });
   const router = useRouter();
@@ -591,7 +591,7 @@ export default function VideoPlayerScreen() {
       {/* ── Header ── */}
       <View style={[styles.header, { backgroundColor: courseColor }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
-          <Ionicons name="arrow-back" size={22} color="colors.surface" />
+          <Ionicons name="arrow-back" size={22} color={colors.surface} />
         </TouchableOpacity>
         <View style={styles.headerText}>
           <Text style={styles.headerCourse} numberOfLines={1}>{courseTitle}</Text>
@@ -628,7 +628,7 @@ export default function VideoPlayerScreen() {
             />
             {loading && (
             <View style={styles.videoOverlay}>
-                <ActivityIndicator size="large" color="colors.surface" />
+                <ActivityIndicator size="large" color={colors.surface} />
               </View>
             )}
             {error && (
@@ -653,7 +653,7 @@ export default function VideoPlayerScreen() {
               onPress={handleExternalPlay}
               activeOpacity={0.8}
             >
-              <Ionicons name="play" size={48} color="colors.surface" />
+              <Ionicons name="play" size={48} color={colors.surface} />
             </TouchableOpacity>
             <Text style={styles.extPlayHint}>Tap to open in browser</Text>
           </View>
@@ -665,12 +665,12 @@ export default function VideoPlayerScreen() {
         <Text style={styles.infoTitle}>{videoTitle}</Text>
         <View style={styles.infoMeta}>
           <View style={styles.infoMetaItem}>
-            <Ionicons name="time-outline" size={15} color="colors.textSecondary" />
+            <Ionicons name="time-outline" size={15} color={colors.textSecondary} />
             <Text style={styles.infoMetaText}>{videoDuration}</Text>
           </View>
           <View style={styles.infoMetaDivider} />
           <View style={styles.infoMetaItem}>
-            <Ionicons name="videocam-outline" size={15} color="colors.textSecondary" />
+            <Ionicons name="videocam-outline" size={15} color={colors.textSecondary} />
             <Text style={styles.infoMetaText}>
               {isOfflinePlayback ? 'Offline in app' : isYouTube ? 'YouTube' : useNativePlayer ? 'In-app player' : 'External link'}
             </Text>
@@ -699,9 +699,9 @@ export default function VideoPlayerScreen() {
                 disabled={!isPremiumMember || downloadInProgress}
               >
                 {downloadInProgress ? (
-                  <ActivityIndicator size="small" color="colors.surface" />
+                  <ActivityIndicator size="small" color={colors.surface} />
                 ) : (
-                  <Ionicons name="download-outline" size={18} color="colors.surface" />
+                  <Ionicons name="download-outline" size={18} color={colors.surface} />
                 )}
                 <Text style={styles.downloadBtnText}>
                   {downloadInProgress
@@ -771,7 +771,7 @@ export default function VideoPlayerScreen() {
                     : 'lock-closed-outline'
               }
               size={20}
-              color="colors.surface"
+              color={colors.surface}
             />
             <Text style={styles.markBtnText}>
               {marked

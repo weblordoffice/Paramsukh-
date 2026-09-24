@@ -126,7 +126,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   featureCard: {
     width: '48%',
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     padding: 20,
     alignItems: 'center',
@@ -164,7 +164,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     marginBottom: 24,
   },
   quickAccessList: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     shadowColor: '#5C4A42',
     shadowOffset: { width: 0, height: 4 },
@@ -229,7 +229,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   blogCard: {
     width: 200,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     marginRight: 16,
     overflow: 'hidden',
@@ -301,7 +301,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   modalHeaderTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
   },
   closeBtn: {
     width: 32,
@@ -348,7 +348,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     backgroundColor: '#F1842D',
   },
   fallbackLinkText: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontWeight: '700',
     fontSize: 14,
   },
@@ -369,7 +369,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   recCard: {
     width: 280,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#5C4A42',
@@ -419,7 +419,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     marginBottom: 10,
   },
   aiExplanationCard: {
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     borderWidth: 1,
     borderColor: '#F1842D30',
     borderRadius: 12,
@@ -708,7 +708,7 @@ export default function HomeTab() {
           <View style={styles.heroContent}>
             <View style={styles.heroHeader}>
               <View style={styles.heroIconContainer}>
-                <Ionicons name="sparkles" size={32} color="colors.surface" />
+                <Ionicons name="sparkles" size={32} color={colors.surface} />
               </View>
               <View style={styles.heroTextContainer}>
                 <Text style={styles.heroGreeting}>Welcome to</Text>
@@ -806,7 +806,7 @@ export default function HomeTab() {
                         <Image source={{ uri: course.thumbnailUrl }} style={styles.recImage} />
                       ) : (
                         <View style={[styles.recPlaceholderImage, { backgroundColor: course.color || '#F1842D' }]}>
-                          <Ionicons name="book" size={32} color="colors.surface" />
+                          <Ionicons name="book" size={32} color={colors.surface} />
                         </View>
                       )}
                       
@@ -963,7 +963,7 @@ export default function HomeTab() {
                 onPress={() => setIsVideoModalVisible(false)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="close" size={24} color="colors.surface" />
+                <Ionicons name="close" size={24} color={colors.surface} />
               </TouchableOpacity>
             </View>
 

@@ -14,7 +14,7 @@ export default function ProductDetailScreen() {
   const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
     },
     center: {
         flex: 1,
@@ -62,7 +62,7 @@ export default function ProductDetailScreen() {
     },
     imageGallery: {
         height: 350,
-        backgroundColor: 'colors.surfaceSecondary',
+        backgroundColor: colors.surfaceSecondary,
         position: 'relative',
     },
     imageWrapper: {
@@ -94,7 +94,7 @@ export default function ProductDetailScreen() {
         backgroundColor: 'rgba(0,0,0,0.2)',
     },
     paginationDotActive: {
-        backgroundColor: 'colors.text',
+        backgroundColor: colors.text,
     },
     infoContainer: {
         padding: 20,
@@ -102,7 +102,7 @@ export default function ProductDetailScreen() {
     productName: {
         fontSize: 24,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text,
         marginBottom: 8,
     },
     ratingRow: {
@@ -114,23 +114,23 @@ export default function ProductDetailScreen() {
     ratingText: {
         fontSize: 14,
         fontWeight: '500',
-        color: 'colors.textSecondary',
+        color: colors.textSecondary,
     },
     price: {
         fontSize: 28,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text,
         marginBottom: 24,
     },
     amazonHint: {
         fontSize: 14,
-        color: 'colors.textSecondary',
+        color: colors.textSecondary,
         marginBottom: 24,
     },
     sectionTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text,
         marginBottom: 12,
         marginTop: 12,
     },
@@ -145,29 +145,29 @@ export default function ProductDetailScreen() {
         justifyContent: 'space-between',
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: 'colors.border',
+        borderBottomColor: colors.border,
     },
     specKey: {
         fontSize: 14,
-        color: 'colors.textSecondary',
+        color: colors.textSecondary,
     },
     specValue: {
         fontSize: 14,
         fontWeight: '600',
-        color: 'colors.text',
+        color: colors.text,
     },
     bottomBar: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
         padding: 16,
         borderTopWidth: 1,
-        borderTopColor: 'colors.border',
+        borderTopColor: colors.border,
     },
     addToCartButton: {
-        backgroundColor: 'colors.text',
+        backgroundColor: colors.text,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -178,7 +178,7 @@ export default function ProductDetailScreen() {
     addToCartText: {
         fontSize: 16,
         fontWeight: '700',
-        color: 'colors.surface',
+        color: colors.surface,
     },
 });
     const { productId } = useLocalSearchParams();
@@ -223,10 +223,10 @@ export default function ProductDetailScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                    <Ionicons name="arrow-back" size={24} color="colors.text" />
+                    <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.cartButton} onPress={() => router.push('/cart')}>
-                    <Ionicons name="cart-outline" size={24} color="colors.text" />
+                    <Ionicons name="cart-outline" size={24} color={colors.text} />
                 </TouchableOpacity>
             </View>
 
@@ -308,12 +308,12 @@ export default function ProductDetailScreen() {
                 {isExternal ? (
                     <TouchableOpacity style={[styles.addToCartButton, { backgroundColor: '#3B82F6' }]} onPress={handleOpenExternalLink}>
                         <Text style={styles.addToCartText}>View on Website</Text>
-                        <Ionicons name="open-outline" size={20} color="colors.surface" />
+                        <Ionicons name="open-outline" size={20} color={colors.surface} />
                     </TouchableOpacity>
                 ) : (
                     <TouchableOpacity style={styles.addToCartButton} onPress={handleAddToCart}>
                         <Text style={styles.addToCartText}>Add to Cart</Text>
-                        <Ionicons name="cart" size={20} color="colors.surface" />
+                        <Ionicons name="cart" size={20} color={colors.surface} />
                     </TouchableOpacity>
                 )}
             </View>

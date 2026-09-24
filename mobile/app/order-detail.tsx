@@ -10,7 +10,7 @@ export default function OrderDetailScreen() {
   const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: 'colors.background',
+        backgroundColor: colors.background,
     },
     center: {
         flex: 1,
@@ -24,9 +24,9 @@ export default function OrderDetailScreen() {
         paddingHorizontal: 20,
         paddingTop: 50,
         paddingBottom: 16,
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: 'colors.border',
+        borderBottomColor: colors.border,
     },
     backButton: {
         padding: 8,
@@ -34,7 +34,7 @@ export default function OrderDetailScreen() {
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text,
     },
     scrollContent: {
         padding: 16,
@@ -45,17 +45,17 @@ export default function OrderDetailScreen() {
     sectionTitle: {
         fontSize: 16,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text,
         marginBottom: 8,
     },
     orderNumber: {
         fontSize: 20,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text,
     },
     orderDate: {
         fontSize: 14,
-        color: 'colors.textSecondary',
+        color: colors.textSecondary,
         marginTop: 4,
     },
     statusBadge: {
@@ -65,7 +65,7 @@ export default function OrderDetailScreen() {
         borderRadius: 4,
     },
     statusText: {
-        color: 'colors.surface',
+        color: colors.surface,
         fontSize: 12,
         fontWeight: '700',
     },
@@ -74,7 +74,7 @@ export default function OrderDetailScreen() {
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
         borderWidth: 1,
         borderColor: '#FECACA',
         borderRadius: 12,
@@ -87,7 +87,7 @@ export default function OrderDetailScreen() {
         fontWeight: '700',
     },
     card: {
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
         borderRadius: 12,
         padding: 16,
         shadowColor: '#000',
@@ -105,7 +105,7 @@ export default function OrderDetailScreen() {
         width: 60,
         height: 60,
         borderRadius: 8,
-        backgroundColor: 'colors.surfaceSecondary',
+        backgroundColor: colors.surfaceSecondary,
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
@@ -116,17 +116,17 @@ export default function OrderDetailScreen() {
     itemName: {
         fontSize: 14,
         fontWeight: '600',
-        color: 'colors.text',
+        color: colors.text,
     },
     itemQty: {
         fontSize: 13,
-        color: 'colors.textSecondary',
+        color: colors.textSecondary,
         marginTop: 2,
     },
     itemPrice: {
         fontSize: 14,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text,
         marginTop: 4,
     },
     addressText: {
@@ -141,22 +141,22 @@ export default function OrderDetailScreen() {
     },
     summaryLabel: {
         fontSize: 14,
-        color: 'colors.textSecondary',
+        color: colors.textSecondary,
     },
     summaryValue: {
         fontSize: 14,
         fontWeight: '600',
-        color: 'colors.text',
+        color: colors.text,
     },
     divider: {
         height: 1,
-        backgroundColor: 'colors.border',
+        backgroundColor: colors.border,
         marginVertical: 12,
     },
     totalLabel: {
         fontSize: 16,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text,
     },
     totalValue: {
         fontSize: 18,
@@ -224,7 +224,7 @@ export default function OrderDetailScreen() {
         <View style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                    <Ionicons name="arrow-back" size={24} color="colors.text" />
+                    <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Order Details</Text>
                 <View style={{ width: 40 }} />

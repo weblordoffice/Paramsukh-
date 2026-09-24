@@ -93,7 +93,7 @@ export default function CourseDetailScreen() {
     gap: 12,
   },
   loadingText: {
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     fontSize: 14,
   },
 
@@ -155,7 +155,7 @@ export default function CourseDetailScreen() {
   },
   metaText: {
     fontSize: 13,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   metaDivider: {
@@ -183,7 +183,7 @@ export default function CourseDetailScreen() {
   progressLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: 'colors.border',
+    color: colors.border,
     letterSpacing: 0.2,
   },
   progressPct: {
@@ -203,7 +203,7 @@ export default function CourseDetailScreen() {
   },
   progressSub: {
     fontSize: 12,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
 
@@ -226,7 +226,7 @@ export default function CourseDetailScreen() {
   },
   descText: {
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     lineHeight: 22,
   },
 
@@ -461,12 +461,12 @@ export default function CourseDetailScreen() {
             
             <View style={styles.courseMetaRow}>
               <View style={styles.metaItem}>
-                <Ionicons name="time-outline" size={14} color="colors.textSecondary" />
+                <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
                 <Text style={styles.metaText}>{courseDuration}</Text>
               </View>
               <View style={styles.metaDivider} />
               <View style={styles.metaItem}>
-                <Ionicons name="play-circle-outline" size={14} color="colors.textSecondary" />
+                <Ionicons name="play-circle-outline" size={14} color={colors.textSecondary} />
                 <Text style={styles.metaText}>{videos.length} lessons</Text>
               </View>
             </View>

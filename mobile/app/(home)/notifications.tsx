@@ -54,7 +54,7 @@ const TYPE_STYLE: Record<string, { icon: string; color: string }> = {
   // Support notifications
   support_reply: { icon: 'chatbox-ellipses', color: '#2563EB' },
   // System notifications
-  system: { icon: 'settings', color: 'colors.textSecondary' },
+  system: { icon: 'settings', color: '#6B7280' },
   general: { icon: 'notifications', color: '#EC4899' },
 };
 
@@ -78,7 +78,7 @@ export default function NotificationsScreen() {
   const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -87,22 +87,22 @@ export default function NotificationsScreen() {
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 10 : 16,
     paddingBottom: 16,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: 'colors.border',
+    borderBottomColor: colors.border,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'colors.surfaceSecondary',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     flex: 1,
     textAlign: 'center',
     marginHorizontal: 16,
@@ -117,7 +117,7 @@ export default function NotificationsScreen() {
     color: '#3B82F6',
   },
   markAllTextDisabled: {
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   errorBanner: {
     flexDirection: 'row',
@@ -144,7 +144,7 @@ export default function NotificationsScreen() {
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'colors.border',
+    borderBottomColor: colors.border,
   },
   unreadCountText: {
     fontSize: 14,
@@ -160,14 +160,14 @@ export default function NotificationsScreen() {
   loadingText: {
     marginTop: 12,
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   scrollContent: {
     padding: 16,
   },
   notificationCard: {
     flexDirection: 'row',
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -201,7 +201,7 @@ export default function NotificationsScreen() {
   notificationTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: 'colors.text',
+    color: colors.text,
     flex: 1,
   },
   unreadDot: {
@@ -213,13 +213,13 @@ export default function NotificationsScreen() {
   },
   notificationMessage: {
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     lineHeight: 20,
     marginBottom: 8,
   },
   notificationTime: {
     fontSize: 12,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   deleteButton: {
     padding: 4,
@@ -233,13 +233,13 @@ export default function NotificationsScreen() {
   emptyStateTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     marginTop: 16,
     marginBottom: 8,
   },
   emptyStateText: {
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: 40,
   },
@@ -339,7 +339,7 @@ export default function NotificationsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-          <Ionicons name="arrow-back" size={24} color="colors.text" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
         <TouchableOpacity
@@ -387,7 +387,7 @@ export default function NotificationsScreen() {
         >
           {notifications.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="notifications-off-outline" size={64} color="colors.textSecondary" />
+              <Ionicons name="notifications-off-outline" size={64} color={colors.textSecondary} />
               <Text style={styles.emptyStateTitle}>No notifications</Text>
               <Text style={styles.emptyStateText}>
                 You&apos;re all caught up! Check back later for updates.
@@ -435,7 +435,7 @@ export default function NotificationsScreen() {
                     style={styles.deleteButton}
                     onPress={(e) => handleDelete(notification._id, e)}
                   >
-                    <Ionicons name="close-circle" size={20} color="colors.textSecondary" />
+                    <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </TouchableOpacity>
               );

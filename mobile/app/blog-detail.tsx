@@ -12,13 +12,13 @@ export default function BlogDetailScreen() {
   const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     padding: 20,
   },
   errorText: {
@@ -34,7 +34,7 @@ export default function BlogDetailScreen() {
     borderRadius: 12,
   },
   backButtonTextInline: {
-    color: 'colors.surface',
+    color: colors.surface,
     fontWeight: '700',
     fontSize: 15,
   },

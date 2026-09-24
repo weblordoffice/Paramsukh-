@@ -109,8 +109,8 @@ export default function ChooseCoursesScreen() {
   cardMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   categoryPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   categoryText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
-  durationText: { fontSize: 11, color: 'colors.textSecondary' },
-  metaText: { fontSize: 11, color: 'colors.textSecondary' },
+  durationText: { fontSize: 11, color: colors.textSecondary },
+  metaText: { fontSize: 11, color: colors.textSecondary },
   cardAction: { marginLeft: 12, width: 70, alignItems: 'center' },
   selectBtn: { padding: 4 },
   undoBtn: { alignItems: 'center', gap: 2 },
@@ -387,7 +387,7 @@ export default function ChooseCoursesScreen() {
                       <Text style={styles.undoText}>Tap to remove</Text>
                     </View>
                   ) : remaining <= 0 ? (
-                    <Ionicons name="lock-closed" size={24} color="colors.textSecondary" />
+                    <Ionicons name="lock-closed" size={24} color={colors.textSecondary} />
                   ) : (
                     <View style={styles.selectBtn}>
                       <Ionicons name="add-circle-outline" size={28} color="#8B5CF6" />

@@ -12,7 +12,7 @@ export default function BlogsScreen() {
   const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -22,7 +22,7 @@ export default function BlogsScreen() {
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F4F3EB',
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
   },
   backButton: {
     width: 40,
@@ -30,7 +30,7 @@ export default function BlogsScreen() {
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
   },
   headerTitle: {
     fontSize: 20,
@@ -50,7 +50,7 @@ export default function BlogsScreen() {
     paddingBottom: 40,
   },
   blogCard: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 24,
     overflow: 'hidden',
     marginBottom: 20,

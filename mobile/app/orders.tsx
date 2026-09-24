@@ -10,7 +10,7 @@ export default function OrderHistoryScreen() {
   const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: 'colors.background',
+        backgroundColor: colors.background,
     },
     header: {
         flexDirection: 'row',
@@ -19,9 +19,9 @@ export default function OrderHistoryScreen() {
         paddingHorizontal: 20,
         paddingTop: 50,
         paddingBottom: 16,
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: 'colors.border',
+        borderBottomColor: colors.border,
     },
     backButton: {
         padding: 8,
@@ -29,7 +29,7 @@ export default function OrderHistoryScreen() {
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text,
     },
     center: {
         flex: 1,
@@ -40,7 +40,7 @@ export default function OrderHistoryScreen() {
         padding: 16,
     },
     orderCard: {
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface,
         borderRadius: 12,
         padding: 16,
         marginBottom: 16,
@@ -58,11 +58,11 @@ export default function OrderHistoryScreen() {
     orderId: {
         fontSize: 16,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text,
     },
     orderDate: {
         fontSize: 13,
-        color: 'colors.textSecondary',
+        color: colors.textSecondary,
         marginTop: 2,
     },
     statusBadge: {
@@ -71,13 +71,13 @@ export default function OrderHistoryScreen() {
         borderRadius: 4,
     },
     statusText: {
-        color: 'colors.surface',
+        color: colors.surface,
         fontSize: 10,
         fontWeight: '700',
     },
     divider: {
         height: 1,
-        backgroundColor: 'colors.surfaceSecondary',
+        backgroundColor: colors.surfaceSecondary,
         marginVertical: 12,
     },
     orderContent: {
@@ -93,7 +93,7 @@ export default function OrderHistoryScreen() {
     totalAmount: {
         fontSize: 16,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text,
     },
     actionRow: {
         flexDirection: 'row',
@@ -113,18 +113,18 @@ export default function OrderHistoryScreen() {
     },
     emptyText: {
         fontSize: 18,
-        color: 'colors.textSecondary',
+        color: colors.textSecondary,
         marginTop: 16,
         marginBottom: 24,
     },
     shopButton: {
-        backgroundColor: 'colors.text',
+        backgroundColor: colors.text,
         paddingHorizontal: 24,
         paddingVertical: 12,
         borderRadius: 24,
     },
     shopButtonText: {
-        color: 'colors.surface',
+        color: colors.surface,
         fontWeight: '700',
     },
 });
@@ -182,7 +182,7 @@ export default function OrderHistoryScreen() {
         <View style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                    <Ionicons name="arrow-back" size={24} color="colors.text" />
+                    <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Orders</Text>
                 <View style={{ width: 40 }} />
@@ -200,7 +200,7 @@ export default function OrderHistoryScreen() {
                     contentContainerStyle={styles.listContent}
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <Ionicons name="receipt-outline" size={64} color="colors.textSecondary" />
+                            <Ionicons name="receipt-outline" size={64} color={colors.textSecondary} />
                             <Text style={styles.emptyText}>No orders found</Text>
                             <TouchableOpacity style={styles.shopButton} onPress={() => router.push('/shops')}>
                                 <Text style={styles.shopButtonText}>Start Shopping</Text>

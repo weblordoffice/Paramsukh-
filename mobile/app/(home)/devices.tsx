@@ -139,7 +139,7 @@ export default function DevicesScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: 'colors.background' }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <ActivityIndicator size="large" color="#3B82F6" />
         </View>
@@ -148,13 +148,13 @@ export default function DevicesScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'colors.background' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: 'colors.surface', borderBottomWidth: 1, borderBottomColor: 'colors.border' }}>
-        <TouchableOpacity onPress={navigateBack} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: 'colors.surfaceSecondary', justifyContent: 'center', alignItems: 'center' }}>
-          <Ionicons name="arrow-back" size={24} color="colors.text" />
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <TouchableOpacity onPress={navigateBack} style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, justifyContent: 'center', alignItems: 'center' }}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={{ fontSize: 20, fontWeight: '700', color: 'colors.text' }}>Active Devices</Text>
+        <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>Active Devices</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -163,7 +163,7 @@ export default function DevicesScreen() {
         contentContainerStyle={{ padding: 20 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <Text style={{ fontSize: 14, color: 'colors.textSecondary', marginBottom: 20 }}>
+        <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 20 }}>
           You can be logged in on up to 2 active devices. Review and manage your active sessions below.
         </Text>
 
@@ -175,7 +175,7 @@ export default function DevicesScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                backgroundColor: 'colors.surface',
+                backgroundColor: colors.surface,
                 padding: 16,
                 borderRadius: 12,
                 marginBottom: 12,
@@ -193,7 +193,7 @@ export default function DevicesScreen() {
                     width: 48,
                     height: 48,
                     borderRadius: 24,
-                    backgroundColor: device.isCurrentDevice ? '#EFF6FF' : 'colors.surfaceSecondary',
+                    backgroundColor: device.isCurrentDevice ? '#EFF6FF' : colors.surfaceSecondary,
                     justifyContent: 'center',
                     alignItems: 'center',
                     marginRight: 14
@@ -202,13 +202,13 @@ export default function DevicesScreen() {
                   <Ionicons
                     name={device.os.toLowerCase().includes('ios') || device.os.toLowerCase().includes('android') ? 'phone-portrait-outline' : 'desktop-outline'}
                     size={24}
-                    color={device.isCurrentDevice ? '#3B82F6' : 'colors.textSecondary'}
+                    color={device.isCurrentDevice ? '#3B82F6' : colors.textSecondary}
                   />
                 </View>
 
                 <View style={{ flex: 1, marginRight: 8 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <Text style={{ fontSize: 16, fontWeight: '600', color: 'colors.text', marginRight: 8 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginRight: 8 }}>
                       {device.deviceName}
                     </Text>
                     {device.isCurrentDevice && (
@@ -217,10 +217,10 @@ export default function DevicesScreen() {
                       </View>
                     )}
                   </View>
-                  <Text style={{ fontSize: 13, color: 'colors.textSecondary', marginTop: 3 }}>
+                  <Text style={{ fontSize: 13, color: colors.textSecondary, marginTop: 3 }}>
                     {device.os} • {device.browser}
                   </Text>
-                  <Text style={{ fontSize: 12, color: 'colors.textSecondary', marginTop: 2 }}>
+                  <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
                     {formatLastSeen(device.lastSeen)}
                   </Text>
                 </View>

@@ -19,7 +19,7 @@ export default function ShopsScreen() {
   const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -28,22 +28,22 @@ export default function ShopsScreen() {
     paddingHorizontal: 20,
     paddingTop: 50,
     paddingBottom: 16,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: 'colors.border',
+    borderBottomColor: colors.border,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     flex: 1,
     textAlign: 'center',
     marginHorizontal: 16,
@@ -52,7 +52,7 @@ export default function ShopsScreen() {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -72,12 +72,12 @@ export default function ShopsScreen() {
   cartBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -95,7 +95,7 @@ export default function ShopsScreen() {
   searchInput: {
     flex: 1,
     fontSize: 15,
-    color: 'colors.text',
+    color: colors.text,
   },
   categoriesContainer: {
     marginBottom: 20,
@@ -111,9 +111,9 @@ export default function ShopsScreen() {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'colors.border',
+    borderColor: colors.border,
   },
   categoryChipActive: {
     backgroundColor: '#3B82F6',
@@ -122,10 +122,10 @@ export default function ShopsScreen() {
   categoryText: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   categoryTextActive: {
-    color: 'colors.surface',
+    color: colors.surface,
   },
   shopsContainer: {
     paddingHorizontal: 16,
@@ -133,7 +133,7 @@ export default function ShopsScreen() {
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 16,
   },
   grid: {
@@ -143,7 +143,7 @@ export default function ShopsScreen() {
   },
   productCard: {
     width: '47%',
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -156,7 +156,7 @@ export default function ShopsScreen() {
   imageContainer: {
     width: '100%',
     height: 140,
-    backgroundColor: 'colors.surfaceSecondary',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -173,7 +173,7 @@ export default function ShopsScreen() {
   productName: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 6,
     height: 40,
   },
@@ -185,17 +185,17 @@ export default function ShopsScreen() {
   },
   ratingText: {
     fontSize: 12,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   productPrice: {
     fontSize: 16,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 12,
   },
   addButton: {
-    backgroundColor: 'colors.surfaceSecondary',
+    backgroundColor: colors.surfaceSecondary,
     paddingVertical: 8,
     borderRadius: 8,
     alignItems: 'center',
@@ -206,7 +206,7 @@ export default function ShopsScreen() {
   addButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: 'colors.text',
+    color: colors.text,
   },
   amazonButton: {
     backgroundColor: '#FF9900',
@@ -223,7 +223,7 @@ export default function ShopsScreen() {
   amazonBadgeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: 'colors.surface',
+    color: colors.surface,
   },
   viewOnAmazonText: {
     fontSize: 12,
@@ -281,11 +281,11 @@ export default function ShopsScreen() {
           style={styles.backButton}
           onPress={() => { if (router.canGoBack()) router.back(); }}
         >
-          <Ionicons name="arrow-back" size={24} color="colors.text" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Shop</Text>
         <TouchableOpacity style={styles.cartButton} onPress={() => router.push('/cart')}>
-          <Ionicons name="cart-outline" size={24} color="colors.text" />
+          <Ionicons name="cart-outline" size={24} color={colors.text} />
           {itemCount() > 0 && (
             <View style={styles.cartBadge}>
               <Text style={styles.cartBadgeText}>{itemCount()}</Text>
@@ -297,17 +297,17 @@ export default function ShopsScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="colors.textSecondary" style={styles.searchIcon} />
+          <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search products..."
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholderTextColor="colors.textSecondary"
+            placeholderTextColor={colors.textSecondary}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={20} color="colors.textSecondary" />
+              <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
             </TouchableOpacity>
           )}
         </View>
@@ -331,7 +331,7 @@ export default function ShopsScreen() {
               <Ionicons
                 name={category.icon as any}
                 size={18}
-                color={selectedCategory === category.id ? 'colors.surface' : 'colors.textSecondary'}
+                color={selectedCategory === category.id ? colors.surface : colors.textSecondary}
               />
               <Text style={[
                 styles.categoryText,

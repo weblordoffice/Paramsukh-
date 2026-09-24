@@ -305,7 +305,7 @@ export default function CartScreen() {
     if (!cart || cart.items.length === 0) {
         return (
             <View style={[styles.container, styles.center]}>
-                <Ionicons name="cart-outline" size={64} color="colors.textSecondary" />
+                <Ionicons name="cart-outline" size={64} color={colors.textSecondary} />
                 <Text style={styles.emptyText}>Your cart is empty</Text>
                 <TouchableOpacity style={styles.startShoppingButton} onPress={() => router.push('/shops')}>
                     <Text style={styles.startShoppingText}>Start Shopping</Text>
@@ -323,12 +323,12 @@ export default function CartScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                    <Ionicons name="arrow-back" size={24} color="colors.text" />
+                    <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>My Cart</Text>
                 <View style={styles.headerActions}>
                     <TouchableOpacity style={styles.ordersButton} onPress={() => router.push('/orders')}>
-                        <Ionicons name="receipt-outline" size={24} color="colors.text" />
+                        <Ionicons name="receipt-outline" size={24} color={colors.text} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.clearButton} onPress={handleClearCart}>
                         <Text style={styles.clearText}>Clear</Text>
@@ -362,7 +362,7 @@ export default function CartScreen() {
                                     onPress={() => handleUpdateQuantity(item._id, item.quantity - 1)}
                                     disabled={item.quantity <= 1 || updatingItemId === item._id}
                                 >
-                                    <Ionicons name="remove" size={16} color="colors.text" />
+                                    <Ionicons name="remove" size={16} color={colors.text} />
                                 </TouchableOpacity>
 
                                 <View style={styles.quantityBox}>
@@ -378,7 +378,7 @@ export default function CartScreen() {
                                     onPress={() => handleUpdateQuantity(item._id, item.quantity + 1)}
                                     disabled={updatingItemId === item._id}
                                 >
-                                    <Ionicons name="add" size={16} color="colors.text" />
+                                    <Ionicons name="add" size={16} color={colors.text} />
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
@@ -425,7 +425,7 @@ export default function CartScreen() {
                         <Text style={styles.referralBannerText}>
                             You have <Text style={styles.referralBannerValue}>{referralPoints} referral points</Text> — redeem at checkout
                         </Text>
-                        <Ionicons name="chevron-forward" size={16} color="colors.textSecondary" />
+                        <Ionicons name="chevron-forward" size={16} color={colors.textSecondary} />
                     </TouchableOpacity>
                 )}
             </ScrollView>
@@ -437,7 +437,7 @@ export default function CartScreen() {
                     onPress={() => router.push('/checkout')}
                 >
                     <Text style={styles.checkoutButtonText}>Proceed to Checkout</Text>
-                    <Ionicons name="arrow-forward" size={20} color="colors.surface" />
+                    <Ionicons name="arrow-forward" size={20} color={colors.surface} />
                 </TouchableOpacity>
             </View>
         </View>

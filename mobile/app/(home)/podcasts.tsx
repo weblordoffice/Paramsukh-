@@ -420,11 +420,11 @@ export default function PodcastsScreen() {
       {/* Header */}
       <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
         <TouchableOpacity className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" onPress={() => { if (router.canGoBack()) router.back(); }}>
-          <Ionicons name="arrow-back" size={24} color="colors.text" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text className="text-xl font-bold text-gray-900">Podcasts</Text>
         <TouchableOpacity className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" onPress={fetchPodcasts}>
-          <Ionicons name="refresh" size={24} color="colors.text" />
+          <Ionicons name="refresh" size={24} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -529,7 +529,7 @@ export default function PodcastsScreen() {
 
                 <View className="flex-row items-center gap-3">
                   <View className="flex-row items-center gap-1">
-                    <Ionicons name="time-outline" size={14} color="colors.textSecondary" />
+                    <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
                     <Text className="text-xs text-gray-500">{podcast.duration || '00:00'}</Text>
                   </View>
                   <View className="px-2 py-1 rounded-xl bg-blue-50">
@@ -555,7 +555,7 @@ export default function PodcastsScreen() {
                     <Ionicons
                       name={currentTrack?.id === podcast._id ? "volume-high" : "play"}
                       size={18}
-                      color="colors.surface"
+                      color={colors.surface}
                       style={currentTrack?.id !== podcast._id ? { marginLeft: 2 } : undefined}
                     />
                   </TouchableOpacity>
@@ -564,14 +564,14 @@ export default function PodcastsScreen() {
                     className="w-10 h-10 rounded-full items-center justify-center shadow-lg bg-gray-400"
                     onPress={() => handlePlayPodcast(podcast)}
                   >
-                    <Ionicons name="lock-closed" size={18} color="colors.surface" />
+                    <Ionicons name="lock-closed" size={18} color={colors.surface} />
                   </TouchableOpacity>
                 ) : (
                   <TouchableOpacity
                     className="w-10 h-10 rounded-full items-center justify-center shadow-lg bg-purple-500"
                     onPress={() => handlePlayPodcast(podcast)}
                   >
-                    <Ionicons name="card" size={18} color="colors.surface" />
+                    <Ionicons name="card" size={18} color={colors.surface} />
                   </TouchableOpacity>
                 )}
 
@@ -585,7 +585,7 @@ export default function PodcastsScreen() {
                     <Ionicons
                       name={downloaded ? "cloud-done" : "cloud-download"}
                       size={18}
-                      color={downloaded ? "#10B981" : downloading ? "#3B82F6" : "colors.textSecondary"}
+                      color={downloaded ? "#10B981" : downloading ? "#3B82F6" : colors.textSecondary}
                     />
                   </TouchableOpacity>
                 )}
@@ -599,7 +599,7 @@ export default function PodcastsScreen() {
                   <Ionicons
                     name={isFav ? "heart" : "heart-outline"}
                     size={18}
-                    color={isFav ? "#EF4444" : "colors.textSecondary"}
+                    color={isFav ? "#EF4444" : colors.textSecondary}
                   />
                 </TouchableOpacity>
               </View>
@@ -609,7 +609,7 @@ export default function PodcastsScreen() {
 
         {filteredPodcasts.length === 0 && !loading && (
           <View className="items-center justify-center py-20">
-            <Ionicons name="mic-off-outline" size={64} color="colors.textSecondary" />
+            <Ionicons name="mic-off-outline" size={64} color={colors.textSecondary} />
             <Text className="text-xl font-bold text-gray-900 mt-4 mb-2">No Podcasts Found</Text>
             <Text className="text-sm text-gray-500 text-center">
               {!user ? 'Login to see all available podcasts' : 'No podcasts available in this category'}
@@ -683,7 +683,7 @@ export default function PodcastsScreen() {
               onPress={() => setShowPaymentFlow(false)}
               className="absolute top-4 right-4 w-8 h-8 items-center justify-center"
             >
-              <Ionicons name="close" size={24} color="colors.textSecondary" />
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
 
             {selectedPodcast && (

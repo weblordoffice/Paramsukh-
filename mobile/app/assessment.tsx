@@ -28,7 +28,7 @@ import { useTheme } from '../hooks/useTheme';
 const makeStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
   },
   header: {
     flexDirection: 'row',
@@ -37,26 +37,26 @@ const makeStyles = (colors: any) => StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: Platform.OS === 'ios' ? 60 : 40,
     paddingBottom: 20,
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: 'colors.surfaceSecondary',
+    borderBottomColor: colors.surfaceSecondary,
   },
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   progressContainer: {
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'colors.border',
+    borderBottomColor: colors.border,
   },
   progressInfo: {
     flexDirection: 'row',
@@ -66,7 +66,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   progressText: {
     fontSize: 13,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   progressPercent: {
@@ -76,7 +76,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   progressBar: {
     height: 8,
-    backgroundColor: 'colors.border',
+    backgroundColor: colors.border,
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -95,13 +95,13 @@ const makeStyles = (colors: any) => StyleSheet.create({
   sectionHeading: {
     fontSize: 18,
     fontWeight: '700',
-    color: 'colors.text',
+    color: colors.text,
     marginTop: 24,
     marginBottom: 4,
   },
   sectionSubheading: {
     fontSize: 13,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     marginBottom: 16,
   },
   consentBanner: {
@@ -124,7 +124,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   consentBannerText: {
     fontSize: 13,
-    color: 'colors.text',
+    color: colors.text,
     lineHeight: 18,
   },
   consentBannerLink: {
@@ -138,46 +138,46 @@ const makeStyles = (colors: any) => StyleSheet.create({
   inputLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 8,
   },
   required: {
     color: '#EF4444',
   },
   textInput: {
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: 'colors.border',
+    borderColor: colors.border,
     borderRadius: 12,
     padding: 14,
     fontSize: 15,
-    color: 'colors.text',
+    color: colors.text,
   },
   textInputFilled: {
     borderColor: '#3B82F6',
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
   },
   pickerWrapper: {
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: 'colors.border',
+    borderColor: colors.border,
     borderRadius: 12,
     overflow: 'hidden',
   },
   pickerWrapperDisabled: {
-    backgroundColor: 'colors.surfaceSecondary',
-    borderColor: 'colors.border',
+    backgroundColor: colors.surfaceSecondary,
+    borderColor: colors.border,
   },
   picker: {
-    color: 'colors.text',
+    color: colors.text,
   },
   scaleBlock: {
     marginBottom: 20,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: 'colors.border',
+    borderColor: colors.border,
   },
   scaleHeader: {
     flexDirection: 'row',
@@ -188,7 +188,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   scaleLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'colors.text',
+    color: colors.text,
   },
   scaleValue: {
     fontSize: 15,
@@ -204,7 +204,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'colors.border',
+    backgroundColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -214,10 +214,10 @@ const makeStyles = (colors: any) => StyleSheet.create({
   scaleDotText: {
     fontSize: 11,
     fontWeight: '600',
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   scaleDotTextActive: {
-    color: 'colors.surface',
+    color: colors.surface,
   },
   scaleLabels: {
     flexDirection: 'row',
@@ -225,18 +225,18 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   scaleMinLabel: {
     fontSize: 11,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   scaleMaxLabel: {
     fontSize: 11,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   activityOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     borderWidth: 1,
-    borderColor: 'colors.border',
+    borderColor: colors.border,
     borderRadius: 12,
     padding: 14,
     marginBottom: 8,
@@ -249,14 +249,14 @@ const makeStyles = (colors: any) => StyleSheet.create({
   activityLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'colors.text',
+    color: colors.text,
   },
   activityLabelSelected: {
     color: '#1D4ED8',
   },
   activityDesc: {
     fontSize: 12,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
     marginTop: 2,
   },
   questionBlock: {
@@ -265,7 +265,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   questionText: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'colors.text',
+    color: colors.text,
     marginBottom: 12,
   },
   yesNoContainer: {
@@ -277,9 +277,9 @@ const makeStyles = (colors: any) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     borderWidth: 2,
-    borderColor: 'colors.border',
+    borderColor: colors.border,
     borderRadius: 12,
     paddingVertical: 14,
     gap: 6,
@@ -295,10 +295,10 @@ const makeStyles = (colors: any) => StyleSheet.create({
   yesNoText: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'colors.text',
+    color: colors.text,
   },
   selectedYesNoText: {
-    color: 'colors.surface',
+    color: colors.surface,
   },
   detailBlock: {
     marginTop: 12,
@@ -315,21 +315,21 @@ const makeStyles = (colors: any) => StyleSheet.create({
     marginBottom: 6,
   },
   detailTextInput: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'colors.border',
+    borderColor: colors.border,
     borderRadius: 8,
     padding: 10,
     fontSize: 14,
-    color: 'colors.text',
+    color: colors.text,
     minHeight: 50,
   },
   footer: {
-    backgroundColor: 'colors.surface',
+    backgroundColor: colors.surface,
     paddingHorizontal: 20,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: 'colors.surfaceSecondary',
+    borderTopColor: colors.surfaceSecondary,
   },
   submitButton: {
     backgroundColor: '#3B82F6',
@@ -341,12 +341,12 @@ const makeStyles = (colors: any) => StyleSheet.create({
     gap: 8,
   },
   submitButtonDisabled: {
-    backgroundColor: 'colors.border',
+    backgroundColor: colors.border,
   },
   submitButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: 'colors.surface',
+    color: colors.surface,
   },
   datePickerButton: {
     flexDirection: 'row',
@@ -354,26 +354,26 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   dateTextFilled: {
     fontSize: 15,
-    color: 'colors.text',
+    color: colors.text,
   },
   dateTextPlaceholder: {
     fontSize: 15,
-    color: 'colors.textSecondary',
+    color: colors.textSecondary,
   },
   datePickerContainer: {
     marginTop: 8,
-    backgroundColor: 'colors.background',
+    backgroundColor: colors.background,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'colors.border',
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   datePickerDoneButton: {
     alignItems: 'center',
     paddingVertical: 10,
     borderTopWidth: 1,
-    borderTopColor: 'colors.border',
-    backgroundColor: 'colors.surface',
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
   },
   datePickerDoneText: {
     fontSize: 15,
@@ -421,7 +421,7 @@ function DetailInput({ label, value, onChange, placeholder }: { label: string; v
       <TextInput
         style={styles.detailTextInput}
         placeholder={placeholder}
-        placeholderTextColor="colors.textSecondary"
+        placeholderTextColor={colors.textSecondary}
         value={value}
         onChangeText={onChange}
         multiline
@@ -685,7 +685,7 @@ export default function AssessmentScreen() {
               style={[styles.textInput, birthDate && styles.textInputFilled, styles.datePickerButton]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Ionicons name="calendar-outline" size={18} color={birthDate ? '#3B82F6' : 'colors.textSecondary'} style={{ marginRight: 8 }} />
+              <Ionicons name="calendar-outline" size={18} color={birthDate ? '#3B82F6' : colors.textSecondary} style={{ marginRight: 8 }} />
               <Text style={birthDate ? styles.dateTextFilled : styles.dateTextPlaceholder}>
                 {birthDate ? formatBirthDate(birthDate) : 'Select your birth date'}
               </Text>
@@ -720,7 +720,7 @@ export default function AssessmentScreen() {
               <TextInput
                 style={[styles.textInput, textInputs[field.id as keyof typeof textInputs] && styles.textInputFilled]}
                 placeholder={field.placeholder}
-                placeholderTextColor="colors.textSecondary"
+                placeholderTextColor={colors.textSecondary}
                 value={textInputs[field.id as keyof typeof textInputs]}
                 onChangeText={(value) => setTextInput(field.id, value)}
                 keyboardType={field.keyboardType}
@@ -841,7 +841,7 @@ export default function AssessmentScreen() {
                       <Text style={[styles.yesNoText, isSelected && styles.selectedYesNoText]}>
                         {option}
                       </Text>
-                      {isSelected && <Ionicons name="checkmark-circle" size={20} color="colors.surface" />}
+                      {isSelected && <Ionicons name="checkmark-circle" size={20} color={colors.surface} />}
                     </TouchableOpacity>
                   );
                 })}
@@ -867,7 +867,7 @@ export default function AssessmentScreen() {
           >
             {isSubmitting ? (
               <>
-                <ActivityIndicator color="colors.surface" size="small" />
+                <ActivityIndicator color={colors.surface} size="small" />
                 <Text style={styles.submitButtonText}>Submitting...</Text>
               </>
             ) : (
@@ -875,7 +875,7 @@ export default function AssessmentScreen() {
                 <Text style={styles.submitButtonText}>
                   {isComplete ? 'Complete Assessment & Continue' : 'Complete All Required Fields'}
                 </Text>
-                <Ionicons name="arrow-forward" size={20} color="colors.surface" />
+                <Ionicons name="arrow-forward" size={20} color={colors.surface} />
               </>
             )}
           </TouchableOpacity>

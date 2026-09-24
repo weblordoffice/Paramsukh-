@@ -72,9 +72,9 @@
       "privacyPolicyUrl": "https://ps-pp.vercel.app/",
       "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ",
       "eas": {
-        "projectId": "d49ac848-8a56-4fe6-bfb3-7b4ad8a7a570"
+        "projectId": "35c40b6e-53f0-48bf-b65a-a185149d945a"
       }
     },
-    "owner": "akash01010101"
+    "owner": "webvision"
   }
 }
