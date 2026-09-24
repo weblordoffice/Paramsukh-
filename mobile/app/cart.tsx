@@ -13,7 +13,7 @@ export default function CartScreen() {
   const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: 'colors.background',
+        backgroundColor: colors.background || '#F8FAFC',
     },
     center: {
         justifyContent: 'center',
@@ -26,9 +26,9 @@ export default function CartScreen() {
         paddingHorizontal: 20,
         paddingTop: 50,
         paddingBottom: 16,
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface || '#FFFFFF',
         borderBottomWidth: 1,
-        borderBottomColor: 'colors.border',
+        borderBottomColor: colors.border || '#E2E8F0',
     },
     backButton: {
         padding: 8,
@@ -36,7 +36,7 @@ export default function CartScreen() {
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text || '#0F172A',
     },
     clearButton: {
         padding: 8,
@@ -68,28 +68,28 @@ export default function CartScreen() {
     },
     scrollContent: {
         padding: 16,
-        paddingBottom: 100,
+        paddingBottom: 180,
     },
     emptyText: {
         fontSize: 18,
-        color: 'colors.textSecondary',
+        color: colors.textSecondary || '#64748B',
         marginTop: 16,
         marginBottom: 24,
     },
     startShoppingButton: {
-        backgroundColor: '#EAB308',
+        backgroundColor: '#0F172A',
         paddingHorizontal: 24,
         paddingVertical: 12,
         borderRadius: 24,
     },
     startShoppingText: {
-        color: 'colors.surface',
+        color: '#FFFFFF',
         fontWeight: '700',
         fontSize: 16,
     },
     cartItem: {
         flexDirection: 'row',
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface || '#FFFFFF',
         borderRadius: 12,
         padding: 12,
         marginBottom: 16,
@@ -98,12 +98,14 @@ export default function CartScreen() {
         shadowOpacity: 0.05,
         shadowRadius: 4,
         elevation: 2,
+        borderWidth: 1,
+        borderColor: colors.border || '#E2E8F0',
     },
     itemImageContainer: {
         width: 80,
         height: 80,
         borderRadius: 8,
-        backgroundColor: 'colors.surfaceSecondary',
+        backgroundColor: colors.surfaceSecondary || '#F1F5F9',
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
@@ -120,12 +122,12 @@ export default function CartScreen() {
     itemName: {
         fontSize: 15,
         fontWeight: '600',
-        color: 'colors.text',
+        color: colors.text || '#0F172A',
     },
     itemPrice: {
         fontSize: 15,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text || '#0F172A',
     },
     quantityControls: {
         flexDirection: 'row',
@@ -136,11 +138,11 @@ export default function CartScreen() {
         width: 28,
         height: 28,
         borderRadius: 14,
-        backgroundColor: 'colors.surfaceSecondary',
+        backgroundColor: colors.surfaceSecondary || '#F1F5F9',
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: 'colors.border',
+        borderColor: colors.border || '#CBD5E1',
     },
     quantityBox: {
         minWidth: 20,
@@ -149,17 +151,19 @@ export default function CartScreen() {
     quantityText: {
         fontSize: 14,
         fontWeight: '600',
-        color: 'colors.text',
+        color: colors.text || '#0F172A',
     },
     removeBtn: {
         marginLeft: 'auto',
         padding: 4,
     },
     summaryCard: {
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface || '#FFFFFF',
         borderRadius: 12,
         padding: 16,
         marginTop: 8,
+        borderWidth: 1,
+        borderColor: colors.border || '#E2E8F0',
     },
     summaryRow: {
         flexDirection: 'row',
@@ -168,27 +172,27 @@ export default function CartScreen() {
     },
     summaryLabel: {
         fontSize: 14,
-        color: 'colors.textSecondary',
+        color: colors.textSecondary || '#64748B',
     },
     summaryValue: {
         fontSize: 14,
         fontWeight: '600',
-        color: 'colors.text',
+        color: colors.text || '#0F172A',
     },
     divider: {
         height: 1,
-        backgroundColor: 'colors.border',
+        backgroundColor: colors.border || '#E2E8F0',
         marginVertical: 12,
     },
     totalLabel: {
         fontSize: 16,
         fontWeight: '700',
-        color: 'colors.text',
+        color: colors.text || '#0F172A',
     },
     totalValue: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#EAB308',
+        color: '#D97706',
     },
     referralBanner: {
         flexDirection: 'row',
@@ -215,13 +219,18 @@ export default function CartScreen() {
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: 'colors.surface',
+        backgroundColor: colors.surface || '#FFFFFF',
         padding: 16,
         borderTopWidth: 1,
-        borderTopColor: 'colors.border',
+        borderTopColor: colors.border || '#E2E8F0',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+        elevation: 8,
     },
     checkoutButton: {
-        backgroundColor: 'colors.text',
+        backgroundColor: '#0F172A',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -230,11 +239,11 @@ export default function CartScreen() {
         borderRadius: 12,
     },
     checkoutButtonText: {
-        color: 'colors.surface',
+        color: '#FFFFFF',
         fontSize: 16,
         fontWeight: '700',
     },
-});
+  });
     const router = useRouter();
     const { cart, fetchCart, updateCartItem, removeFromCart, clearCart, isLoading } = useCartStore();
     const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
