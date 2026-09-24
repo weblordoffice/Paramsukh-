@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDonationStore } from '@/store/donationStore';
 import { useAuthStore } from '@/store/authStore';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '@/utils/paymentBrowser';
+import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '@/utils/razorpayNative';
 import apiClient from '@/utils/apiClient';
 import { useTheme } from '../hooks/useTheme';
 
@@ -65,7 +66,7 @@ export default function DonationsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { token } = useAuthStore();
-  const { donations, fetchMyDonations, isLoading } = useDonationStore();
+  const { donations, fetchMyDonations, isLoading, createDonationOrder, verifyDonationPayment } = useDonationStore();
 
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
@@ -89,6 +90,52 @@ export default function DonationsScreen() {
     setIsProcessing(true);
 
     try {
+      // Preferred: native Razorpay SDK checkout (no WebView/browser)
+      if (isRazorpayNativeAvailable()) {
+        const orderRes = await createDonationOrder(numAmount);
+        if (orderRes.success && orderRes.orderId && orderRes.keyId) {
+          const payResult = await payWithRazorpayNative(
+            {
+              keyId: orderRes.keyId,
+              orderId: orderRes.orderId,
+              amount: orderRes.amount!,
+              currency: orderRes.currency || 'INR',
+            },
+            {
+              description: 'Donation to Paramsukh Foundation',
+              prefill: buildPrefill(useAuthStore.getState().user),
+              notes: { type: 'donation' },
+            }
+          );
+
+          if (payResult.status === 'success') {
+            const verify = await verifyDonationPayment({
+              razorpay_order_id: payResult.orderId,
+              razorpay_payment_id: payResult.paymentId,
+              razorpay_signature: payResult.signature,
+              amount: numAmount,
+              message: message.trim() || undefined,
+              isAnonymous,
+            });
+            if (verify.success) {
+              Alert.alert('Thank You! 🙏', `Your donation of ₹${numAmount} has been received.`, [
+                { text: 'OK', onPress: () => { setAmount(''); setMessage(''); fetchMyDonations(); } }
+              ]);
+            } else {
+              Alert.alert('Payment Verification', verify.message || 'Payment received but verification failed. Please contact support.');
+            }
+            setIsProcessing(false);
+            return;
+          }
+          if (payResult.status === 'cancelled') {
+            Alert.alert('Payment Cancelled', 'Your donation was not completed.');
+            setIsProcessing(false);
+            return;
+          }
+          // Native checkout errored — fall through to the browser-based payment-link flow below
+        }
+      }
+
       const linkRes = await apiClient.post('/donations/payment-link', {
         amount: numAmount,
         message: message.trim() || undefined,

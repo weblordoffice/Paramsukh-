@@ -8,6 +8,7 @@ import {
     createDonationOrder,
     createDonationPaymentLink,
     confirmDonationPayment,
+    verifyDonationPayment,
     handleDonationWebhook
 } from '../../controller/donations/donations.controller.js';
 
@@ -15,6 +16,7 @@ const router = express.Router();
 
 // Razorpay donation flow
 router.post('/create-order', protectedRoutes, createDonationOrder);
+router.post('/verify-payment', protectedRoutes, verifyDonationPayment);
 router.post('/payment-link', protectedRoutes, createDonationPaymentLink);
 router.post('/confirm-payment', protectedRoutes, confirmDonationPayment);
 router.post('/webhook', handleDonationWebhook);

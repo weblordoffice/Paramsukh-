@@ -4,7 +4,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../utils/paymentBrowser';
+import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '../utils/razorpayNative';
 import { useCounselingStore } from '../store/counselingStore';
+import { useAuthStore } from '../store/authStore';
 import { Calendar } from 'react-native-calendars';
 import { useTheme } from '../hooks/useTheme';
 
@@ -12,7 +14,7 @@ export default function BookCounselingScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  const { counselingTypes, checkAvailability, bookSession, createBookingPaymentLink, confirmBookingPaymentLink, isLoading } = useCounselingStore();
+  const { counselingTypes, checkAvailability, bookSession, createBookingOrder, createBookingPaymentLink, confirmBookingPaymentLink, verifyCounselingPayment, isLoading } = useCounselingStore();
   
   // Safely extract from store instead of URL params
   const service = counselingTypes.find(t => t.id === id) || counselingTypes[0]; // fallback
@@ -104,6 +106,50 @@ export default function BookCounselingScreen() {
       if (!bookingId) {
         Alert.alert('Error', 'Could not create booking. Please try again.');
         return;
+      }
+
+      // Preferred: native Razorpay SDK checkout (no WebView/browser)
+      if (isRazorpayNativeAvailable()) {
+        const orderResult = await createBookingOrder(bookingId, numericPrice);
+        const rzpOrder = orderResult.data?.razorpay;
+        if (orderResult.success && rzpOrder?.orderId && rzpOrder?.keyId) {
+          const payResult = await payWithRazorpayNative(
+            {
+              keyId: rzpOrder.keyId,
+              orderId: rzpOrder.orderId,
+              amount: rzpOrder.amount,
+              currency: rzpOrder.currency || 'INR',
+            },
+            {
+              description: `${title} · ${formattedDateString}`,
+              prefill: buildPrefill(useAuthStore.getState().user),
+              notes: { type: 'booking', bookingId },
+            }
+          );
+
+          if (payResult.status === 'success') {
+            const verify = await verifyCounselingPayment(bookingId, {
+              razorpay_payment_id: payResult.paymentId,
+              razorpay_order_id: payResult.orderId,
+              razorpay_signature: payResult.signature,
+            });
+            if (verify.success) {
+              Alert.alert(
+                'Booking Confirmed! 🎉',
+                `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${selectedTime} has been booked. Payment received.`,
+                [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
+              );
+            } else {
+              Alert.alert('Payment Verification', verify.message || 'Payment received but verification failed. Please contact support with your booking ID.');
+            }
+            return;
+          }
+          if (payResult.status === 'cancelled') {
+            Alert.alert('Payment Cancelled', 'Your booking is saved as pending. You can retry payment from your bookings.');
+            return;
+          }
+          // Native checkout errored — fall through to the browser-based payment-link flow below
+        }
       }
 
       const linkResult = await createBookingPaymentLink(bookingId);

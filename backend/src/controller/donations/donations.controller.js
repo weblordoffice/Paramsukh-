@@ -1,6 +1,6 @@
 import { Donation } from '../../models/donation.models.js';
 import { recordTransaction } from '../../services/transaction.service.js';
-import { createRazorpayOrder, createRazorpayPaymentLink, fetchPaymentLink, verifyRazorpayWebhookSignature, isRazorpayTestMode } from '../../services/razorpayService.js';
+import { createRazorpayOrder, createRazorpayPaymentLink, fetchPaymentLink, verifyRazorpaySignature, fetchPaymentDetails, verifyRazorpayWebhookSignature, isRazorpayTestMode } from '../../services/razorpayService.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { sendDonationReceiptEmail } from '../../services/emailService.js';
 
@@ -172,6 +172,90 @@ export const confirmDonationPayment = async (req, res) => {
     } catch (error) {
         console.error('Confirm Donation Payment Error:', error);
         return res.status(500).json({ success: false, message: 'Failed to confirm donation' });
+    }
+};
+
+// @desc    Verify Razorpay native-SDK payment and record donation
+// @route   POST /api/donations/verify-payment
+// @access  Private
+export const verifyDonationPayment = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, amount, message, isAnonymous } = req.body;
+
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            return res.status(400).json({ success: false, message: 'Razorpay payment details required' });
+        }
+
+        if (!amount || isNaN(amount) || Number(amount) <= 0) {
+            return res.status(400).json({ success: false, message: 'Valid amount is required' });
+        }
+
+        const isValid = verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+        if (!isValid) {
+            return res.status(400).json({ success: false, message: 'Invalid payment signature' });
+        }
+
+        // Fetch and validate payment details from Razorpay (strict checks only outside test mode)
+        try {
+            const paymentDetails = await fetchPaymentDetails(razorpay_payment_id);
+            if (!isRazorpayTestMode) {
+                if (paymentDetails.status !== 'captured') {
+                    return res.status(400).json({ success: false, message: 'Payment not captured' });
+                }
+                if (paymentDetails.order_id !== razorpay_order_id) {
+                    return res.status(400).json({ success: false, message: 'Payment order mismatch' });
+                }
+                if (Number(paymentDetails.amount) !== Math.round(Number(amount) * 100)) {
+                    return res.status(400).json({ success: false, message: 'Payment amount mismatch' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ success: false, message: 'Could not verify payment with Razorpay' });
+        }
+
+        // Prevent duplicate donations (idempotent retry)
+        const existing = await Donation.findOne({ transactionId: razorpay_payment_id });
+        if (existing) {
+            return res.status(200).json({ success: true, message: 'Donation already recorded', data: existing });
+        }
+
+        const userName = req.user.displayName || req.user.name || 'Donor';
+        const anonymous = isAnonymous === true || String(isAnonymous || 'false').toLowerCase() === 'true';
+
+        const donation = await Donation.create({
+            userId,
+            userName: anonymous ? 'Anonymous' : userName,
+            phone: req.user.phone,
+            amount: Number(amount),
+            transactionId: razorpay_payment_id,
+            paymentMethod: 'razorpay',
+            message: message || '',
+            isAnonymous: anonymous,
+            status: 'completed'
+        });
+
+        recordTransaction({
+            userId, userName: anonymous ? 'Anonymous' : userName,
+            source: 'donation', sourceId: donation._id.toString(),
+            amount: Number(amount), provider: 'razorpay', providerRef: razorpay_payment_id,
+            metadata: { razorpayOrderId: razorpay_order_id, paymentMethod: 'razorpay', isAnonymous: anonymous },
+        }).catch(err => console.error('Transaction recording failed:', err.message));
+
+        try {
+            await sendNotification(userId, { type: 'system', title: 'Donation Received', message: `Thank you for your donation of ₹${Number(amount)}!`, icon: '🙏', priority: 'high', relatedId: donation._id, relatedType: 'donation' });
+        } catch (e) { /* ignore */ }
+
+        try {
+            await sendDonationReceiptEmail(req.user, donation);
+        } catch (e) {
+            console.error('Donation receipt email failed:', e?.message || e);
+        }
+
+        return res.status(200).json({ success: true, message: 'Donation recorded — thank you!', data: donation });
+    } catch (error) {
+        console.error('Verify Donation Payment Error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to verify donation payment' });
     }
 };
 

@@ -38,6 +38,21 @@ interface MembershipState {
 
     fetchCurrentSubscription: () => Promise<void>;
     purchaseMembership: (planId: string, paymentId: string) => Promise<boolean>;
+    createMembershipOrder: (plan: string, selectedCourseIds?: string[]) => Promise<{
+        success: boolean;
+        orderId?: string;
+        amount?: number;
+        currency?: string;
+        keyId?: string;
+        message?: string;
+    }>;
+    verifyMembershipPayment: (data: {
+        razorpay_order_id: string;
+        razorpay_payment_id: string;
+        razorpay_signature: string;
+        plan: string;
+        selectedCourseIds?: string[];
+    }) => Promise<{ success: boolean; message?: string; data?: any }>;
     clearError: () => void;
     clearMembership: () => void;
 }
@@ -80,6 +95,37 @@ export const useMembershipStore = create<MembershipState>((set) => ({
     purchaseMembership: async (_planId: string, _paymentId: string) => {
         console.warn('[MembershipStore] purchaseMembership is deprecated. Use the payment-link flow instead.');
         return false;
+    },
+
+    createMembershipOrder: async (plan: string, selectedCourseIds?: string[]) => {
+        try {
+            const response = await apiClient.post('/payments/create-order', { plan, selectedCourseIds });
+            if (response.data?.success && response.data?.data) {
+                const d = response.data.data;
+                return {
+                    success: true,
+                    orderId: d.orderId,
+                    amount: d.amount,
+                    currency: d.currency || 'INR',
+                    keyId: d.keyId,
+                };
+            }
+            return { success: false, message: response.data?.message || 'Failed to create payment order' };
+        } catch (error: any) {
+            return { success: false, message: error.response?.data?.message || 'Failed to create payment order' };
+        }
+    },
+
+    verifyMembershipPayment: async (data) => {
+        try {
+            const response = await apiClient.post('/payments/verify-membership', data);
+            if (response.data?.success) {
+                return { success: true, message: response.data?.message, data: response.data?.data };
+            }
+            return { success: false, message: response.data?.message || 'Payment verification failed' };
+        } catch (error: any) {
+            return { success: false, message: error.response?.data?.message || 'Payment verification failed' };
+        }
     },
 
     clearError: () => set({ error: null }),

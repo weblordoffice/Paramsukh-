@@ -67,7 +67,7 @@ const notificationSchema = new mongoose.Schema({
   },
   relatedType: {
     type: String,
-    enum: ['course', 'event', 'post', 'booking', 'enrollment', 'comment', 'membership', 'support', 'order', 'podcast']
+    enum: ['course', 'event', 'post', 'booking', 'enrollment', 'comment', 'membership', 'support', 'order', 'podcast', 'donation']
   },
   // Notification metadata
   actionUrl: {

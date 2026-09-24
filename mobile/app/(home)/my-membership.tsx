@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../../utils/paymentBrowser';
+import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '../../utils/razorpayNative';
 import { useMembershipStore } from '../../store/membershipStore';
 import { useAuthStore } from '../../store/authStore';
 import apiClient from '../../utils/apiClient';
@@ -370,7 +371,7 @@ export default function MyMembershipScreen() {
         courseSelection: { enabled: boolean; maxSelectable: number; remaining: number; used: number };
     } | null>(null);
 
-    const { currentSubscription, fetchCurrentSubscription, isLoading } = useMembershipStore();
+    const { currentSubscription, fetchCurrentSubscription, isLoading, createMembershipOrder, verifyMembershipPayment } = useMembershipStore();
     const { token } = useAuthStore();
 
     const [purchases, setPurchases] = useState<
@@ -597,6 +598,65 @@ export default function MyMembershipScreen() {
         try {
             const callbackUrl = 'paramsukh://payment-done';
             const selectedCourseIds = await readPreSelectedCourseIds(plan.parentSlug);
+
+            // Preferred: native Razorpay SDK checkout (no WebView/browser)
+            if (isRazorpayNativeAvailable()) {
+                const orderRes = await createMembershipOrder(plan.parentSlug, selectedCourseIds);
+                if (orderRes.success && orderRes.orderId && orderRes.keyId) {
+                    const payResult = await payWithRazorpayNative(
+                        {
+                            keyId: orderRes.keyId,
+                            orderId: orderRes.orderId,
+                            amount: orderRes.amount!,
+                            currency: orderRes.currency || 'INR',
+                        },
+                        {
+                            description: `${plan.name} Membership`,
+                            prefill: buildPrefill(useAuthStore.getState().user),
+                            notes: { type: 'membership', plan: plan.parentSlug },
+                        }
+                    );
+
+                    if (payResult.status === 'success') {
+                        const verify = await verifyMembershipPayment({
+                            razorpay_order_id: payResult.orderId,
+                            razorpay_payment_id: payResult.paymentId,
+                            razorpay_signature: payResult.signature,
+                            plan: plan.parentSlug,
+                            selectedCourseIds,
+                        });
+                        if (verify.success) {
+                            await AsyncStorage.removeItem(PENDING_LINK_KEY);
+                            await AsyncStorage.removeItem(PRE_SELECT_KEY);
+                        }
+                        await fetchCurrentSubscription();
+                        await loadPurchases();
+                        const courseSelection = await fetchActiveMembershipInfo();
+                        if (verify.success) {
+                            if (plan.courseSelection?.enabled && courseSelection?.remaining && courseSelection.remaining > 0) {
+                                router.push({
+                                    pathname: '/(home)/choose-courses',
+                                    params: {
+                                        membershipId: activeMembership?.membershipId || '',
+                                        maxSelectable: String(courseSelection.maxSelectable),
+                                    },
+                                });
+                            } else {
+                                Alert.alert('Success', `${plan.name} membership is now active.`);
+                            }
+                        } else {
+                            Alert.alert('Payment Verification', verify.message || 'Payment received but verification failed. Please try syncing payment.');
+                        }
+                        return;
+                    }
+                    if (payResult.status === 'cancelled') {
+                        Alert.alert('Payment Cancelled', 'Your membership was not activated. You can try again.');
+                        return;
+                    }
+                    // Native checkout errored — fall through to the browser-based payment-link flow below
+                }
+            }
+
             const linkRes = await apiClient.post('/payments/membership-link', {
                 plan: plan.parentSlug,
                 variantSlug: plan.variantSlug || null,

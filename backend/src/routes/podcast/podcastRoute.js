@@ -15,6 +15,8 @@ import {
     checkFavoriteStatus,
 } from '../../controller/podcast/podcast.controller.js';
 import {
+    createPodcastOrder,
+    verifyPodcastPayment,
     createPodcastPaymentLink,
     confirmPodcastPayment,
     handlePodcastPaymentWebhook,
@@ -35,6 +37,8 @@ router.get('/user/purchases', protectedRoutes, getUserPodcastPurchases);
 router.get('/:podcastId/purchase-status', protectedRoutes, checkPodcastPurchaseStatus);
 
 // Payment routes (protected)
+router.post('/:id/create-order', protectedRoutes, createPodcastOrder);
+router.post('/:id/verify-payment', protectedRoutes, verifyPodcastPayment);
 router.post('/:id/create-payment', protectedRoutes, createPodcastPaymentLink);
 router.post('/:id/confirm-payment', protectedRoutes, confirmPodcastPayment);
 router.post('/webhook/razorpay', handlePodcastPaymentWebhook);

@@ -12,10 +12,15 @@
       "buildNumber": "8",
       "infoPlist": {
         "UIBackgroundModes": [
-          "audio",
           "audio"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": [
+          "tez",
+          "phonepe",
+          "paytmmp",
+          "upi"
+        ]
       },
       "bundleIdentifier": "com.paramsukh.onlinegurukul"
     },

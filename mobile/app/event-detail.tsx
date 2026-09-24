@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Ale
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../utils/paymentBrowser';
+import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '../utils/razorpayNative';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEventStore } from '../store/eventStore';
 import { useAuthStore } from '../store/authStore';
@@ -22,7 +23,9 @@ export default function EventDetailScreen() {
     fetchEventDetails,
     checkRegistrationStatus,
     registerForEvent,
+    createEventOrder,
     createEventPaymentLink,
+    confirmEventPayment,
     confirmEventPaymentByLink,
     cancelEventRegistration,
     isLoading,
@@ -170,6 +173,59 @@ export default function EventDetailScreen() {
     processingRef.current = true;
     setProcessing(true);
     try {
+      // Preferred: native Razorpay SDK checkout (no WebView/browser)
+      if (isRazorpayNativeAvailable()) {
+        const orderResult = await createEventOrder(eventId, {
+          name: form.name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.trim()
+        });
+        const rzpOrder = orderResult.data?.razorpay;
+        if (orderResult.success && rzpOrder?.orderId && (rzpOrder as any)?.keyId) {
+          const payResult = await payWithRazorpayNative(
+            {
+              keyId: (rzpOrder as any).keyId,
+              orderId: rzpOrder.orderId,
+              amount: rzpOrder.amount,
+              currency: rzpOrder.currency || 'INR',
+            },
+            {
+              description: event?.title ? `Event: ${event.title}` : 'Event registration',
+              prefill: {
+                name: form.name.trim() || buildPrefill(user)?.name,
+                email: form.email.trim() || buildPrefill(user)?.email,
+                contact: form.phone.trim() || buildPrefill(user)?.contact,
+              },
+              notes: { type: 'event', eventId },
+            }
+          );
+
+          if (payResult.status === 'success') {
+            const verify = await confirmEventPayment(eventId, {
+              razorpay_payment_id: payResult.paymentId,
+              razorpay_order_id: payResult.orderId,
+              razorpay_signature: payResult.signature,
+            });
+            setShowRegisterForm(false);
+            if (verify.success) {
+              Alert.alert(
+                'Registration Confirmed',
+                'You are registered for this event. You can find your ticket in the events list.',
+                [{ text: 'Great!' }]
+              );
+            } else {
+              Alert.alert('Payment Verification', verify.message || 'Payment received but verification failed. Please contact support.');
+            }
+            return;
+          }
+          if (payResult.status === 'cancelled') {
+            Alert.alert('Payment Cancelled', 'Your registration is saved as pending. You can retry payment from the event page.');
+            return;
+          }
+          // Native checkout errored — fall through to the browser-based payment-link flow below
+        }
+      }
+
       const linkResult = await createEventPaymentLink(eventId, {
         name: form.name.trim(),
         email: form.email.trim(),

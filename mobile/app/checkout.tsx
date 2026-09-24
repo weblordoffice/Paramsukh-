@@ -9,6 +9,8 @@ import { useAddressStore } from '../store/addressStore';
 import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../utils/paymentBrowser';
+import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '../utils/razorpayNative';
+import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../hooks/useTheme';
 
 export default function CheckoutScreen() {
@@ -359,7 +361,7 @@ export default function CheckoutScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { cart, clearCart } = useCartStore();
-    const { createOrder, createOrderPaymentLink, confirmOrderPaymentLink, isLoading: isOrderLoading } = useOrderStore();
+    const { createOrder, createOrderPaymentLink, confirmOrderPaymentLink, verifyPayment, isLoading: isOrderLoading } = useOrderStore();
     const { addresses, fetchAddresses, addAddress, isLoading: isAddressLoading, error: addressError } = useAddressStore();
 
     const isMountedRef = useRef(true);
@@ -450,6 +452,50 @@ export default function CheckoutScreen() {
             // 2. Handle Payment Flow
             if (paymentMethod === 'razorpay' && result.orderId) {
                 const orderId = result.orderId;
+                const rzpOrder = (result as any).razorpay;
+
+                // Preferred: native Razorpay SDK checkout (no WebView/browser)
+                if (rzpOrder?.orderId && rzpOrder?.keyId && isRazorpayNativeAvailable()) {
+                    const payResult = await payWithRazorpayNative(
+                        {
+                            keyId: rzpOrder.keyId,
+                            orderId: rzpOrder.orderId,
+                            amount: rzpOrder.amount,
+                            currency: rzpOrder.currency || 'INR',
+                        },
+                        {
+                            description: `Order payment`,
+                            prefill: buildPrefill(useAuthStore.getState().user),
+                            notes: { type: 'order', orderId },
+                        }
+                    );
+
+                    if (payResult.status === 'success') {
+                        const verify = await verifyPayment({
+                            orderId,
+                            razorpayPaymentId: payResult.paymentId,
+                            razorpayOrderId: payResult.orderId,
+                            razorpaySignature: payResult.signature,
+                        });
+                        if (verify.success) {
+                            Alert.alert("Success", "Payment successful! Order confirmed.", [
+                                { text: "OK", onPress: () => { clearCart(); router.replace('/orders'); } }
+                            ]);
+                        } else {
+                            Alert.alert("Payment Verification", verify.message || "Payment received but verification failed. Check My Orders.");
+                        }
+                        return;
+                    }
+                    if (payResult.status === 'cancelled') {
+                        Alert.alert("Payment Cancelled", "Your order is saved as pending. You can retry payment from My Orders.");
+                        return;
+                    }
+                    if (payResult.status === 'error') {
+                        Alert.alert("Payment Error", payResult.message || "Native checkout failed. Trying browser checkout instead.");
+                        // Fall through to the browser-based payment-link flow below
+                    }
+                }
+
                 const linkResult = await createOrderPaymentLink(orderId);
                 if (!linkResult.success || !linkResult.url || !linkResult.paymentLinkId) {
                     Alert.alert("Error", linkResult.message || "Could not create payment link.");

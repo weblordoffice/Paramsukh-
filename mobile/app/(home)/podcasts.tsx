@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import apiClient from '../../utils/apiClient';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../../utils/paymentBrowser';
+import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '../../utils/razorpayNative';
 import { Video, ResizeMode } from 'expo-av';
 import { useAuthStore } from '../../store/authStore';
 import { useAudioPlayerStore } from '../../store/audioPlayerStore';
@@ -283,6 +284,54 @@ export default function PodcastsScreen() {
 
     setProcessingPayment(true);
     try {
+      // Preferred: native Razorpay SDK checkout (no WebView/browser)
+      if (isRazorpayNativeAvailable()) {
+        const orderResponse = await apiClient.post(
+          `/podcasts/${podcast._id}/create-order`,
+          {}
+        );
+        const rzpOrder = orderResponse.data?.data;
+        if (orderResponse.data?.success && rzpOrder?.orderId && rzpOrder?.keyId) {
+          const payResult = await payWithRazorpayNative(
+            {
+              keyId: rzpOrder.keyId,
+              orderId: rzpOrder.orderId,
+              amount: rzpOrder.amount,
+              currency: rzpOrder.currency || 'INR',
+            },
+            {
+              description: podcast.title ? `Podcast: ${podcast.title}` : 'Podcast purchase',
+              prefill: buildPrefill(user),
+              notes: { type: 'podcast', podcastId: podcast._id },
+            }
+          );
+
+          if (payResult.status === 'success') {
+            const verifyResponse = await apiClient.post(
+              `/podcasts/${podcast._id}/verify-payment`,
+              {
+                razorpay_order_id: payResult.orderId,
+                razorpay_payment_id: payResult.paymentId,
+                razorpay_signature: payResult.signature,
+              }
+            );
+            if (verifyResponse.data?.success) {
+              setShowPaymentFlow(false);
+              await fetchPodcasts();
+              Alert.alert('Success', 'Podcast unlocked successfully');
+            } else {
+              Alert.alert('Payment Verification', verifyResponse.data?.message || 'Payment received but verification failed. Please contact support.');
+            }
+            return;
+          }
+          if (payResult.status === 'cancelled') {
+            Alert.alert('Payment Cancelled', 'Your podcast was not unlocked. You can try again.');
+            return;
+          }
+          // Native checkout errored — fall through to the browser-based payment-link flow below
+        }
+      }
+
       const paymentResponse = await apiClient.post(
         `/podcasts/${podcast._id}/create-payment`,
         {}

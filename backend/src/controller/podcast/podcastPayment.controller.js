@@ -1,7 +1,11 @@
 import {
+    createRazorpayOrder,
     createRazorpayPaymentLink,
     fetchPaymentLink,
+    fetchPaymentDetails,
+    verifyRazorpaySignature,
     verifyRazorpayWebhookSignature,
+    isRazorpayTestMode,
 } from '../../services/razorpayService.js';
 import Podcast from '../../models/podcast.model.js';
 import PodcastPurchase from '../../models/podcastPurchase.model.js';
@@ -201,15 +205,17 @@ export const confirmPodcastPayment = async (req, res) => {
 
         // Send notification
         try {
-            await sendNotification({
+            await sendNotification(
                 userId,
-                title: 'Podcast Purchased',
-                message: `You have successfully purchased "${podcast.title}"`,
-                type: 'podcast',
-                relatedId: podcast._id,
-                relatedType: 'podcast',
-                data: { podcastId: String(podcastId) },
-            });
+                {
+                    title: 'Podcast Purchased',
+                    message: `You have successfully purchased "${podcast.title}"`,
+                    type: 'podcast',
+                    relatedId: podcast._id,
+                    relatedType: 'podcast',
+                    data: { podcastId: String(podcastId) },
+                }
+            );
         } catch (notificationError) {
             console.error('Notification error:', notificationError);
         }
@@ -239,6 +245,219 @@ export const confirmPodcastPayment = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to confirm payment',
+            error: error.message,
+        });
+    }
+};
+
+/**
+ * Create Razorpay order for podcast purchase (native SDK checkout)
+ * POST /api/podcasts/:id/create-order
+ */
+export const createPodcastOrder = async (req, res) => {
+    try {
+        const userId = req.user?._id || req.user?.id;
+        const podcastId = req.params.id;
+
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Authentication required',
+            });
+        }
+
+        const podcast = await Podcast.findById(podcastId);
+        if (!podcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Podcast not found',
+            });
+        }
+
+        if (podcast.accessType !== 'paid') {
+            return res.status(400).json({
+                success: false,
+                message: 'This podcast is not available for purchase',
+            });
+        }
+
+        const existingPurchase = await PodcastPurchase.findOne({
+            userId,
+            podcastId,
+        });
+
+        if (existingPurchase) {
+            return res.status(400).json({
+                success: false,
+                message: 'You have already purchased this podcast',
+            });
+        }
+
+        const amount = Number(podcast.price) || 0;
+        if (amount <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid podcast price',
+            });
+        }
+
+        const order = await createRazorpayOrder({
+            amount,
+            currency: podcast.currencyCode || 'INR',
+            receipt: `pod_${String(podcastId).slice(-6)}_${Date.now().toString(36)}`,
+            notes: {
+                type: 'podcast',
+                podcastId: String(podcastId),
+                userId: String(userId),
+            },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Podcast payment order created',
+            data: {
+                orderId: order.id,
+                amount: order.amount,
+                currency: order.currency,
+                keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_demo',
+            },
+        });
+    } catch (error) {
+        console.error('Create Podcast Order Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create payment order',
+            error: error.message,
+        });
+    }
+};
+
+/**
+ * Verify Razorpay native-SDK payment and mark podcast purchased
+ * POST /api/podcasts/:id/verify-payment
+ */
+export const verifyPodcastPayment = async (req, res) => {
+    try {
+        const userId = req.user?._id || req.user?.id;
+        const podcastId = req.params.id;
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                message: 'Authentication required',
+            });
+        }
+
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            return res.status(400).json({
+                success: false,
+                message: 'Razorpay payment details required',
+            });
+        }
+
+        const podcast = await Podcast.findById(podcastId);
+        if (!podcast) {
+            return res.status(404).json({
+                success: false,
+                message: 'Podcast not found',
+            });
+        }
+        if (podcast.accessType !== 'paid') {
+            return res.status(400).json({ success: false, message: 'This podcast does not require payment' });
+        }
+
+        const isValid = verifyRazorpaySignature(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+        if (!isValid) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid payment signature',
+            });
+        }
+
+        try {
+            const paymentDetails = await fetchPaymentDetails(razorpay_payment_id);
+            if (!isRazorpayTestMode) {
+                if (paymentDetails.status !== 'captured') {
+                    return res.status(400).json({ success: false, message: 'Payment not captured' });
+                }
+                if (paymentDetails.order_id !== razorpay_order_id) {
+                    return res.status(400).json({ success: false, message: 'Payment order mismatch' });
+                }
+                const expectedPaise = Math.round((Number(podcast?.price) || 0) * 100);
+                if (expectedPaise > 0 && Number(paymentDetails.amount) !== expectedPaise) {
+                    return res.status(400).json({ success: false, message: 'Payment amount mismatch' });
+                }
+            }
+        } catch (e) {
+            return res.status(400).json({ success: false, message: 'Could not verify payment with Razorpay' });
+        }
+
+        let purchase = await PodcastPurchase.findOne({
+            userId,
+            podcastId,
+        });
+
+        if (!purchase) {
+            purchase = await PodcastPurchase.create({
+                userId,
+                podcastId,
+                paymentId: razorpay_payment_id,
+                orderId: razorpay_order_id,
+                purchasedAt: new Date(),
+            });
+
+            recordTransaction({
+              userId,
+              source: 'podcast',
+              sourceId: purchase._id.toString(),
+              amount: podcast.price || 0,
+              provider: 'razorpay',
+              providerRef: razorpay_payment_id,
+              metadata: { podcastName: podcast.title, paymentId: razorpay_payment_id, orderId: razorpay_order_id },
+            }).catch(err => console.error('Transaction recording failed:', err.message));
+        }
+
+        try {
+            await sendNotification(
+                userId,
+                {
+                    title: 'Podcast Purchased',
+                    message: `You have successfully purchased "${podcast.title}"`,
+                    type: 'podcast',
+                    relatedId: podcast._id,
+                    relatedType: 'podcast',
+                    data: { podcastId: String(podcastId) },
+                }
+            );
+        } catch (notificationError) {
+            console.error('Notification error:', notificationError);
+        }
+
+        try {
+            const purchaser = await User.findById(userId).select('email displayName');
+            if (purchaser) await sendPodcastPurchaseEmail(purchaser, podcast);
+        } catch (emailError) {
+            console.error('Podcast purchase email error:', emailError);
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Podcast purchased successfully',
+            data: {
+                purchase,
+                podcast: {
+                    id: podcast._id,
+                    title: podcast.title,
+                    purchasedAt: purchase.purchasedAt,
+                },
+            },
+        });
+    } catch (error) {
+        console.error('Verify Podcast Payment Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to verify payment',
             error: error.message,
         });
     }
@@ -314,15 +533,17 @@ export const handlePodcastPaymentWebhook = async (req, res) => {
                 // Send notification
                 try {
                     const podcast = await Podcast.findById(podcastId);
-                    await sendNotification({
+                    await sendNotification(
                         userId,
-                        title: 'Podcast Purchased',
-                        message: `You have successfully purchased "${podcast?.title}"`,
-                        type: 'podcast',
-                        relatedId: podcastId,
-                        relatedType: 'podcast',
-                        data: { podcastId: String(podcastId) },
-                    });
+                        {
+                            title: 'Podcast Purchased',
+                            message: `You have successfully purchased "${podcast?.title}"`,
+                            type: 'podcast',
+                            relatedId: podcastId,
+                            relatedType: 'podcast',
+                            data: { podcastId: String(podcastId) },
+                        }
+                    );
                 } catch (notificationError) {
                     console.error('Webhook notification error:', notificationError);
                 }

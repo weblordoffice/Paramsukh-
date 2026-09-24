@@ -3,6 +3,7 @@ import { ScrollView, Text, TouchableOpacity, View, Alert, ActivityIndicator, Ima
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../../utils/paymentBrowser';
+import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '../../utils/razorpayNative';
 import Header from '../../components/Header';
 import { useMembershipStore } from '../../store/membershipStore';
 import { useAuthStore } from '../../store/authStore';
@@ -27,7 +28,7 @@ interface EligibleCourse {
 
 export default function MembershipScreen() {
   const { colors } = useTheme();
-  const { currentSubscription, isLoading, fetchCurrentSubscription } = useMembershipStore();
+  const { currentSubscription, isLoading, fetchCurrentSubscription, createMembershipOrder, verifyMembershipPayment } = useMembershipStore();
   const { token } = useAuthStore();
 
   const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
@@ -163,6 +164,49 @@ export default function MembershipScreen() {
     setPurchasingPlanId(plan.id);
 
     try {
+      // Preferred: native Razorpay SDK checkout (no WebView/browser)
+      if (isRazorpayNativeAvailable()) {
+        const orderRes = await createMembershipOrder(plan.parentSlug, selected);
+        if (orderRes.success && orderRes.orderId && orderRes.keyId) {
+          const payResult = await payWithRazorpayNative(
+            {
+              keyId: orderRes.keyId,
+              orderId: orderRes.orderId,
+              amount: orderRes.amount!,
+              currency: orderRes.currency || 'INR',
+            },
+            {
+              description: `${plan.name} Membership`,
+              prefill: buildPrefill(useAuthStore.getState().user),
+              notes: { type: 'membership', plan: plan.parentSlug },
+            }
+          );
+
+          if (payResult.status === 'success') {
+            const verify = await verifyMembershipPayment({
+              razorpay_order_id: payResult.orderId,
+              razorpay_payment_id: payResult.paymentId,
+              razorpay_signature: payResult.signature,
+              plan: plan.parentSlug,
+              selectedCourseIds: selected,
+            });
+            await fetchCurrentSubscription();
+            if (verify.success) {
+              Alert.alert('Success', `${plan.name} membership is now active with ${selected.length} course(s).`);
+              setSelectedCourses((prev) => ({ ...prev, [plan.id]: [] }));
+            } else {
+              Alert.alert('Payment Verification', verify.message || 'Payment received but verification failed. Pull down to refresh.');
+            }
+            return;
+          }
+          if (payResult.status === 'cancelled') {
+            Alert.alert('Payment Cancelled', 'Your membership was not activated. You can try again.');
+            return;
+          }
+          // Native checkout errored — fall through to the browser-based payment-link flow below
+        }
+      }
+
       const linkRes = await apiClient.post('/payments/membership-link', {
         plan: plan.parentSlug,
         amount: plan.price,

@@ -36,6 +36,7 @@ import { AIToolPresentationSection, useAIAssistantStore } from '../store/aiAssis
 import { useAuthStore } from '../store/authStore';
 import apiClient from '../utils/apiClient';
 import { pollPaymentConfirmation } from '../utils/paymentBrowser';
+import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '../utils/razorpayNative';
 import { AIScreenContext } from '../utils/aiScreenContext';
 import EventSource from 'react-native-sse';
 import { getTokenSecurely } from '../utils/biometricAuth';
@@ -937,6 +938,10 @@ export default function AIChatPanel({
           return;
         }
 
+        // NOTE: event_payment intentionally stays on the payment-link browser flow —
+        // the AI backend pre-creates the registration + link, and creating a
+        // native order here would duplicate the registration. The standalone
+        // event-detail screen uses the native SDK (order + verify) instead.
         await WebBrowser.openBrowserAsync(paymentUrl, {
           presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
           enableBarCollapsing: true,
@@ -982,13 +987,55 @@ export default function AIChatPanel({
           return;
         }
 
-        await WebBrowser.openBrowserAsync(paymentUrl, {
-          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-          enableBarCollapsing: true,
-          showTitle: true,
-        });
+        // Preferred: native Razorpay SDK checkout (no WebView/browser).
+        // Falls back to the payment-link browser flow below when unavailable.
+        let nativeMembershipResult: { success: boolean; message?: string } | null = null;
+        if (isRazorpayNativeAvailable()) {
+          try {
+            const orderRes = await apiClient.post('/payments/create-order', { plan });
+            const rzp = orderRes.data?.data;
+            if (orderRes.data?.success && rzp?.orderId && rzp?.keyId) {
+              const payResult = await payWithRazorpayNative(
+                { keyId: rzp.keyId, orderId: rzp.orderId, amount: rzp.amount, currency: rzp.currency || 'INR' },
+                {
+                  description: 'Membership payment',
+                  prefill: buildPrefill(useAuthStore.getState().user),
+                  notes: { type: 'membership', plan },
+                }
+              );
+              if (payResult.status === 'success') {
+                const verifyRes = await apiClient.post('/payments/verify-membership', {
+                  razorpay_order_id: payResult.orderId,
+                  razorpay_payment_id: payResult.paymentId,
+                  razorpay_signature: payResult.signature,
+                  plan,
+                });
+                nativeMembershipResult = {
+                  success: !!verifyRes.data?.success,
+                  message: verifyRes.data?.message,
+                };
+              } else if (payResult.status === 'cancelled') {
+                await appendMessage('assistant', 'Payment was cancelled. Your membership was not activated.');
+                return;
+              }
+              // Native checkout error → fall through to browser flow
+            }
+          } catch {
+            // Fall through to browser flow
+          }
+        }
 
-        const pollResult = await pollPaymentConfirmation(async () => {
+        if (!nativeMembershipResult) {
+          await WebBrowser.openBrowserAsync(paymentUrl, {
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+            enableBarCollapsing: true,
+            showTitle: true,
+          });
+        }
+
+        const pollResult = nativeMembershipResult
+          ? { success: nativeMembershipResult.success, result: nativeMembershipResult }
+          : await pollPaymentConfirmation(async () => {
           const confirmRes = await apiClient.post('/payments/membership-link/confirm', {
             paymentLinkId,
             plan,
@@ -1035,11 +1082,50 @@ export default function AIChatPanel({
           return;
         }
 
-        await WebBrowser.openBrowserAsync(paymentUrl, {
-          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-          enableBarCollapsing: true,
-          showTitle: true,
-        });
+        // Preferred: native Razorpay SDK checkout (no WebView/browser).
+        // Falls back to the payment-link browser flow below when unavailable.
+        let nativeBookingResult: { success: boolean; message?: string } | null = null;
+        if (isRazorpayNativeAvailable()) {
+          try {
+            const orderRes = await apiClient.post('/payments/create-booking-order', { bookingId });
+            const rzp = orderRes.data?.data?.razorpay;
+            if (orderRes.data?.success && rzp?.orderId && rzp?.keyId) {
+              const payResult = await payWithRazorpayNative(
+                { keyId: rzp.keyId, orderId: rzp.orderId, amount: rzp.amount, currency: rzp.currency || 'INR' },
+                {
+                  description: 'Counseling session payment',
+                  prefill: buildPrefill(useAuthStore.getState().user),
+                  notes: { type: 'booking', bookingId },
+                }
+              );
+              if (payResult.status === 'success') {
+                const verifyRes = await apiClient.post(`/counseling/${bookingId}/payment`, {
+                  razorpay_payment_id: payResult.paymentId,
+                  razorpay_order_id: payResult.orderId,
+                  razorpay_signature: payResult.signature,
+                });
+                nativeBookingResult = {
+                  success: !!verifyRes.data?.success,
+                  message: verifyRes.data?.message,
+                };
+              } else if (payResult.status === 'cancelled') {
+                await appendMessage('assistant', 'Payment was cancelled. Your booking is still pending.');
+                return;
+              }
+              // Native checkout error → fall through to browser flow
+            }
+          } catch {
+            // Fall through to browser flow
+          }
+        }
+
+        if (!nativeBookingResult) {
+          await WebBrowser.openBrowserAsync(paymentUrl, {
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+            enableBarCollapsing: true,
+            showTitle: true,
+          });
+        }
 
         // Read LIVE messages from the store (avoids stale closure when browser returns)
         const liveMessages = useAIAssistantStore.getState().messages;
@@ -1080,8 +1166,11 @@ export default function AIChatPanel({
         }
 
         // Step 2: Trigger backend confirmation (with polling in case the webhook is delayed)
+        // Native SDK payments are verified immediately — no polling needed.
         try {
-          const pollResult = await pollPaymentConfirmation(async () => {
+          const pollResult = nativeBookingResult
+            ? { success: nativeBookingResult.success, result: nativeBookingResult }
+            : await pollPaymentConfirmation(async () => {
             const confirmRes = await apiClient.post('/payments/booking-link/confirm', {
               paymentLinkId,
               bookingId,
@@ -1309,6 +1398,7 @@ export default function AIChatPanel({
       }
 
       if (ctaType === 'open_payment_link') {
+        // Generic hosted payment URL with no order context — browser only.
         const paymentUrl = section.paymentUrl || payload.paymentUrl;
         if (!paymentUrl) {
           await appendMessage('assistant', 'I could not open the payment page because the payment URL is missing.');
