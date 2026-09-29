@@ -92,6 +92,9 @@ export default function RevenuePage() {
   const [sourceFilter, setSourceFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedTx, setSelectedTx] = useState<TransactionItem | null>(null);
+  const [detail, setDetail] = useState<{ title: string; rows: [string, string][]; filters: Record<string, string> } | null>(null);
+  const [detailTx, setDetailTx] = useState<TransactionItem[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -127,8 +130,31 @@ export default function RevenuePage() {
     finally { setTxLoading(false); }
   }, [search, sourceFilter, statusFilter, dateFrom, dateTo]);
 
+  const openDetail = async (d: { title: string; rows: [string, string][]; filters: Record<string, string> } | null) => {
+    if (!d) return;
+    setDetail(d);
+    setDetailLoading(true);
+    setDetailTx([]);
+    try {
+      const params = new URLSearchParams({ page: '1', limit: '5' });
+      if (d.filters.source) params.set('source', d.filters.source);
+      if (d.filters.status) params.set('status', d.filters.status);
+      if (d.filters.from) params.set('startDate', d.filters.from);
+      if (d.filters.to) params.set('endDate', d.filters.to);
+      const res = await apiClient.get(`/api/admin/revenue/transactions?${params}`);
+      if (res.data.success) setDetailTx(res.data.data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   useEffect(() => { fetchRevenue(); }, [fetchRevenue]);
-  useEffect(() => { if (activeTab === 'transactions') fetchTransactions(1); }, [activeTab]);
+  useEffect(() => {
+    if (activeTab === 'transactions') fetchTransactions(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, sourceFilter, statusFilter, dateFrom, dateTo]);
 
   const handleExport = async () => {
     try {
@@ -158,13 +184,102 @@ export default function RevenuePage() {
 
   const { overview, charts } = data;
 
+  const toDateInput = (d: Date) => d.toLocaleDateString('en-CA'); // yyyy-mm-dd (local)
+  const todayInput = toDateInput(new Date());
+  const monthStartInput = toDateInput(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+
+  const openTransactions = (overrides: { source?: string; status?: string; from?: string; to?: string } = {}) => {
+    setSourceFilter(overrides.source ?? '');
+    setStatusFilter(overrides.status ?? '');
+    setDateFrom(overrides.from ?? '');
+    setDateTo(overrides.to ?? '');
+    setActiveTab('transactions');
+  };
+
+  const successRate = overview.totalTransactions
+    ? `${((overview.successCount / overview.totalTransactions) * 100).toFixed(0)}%`
+    : '0%';
+  const refundRate = overview.totalRevenue
+    ? `${((overview.totalRefundAmount / overview.totalRevenue) * 100).toFixed(1)}%`
+    : '0%';
+
+  const buildDetail = (key: string): { title: string; rows: [string, string][]; filters: Record<string, string> } => {
+    switch (key) {
+      case 'total':
+        return {
+          title: 'Total Revenue',
+          filters: {},
+          rows: [
+            ['Gross revenue', formatCurrency(overview.totalRevenue)],
+            ['Net revenue (after refunds)', formatCurrency(overview.netRevenue)],
+            ['Refunded', formatCurrency(overview.totalRefundAmount)],
+            ['Refund rate', refundRate],
+            ['Transactions', overview.totalTransactions.toLocaleString()],
+            ['Success rate', successRate],
+          ],
+        };
+      case 'month':
+        return {
+          title: 'Revenue This Month',
+          filters: { from: monthStartInput, to: todayInput },
+          rows: [
+            ['This month', formatCurrency(overview.revenueThisMonth)],
+            ['Transactions this month', overview.transactionsThisMonth.toLocaleString()],
+            ['This year', formatCurrency(overview.revenueThisYear)],
+          ],
+        };
+      case 'today':
+        return {
+          title: 'Revenue Today',
+          filters: { from: todayInput, to: todayInput },
+          rows: [
+            ['Today', formatCurrency(overview.revenueToday)],
+            ['Transactions today', overview.transactionsToday.toLocaleString()],
+          ],
+        };
+      case 'aov':
+        return {
+          title: 'Average Order Value',
+          filters: { status: 'success' },
+          rows: [
+            ['Avg order value', formatCurrency(overview.averageOrderValue)],
+            ['Net revenue', formatCurrency(overview.netRevenue)],
+            ['Successful transactions', overview.successCount.toLocaleString()],
+          ],
+        };
+      case 'transactions':
+        return {
+          title: 'Total Transactions',
+          filters: {},
+          rows: [
+            ['Total', overview.totalTransactions.toLocaleString()],
+            ['Successful', overview.successCount.toLocaleString()],
+            ['Failed', overview.totalFailedTransactions.toLocaleString()],
+            ['Success rate', successRate],
+          ],
+        };
+      case 'refunded':
+        return {
+          title: 'Refunded',
+          filters: { status: 'refunded' },
+          rows: [
+            ['Refunded amount', formatCurrency(overview.totalRefundAmount)],
+            ['Failed transactions', overview.totalFailedTransactions.toLocaleString()],
+            ['Refund rate', refundRate],
+          ],
+        };
+      default:
+        return { title: 'Details', rows: [], filters: {} };
+    }
+  };
+
   const statCards = [
-    { title: 'Total Revenue', value: formatCurrency(overview.netRevenue), icon: DollarSign, color: 'from-violet-500 to-purple-600', trend: null },
-    { title: 'Revenue This Month', value: formatCurrency(overview.revenueThisMonth), icon: TrendingUp, color: 'from-blue-500 to-cyan-600', trend: null },
-    { title: 'Revenue Today', value: formatCurrency(overview.revenueToday), icon: Activity, color: 'from-emerald-500 to-teal-600', sub: `${overview.transactionsToday} transactions` },
-    { title: 'Avg Order Value', value: formatCurrency(overview.averageOrderValue), icon: Banknote, color: 'from-amber-500 to-orange-600', trend: null },
-    { title: 'Total Transactions', value: overview.totalTransactions.toLocaleString(), icon: ShoppingCart, color: 'from-rose-500 to-pink-600', sub: `${overview.successCount} successful` },
-    { title: 'Refunded', value: formatCurrency(overview.totalRefundAmount), icon: RefreshCcw, color: 'from-gray-500 to-slate-600', sub: `${overview.totalFailedTransactions} failed` },
+    { key: 'total', title: 'Total Revenue', value: formatCurrency(overview.netRevenue), icon: DollarSign, color: 'from-violet-500 to-purple-600' },
+    { key: 'month', title: 'Revenue This Month', value: formatCurrency(overview.revenueThisMonth), icon: TrendingUp, color: 'from-blue-500 to-cyan-600' },
+    { key: 'today', title: 'Revenue Today', value: formatCurrency(overview.revenueToday), icon: Activity, color: 'from-emerald-500 to-teal-600', sub: `${overview.transactionsToday} transactions` },
+    { key: 'aov', title: 'Avg Order Value', value: formatCurrency(overview.averageOrderValue), icon: Banknote, color: 'from-amber-500 to-orange-600' },
+    { key: 'transactions', title: 'Total Transactions', value: overview.totalTransactions.toLocaleString(), icon: ShoppingCart, color: 'from-rose-500 to-pink-600', sub: `${overview.successCount} successful` },
+    { key: 'refunded', title: 'Refunded', value: formatCurrency(overview.totalRefundAmount), icon: RefreshCcw, color: 'from-gray-500 to-slate-600', sub: `${overview.totalFailedTransactions} failed` },
   ];
 
   return (
@@ -218,16 +333,23 @@ export default function RevenuePage() {
           {/* Stat Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {statCards.map((card, i) => (
-              <div key={i} className="bg-white rounded-xl border border-gray-100 p-5 hover:shadow-lg transition-shadow duration-200">
+              <button
+                key={i}
+                type="button"
+                onClick={() => openDetail(buildDetail(card.key))}
+                title={`View ${card.title} transactions`}
+                className="text-left bg-white rounded-xl border border-gray-100 p-5 hover:shadow-lg hover:border-primary/30 transition-all duration-200 group cursor-pointer"
+              >
                 <div className="flex items-start justify-between">
                   <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${card.color} flex items-center justify-center shadow-md`}>
                     <card.icon className="w-5 h-5 text-white" />
                   </div>
+                  <ArrowUpRight className="w-4 h-4 text-gray-300 group-hover:text-primary transition-colors" />
                 </div>
                 <p className="text-2xl font-bold text-secondary mt-4">{card.value}</p>
                 <p className="text-sm text-accent">{card.title}</p>
                 {card.sub && <p className="text-xs text-accent-light mt-1">{card.sub}</p>}
-              </div>
+              </button>
             ))}
           </div>
 
@@ -267,9 +389,15 @@ export default function RevenuePage() {
               <h3 className="text-lg font-semibold text-secondary mb-4">Revenue by Source</h3>
               <div className="space-y-3">
                 {data.sourceBreakdown.map((s) => (
-                  <div key={s.source} className="group">
+                  <button
+                    key={s.source}
+                    type="button"
+                    onClick={() => openTransactions({ source: s.source })}
+                    title={`View ${SOURCE_LABELS[s.source] || s.source} transactions`}
+                    className="group w-full text-left cursor-pointer"
+                  >
                     <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="font-medium text-secondary">{SOURCE_LABELS[s.source] || s.source}</span>
+                      <span className="font-medium text-secondary group-hover:text-primary transition-colors">{SOURCE_LABELS[s.source] || s.source}</span>
                       <span className="text-accent">{s.percentage}%</span>
                     </div>
                     <div className="w-full bg-gray-100 rounded-full h-2.5">
@@ -279,7 +407,7 @@ export default function RevenuePage() {
                       />
                     </div>
                     <p className="text-xs text-accent mt-1">{formatCurrency(s.revenue)} • {s.transactions} txns</p>
-                  </div>
+                  </button>
                 ))}
               </div>
               {data.sourceBreakdown.length === 0 && (
@@ -415,6 +543,54 @@ export default function RevenuePage() {
               <div className="flex justify-between"><span className="text-accent">Provider</span><span className="font-medium">{selectedTx.provider}</span></div>
               <div className="flex justify-between"><span className="text-accent">Provider Ref</span><span className="font-mono text-xs">{selectedTx.providerRef || '-'}</span></div>
               <div className="flex justify-between"><span className="text-accent">Transaction ID</span><span className="font-mono text-xs">{selectedTx._id}</span></div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Metric Detail Modal */}
+      {detail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setDetail(null)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-100">
+              <h3 className="text-lg font-semibold text-secondary">{detail.title}</h3>
+              <button onClick={() => setDetail(null)} className="p-2 hover:bg-gray-100 rounded-lg"><X className="w-4 h-4" /></button>
+            </div>
+
+            <div className="p-5 space-y-2.5">
+              {detail.rows.map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between text-sm">
+                  <span className="text-accent">{label}</span>
+                  <span className="font-semibold text-secondary">{value}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="px-5 pb-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-accent mb-2">Recent matching transactions</p>
+              {detailLoading ? (
+                <div className="flex justify-center py-6"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary" /></div>
+              ) : detailTx.length === 0 ? (
+                <p className="text-sm text-accent py-4 text-center">No transactions for this metric.</p>
+              ) : (
+                <div className="divide-y divide-gray-50">
+                  {detailTx.map((tx) => (
+                    <div key={tx._id} className="flex items-center justify-between py-2 text-sm">
+                      <div className="min-w-0">
+                        <p className="font-medium text-secondary truncate">{tx.userName || '—'}</p>
+                        <p className="text-xs text-accent">{formatDate(tx.createdAt)} · {SOURCE_LABELS[tx.source] || tx.source}</p>
+                      </div>
+                      <span className="font-mono font-medium text-secondary ml-3">{formatCurrency(tx.amount)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                onClick={() => { openTransactions(detail.filters); setDetail(null); }}
+                className="mt-4 w-full px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary-dark text-sm font-medium"
+              >
+                View all in Transactions →
+              </button>
             </div>
           </div>
         </div>

@@ -208,9 +208,10 @@ export default function DashboardPage() {
             {/* Stats Overview */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-5">
                 {statCards.map((stat, idx) => (
-                    <div
+                    <Link
                         key={idx}
-                        onClick={() => router.push(stat.path)}
+                        href={stat.path}
+                        title={`Open ${stat.title}`}
                         className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-primary/40 hover:-translate-y-0.5 transition-all duration-300 group cursor-pointer flex flex-col justify-between"
                     >
                         <div className="flex items-center justify-between mb-3">
@@ -223,7 +224,7 @@ export default function DashboardPage() {
                             <h3 className="text-gray-500 text-xs font-semibold uppercase tracking-wider">{stat.title}</h3>
                             <p className="text-2xl font-bold text-gray-900 mt-1">{stat.count}</p>
                         </div>
-                    </div>
+                    </Link>
                 ))}
             </div>
 
