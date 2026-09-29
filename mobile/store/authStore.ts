@@ -13,6 +13,7 @@ import {
   authenticateWithBiometrics
 } from '../utils/biometricAuth';
 import { useMembershipStore } from './membershipStore';
+import { cleanupExpiredPendingPayments } from '../utils/paymentBrowser';
 import { getDeviceDetailsMobile } from '../utils/deviceInfo';
 
 interface User {
@@ -369,6 +370,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
 
         set({ user, token, refreshToken: await getRefreshTokenSecurely() });
+
+        // Clean up expired pending payments on app resume
+        cleanupExpiredPendingPayments().catch(err => {
+          if (__DEV__) console.warn('[PendingPayments] Cleanup failed:', err);
+        });
+
         return { success: true, user };
       }
 

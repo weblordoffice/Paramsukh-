@@ -5,6 +5,7 @@ import { sendNotification } from '../notifications/notifications.controller.js';
 import { verifyRazorpaySignature, createRefund, fetchPaymentDetails, isRazorpayTestMode } from '../../services/razorpayService.js';
 import { recordTransaction } from '../../services/transaction.service.js';
 import { sendCounselingBookingEmail } from '../../services/emailService.js';
+import { sanitizeNotes } from '../../utils/sanitizeUtils.js';
 import mongoose from 'mongoose';
 
 const MAX_REFUND_STATUS_UPDATE_RETRIES = 3;
@@ -204,14 +205,32 @@ export const bookCounseling = async (req, res) => {
     // PAST DATE VALIDATION: Prevent booking dates in the past
     const requestedDate = new Date(bookingDate);
     const now = new Date();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds()));
     const requestedDay = new Date(Date.UTC(requestedDate.getUTCFullYear(), requestedDate.getUTCMonth(), requestedDate.getUTCDate()));
-    
+
+    // Check if the day has passed
     if (requestedDay < today) {
       return res.status(400).json({
         success: false,
         message: 'Cannot book sessions for past dates'
       });
+    }
+
+    // For same-day bookings, also check if the specific time has passed in UTC
+    if (requestedDay.getTime() === today.getTime() && bookingTime) {
+      const timeMatch = String(bookingTime).match(/^(\d{1,2}):(\d{2})$/);
+      if (timeMatch) {
+        const [hours, minutes] = [parseInt(timeMatch[1]), parseInt(timeMatch[2])];
+        const slotTimeUTC = new Date(Date.UTC(requestedDate.getUTCFullYear(), requestedDate.getUTCMonth(), requestedDate.getUTCDate(), hours, minutes, 0, 0));
+        const bufferMinutes = 5;
+        const nowWithBuffer = new Date(today.getTime() + bufferMinutes * 60 * 1000);
+        if (slotTimeUTC < nowWithBuffer) {
+          return res.status(400).json({
+            success: false,
+            message: `Cannot book a slot that has already passed. Current time is ${now.toLocaleTimeString()}.`
+          });
+        }
+      }
     }
 
     // BOOKING LIMIT: Check if user has too many pending/confirmed bookings
@@ -303,7 +322,7 @@ export const bookCounseling = async (req, res) => {
       bookingTitle: finalBookingTitle,
       bookingDate: bookingDateObj,
       bookingTime,
-      userNotes: userNotes || '',
+      userNotes: sanitizeNotes(userNotes),
       userPhone: user.phone || 'N/A',
       userEmail: user.email || '',
       isFree,
@@ -576,8 +595,12 @@ export const rescheduleBooking = async (req, res) => {
     if (!newDate || !newTime) {
       return res.status(400).json({ success: false, message: 'New date and time are required' });
     }
-    if (new Date(newDate) <= new Date()) {
-      return res.status(400).json({ success: false, message: 'New date must be in the future' });
+    const newDateUTC = new Date(newDate);
+    const nowUTC = new Date();
+    const newDateDayUTC = new Date(Date.UTC(newDateUTC.getUTCFullYear(), newDateUTC.getUTCMonth(), newDateUTC.getUTCDate()));
+    const todayUTC = new Date(Date.UTC(nowUTC.getUTCFullYear(), nowUTC.getUTCMonth(), nowUTC.getUTCDate()));
+    if (newDateDayUTC < todayUTC) {
+      return res.status(400).json({ success: false, message: 'New date must be today or in the future' });
     }
 
     const booking = await Booking.findOne({
@@ -629,7 +652,7 @@ export const rescheduleBooking = async (req, res) => {
     booking.rescheduledFrom = booking.bookingDate;
     booking.bookingDate = new Date(newDate);
     booking.bookingTime = newTime;
-    booking.rescheduledReason = reason || 'User requested reschedule';
+    booking.rescheduledReason = sanitizeNotes(reason) || 'User requested reschedule';
     booking.rescheduledBy = 'user';
     // Only set to confirmed if already confirmed; preserve pending/awaiting_payment status
     if (booking.status === 'confirmed') {
