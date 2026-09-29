@@ -220,7 +220,11 @@ jobs:
               exit 1
             fi
 
-            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USERNAME }}" --password-stdin
+            # Authenticate to GHCR with the workflow token — the same identity that
+            # pushed the images in build-and-push and that is already used for the
+            # git fetch below. A separate GHCR_TOKEN PAT is not needed here; if it is
+            # missing/expired/under-scoped it produces "Get https://ghcr.io/v2/: denied".
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
             BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" AI_SERVICE_IMAGE="${{ needs.build-and-push.outputs.ai_service_image }}" docker compose pull backend ai-service admin || true
             BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" AI_SERVICE_IMAGE="${{ needs.build-and-push.outputs.ai_service_image }}" NEXT_PUBLIC_ADMIN_API_KEY="${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" docker compose build admin || true
 
