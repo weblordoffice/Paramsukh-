@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
-import { AlertTriangle, Crown, Edit3, Plus, RefreshCw, Save, Search } from "lucide-react";
+import { AlertTriangle, Crown, Edit3, Plus, RefreshCw, Save, Search, Trash2, Upload } from "lucide-react";
 import toast from "react-hot-toast";
 import { apiClient } from "@/lib/api/client";
 
@@ -14,6 +14,21 @@ interface CourseSelection {
   eligibleCoursesMode: EligibleCoursesMode;
   eligibleCourseIds: string[];
   eligibleCategories: string[];
+}
+
+interface PreviewVideo {
+  title: string;
+  videoUrl: string;
+  thumbnailUrl?: string | null;
+  duration?: string;
+}
+
+interface PreviewVideoForm {
+  id: string;
+  title: string;
+  videoUrl: string;
+  thumbnailUrl: string;
+  duration: string;
 }
 
 interface MembershipPlan {
@@ -36,6 +51,7 @@ interface MembershipPlan {
     courseSelection?: CourseSelection;
     communityAccess?: boolean;
   };
+  previewVideos?: PreviewVideo[];
 }
 
 interface PlanFormState {
@@ -55,6 +71,7 @@ interface PlanFormState {
   eligibleCoursesMode: EligibleCoursesMode;
   eligibleCourseIds: string[];
   eligibleCategoriesText: string;
+  previewVideos: PreviewVideoForm[];
 }
 
 type FormErrors = Partial<Record<
@@ -82,7 +99,10 @@ const DEFAULT_FORM: PlanFormState = {
   eligibleCoursesMode: "all_published",
   eligibleCourseIds: [],
   eligibleCategoriesText: "",
+  previewVideos: [],
 };
+
+const makeRowId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const toSlug = (value: string) => {
   return String(value || "")
@@ -116,6 +136,7 @@ export default function MembershipPlansPage() {
   const [planUsage, setPlanUsage] = useState<Record<string, number>>({});
   const hasInitializedSelection = useRef(false);
   const [allCourses, setAllCourses] = useState<{ _id: string; title: string }[]>([]);
+  const [uploadingRow, setUploadingRow] = useState<string | null>(null);
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan._id === selectedPlanId) || null,
@@ -207,6 +228,13 @@ export default function MembershipPlansPage() {
       eligibleCoursesMode: selectedPlan.access?.courseSelection?.eligibleCoursesMode || "all_published",
       eligibleCourseIds: (selectedPlan.access?.courseSelection?.eligibleCourseIds || []).map((id) => String(id)),
       eligibleCategoriesText: (selectedPlan.access?.courseSelection?.eligibleCategories || []).join(", "),
+      previewVideos: (selectedPlan.previewVideos || []).map((video) => ({
+        id: makeRowId(),
+        title: video.title || "",
+        videoUrl: video.videoUrl || "",
+        thumbnailUrl: video.thumbnailUrl || "",
+        duration: video.duration || "",
+      })),
     });
   }, [selectedPlan]);
 
@@ -235,6 +263,46 @@ export default function MembershipPlansPage() {
       }
       return next;
     });
+  };
+
+  const addPreviewVideo = () => {
+    updateField("previewVideos", [
+      ...form.previewVideos,
+      { id: makeRowId(), title: "", videoUrl: "", thumbnailUrl: "", duration: "" },
+    ]);
+  };
+
+  const updatePreviewVideo = (id: string, patch: Partial<PreviewVideoForm>) => {
+    updateField(
+      "previewVideos",
+      form.previewVideos.map((video) => (video.id === id ? { ...video, ...patch } : video))
+    );
+  };
+
+  const removePreviewVideo = (id: string) => {
+    updateField("previewVideos", form.previewVideos.filter((video) => video.id !== id));
+  };
+
+  const uploadPreviewMedia = async (id: string, file: File, kind: "video" | "image") => {
+    const formData = new FormData();
+    formData.append(kind === "video" ? "video" : "image", file);
+
+    setUploadingRow(id);
+    try {
+      const endpoint = kind === "video" ? "/api/upload/video" : "/api/upload/image";
+      const response = await apiClient.post(endpoint, formData, { timeout: 30 * 60 * 1000 });
+      const url = response.data?.data?.url;
+      if (response.data?.success && url) {
+        updatePreviewVideo(id, kind === "video" ? { videoUrl: url } : { thumbnailUrl: url });
+        toast.success(kind === "video" ? "Video uploaded" : "Thumbnail uploaded");
+      } else {
+        toast.error("Upload failed");
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.message || "Upload failed");
+    } finally {
+      setUploadingRow(null);
+    }
   };
 
   const validateForm = () => {
@@ -302,6 +370,7 @@ export default function MembershipPlansPage() {
             : [],
         },
       },
+      previewVideos: form.previewVideos.map(({ id, ...video }) => video),
     };
   };
 
@@ -756,6 +825,133 @@ export default function MembershipPlansPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Preview videos</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Free videos users can watch before buying this plan.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={addPreviewVideo}
+                className="px-3 py-1.5 text-sm font-medium text-secondary border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-1"
+              >
+                <Plus className="w-4 h-4" /> Add video
+              </button>
+            </div>
+
+            {form.previewVideos.length === 0 ? (
+              <p className="text-sm text-gray-500">No preview videos yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {form.previewVideos.map((video) => (
+                  <div key={video.id} className="border border-gray-200 rounded-lg p-3 space-y-3 bg-gray-50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-gray-600">Preview video</span>
+                      <button
+                        type="button"
+                        onClick={() => removePreviewVideo(video.id)}
+                        className="text-xs text-red-600 hover:text-red-700 flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Remove
+                      </button>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
+                      <input
+                        value={video.title}
+                        onChange={(event) => updatePreviewVideo(video.id, { title: event.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                        placeholder="Sample lesson"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Video</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="url"
+                          value={video.videoUrl}
+                          onChange={(event) => updatePreviewVideo(video.id, { videoUrl: event.target.value })}
+                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                          placeholder="https://... or upload"
+                        />
+                        <div className="relative">
+                          <input
+                            type="file"
+                            accept="video/*"
+                            disabled={uploadingRow === video.id}
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
+                              if (file) uploadPreviewMedia(video.id, file, "video");
+                              event.target.value = "";
+                            }}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                          />
+                          <button
+                            type="button"
+                            disabled={uploadingRow === video.id}
+                            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 text-sm text-secondary flex items-center gap-1 whitespace-nowrap"
+                          >
+                            <Upload className="w-4 h-4" />
+                            {uploadingRow === video.id ? "Uploading..." : "Upload"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Thumbnail URL</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="url"
+                            value={video.thumbnailUrl}
+                            onChange={(event) => updatePreviewVideo(video.id, { thumbnailUrl: event.target.value })}
+                            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg"
+                            placeholder="https://..."
+                          />
+                          <div className="relative">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              disabled={uploadingRow === video.id}
+                              onChange={(event) => {
+                                const file = event.target.files?.[0];
+                                if (file) uploadPreviewMedia(video.id, file, "image");
+                                event.target.value = "";
+                              }}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                            />
+                            <button
+                              type="button"
+                              disabled={uploadingRow === video.id}
+                              className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 text-sm text-secondary flex items-center gap-1 whitespace-nowrap"
+                            >
+                              <Upload className="w-4 h-4" /> Image
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Duration</label>
+                        <input
+                          value={video.duration}
+                          onChange={(event) => updatePreviewVideo(video.id, { duration: event.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          placeholder="5:30"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50">

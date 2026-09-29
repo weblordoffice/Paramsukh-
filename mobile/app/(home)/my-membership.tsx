@@ -29,6 +29,10 @@ import { useTheme } from '../../hooks/useTheme';
 const PENDING_LINK_KEY = PENDING_MEMBERSHIP_LINK_KEY;
 const PRE_SELECT_KEY = 'preselected_courses';
 
+// Single accent for the membership surface — carried by the one primary CTA per card.
+const ACCENT = '#7C3AED';
+const ACCENT_SOFT = '#F5F3FF';
+
 /* ─── Component ──────────────────────────────────────────────────────── */
 export default function MyMembershipScreen() {
   const { colors } = useTheme();
@@ -188,75 +192,106 @@ export default function MyMembershipScreen() {
     /* ── Plan cards ── */
     planCard: {
         backgroundColor: colors.surface,
-        borderRadius: 20,
+        borderRadius: 18,
         padding: 18,
         marginBottom: 14,
-        borderWidth: 1,
+        borderWidth: 1.5,
         borderColor: colors.border,
-        position: 'relative',
         overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-        elevation: 2,
     },
+    planCardCurrent: { borderColor: ACCENT },
     activeBadge: {
         position: 'absolute',
-        top: 14,
-        left: -1,
+        top: 0,
+        left: 0,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderTopRightRadius: 8,
-        borderBottomRightRadius: 8,
-        zIndex: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 5,
+        borderBottomRightRadius: 12,
+        backgroundColor: ACCENT,
     },
-    activeBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
+    activeBadgeText: { fontSize: 10, fontWeight: '800', color: '#fff', letterSpacing: 0.6 },
     planHeaderRow: {
-        flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14,
+        flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 2,
     },
-    planEmoji: { fontSize: 34 },
-    planTitleBlock: { flex: 1 },
-    planName: { fontSize: 22, fontWeight: '800', color: colors.text },
-    planTagline: { fontSize: 12, color: colors.textSecondary, marginTop: 3, fontWeight: '500' },
+    planEmoji: { fontSize: 30 },
+    planTitleBlock: { flex: 1, paddingRight: 6 },
+    planName: { fontSize: 20, fontWeight: '800', color: colors.text, letterSpacing: 0.1 },
+    planTagline: { fontSize: 12.5, color: colors.textSecondary, marginTop: 4, lineHeight: 17, fontWeight: '500' },
     planPriceBlock: { alignItems: 'flex-end' },
-    planPrice: { fontSize: 18, fontWeight: '800' },
-    currentChip: {
-        flexDirection: 'row', alignItems: 'center', gap: 4,
-        paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, borderWidth: 1.5,
-        marginTop: 6,
-    },
-    currentChipText: { fontSize: 11, fontWeight: '700' },
-    planDivider: { height: 1, backgroundColor: colors.border, marginBottom: 14 },
+    planPrice: { fontSize: 24, fontWeight: '900', color: colors.text, letterSpacing: -0.3 },
+    planPriceCaption: { fontSize: 11, color: colors.textSecondary, fontWeight: '600', marginTop: 2 },
+    planDivider: { height: 1, backgroundColor: colors.border, marginTop: 14, marginBottom: 12 },
     planFeatureRow: {
-        flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 5,
+        flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 5,
     },
     checkCircle: {
-        width: 20, height: 20, borderRadius: 10,
+        width: 18, height: 18, borderRadius: 9, marginTop: 1,
         alignItems: 'center', justifyContent: 'center', flexShrink: 0,
     },
-    planFeatureText: { fontSize: 14, color: colors.text, flex: 1, fontWeight: '500' },
-    planFeatureTextMuted: { color: colors.textSecondary, textDecorationLine: 'line-through' },
-    buyBtn: {
-        paddingVertical: 14, borderRadius: 14,
-        borderWidth: 1.5, alignItems: 'center', justifyContent: 'center',
+    planFeatureText: { fontSize: 13.5, color: colors.text, flex: 1, fontWeight: '500', lineHeight: 19 },
+    planFeatureTextMuted: { color: colors.textSecondary, textDecorationLine: 'line-through', fontWeight: '400' },
+    featureMore: { fontSize: 12.5, color: colors.textSecondary, fontWeight: '500', marginTop: 6, marginLeft: 28 },
+
+    /* ── Card CTA ── */
+    primaryCta: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 8, height: 52, borderRadius: 14, marginTop: 16, backgroundColor: ACCENT,
     },
-    buyBtnText: { fontSize: 14, fontWeight: '700' },
+    primaryCtaText: { fontSize: 16, fontWeight: '800', color: '#fff', letterSpacing: 0.2 },
+    ctaLinksRow: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        flexWrap: 'wrap', gap: 4, marginTop: 4, marginBottom: -6,
+    },
+    ctaLink: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 6, minHeight: 44, paddingHorizontal: 10,
+    },
+    ctaLinkText: { fontSize: 13, color: colors.textSecondary, fontWeight: '600' },
+
+    /* ── Value line + preview videos ── */
+    valueRow: {
+        flexDirection: 'row', alignItems: 'center', gap: 8,
+        backgroundColor: ACCENT_SOFT, borderRadius: 12,
+        paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14,
+    },
+    valueText: { fontSize: 13.5, fontWeight: '700', color: ACCENT, flex: 1 },
+    previewStrip: { marginBottom: 14, marginHorizontal: -2 },
+    previewStripContent: { gap: 10, paddingHorizontal: 2 },
+    previewVideoCard: { width: 132 },
+    previewVideoThumb: { width: 132, height: 78, borderRadius: 12, backgroundColor: '#111827' },
+    previewVideoThumbFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: ACCENT },
+    previewPlayBadge: {
+        position: 'absolute', top: 27, left: 54,
+        width: 24, height: 24, borderRadius: 12,
+        backgroundColor: 'rgba(0,0,0,0.55)',
+        alignItems: 'center', justifyContent: 'center',
+    },
+    previewVideoTitle: { fontSize: 12, fontWeight: '600', color: colors.text, marginTop: 6, lineHeight: 16 },
+    previewRowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
+    previewRowView: { paddingHorizontal: 4 },
+
+    planStateNote: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: 6, height: 52, marginTop: 16, borderRadius: 14,
+        backgroundColor: colors.surfaceSecondary,
+    },
+    planStateNoteText: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
+
     purchasedIndicator: {
-        marginTop: 14,
-        paddingVertical: 11,
-        borderRadius: 12,
+        marginTop: 16,
+        height: 52,
+        borderRadius: 14,
         borderWidth: 1.5,
-        borderColor: '#10B981',
+        borderColor: colors.border,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         gap: 6,
     },
-    purchasedText: { fontSize: 14, fontWeight: '700' },
+    purchasedText: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
 
     /* ── Purchase history ── */
     refundNote: { fontSize: 13, color: '#F59E0B', marginBottom: 14, fontWeight: '500' },
@@ -284,29 +319,6 @@ export default function MyMembershipScreen() {
     purchaseAmt: { fontSize: 16, fontWeight: '700', color: colors.text },
     purchaseStatusBadge: { marginTop: 5, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
     purchaseStatusText: { fontSize: 11, fontWeight: '700', textTransform: 'capitalize' },
-
-    // #5 / #7: Preview and pre-select
-    previewBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-        paddingVertical: 10,
-        backgroundColor: colors.surfaceSecondary,
-        borderRadius: 12,
-    },
-    previewBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
-    buyRow: { flexDirection: 'row', gap: 8 },
-    preSelectBtn: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 14,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1.5,
-        backgroundColor: colors.surface,
-    },
-    preSelectBtnText: { fontSize: 14, fontWeight: '700' },
 
     // Modal
     modalOverlay: {
@@ -389,10 +401,10 @@ export default function MyMembershipScreen() {
     const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
     const [plansLoading, setPlansLoading] = useState(true);
 
-    // Preview modal state
-    const [previewPlan, setPreviewPlan] = useState<UIMembershipPlan | null>(null);
-    const [previewCourses, setPreviewCourses] = useState<EligibleCoursePreview[]>([]);
-    const [previewLoading, setPreviewLoading] = useState(false);
+    // Included-courses sheet (entitlement plans have no picker)
+    const [coursesSheetPlan, setCoursesSheetPlan] = useState<UIMembershipPlan | null>(null);
+    const [coursesSheetList, setCoursesSheetList] = useState<EligibleCoursePreview[]>([]);
+    const [coursesSheetLoading, setCoursesSheetLoading] = useState(false);
 
     // Pre-selection state (#7)
     const [preSelectingPlanId, setPreSelectingPlanId] = useState<string | null>(null);
@@ -401,20 +413,27 @@ export default function MyMembershipScreen() {
     const [preSelectLoading, setPreSelectLoading] = useState(false);
     const [showPreSelectModal, setShowPreSelectModal] = useState(false);
 
-    const openPreview = async (plan: UIMembershipPlan) => {
-        setPreviewPlan(plan);
-        setPreviewLoading(true);
-        setPreviewCourses([]);
+    const openCoursesSheet = async (plan: UIMembershipPlan) => {
+        setCoursesSheetPlan(plan);
+        setCoursesSheetLoading(true);
+        setCoursesSheetList([]);
         try {
             const courses = await fetchEligibleCoursePreviews(plan.parentSlug);
-            setPreviewCourses(courses);
+            setCoursesSheetList(courses);
         } catch {}
-        setPreviewLoading(false);
+        setCoursesSheetLoading(false);
     };
 
-    const closePreview = () => {
-        setPreviewPlan(null);
-        setPreviewCourses([]);
+    const closeCoursesSheet = () => {
+        setCoursesSheetPlan(null);
+        setCoursesSheetList([]);
+    };
+
+    const openCoursePreview = (courseId: string, title: string, color?: string, duration?: string) => {
+        router.push({
+            pathname: '/course-detail',
+            params: { id: courseId, title: title || '', color: color || '#8B5CF6', duration: duration || '', preview: '1' },
+        });
     };
 
     const openPreSelect = async (plan: UIMembershipPlan) => {
@@ -741,8 +760,22 @@ export default function MyMembershipScreen() {
     const isActive = currentSubscription?.status === 'active';
     const hasNoPlan = !activePlan || !isActive;
 
+    // A user can hold multiple active plans. Treat every effective plan as owned so a
+    // previously held plan never shows as buyable again.
+    const ownedPlanSlugs = new Set(
+        (currentSubscription?.effectivePlans || [])
+            .map((slug) => String(slug || '').toLowerCase().trim())
+            .filter(Boolean)
+    );
+    if (activePlan) ownedPlanSlugs.add(activePlan);
+
     /* current plan config */
     const currentPlanCfg = plans.find(p => p.id === activePlan || p.parentSlug === activePlan);
+
+    /* every plan the user currently holds */
+    const activePlanConfigs = plans.filter(
+        (p) => ownedPlanSlugs.has(p.id) || ownedPlanSlugs.has(p.parentSlug)
+    );
 
     return (
         <SafeAreaView style={styles.root}>
@@ -808,89 +841,106 @@ export default function MyMembershipScreen() {
                             )}
                         </TouchableOpacity>
                     </View>
+                ) : activePlanConfigs.length > 0 ? (
+                    /* Active plans hero — every plan the user holds */
+                    <>
+                        {activePlanConfigs.map((cfg) => {
+                            const isPrimary = cfg.id === currentPlanCfg?.id;
+                            const includedFeatures = cfg.features.filter(f => f.included);
+
+                            return (
+                                <View key={cfg.id} style={[styles.activePlanCard, { borderColor: ACCENT, marginBottom: 16 }]}>
+                                    <View style={styles.activePlanTop}>
+                                        <Text style={styles.activePlanEmoji}>{cfg.emoji ?? '✨'}</Text>
+                                        <View style={styles.activePlanInfo}>
+                                            <Text style={styles.activePlanLabel}>{isPrimary ? 'Current Plan' : 'Active Plan'}</Text>
+                                            <Text style={[styles.activePlanName, { color: ACCENT }]}>{cfg.name}</Text>
+                                            <Text style={styles.activePlanTagline}>{cfg.tagline}</Text>
+                                        </View>
+                                        <View style={[styles.statusBadge, { backgroundColor: '#F0FDF4', borderColor: '#10B981' }]}>
+                                            <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
+                                            <Text style={[styles.statusText, { color: '#10B981' }]}>Active</Text>
+                                        </View>
+                                    </View>
+
+                                    {includedFeatures.length > 0 && (
+                                        <View style={styles.activePlanFeatures}>
+                                            <Text style={styles.featuresLabel}>What&apos;s included</Text>
+                                            {includedFeatures.map((f, i) => (
+                                                <View key={i} style={styles.featureRow}>
+                                                    <Ionicons name="checkmark-circle" size={18} color={ACCENT} />
+                                                    <Text style={styles.featureText}>{f.text}</Text>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    )}
+
+                                    {isPrimary && (
+                                        <TouchableOpacity
+                                            style={[styles.manageBtn, { backgroundColor: ACCENT }]}
+                                            onPress={scrollToPlans}
+                                            activeOpacity={0.85}
+                                        >
+                                            <Ionicons name="arrow-up-circle" size={17} color="#fff" />
+                                            <Text style={styles.manageBtnText}>Upgrade / Manage Plan</Text>
+                                        </TouchableOpacity>
+                                    )}
+
+                                    {isPrimary && activeMembership?.courseSelection?.enabled && activeMembership.courseSelection.remaining > 0 && (
+                                        <TouchableOpacity
+                                            style={styles.courseSelectBtn}
+                                            onPress={() => router.push({
+                                                pathname: '/(home)/choose-courses',
+                                                params: {
+                                                    membershipId: activeMembership.membershipId,
+                                                    maxSelectable: String(activeMembership.courseSelection.maxSelectable),
+                                                },
+                                            })}
+                                            activeOpacity={0.85}
+                                        >
+                                            <Ionicons name="book-outline" size={17} color="#8B5CF6" />
+                                            <Text style={styles.courseSelectBtnText}>
+                                                Choose Your Courses ({activeMembership.courseSelection.remaining} credits left)
+                                            </Text>
+                                        </TouchableOpacity>
+                                    )}
+
+                                    {isPrimary && activeMembership?.courseSelection?.enabled && activeMembership.courseSelection.remaining === 0 && (
+                                        <View style={styles.courseSelectDone}>
+                                            <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
+                                            <Text style={styles.courseSelectDoneText}>
+                                                All {activeMembership.courseSelection.used} courses selected
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
+                            );
+                        })}
+                    </>
                 ) : (
-                    /* Active plan hero */
-                    <View
-                        style={[
-                            styles.activePlanCard,
-                            { borderColor: currentPlanCfg?.color ?? '#8B5CF6' },
-                        ]}
-                    >
+                    /* Fallback: active, but plan metadata not loaded yet */
+                    <View style={[styles.activePlanCard, { borderColor: ACCENT }]}>
                         <View style={styles.activePlanTop}>
-                            <Text style={styles.activePlanEmoji}>{currentPlanCfg?.emoji ?? '✨'}</Text>
+                            <Text style={styles.activePlanEmoji}>✨</Text>
                             <View style={styles.activePlanInfo}>
                                 <Text style={styles.activePlanLabel}>Current Plan</Text>
-                                <Text style={[styles.activePlanName, { color: currentPlanCfg?.color ?? '#8B5CF6' }]}>
-                                    {currentPlanCfg?.name ?? (activePlan ? activePlan.charAt(0).toUpperCase() + activePlan.slice(1) : 'Unknown')}
+                                <Text style={[styles.activePlanName, { color: ACCENT }]}>
+                                    {activePlan ? activePlan.charAt(0).toUpperCase() + activePlan.slice(1) : 'Active'}
                                 </Text>
-                                <Text style={styles.activePlanTagline}>{currentPlanCfg?.tagline}</Text>
                             </View>
-                            {/* Status badge */}
-                            <View
-                                style={[
-                                    styles.statusBadge,
-                                    { 
-                                        backgroundColor: isActive ? '#F0FDF4' : '#FFFBEB',
-                                        borderColor: isActive ? '#10B981' : '#F59E0B'
-                                    },
-                                ]}
-                            >
-                                <View style={[styles.statusDot, { backgroundColor: isActive ? '#10B981' : '#F59E0B' }]} />
-                                <Text style={[styles.statusText, { color: isActive ? '#10B981' : '#D97706' }]}>
-                                    Active
-                                </Text>
+                            <View style={[styles.statusBadge, { backgroundColor: '#F0FDF4', borderColor: '#10B981' }]}>
+                                <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
+                                <Text style={[styles.statusText, { color: '#10B981' }]}>Active</Text>
                             </View>
                         </View>
-
-                        {/* Included features */}
-                        {currentPlanCfg && (
-                            <View style={styles.activePlanFeatures}>
-                                <Text style={styles.featuresLabel}>What&apos;s included</Text>
-                                {currentPlanCfg.features.filter(f => f.included).map((f, i) => (
-                                    <View key={i} style={styles.featureRow}>
-                                        <Ionicons name="checkmark-circle" size={18} color={currentPlanCfg.color} />
-                                        <Text style={styles.featureText}>{f.text}</Text>
-                                    </View>
-                                ))}
-                            </View>
-                        )}
-
                         <TouchableOpacity
-                            style={[styles.manageBtn, { backgroundColor: currentPlanCfg?.color ?? '#8B5CF6' }]}
+                            style={[styles.manageBtn, { backgroundColor: ACCENT }]}
                             onPress={scrollToPlans}
                             activeOpacity={0.85}
                         >
                             <Ionicons name="arrow-up-circle" size={17} color="#fff" />
                             <Text style={styles.manageBtnText}>Upgrade / Manage Plan</Text>
                         </TouchableOpacity>
-
-                        {activeMembership?.courseSelection?.enabled && activeMembership.courseSelection.remaining > 0 && (
-                            <TouchableOpacity
-                                style={styles.courseSelectBtn}
-                                onPress={() => router.push({
-                                    pathname: '/(home)/choose-courses',
-                                    params: {
-                                        membershipId: activeMembership.membershipId,
-                                        maxSelectable: String(activeMembership.courseSelection.maxSelectable),
-                                    },
-                                })}
-                                activeOpacity={0.85}
-                            >
-                                <Ionicons name="book-outline" size={17} color="#8B5CF6" />
-                                <Text style={styles.courseSelectBtnText}>
-                                    Choose Your Courses ({activeMembership.courseSelection.remaining} credits left)
-                                </Text>
-                            </TouchableOpacity>
-                        )}
-
-                        {activeMembership?.courseSelection?.enabled && activeMembership.courseSelection.remaining === 0 && (
-                            <View style={styles.courseSelectDone}>
-                                <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
-                                <Text style={styles.courseSelectDoneText}>
-                                    All {activeMembership.courseSelection.used} courses selected
-                                </Text>
-                            </View>
-                        )}
                     </View>
                 )}
 
@@ -918,144 +968,183 @@ export default function MyMembershipScreen() {
                     const planId = plan.id.toLowerCase().trim();
                     const currentPlanId = activePlan ? activePlan.toLowerCase().trim() : '';
                     const isCurrentPlan = currentPlanId === planId && isActive;
-                    const isAlreadyPurchased = purchases.some(p => {
+                    const isOwnedPlan = ownedPlanSlugs.has(planId) || ownedPlanSlugs.has(plan.parentSlug);
+                    const isAlreadyPurchased = isOwnedPlan || purchases.some(p => {
                         const purchasePlan = p.plan ? p.plan.toLowerCase().trim() : '';
                         return (purchasePlan === planId || purchasePlan === plan.parentSlug || purchasePlan === plan.rawId) && p.status === 'completed';
                     });
-                    
+                    const isSelectionPlan = !!plan.courseSelection?.enabled;
+                    const maxSelectable = plan.courseSelection?.maxSelectableCourses || 0;
+                    const isBusy = purchasingPlanId !== null;
+                    const visibleFeatures = plan.features.slice(0, 4);
+                    const hiddenFeatureCount = plan.features.length - visibleFeatures.length;
+                    const courseCount = plan.courseCount || 0;
+                    const valueText = isSelectionPlan
+                        ? `Choose any ${maxSelectable} of ${courseCount} course${courseCount === 1 ? '' : 's'}`
+                        : `${courseCount} course${courseCount === 1 ? '' : 's'} included`;
+
                     return (
                         <View
                             key={plan.id}
-                            style={[
-                                styles.planCard,
-                                isCurrentPlan && { borderColor: plan.color, borderWidth: 2 },
-                            ]}
+                            style={[styles.planCard, isOwnedPlan && styles.planCardCurrent]}
                         >
-                            {/* Active badge for current plan */}
-                            {isCurrentPlan && (
-                                <View style={[styles.activeBadge, { backgroundColor: plan.color }]}>
-                                    <Ionicons name="checkmark-circle" size={14} color="#fff" />
-                                    <Text style={styles.activeBadgeText}>ACTIVE</Text>
+                            {/* Active ribbon */}
+                            {isOwnedPlan && (
+                                <View style={styles.activeBadge}>
+                                    <Ionicons name="checkmark-circle" size={13} color="#fff" />
+                                    <Text style={styles.activeBadgeText}>{isCurrentPlan ? 'CURRENT PLAN' : 'ACTIVE PLAN'}</Text>
                                 </View>
                             )}
-                            
-                            
 
-                            {/* Plan header row */}
-                            <View style={styles.planHeaderRow}>
+                            {/* Plan header: name + price */}
+                            <View style={[styles.planHeaderRow, isOwnedPlan && { marginTop: 16 }]}>
                                 <Text style={styles.planEmoji}>{plan.emoji}</Text>
                                 <View style={styles.planTitleBlock}>
-                                    <Text style={[styles.planName, { color: plan.color }]}>{plan.name}</Text>
-                                    <Text style={styles.planTagline}>{plan.tagline}</Text>
+                                    <Text style={styles.planName}>{plan.name}</Text>
+                                    {!!plan.tagline && <Text style={styles.planTagline}>{plan.tagline}</Text>}
                                 </View>
                                 <View style={styles.planPriceBlock}>
-                                    <Text style={[styles.planPrice, { color: plan.color }]}>
-                                        ₹{plan.price.toLocaleString('en-IN')}
-                                    </Text>
-                                    {isCurrentPlan && (
-                                        <View style={[styles.currentChip, { backgroundColor: plan.color + '22', borderColor: plan.color }]}>
-                                            <Ionicons name="checkmark-circle" size={12} color={plan.color} />
-                                            <Text style={[styles.currentChipText, { color: plan.color }]}>Current Plan</Text>
-                                        </View>
-                                    )}
+                                    <Text style={styles.planPrice}>₹{plan.price.toLocaleString('en-IN')}</Text>
+                                    <Text style={styles.planPriceCaption}>one-time</Text>
                                 </View>
                             </View>
 
-                            {/* Divider */}
                             <View style={styles.planDivider} />
 
+                            {/* What you get */}
+                            <View style={styles.valueRow}>
+                                <Ionicons name={isSelectionPlan ? 'albums-outline' : 'library-outline'} size={16} color={ACCENT} />
+                                <Text style={styles.valueText}>{valueText}</Text>
+                            </View>
+
+                            {/* Free preview videos */}
+                            {plan.previewVideos && plan.previewVideos.length > 0 && (
+                                <ScrollView
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    style={styles.previewStrip}
+                                    contentContainerStyle={styles.previewStripContent}
+                                >
+                                    {plan.previewVideos.map((video, idx) => (
+                                        <TouchableOpacity
+                                            key={`${plan.id}-preview-${idx}`}
+                                            style={styles.previewVideoCard}
+                                            activeOpacity={0.85}
+                                            onPress={() => router.push({
+                                                pathname: '/video-player',
+                                                params: {
+                                                    videoUrl: video.videoUrl,
+                                                    videoTitle: video.title || 'Preview',
+                                                    videoDuration: video.duration || '',
+                                                },
+                                            })}
+                                        >
+                                            {video.thumbnailUrl ? (
+                                                <Image source={{ uri: video.thumbnailUrl }} style={styles.previewVideoThumb} />
+                                            ) : (
+                                                <View style={[styles.previewVideoThumb, styles.previewVideoThumbFallback]}>
+                                                    <Ionicons name="play-circle" size={26} color="#fff" />
+                                                </View>
+                                            )}
+                                            <View style={styles.previewPlayBadge}>
+                                                <Ionicons name="play" size={11} color="#fff" />
+                                            </View>
+                                            <Text style={styles.previewVideoTitle} numberOfLines={2}>
+                                                {video.title || 'Preview'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            )}
+
                             {/* Features */}
-                            {plan.features.map((f, i) => (
+                            {visibleFeatures.map((f, i) => (
                                 <View key={i} style={styles.planFeatureRow}>
                                     <View
                                         style={[
                                             styles.checkCircle,
-                                            { backgroundColor: f.included ? plan.color + '22' : 'rgba(148,163,184,0.12)' },
+                                            { backgroundColor: f.included ? ACCENT_SOFT : colors.surfaceSecondary },
                                         ]}
                                     >
                                         <Ionicons
                                             name={f.included ? 'checkmark' : 'close'}
                                             size={11}
-                                            color={f.included ? plan.color : '#475569'}
+                                            color={f.included ? ACCENT : colors.textSecondary}
                                         />
                                     </View>
-                                    <Text
-                                        style={[
-                                            styles.planFeatureText,
-                                            !f.included && styles.planFeatureTextMuted,
-                                        ]}
-                                    >
+                                    <Text style={[styles.planFeatureText, !f.included && styles.planFeatureTextMuted]}>
                                         {f.text}
                                     </Text>
                                 </View>
                             ))}
+                            {hiddenFeatureCount > 0 && (
+                                <Text style={styles.featureMore}>+{hiddenFeatureCount} more</Text>
+                            )}
 
-                            {/* Buy button or Active indicator */}
-                            {!isCurrentPlan && !isAlreadyPurchased && (
-                                <View style={{ gap: 8 }}>
-                                    {/* #5: Preview eligible courses */}
-                                    {plan.courseSelection?.enabled && (
-                                        <TouchableOpacity
-                                            style={styles.previewBtn}
-                                            onPress={() => openPreview(plan)}
-                                            activeOpacity={0.7}
-                                        >
-                                            <Ionicons name="eye-outline" size={15} color={colors.textSecondary} />
-                                            <Text style={styles.previewBtnText}>
-                                                See {plan.courseSelection.maxSelectableCourses} eligible courses
-                                            </Text>
-                                        </TouchableOpacity>
-                                    )}
+                            {/* One primary action per card */}
+                            {isOwnedPlan ? (
+                                <View style={styles.planStateNote}>
+                                    <Ionicons name="checkmark-circle" size={16} color={ACCENT} />
+                                    <Text style={styles.planStateNoteText}>{isCurrentPlan ? 'Your current plan' : 'Active plan'}</Text>
+                                </View>
+                            ) : isAlreadyPurchased ? (
+                                <View style={styles.purchasedIndicator}>
+                                    <Ionicons name="shield-checkmark" size={16} color={colors.textSecondary} />
+                                    <Text style={styles.purchasedText}>Previously purchased</Text>
+                                </View>
+                            ) : (
+                                <>
+                                    <TouchableOpacity
+                                        style={[styles.primaryCta, isBusy && { opacity: 0.6 }]}
+                                        onPress={() => (isSelectionPlan ? openPreSelect(plan) : handlePurchase(plan))}
+                                        activeOpacity={0.9}
+                                        disabled={isBusy}
+                                        accessibilityRole="button"
+                                        accessibilityLabel={
+                                            isSelectionPlan
+                                                ? `Choose courses and pay for ${plan.name}`
+                                                : `Buy ${plan.name} membership`
+                                        }
+                                    >
+                                        {purchasingPlanId === plan.id ? (
+                                            <ActivityIndicator color="#fff" />
+                                        ) : (
+                                            <>
+                                                <Ionicons
+                                                    name={isSelectionPlan ? 'albums-outline' : 'sparkles-outline'}
+                                                    size={18}
+                                                    color="#fff"
+                                                />
+                                                <Text style={styles.primaryCtaText}>
+                                                    {isSelectionPlan ? 'Choose courses & pay' : `Buy ${plan.name}`}
+                                                </Text>
+                                            </>
+                                        )}
+                                    </TouchableOpacity>
 
-                                    <View style={styles.buyRow}>
-                                        {/* #7: Pre-select courses before payment */}
-                                        {plan.courseSelection?.enabled && (
+                                    <View style={styles.ctaLinksRow}>
+                                        {isSelectionPlan ? (
                                             <TouchableOpacity
-                                                style={[styles.preSelectBtn, { borderColor: plan.color }]}
-                                                onPress={() => openPreSelect(plan)}
+                                                style={styles.ctaLink}
+                                                onPress={() => handlePurchase(plan)}
                                                 activeOpacity={0.7}
-                                                disabled={purchasingPlanId !== null}
+                                                disabled={isBusy}
                                             >
-                                                {purchasingPlanId === plan.id ? (
-                                                    <ActivityIndicator color={plan.color} size="small" />
-                                                ) : (
-                                                    <Text style={[styles.preSelectBtnText, { color: plan.color }]}>
-                                                        Pick {plan.courseSelection.maxSelectableCourses} → Pay
-                                                    </Text>
-                                                )}
+                                                <Text style={styles.ctaLinkText}>Pay first, choose later</Text>
+                                            </TouchableOpacity>
+                                        ) : (
+                                            <TouchableOpacity
+                                                style={styles.ctaLink}
+                                                onPress={() => openCoursesSheet(plan)}
+                                                activeOpacity={0.7}
+                                                disabled={isBusy}
+                                            >
+                                                <Ionicons name="eye-outline" size={14} color={colors.textSecondary} />
+                                                <Text style={styles.ctaLinkText}>See included courses</Text>
                                             </TouchableOpacity>
                                         )}
-
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.buyBtn,
-                                                { borderColor: plan.color },
-                                                plan.courseSelection?.enabled
-                                                    ? { flex: 1 }
-                                                    : { backgroundColor: plan.color, borderWidth: 0 },
-                                            ]}
-                                            onPress={() => handlePurchase(plan)}
-                                            activeOpacity={0.85}
-                                            disabled={purchasingPlanId !== null}
-                                        >
-                                            {purchasingPlanId === plan.id ? (
-                                                <ActivityIndicator color={plan.courseSelection?.enabled ? plan.color : '#fff'} />
-                                            ) : (
-                                                <Text style={[styles.buyBtnText, { color: plan.courseSelection?.enabled ? plan.color : '#fff' }]}>
-                                                    Get {plan.name} →
-                                                </Text>
-                                            )}
-                                        </TouchableOpacity>
                                     </View>
-                                </View>
-                            )}
-                            
-                            {/* Show purchased indicator for non-current purchased plans */}
-                            {isAlreadyPurchased && !isCurrentPlan && (
-                                <View style={[styles.purchasedIndicator, { borderColor: plan.color }]}>
-                                    <Ionicons name="shield-checkmark" size={16} color={plan.color} />
-                                    <Text style={[styles.purchasedText, { color: plan.color }]}>Previously Purchased</Text>
-                                </View>
+                                </>
                             )}
                         </View>
                     );
@@ -1116,31 +1205,34 @@ export default function MyMembershipScreen() {
                 <View style={{ height: 60 }} />
             </ScrollView>
 
-            {/* #5: Preview Eligible Courses Modal */}
-            <Modal visible={!!previewPlan} animationType="slide" transparent>
+            {/* Included Courses sheet (entitlement plans) */}
+            <Modal visible={!!coursesSheetPlan} animationType="slide" transparent onRequestClose={closeCoursesSheet}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContainer}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>
-                                Eligible Courses — {previewPlan?.name}
-                            </Text>
-                            <TouchableOpacity onPress={closePreview} style={styles.modalCloseBtn}>
+                            <Text style={styles.modalTitle}>Included Courses — {coursesSheetPlan?.name}</Text>
+                            <TouchableOpacity onPress={closeCoursesSheet} style={styles.modalCloseBtn}>
                                 <Ionicons name="close" size={24} color={colors.text} />
                             </TouchableOpacity>
                         </View>
-                        <Text style={styles.modalSub}>
-                            Pick up to {previewPlan?.courseSelection?.maxSelectableCourses} courses after payment
-                        </Text>
-                        {previewLoading ? (
+                        <Text style={styles.modalSub}>Tap a course to see what&apos;s inside</Text>
+                        {coursesSheetLoading ? (
                             <ActivityIndicator size="large" color="#8B5CF6" style={{ marginTop: 20 }} />
-                        ) : previewCourses.length === 0 ? (
-                            <Text style={styles.modalEmpty}>No eligible courses found.</Text>
+                        ) : coursesSheetList.length === 0 ? (
+                            <Text style={styles.modalEmpty}>No courses found for this plan.</Text>
                         ) : (
                             <FlatList
-                                data={previewCourses}
+                                data={coursesSheetList}
                                 keyExtractor={(item) => item._id}
                                 renderItem={({ item }) => (
-                                    <View style={styles.previewCourseRow}>
+                                    <TouchableOpacity
+                                        style={styles.previewCourseRow}
+                                        onPress={() => {
+                                            closeCoursesSheet();
+                                            openCoursePreview(item._id, item.title, item.color, item.duration);
+                                        }}
+                                        activeOpacity={0.7}
+                                    >
                                         <View style={[styles.previewThumb, { backgroundColor: item.color || '#8B5CF6' }]}>
                                             <Ionicons name="book-outline" size={18} color="#FFF" />
                                         </View>
@@ -1150,12 +1242,13 @@ export default function MyMembershipScreen() {
                                                 {item.category ? `${item.category} · ` : ''}{item.duration || ''}
                                             </Text>
                                         </View>
-                                    </View>
+                                        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+                                    </TouchableOpacity>
                                 )}
                                 style={{ maxHeight: 400 }}
                             />
                         )}
-                        <TouchableOpacity style={styles.modalDoneBtn} onPress={closePreview}>
+                        <TouchableOpacity style={styles.modalDoneBtn} onPress={closeCoursesSheet}>
                             <Text style={styles.modalDoneBtnText}>Got it</Text>
                         </TouchableOpacity>
                         <View style={{ height: insets.bottom }} />
@@ -1192,21 +1285,31 @@ export default function MyMembershipScreen() {
                                     const maxReached = preSelectedCourseIds.length >= (plan?.courseSelection?.maxSelectableCourses || 3);
                                     const disabled = !isSelected && maxReached;
                                     return (
-                                        <TouchableOpacity
-                                            style={[styles.previewCourseRow, isSelected && styles.previewRowSelected, disabled && styles.previewRowDisabled]}
-                                            onPress={() => togglePreSelectCourse(item._id)}
-                                            disabled={disabled}
-                                            activeOpacity={0.7}
-                                        >
-                                            <View style={[styles.previewThumb, { backgroundColor: item.color || '#8B5CF6' }]}>
-                                                <Ionicons name="book-outline" size={18} color="#FFF" />
-                                            </View>
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={styles.previewCourseTitle} numberOfLines={1}>{item.title}</Text>
-                                                <Text style={styles.previewCourseMeta}>
-                                                    {item.category ? `${item.category} · ` : ''}{item.duration || ''}
-                                                </Text>
-                                            </View>
+                                        <View style={[styles.previewCourseRow, isSelected && styles.previewRowSelected, disabled && styles.previewRowDisabled]}>
+                                            <TouchableOpacity
+                                                style={styles.previewRowMain}
+                                                onPress={() => togglePreSelectCourse(item._id)}
+                                                disabled={disabled}
+                                                activeOpacity={0.7}
+                                            >
+                                                <View style={[styles.previewThumb, { backgroundColor: item.color || '#8B5CF6' }]}>
+                                                    <Ionicons name="book-outline" size={18} color="#FFF" />
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <Text style={styles.previewCourseTitle} numberOfLines={1}>{item.title}</Text>
+                                                    <Text style={styles.previewCourseMeta}>
+                                                        {item.category ? `${item.category} · ` : ''}{item.duration || ''}
+                                                    </Text>
+                                                </View>
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={styles.previewRowView}
+                                                onPress={() => openCoursePreview(item._id, item.title, item.color, item.duration)}
+                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                activeOpacity={0.7}
+                                            >
+                                                <Ionicons name="information-circle-outline" size={22} color={colors.textSecondary} />
+                                            </TouchableOpacity>
                                             {isSelected ? (
                                                 <Ionicons name="checkmark-circle" size={24} color="#22C55E" />
                                             ) : disabled ? (
@@ -1214,7 +1317,7 @@ export default function MyMembershipScreen() {
                                             ) : (
                                                 <Ionicons name="add-circle-outline" size={24} color="#8B5CF6" />
                                             )}
-                                        </TouchableOpacity>
+                                        </View>
                                     );
                                 }}
                                 style={{ maxHeight: 400 }}

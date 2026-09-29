@@ -42,6 +42,7 @@ export interface Group {
         category: string;
         thumbnail?: string;
     } | string;
+    isPublic?: boolean;
     joinedAt: string;
     role: 'member' | 'moderator' | 'admin';
 }
@@ -57,6 +58,7 @@ export interface PlanGroup {
     parentGroupId?: string | null;
     coverImage?: string;
     course?: any;
+    isPublic?: boolean;
     joinedAt: string;
     role: 'member' | 'moderator' | 'admin';
     subgroups: Group[];
@@ -76,6 +78,7 @@ interface CommunityState {
     posts: Post[];
     groups: Group[];
     planGroups: PlanGroup[];
+    generalGroup: Group | null;
     currentGroup: Group | null;
     comments: { [postId: string]: Comment[] };
     isLoading: boolean;
@@ -98,6 +101,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     posts: [],
     groups: [],
     planGroups: [],
+    generalGroup: null,
     currentGroup: null,
     comments: {},
     isLoading: false,
@@ -113,12 +117,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 set({
                     groups: response.data?.groups || [],
                     planGroups: response.data?.planGroups || [],
+                    generalGroup: response.data?.generalGroup || null,
                     isLoading: false,
                     communityAccessDenied: false,
                     error: null
                 });
             } else {
-                set({ groups: [], planGroups: [], isLoading: false, error: null });
+                set({ groups: [], planGroups: [], generalGroup: null, isLoading: false, error: null });
             }
         } catch (error: any) {
             // Handle 403 - user doesn't have community access
@@ -126,12 +131,13 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 set({ 
                     groups: [], 
                     planGroups: [],
+                    generalGroup: null,
                     isLoading: false, 
                     error: null,
                     communityAccessDenied: true 
                 });
             } else {
-                set({ groups: [], planGroups: [], isLoading: false, error: error?.message || 'Failed to load groups' });
+                set({ groups: [], planGroups: [], generalGroup: null, isLoading: false, error: error?.message || 'Failed to load groups' });
             }
         }
     },

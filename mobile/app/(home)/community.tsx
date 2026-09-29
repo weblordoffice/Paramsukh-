@@ -853,6 +853,7 @@ export default function CommunityScreen() {
     posts,
     groups,
     planGroups,
+    generalGroup,
     isLoading: isStoreLoading,
     fetchMyGroups,
     fetchGroupPosts,
@@ -937,7 +938,7 @@ export default function CommunityScreen() {
     }, [token, fetchMyGroups, fetchUnreadCount])
   );
 
-  // When groups are loaded, auto-select first plan group (combined feed) or first subgroup
+  // When groups are loaded, auto-select first plan group (combined feed) or the General group
   useEffect(() => {
     if (!activeGroup) {
       if (planGroups.length > 0) {
@@ -946,11 +947,13 @@ export default function CommunityScreen() {
         setActiveGroup(firstPlan as any as Group);
         // Auto-expand first plan group in sidebar
         setExpandedPlanGroups(new Set([firstPlan._id]));
+      } else if (generalGroup) {
+        setActiveGroup(generalGroup);
       } else if (groups.length > 0) {
         setActiveGroup(groups[0]);
       }
     }
-  }, [planGroups, groups, activeGroup]);
+  }, [planGroups, groups, generalGroup, activeGroup]);
 
   // When active group changes, fetch its posts
   useEffect(() => {
@@ -1218,6 +1221,45 @@ export default function CommunityScreen() {
           <View style={styles.sidebarSection}>
             <Text style={styles.sidebarSectionTitle}>Communities</Text>
 
+            {generalGroup && (
+              <TouchableOpacity
+                style={[
+                  styles.planGroupHeader,
+                  activeGroup?._id === generalGroup._id && styles.planGroupHeaderActive,
+                ]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                  setActiveGroup(generalGroup);
+                  setCurrentView('feed');
+                  setShowSidebar(false);
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={[
+                  styles.planGroupIconContainer,
+                  activeGroup?._id === generalGroup._id && styles.planGroupIconContainerActive,
+                ]}>
+                  <Ionicons
+                    name="globe-outline"
+                    size={14}
+                    color={activeGroup?._id === generalGroup._id ? colors.surface : '#F1842D'}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.planGroupName,
+                      activeGroup?._id === generalGroup._id && styles.planGroupNameActive,
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {generalGroup.name}
+                  </Text>
+                  <Text style={styles.planGroupMeta}>{generalGroup.memberCount} members · public</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+
             {/* Render hierarchical plan -> subgroup tree */}
             {planGroups.length > 0 ? (
               planGroups.map((pg: PlanGroup) => {
@@ -1426,7 +1468,7 @@ export default function CommunityScreen() {
             ListHeaderComponent={
               <>
                 {/* Quick Group Switcher — horizontal scrollable chips */}
-                {planGroups.length > 0 && (
+                {(planGroups.length > 0 || generalGroup) && (
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
@@ -1440,6 +1482,17 @@ export default function CommunityScreen() {
                       <Ionicons name="grid-outline" size={14} color={!activeGroup?._id ? '#FFF' : '#5C4A42'} />
                       <Text style={[styles.groupChipText, !activeGroup?._id && styles.groupChipTextActive]}>All</Text>
                     </TouchableOpacity>
+                    {generalGroup && (
+                      <TouchableOpacity
+                        style={[styles.groupChip, activeGroup?._id === generalGroup._id && styles.groupChipActive]}
+                        onPress={() => { setActiveGroup(generalGroup); setCurrentView('feed'); setCurrentPage(1); }}
+                      >
+                        <Ionicons name="globe-outline" size={14} color={activeGroup?._id === generalGroup._id ? '#FFF' : '#F1842D'} />
+                        <Text style={[styles.groupChipText, activeGroup?._id === generalGroup._id && styles.groupChipTextActive]} numberOfLines={1}>
+                          General
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                     {planGroups.map((pg: PlanGroup) => (
                       <React.Fragment key={pg._id}>
                         <TouchableOpacity
@@ -1518,12 +1571,16 @@ export default function CommunityScreen() {
                   <Text style={styles.emptyStateText}>
                     {communityAccessDenied
                       ? 'Membership required to access community groups.'
-                      : 'Join a course to access community groups.'}
+                      : 'No communities available yet.'}
                   </Text>
                 </View>
               ) : (
                 <View style={[styles.emptyState, { paddingTop: 40 }]}>
-                  <Text style={styles.emptyStateText}>No posts found</Text>
+                  <Text style={styles.emptyStateText}>
+                    {activeGroup && generalGroup && activeGroup._id === generalGroup._id
+                      ? 'No posts yet — be the first to share.'
+                      : 'No posts found'}
+                  </Text>
                 </View>
               )
             }
@@ -1609,16 +1666,38 @@ export default function CommunityScreen() {
             {currentView === 'groups' && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>My Communities</Text>
+                {generalGroup && (
+                  <TouchableOpacity
+                    style={[styles.groupCard, { borderLeftWidth: 4, borderLeftColor: '#F1842D', marginBottom: 16 }]}
+                    onPress={() => {
+                      setActiveGroup(generalGroup);
+                      setCurrentView('feed');
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20 }}>
+                      <View style={{ width: 50, height: 50, borderRadius: 14, backgroundColor: 'rgba(241, 132, 45, 0.12)', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+                        <Ionicons name="globe" size={24} color="#F1842D" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#2C2420' }}>{generalGroup.name}</Text>
+                        <Text style={{ fontSize: 13, color: '#5C4A42', fontWeight: '500', marginTop: 2 }}>
+                          {generalGroup.memberCount} members · Open to everyone
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={20} color="#8C7B73" />
+                    </View>
+                  </TouchableOpacity>
+                )}
                 {planGroups.length === 0 && groups.length === 0 ? (
                   <View style={styles.emptyState}>
-                    <Ionicons name="lock-closed-outline" size={64} color={colors.textSecondary} />
+                    <Ionicons name="infinite-outline" size={64} color={colors.textSecondary} />
                     <Text style={styles.emptyStateText}>
-                      {communityAccessDenied ? 'Membership Required' : 'No groups yet'}
+                      {communityAccessDenied ? 'Membership Required' : 'No communities yet'}
                     </Text>
                     <Text style={styles.emptyStateSubtext}>
-                      {communityAccessDenied 
+                      {communityAccessDenied
                         ? 'You need an active membership to access community groups.'
-                        : 'Join courses to be added to their community groups.'}
+                        : 'Communities will appear here once available.'}
                     </Text>
                   </View>
                 ) : planGroups.length > 0 ? (

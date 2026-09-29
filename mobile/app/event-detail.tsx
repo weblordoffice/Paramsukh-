@@ -454,30 +454,53 @@ export default function EventDetailScreen() {
             </View>
           ) : null}
 
-          {/* Online Link */}
+          {/* Online Link — only for registered attendees (or open events) */}
           {(event.locationType === 'online' || event.locationType === 'hybrid') && event.onlineMeetingLink && (
-            <TouchableOpacity 
-              style={{ 
-                marginTop: 32, 
-                backgroundColor: '#EFF6FF', 
-                borderRadius: 20, 
-                padding: 20, 
-                flexDirection: 'row', 
-                alignItems: 'center',
-                borderWidth: 1,
-                borderColor: '#DBEAFE'
-              }}
-              onPress={() => { if (event.onlineMeetingLink) Linking.openURL(event.onlineMeetingLink).catch(() => {}); }}
-            >
-              <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
-                <Ionicons name="videocam" size={24} color={colors.surface} />
+            event.isRegistered || event.registrationRequired === false ? (
+              <TouchableOpacity 
+                style={{ 
+                  marginTop: 32, 
+                  backgroundColor: '#EFF6FF', 
+                  borderRadius: 20, 
+                  padding: 20, 
+                  flexDirection: 'row', 
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#DBEAFE'
+                }}
+                onPress={() => { if (event.onlineMeetingLink) Linking.openURL(event.onlineMeetingLink).catch(() => {}); }}
+              >
+                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+                  <Ionicons name="videocam" size={24} color={colors.surface} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#1E40AF' }}>Join Online Meeting</Text>
+                  <Text style={{ fontSize: 14, color: '#3B82F6' }}>Tap to open the meeting link</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#3B82F6" />
+              </TouchableOpacity>
+            ) : (
+              <View
+                style={{
+                  marginTop: 32,
+                  backgroundColor: '#F8FAFC',
+                  borderRadius: 20,
+                  padding: 20,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#E2E8F0'
+                }}
+              >
+                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#94A3B8', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+                  <Ionicons name="lock-closed" size={22} color={colors.surface} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#334155' }}>Online Event</Text>
+                  <Text style={{ fontSize: 14, color: '#64748B' }}>Register to get the meeting link</Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: '#1E40AF' }}>Join Online Meeting</Text>
-                <Text style={{ fontSize: 14, color: '#3B82F6' }}>Link is active for registered users</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#3B82F6" />
-            </TouchableOpacity>
+            )
           )}
 
           {/* Organizer */}

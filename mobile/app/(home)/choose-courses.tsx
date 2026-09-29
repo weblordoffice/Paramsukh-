@@ -95,6 +95,8 @@ export default function ChooseCoursesScreen() {
     backgroundColor: '#F0FDF4',
     opacity: 0.8,
   },
+  cardMain: { flex: 1, flexDirection: 'row', alignItems: 'center' },
+  cardInfo: { paddingHorizontal: 4, marginLeft: 4 },
   cardThumb: {
     width: 56,
     height: 56,
@@ -338,46 +340,67 @@ export default function ChooseCoursesScreen() {
           {courses.map((course) => {
             const badge = getCategoryBadge(course.category);
             return (
-              <TouchableOpacity
+              <View
                 key={course._id}
                 style={[styles.card, course.alreadySelected && styles.cardSelected]}
-                onPress={() => course.alreadySelected ? handleUndo(course) : handleSelect(course)}
-                disabled={selecting === course._id || (!course.alreadySelected && remaining <= 0)}
-                activeOpacity={0.7}
               >
-                <View style={[styles.cardThumb, { backgroundColor: course.color || '#8B5CF6' }]}>
-                  {course.thumbnailUrl ? (
-                    <Image source={{ uri: course.thumbnailUrl }} style={styles.thumbImage} />
-                  ) : (
-                    <Ionicons
-                      name={(course.icon as any) || 'book-outline'}
-                      size={28}
-                      color="#FFF"
-                    />
-                  )}
-                </View>
-                <View style={styles.cardBody}>
-                  <Text style={styles.cardTitle} numberOfLines={2}>
-                    {course.title}
-                  </Text>
-                  <View style={styles.cardMeta}>
-                    {course.category && (
-                      <View style={[styles.categoryPill, { backgroundColor: badge.bg }]}>
-                        <Text style={[styles.categoryText, { color: badge.color }]}>
-                          {course.category}
-                        </Text>
-                      </View>
-                    )}
-                    {course.duration && (
-                      <Text style={styles.durationText}>{course.duration}</Text>
-                    )}
-                    {(course.totalVideos || 0) > 0 && (
-                      <Text style={styles.metaText}>
-                        <Ionicons name="videocam-outline" size={12} /> {course.totalVideos}
-                      </Text>
+                <TouchableOpacity
+                  style={styles.cardMain}
+                  onPress={() => course.alreadySelected ? handleUndo(course) : handleSelect(course)}
+                  disabled={selecting === course._id || (!course.alreadySelected && remaining <= 0)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.cardThumb, { backgroundColor: course.color || '#8B5CF6' }]}>
+                    {course.thumbnailUrl ? (
+                      <Image source={{ uri: course.thumbnailUrl }} style={styles.thumbImage} />
+                    ) : (
+                      <Ionicons
+                        name={(course.icon as any) || 'book-outline'}
+                        size={28}
+                        color="#FFF"
+                      />
                     )}
                   </View>
-                </View>
+                  <View style={styles.cardBody}>
+                    <Text style={styles.cardTitle} numberOfLines={2}>
+                      {course.title}
+                    </Text>
+                    <View style={styles.cardMeta}>
+                      {course.category && (
+                        <View style={[styles.categoryPill, { backgroundColor: badge.bg }]}>
+                          <Text style={[styles.categoryText, { color: badge.color }]}>
+                            {course.category}
+                          </Text>
+                        </View>
+                      )}
+                      {course.duration && (
+                        <Text style={styles.durationText}>{course.duration}</Text>
+                      )}
+                      {(course.totalVideos || 0) > 0 && (
+                        <Text style={styles.metaText}>
+                          <Ionicons name="videocam-outline" size={12} /> {course.totalVideos}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.cardInfo}
+                  onPress={() => router.push({
+                    pathname: '/course-detail',
+                    params: {
+                      id: course._id,
+                      title: course.title,
+                      color: course.color || '#8B5CF6',
+                      duration: course.duration || '',
+                      preview: '1',
+                    },
+                  })}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="information-circle-outline" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
                 <View style={styles.cardAction}>
                   {selecting === course._id ? (
                     <ActivityIndicator size="small" color="#8B5CF6" />
@@ -394,7 +417,7 @@ export default function ChooseCoursesScreen() {
                     </View>
                   )}
                 </View>
-              </TouchableOpacity>
+              </View>
             );
           })}
           {courses.length === 0 && (

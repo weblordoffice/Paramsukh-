@@ -21,6 +21,8 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
         bannerUrl: '',
         eventDate: '',
         eventTime: '',
+        endTime: '',
+        timezone: 'Asia/Kolkata',
         location: '',
         locationType: 'physical' as 'physical' | 'online' | 'hybrid',
         address: {
@@ -67,6 +69,8 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                     bannerUrl: event.bannerUrl || '',
                     eventDate: localDate,
                     eventTime: event.eventTime || '',
+                    endTime: event.endTime ? new Date(event.endTime).toTimeString().slice(0, 5) : '',
+                    timezone: event.timezone || 'Asia/Kolkata',
                     location: event.location || '',
                     locationType: event.locationType || 'physical',
                     address: event.address || {
@@ -102,6 +106,8 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                     bannerUrl: '',
                     eventDate: '',
                     eventTime: '',
+                    endTime: '',
+                    timezone: 'Asia/Kolkata',
                     location: '',
                     locationType: 'physical',
                     address: {
@@ -204,8 +210,42 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
         }
     };
 
+    const handleLocationTypeChange = (next: 'physical' | 'online' | 'hybrid') => {
+        setFormData((prev) => {
+            let location = prev.location;
+            if (next === 'online' && (!location.trim() || location.trim().toLowerCase() === 'online')) {
+                location = 'Online';
+            } else if (next !== 'online' && location.trim().toLowerCase() === 'online') {
+                location = '';
+            }
+            return {
+                ...prev,
+                locationType: next,
+                location,
+                // Clear a stale meeting link when the event is no longer online.
+                onlineMeetingLink: next === 'physical' ? '' : prev.onlineMeetingLink,
+            };
+        });
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        const meetingLinkRequired = formData.locationType === 'online' || formData.locationType === 'hybrid';
+        const trimmedLink = formData.onlineMeetingLink.trim();
+
+        if (meetingLinkRequired && !trimmedLink) {
+            toast.error('Please add the online meeting link for online/hybrid events');
+            return;
+        }
+        if (meetingLinkRequired && !/^https?:\/\//i.test(trimmedLink)) {
+            toast.error('Meeting link must start with http:// or https://');
+            return;
+        }
+        if (formData.endTime && formData.eventTime && formData.endTime <= formData.eventTime) {
+            toast.error('End time must be after the start time');
+            return;
+        }
 
         setSubmitting(true);
 
@@ -213,7 +253,13 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
             // Prepare data with proper date/time formatting
             const submitData = {
                 ...formData,
+                location:
+                    formData.locationType === 'online' && !formData.location.trim()
+                        ? 'Online'
+                        : formData.location.trim(),
+                onlineMeetingLink: formData.locationType === 'physical' ? null : (trimmedLink || null),
                 startTime: new Date(`${formData.eventDate}T${formData.eventTime}`).toISOString(),
+                endTime: formData.endTime ? new Date(`${formData.eventDate}T${formData.endTime}`).toISOString() : null,
                 maxAttendees: formData.maxAttendees || null
             };
 
@@ -390,6 +436,36 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white [color-scheme:light]"
                                     />
                                 </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        End Time
+                                    </label>
+                                    <input
+                                        type="time"
+                                        value={formData.endTime}
+                                        onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white [color-scheme:light]"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Timezone
+                                    </label>
+                                    <select
+                                        value={formData.timezone}
+                                        onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                                    >
+                                        <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                                        <option value="Asia/Dubai">Asia/Dubai</option>
+                                        <option value="Europe/London">Europe/London</option>
+                                        <option value="America/New_York">America/New_York</option>
+                                        <option value="America/Los_Angeles">America/Los_Angeles</option>
+                                        <option value="UTC">UTC</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -404,46 +480,61 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                     <select
                                         required
                                         value={formData.locationType}
-                                        onChange={(e) => setFormData({ ...formData, locationType: e.target.value as any })}
+                                        onChange={(e) => handleLocationTypeChange(e.target.value as 'physical' | 'online' | 'hybrid')}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                     >
-                                        <option value="physical">Physical</option>
+                                        <option value="physical">Physical (in-person)</option>
                                         <option value="online">Online</option>
                                         <option value="hybrid">Hybrid</option>
                                     </select>
                                 </div>
 
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Location/Venue *
-                                    </label>
-                                    <input
-                                        type="text"
-                                        required
-                                        value={formData.location}
-                                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                                        placeholder="Venue name or Online"
-                                    />
-                                </div>
+                                {formData.locationType !== 'online' && (
+                                    <div className="md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            {formData.locationType === 'hybrid' ? 'Venue (physical location)' : 'Location / Venue *'}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={formData.location}
+                                            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                                            placeholder="Venue name and address"
+                                        />
+                                    </div>
+                                )}
 
                                 {(formData.locationType === 'online' || formData.locationType === 'hybrid') && (
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Online Meeting Link
+                                            Online Meeting Link *
                                         </label>
                                         <input
                                             type="url"
+                                            required
                                             value={formData.onlineMeetingLink}
                                             onChange={(e) => setFormData({ ...formData, onlineMeetingLink: e.target.value })}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                                            placeholder="Zoom/Meet link"
+                                            placeholder="https://meet.google.com/... or https://zoom.us/j/..."
                                         />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            Shown to registered attendees. Must be a full https:// link.
+                                        </p>
                                     </div>
                                 )}
 
                                 {(formData.locationType === 'physical' || formData.locationType === 'hybrid') && (
                                     <>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
+                                            <input
+                                                type="text"
+                                                value={formData.address.street}
+                                                onChange={(e) => setFormData({ ...formData, address: { ...formData.address, street: e.target.value } })}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                                            />
+                                        </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
                                             <input
@@ -459,6 +550,24 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                                 type="text"
                                                 value={formData.address.state}
                                                 onChange={(e) => setFormData({ ...formData, address: { ...formData.address, state: e.target.value } })}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Zip / Postal Code</label>
+                                            <input
+                                                type="text"
+                                                value={formData.address.zipCode}
+                                                onChange={(e) => setFormData({ ...formData, address: { ...formData.address, zipCode: e.target.value } })}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                                            <input
+                                                type="text"
+                                                value={formData.address.country}
+                                                onChange={(e) => setFormData({ ...formData, address: { ...formData.address, country: e.target.value } })}
                                                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                             />
                                         </div>
@@ -578,6 +687,19 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                                 <option value="EUR">EUR</option>
                                             </select>
                                         </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                                Early Bird Price
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                value={formData.earlyBirdPrice}
+                                                onChange={(e) => setFormData({ ...formData, earlyBirdPrice: parseFloat(e.target.value) || 0 })}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                                                placeholder="0 = no early bird pricing"
+                                            />
+                                        </div>
                                     </>
                                 )}
                             </div>
@@ -623,6 +745,93 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         onChange={(e) => setFormData({ ...formData, organizer: e.target.value })}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                         placeholder="Organizer name"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Requirements & What to Bring */}
+                        <div>
+                            <h4 className="text-md font-semibold text-gray-900 mb-3">Requirements &amp; What to Bring</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Requirements</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={requirementInput}
+                                            onChange={(e) => setRequirementInput(e.target.value)}
+                                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addRequirement())}
+                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-500"
+                                            placeholder="e.g. Open to all ages"
+                                        />
+                                        <button type="button" onClick={addRequirement} className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
+                                            Add
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {formData.requirements.map((item, index) => (
+                                            <span key={index} className="px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm flex items-center gap-2">
+                                                {item}
+                                                <button type="button" onClick={() => removeRequirement(index)} className="hover:text-amber-600">
+                                                    ×
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">What to Bring</label>
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={bringInput}
+                                            onChange={(e) => setBringInput(e.target.value)}
+                                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addBring())}
+                                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 placeholder:text-gray-500"
+                                            placeholder="e.g. Water bottle"
+                                        />
+                                        <button type="button" onClick={addBring} className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">
+                                            Add
+                                        </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {formData.whatToBring.map((item, index) => (
+                                            <span key={index} className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-sm flex items-center gap-2">
+                                                {item}
+                                                <button type="button" onClick={() => removeBring(index)} className="hover:text-emerald-600">
+                                                    ×
+                                                </button>
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* SEO */}
+                        <div>
+                            <h4 className="text-md font-semibold text-gray-900 mb-3">SEO</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Meta Title</label>
+                                    <input
+                                        type="text"
+                                        value={formData.metaTitle}
+                                        onChange={(e) => setFormData({ ...formData, metaTitle: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                                        placeholder="Page title for search engines"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Meta Description</label>
+                                    <input
+                                        type="text"
+                                        value={formData.metaDescription}
+                                        onChange={(e) => setFormData({ ...formData, metaDescription: e.target.value })}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
+                                        placeholder="Short description for search results"
                                     />
                                 </div>
                             </div>

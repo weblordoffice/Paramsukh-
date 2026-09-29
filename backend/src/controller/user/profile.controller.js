@@ -372,37 +372,71 @@ export const getSubscription = async (req, res) => {
     }
 
     const normalizedStatus = user.subscriptionStatus === 'trial' ? 'inactive' : user.subscriptionStatus;
-
     const normalizedPlan = normalizePlanSlug(user.subscriptionPlan || 'free');
-    let effectivePlans = normalizedPlan ? [normalizedPlan] : [];
-    const selectedPlan = normalizedPlan;
 
-    let selectedPlanLabel = normalizedPlan;
-    if (normalizedPlan && normalizedPlan !== 'free') {
-      const selectedPlanConfig = await resolveMembershipPlanChargeAmount(normalizedPlan);
+    // A user can hold more than one active plan (e.g. Gold + Silver). Access must be
+    // the union of ALL active memberships — never just the last purchased plan — so
+    // buying a new plan must not lock courses from a previously held plan.
+    const activeMemberships = await UserMembership.find({
+      userId,
+      status: 'active',
+      $or: [
+        { endDate: { $gte: new Date() } },
+        { endDate: null },
+        { endDate: { $exists: false } },
+      ],
+    })
+      .populate('planId', 'slug title')
+      .sort({ endDate: -1 })
+      .lean();
+
+    const activePlanSlugs = activeMemberships
+      .map((m) => normalizePlanSlug(m?.planId?.slug || m?.planSnapshot?.slug || ''))
+      .filter((slug) => slug && slug !== 'free');
+
+    const effectiveSet = new Set();
+    if (normalizedPlan && normalizedPlan !== 'free') effectiveSet.add(normalizedPlan);
+    activePlanSlugs.forEach((slug) => effectiveSet.add(slug));
+
+    // Expand each effective plan through its inheritance chain.
+    for (const slug of Array.from(effectiveSet)) {
+      try {
+        const inheritance = await resolveMembershipPlanInheritanceBySlug(slug);
+        (inheritance.planSlugs || []).forEach((inherited) => effectiveSet.add(normalizePlanSlug(inherited)));
+      } catch {
+        // ignore inheritance resolution errors
+      }
+    }
+
+    const effectivePlans = Array.from(effectiveSet).filter(Boolean);
+
+    // "Current" plan stays the last purchased plan while it is still active,
+    // otherwise fall back to the most recent active membership.
+    const selectedPlan = effectiveSet.has(normalizedPlan)
+      ? normalizedPlan
+      : (activePlanSlugs[0] || normalizedPlan);
+
+    let selectedPlanLabel = selectedPlan;
+    if (selectedPlan && selectedPlan !== 'free') {
+      const selectedPlanConfig = await resolveMembershipPlanChargeAmount(selectedPlan);
       if (selectedPlanConfig?.isValid) {
-        selectedPlanLabel = selectedPlanConfig.displayTitle || normalizedPlan;
+        selectedPlanLabel = selectedPlanConfig.displayTitle || selectedPlan;
       }
     }
 
-    if (normalizedPlan && normalizedPlan !== 'free') {
-      const inheritance = await resolveMembershipPlanInheritanceBySlug(normalizedPlan);
-      if (inheritance.planSlugs.length > 0) {
-        effectivePlans = inheritance.planSlugs;
-      }
-    }
+    const hasProAccess = user.hasProAccess() || activePlanSlugs.length > 0;
 
     return res.status(200).json({
       success: true,
       subscription: {
-        plan: user.subscriptionPlan,
+        plan: selectedPlan,
         selectedPlan,
         selectedPlanLabel,
         status: normalizedStatus,
         trialEndsAt: null,
         isTrialActive: false,
         trialDaysLeft: 0,
-        hasProAccess: user.hasProAccess(),
+        hasProAccess,
         effectivePlans
       }
     });

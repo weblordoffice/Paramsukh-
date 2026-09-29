@@ -1,5 +1,6 @@
 import { GroupMember, Group } from '../models/community.models.js';
 import { User } from '../models/user.models.js';
+import { getPublicGroupIds } from './community.service.js';
 
 /**
  * Cleanup community group memberships when user's membership expires
@@ -11,15 +12,22 @@ export const cleanupExpiredCommunityMemberships = async (userId) => {
   try {
     console.log(`🧹 Starting community membership cleanup for user: ${userId}`);
 
+    // Public (General) group memberships are never revoked by cleanup.
+    const publicGroupIds = await getPublicGroupIds();
+
     // Capture active groupIds BEFORE deactivation to avoid re-decrementing already-inactive ones
-    const activeBefore = await GroupMember.find({ userId, isActive: true })
+    const activeBefore = await GroupMember.find({
+      userId,
+      isActive: true,
+      groupId: { $nin: publicGroupIds },
+    })
       .select('groupId')
       .lean();
     const groupIds = activeBefore.map(m => m.groupId);
 
-    // Deactivate all group memberships for this user
+    // Deactivate all non-public group memberships for this user
     const result = await GroupMember.updateMany(
-      { userId, isActive: true },
+      { userId, isActive: true, groupId: { $nin: publicGroupIds } },
       { isActive: false }
     );
 
@@ -63,6 +71,7 @@ export const restoreCommunityMemberships = async (userId) => {
       $or: [
         { planSlug: currentPlanSlug },
         { planSlug: 'general' },
+        { isPublic: true },
         { groupType: 'course' }, // Course groups are entitlement-based
       ]
     }).select('_id').lean();

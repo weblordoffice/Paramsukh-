@@ -224,6 +224,21 @@ export default function CourseDetailScreen() {
     fontWeight: '600',
     color: '#64748B',
   },
+  previewNote: {
+    fontSize: 12.5,
+    color: '#94A3B8',
+    marginTop: -8,
+    marginBottom: 16,
+  },
+  freeTag: {
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(16,185,129,0.15)',
+  },
+  freeTagText: { fontSize: 10, fontWeight: '800', color: '#10B981', letterSpacing: 0.5 },
   descText: {
     fontSize: 14,
     color: colors.textSecondary,
@@ -326,6 +341,7 @@ export default function CourseDetailScreen() {
   const courseTitle = (params.title as string) || 'Course';
   const courseColor = (params.color as string) || '#8B5CF6';
   const courseDuration = (params.duration as string) || '6 weeks';
+  const preview = params.preview === '1';
 
   const { currentCourse, fetchCourseById, fetchEnrollmentProgress, enrollmentProgress, isLoading, error } =
     useCourseStore();
@@ -364,6 +380,7 @@ export default function CourseDetailScreen() {
         videoTitle: video.title,
         videoDuration: video.duration,
         videoUrl: video.videoUrl,
+        isFree: video.isFree ? 'true' : 'false',
       },
     });
   };
@@ -473,7 +490,7 @@ export default function CourseDetailScreen() {
           </View>
 
           {/* ── Progress card ── */}
-          {token && (videos.length > 0 || totalPdfs > 0) && (
+          {token && !preview && (videos.length > 0 || totalPdfs > 0) && (
             <View style={styles.progressCard}>
               <View style={styles.progressHeader}>
                 <Text style={styles.progressLabel}>Your Progress</Text>
@@ -504,6 +521,9 @@ export default function CourseDetailScreen() {
               Course Videos
               <Text style={styles.sectionCount}>  {videos.length}</Text>
             </Text>
+            {preview ? (
+              <Text style={styles.previewNote}>Free preview — play the unlocked lessons</Text>
+            ) : null}
 
             {videos.length === 0 ? (
               <View style={styles.emptyBox}>
@@ -513,7 +533,8 @@ export default function CourseDetailScreen() {
             ) : (
               videos.map((video, idx) => {
                 const isCompleted = enrollmentProgress?.completedVideos?.includes(video._id);
-                const isLocked = currentCourse?.strictVideoOrder && idx > 0 && !enrollmentProgress?.completedVideos?.includes(videos[idx - 1]._id);
+                const lockedByOrder = currentCourse?.strictVideoOrder && idx > 0 && !enrollmentProgress?.completedVideos?.includes(videos[idx - 1]._id);
+                const isLocked = preview ? !video.isFree : lockedByOrder;
                 return (
                   <LessonCard
                     key={video._id}
@@ -522,8 +543,10 @@ export default function CourseDetailScreen() {
                     onPress={() => {
                       if (isLocked) {
                         Alert.alert(
-                          'Lesson Locked',
-                          'Please watch and complete the previous video lessons in order to unlock this one.',
+                          preview ? 'Locked lesson' : 'Lesson Locked',
+                          preview
+                            ? 'This lesson unlocks when you get the membership plan.'
+                            : 'Please watch and complete the previous video lessons in order to unlock this one.',
                           [{ text: 'OK' }]
                         );
                       } else {
@@ -559,6 +582,11 @@ export default function CourseDetailScreen() {
                       <Text style={styles.videoTitle} numberOfLines={2}>
                         {video.title}
                       </Text>
+                      {preview && video.isFree ? (
+                        <View style={styles.freeTag}>
+                          <Text style={styles.freeTagText}>FREE PREVIEW</Text>
+                        </View>
+                      ) : null}
                       {video.description ? (
                         <Text style={styles.videoDesc} numberOfLines={1}>
                           {video.description}

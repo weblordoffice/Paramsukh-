@@ -1,4 +1,5 @@
 import { Post, Comment, Group } from '../../models/community.models.js';
+import { ensureGeneralGroup } from '../../services/community.service.js';
 
 // @desc    Get all community posts (Admin only)
 // @route   GET /api/community/all
@@ -198,7 +199,7 @@ export const createPostAdmin = async (req, res) => {
 export const getAdminGroups = async (req, res) => {
     try {
         const groups = await Group.find({ isActive: true })
-            .select('name groupType description memberCount')
+            .select('name groupType description memberCount isPublic')
             .sort({ name: 1 })
             .lean();
 
@@ -281,6 +282,83 @@ export const deleteCommentAdmin = async (req, res) => {
             success: false,
             message: 'Failed to delete comment',
             error: error.message
+        });
+    }
+};
+
+const formatGeneralGroup = (group) => ({
+    _id: group._id,
+    name: group.name,
+    description: group.description || '',
+    coverImage: group.coverImage || null,
+    memberCount: group.memberCount || 0,
+    isActive: group.isActive !== false,
+    isPublic: true,
+});
+
+// @desc    Get the General (public) community group
+// @route   GET /api/community/admin/groups/general
+// @access  Admin
+export const getGeneralGroup = async (req, res) => {
+    try {
+        const group = await ensureGeneralGroup();
+        res.status(200).json({ success: true, data: formatGeneralGroup(group) });
+    } catch (error) {
+        console.error('Get General Group Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve the General group',
+            error: error.message,
+        });
+    }
+};
+
+// @desc    Update the General (public) community group
+// @route   PATCH /api/community/admin/groups/general
+// @access  Admin
+export const updateGeneralGroup = async (req, res) => {
+    try {
+        const { name, description, coverImage, isActive } = req.body;
+
+        const update = {};
+        if (name !== undefined) {
+            const trimmed = String(name).trim();
+            if (!trimmed) {
+                return res.status(400).json({ success: false, message: 'Name is required' });
+            }
+            update.name = trimmed;
+        }
+        if (description !== undefined) {
+            update.description = String(description || '').trim();
+        }
+        if (coverImage !== undefined) {
+            update.coverImage = coverImage ? String(coverImage).trim() : null;
+        }
+        if (isActive !== undefined) {
+            if (typeof isActive !== 'boolean') {
+                return res.status(400).json({ success: false, message: 'isActive must be a boolean' });
+            }
+            update.isActive = isActive;
+        }
+
+        if (Object.keys(update).length === 0) {
+            return res.status(400).json({ success: false, message: 'No valid fields to update' });
+        }
+
+        const group = await ensureGeneralGroup();
+        const updated = await Group.findByIdAndUpdate(group._id, { $set: update }, { new: true });
+
+        res.status(200).json({
+            success: true,
+            message: 'General community updated',
+            data: formatGeneralGroup(updated),
+        });
+    } catch (error) {
+        console.error('Update General Group Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update the General group',
+            error: error.message,
         });
     }
 };

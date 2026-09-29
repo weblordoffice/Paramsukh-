@@ -55,6 +55,11 @@ const groupSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: true
+  },
+  isPublic: {
+    type: Boolean,
+    default: false,
+    index: true,
   }
 }, {
   timestamps: true
@@ -227,6 +232,13 @@ groupSchema.index(
     },
   }
 ); // Prevent duplicate plan-level parent groups
+groupSchema.index(
+  { isPublic: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { isPublic: true },
+  }
+); // Only one public (General) group
 groupMemberSchema.index({ groupId: 1, userId: 1 }, { unique: true });
 groupMemberSchema.index({ userId: 1 });
 postSchema.index({ groupId: 1, createdAt: -1 });

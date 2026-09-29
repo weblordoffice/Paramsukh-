@@ -128,6 +128,27 @@ const benefitSchema = new mongoose.Schema({
   },
 }, { _id: false });
 
+const previewVideoSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  videoUrl: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  thumbnailUrl: {
+    type: String,
+    default: null,
+  },
+  duration: {
+    type: String,
+    default: '',
+  },
+});
+
 const membershipPlanSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -181,6 +202,10 @@ const membershipPlanSchema = new mongoose.Schema({
   },
   benefits: {
     type: [benefitSchema],
+    default: [],
+  },
+  previewVideos: {
+    type: [previewVideoSchema],
     default: [],
   },
 

@@ -2,7 +2,7 @@ import { MembershipPlan } from '../../models/membershipPlan.models.js';
 import { User } from '../../models/user.models.js';
 import { UserMembership } from '../../models/userMembership.models.js';
 import { CoursePlan } from '../../models/coursePlan.models.js';
-import { Course } from '../../models/course.models.js';
+import { getPlanCourses, resolvePlanCourseIds } from '../../services/planCourses.service.js';
 
 const normalizeSlug = (value) => {
   return String(value || '')
@@ -40,7 +40,7 @@ const normalizeStringList = (values = []) => {
 const ALLOWED_PLAN_FIELDS = [
   'title', 'slug', 'shortDescription', 'longDescription',
   'status', 'displayOrder', 'validityDays', 'isLifetime',
-  'pricing', 'access', 'benefits', 'metadata'
+  'pricing', 'access', 'benefits', 'previewVideos', 'metadata'
 ];
 
 const sanitizePlanPayload = (body = {}) => {
@@ -83,6 +83,15 @@ const sanitizePlanPayload = (body = {}) => {
       text: String((b && b.text) || '').trim(),
       included: b && b.included !== false
     })).filter(b => b.text.length > 0);
+  }
+
+  if (payload.previewVideos && Array.isArray(payload.previewVideos)) {
+    payload.previewVideos = payload.previewVideos.map((v) => ({
+      title: String((v && v.title) || '').trim(),
+      videoUrl: String((v && v.videoUrl) || '').trim(),
+      thumbnailUrl: v && v.thumbnailUrl ? String(v.thumbnailUrl).trim() : null,
+      duration: v && v.duration ? String(v.duration).trim() : '',
+    })).filter(v => v.videoUrl);
   }
 
   return payload;
@@ -353,10 +362,22 @@ export const listMembershipPlansPublic = async (req, res) => {
       .sort({ displayOrder: 1, createdAt: -1 })
       .lean();
 
+    const plansWithCounts = await Promise.all(
+      plans.map(async (plan) => {
+        try {
+          const courseIds = await resolvePlanCourseIds(plan);
+          return { ...plan, courseCount: courseIds.length };
+        } catch (countError) {
+          console.error(`Failed to count courses for plan ${plan.slug}:`, countError.message);
+          return { ...plan, courseCount: 0 };
+        }
+      })
+    );
+
     return res.status(200).json({
       success: true,
-      data: plans,
-      total: plans.length,
+      data: plansWithCounts,
+      total: plansWithCounts.length,
     });
   } catch (error) {
     console.error('Error fetching public membership plans:', error);
@@ -377,71 +398,17 @@ export const getPlanEligibleCourses = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Plan not found' });
     }
 
-    if (!plan.access?.courseSelection?.enabled) {
-      return res.status(200).json({
-        success: true,
-        courses: [],
-        maxSelectableCourses: 0,
-        message: 'Course selection not enabled for this plan',
-      });
-    }
-
-    const selectionConfig = plan.access.courseSelection;
-    const mode = selectionConfig.eligibleCoursesMode || 'all_published';
-    const eligibleCategories = (selectionConfig.eligibleCategories || []).map((c) => normalizeSlug(c));
-    const eligibleCourseIds = (selectionConfig.eligibleCourseIds || []).map((id) => String(id));
-
-    let courseQuery = { status: 'published' };
-
-    if (mode === 'specific') {
-      if (eligibleCourseIds.length > 0) {
-        courseQuery._id = { $in: eligibleCourseIds };
-      } else {
-        return res.status(200).json({ success: true, courses: [], maxSelectableCourses: selectionConfig.maxSelectableCourses || 0 });
-      }
-    } else if (mode === 'categories') {
-      if (eligibleCategories.length > 0) {
-        courseQuery.category = { $in: eligibleCategories };
-      } else {
-        return res.status(200).json({ success: true, courses: [], maxSelectableCourses: selectionConfig.maxSelectableCourses || 0 });
-      }
-    } else {
-      const planCourseIds = new Set(eligibleCourseIds);
-      const junctionMappings = await CoursePlan.find({ planId: plan._id }).lean();
-      junctionMappings.forEach((m) => planCourseIds.add(String(m.courseId)));
-
-      const legacyCourses = await Course.find({ includedInPlans: slug, status: 'published' }).select('_id').lean();
-      legacyCourses.forEach((c) => planCourseIds.add(String(c._id)));
-
-      if (plan.access?.includedCourseIds?.length) {
-        plan.access.includedCourseIds.forEach((id) => planCourseIds.add(String(id)));
-      }
-
-      if (plan.access?.includedCategories?.length) {
-        const catCourses = await Course.find({
-          status: 'published',
-          category: { $in: plan.access.includedCategories.map((c) => normalizeSlug(c)) },
-        }).select('_id').lean();
-        catCourses.forEach((c) => planCourseIds.add(String(c._id)));
-      }
-
-      const resolvedIds = Array.from(planCourseIds).filter(Boolean);
-      if (resolvedIds.length > 0) {
-        courseQuery._id = { $in: resolvedIds };
-      } else {
-        return res.status(200).json({ success: true, courses: [], maxSelectableCourses: selectionConfig.maxSelectableCourses || 0 });
-      }
-    }
-
-    const courses = await Course.find(courseQuery)
-      .select('title description shortDescription thumbnailUrl bannerUrl icon color duration category tags totalVideos totalPdfs status')
-      .sort({ title: 1 })
-      .lean();
+    const selectionEnabled = !!plan.access?.courseSelection?.enabled;
+    const courses = await getPlanCourses(plan);
 
     return res.status(200).json({
       success: true,
       courses,
-      maxSelectableCourses: selectionConfig.maxSelectableCourses || 3,
+      selectionEnabled,
+      maxSelectableCourses: selectionEnabled
+        ? (plan.access?.courseSelection?.maxSelectableCourses || 3)
+        : 0,
+      total: courses.length,
       planTitle: plan.title,
     });
   } catch (error) {

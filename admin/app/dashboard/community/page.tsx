@@ -6,11 +6,13 @@ import toast from 'react-hot-toast';
 import { Search, MessageSquare, Heart, MessageCircle, Trash2, Pin, Plus } from 'lucide-react';
 import CreatePostModal from './CreatePostModal';
 import CommentsModal from './CommentsModal';
+import GeneralCommunityCard from './GeneralCommunityCard';
 
 interface Post {
     _id: string;
     userId: { displayName: string } | null;
     content: string;
+    images?: string[];
     groupId: { name: string };
     likeCount: number;
     commentCount: number;
@@ -120,6 +122,8 @@ export default function CommunityPage() {
                 </button>
             </div>
 
+            <GeneralCommunityCard />
+
             <div className="bg-white rounded-xl p-4 shadow-md">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-accent" />
@@ -187,6 +191,25 @@ export default function CommunityPage() {
                                     </div>
                                 </div>
                                 <p className="text-secondary">{post.content}</p>
+                                {post.images && post.images.length > 0 && (
+                                    <div className="flex flex-wrap gap-3">
+                                        {post.images.map((url, i) => (
+                                            <a
+                                                key={i}
+                                                href={url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="block"
+                                            >
+                                                <img
+                                                    src={url}
+                                                    alt=""
+                                                    className="w-32 h-32 object-cover rounded-lg border border-gray-200 hover:opacity-90 transition"
+                                                />
+                                            </a>
+                                        ))}
+                                    </div>
+                                )}
                                 <div className="flex items-center space-x-6 pt-4 border-t text-sm text-accent">
                                     <div className="flex items-center space-x-2">
                                         <Heart className="w-4 h-4" />

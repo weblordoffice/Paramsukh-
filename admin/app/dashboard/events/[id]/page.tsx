@@ -5,10 +5,11 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Image as ImageIcon, Video, Users } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon, Video, Users, Pencil, Link2 } from 'lucide-react';
 import PhotosTab from './PhotosTab';
 import VideosTab from './VideosTab';
 import RegistrationsTab from './RegistrationsTab';
+import EventModal from '../EventModal';
 
 interface Event {
     _id: string;
@@ -19,6 +20,7 @@ interface Event {
     eventTime: string;
     location: string;
     locationType: string;
+    onlineMeetingLink?: string | null;
     category: string;
     status: string;
     currentAttendees: number;
@@ -37,6 +39,7 @@ export default function EventDetailsPage() {
     const [event, setEvent] = useState<Event | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabType>('photos');
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     const fetchEventDetails = useCallback(async () => {
         try {
@@ -102,13 +105,22 @@ export default function EventDetailsPage() {
         <div className="p-6 max-w-7xl mx-auto">
             {/* Header */}
             <div className="mb-6">
-                <button
-                    onClick={() => router.push('/dashboard/events')}
-                    className="flex items-center text-gray-600 hover:text-gray-900 mb-4"
-                >
-                    <ArrowLeft className="w-5 h-5 mr-2" />
-                    Back to Events
-                </button>
+                <div className="flex items-center justify-between mb-4">
+                    <button
+                        onClick={() => router.push('/dashboard/events')}
+                        className="flex items-center text-gray-600 hover:text-gray-900"
+                    >
+                        <ArrowLeft className="w-5 h-5 mr-2" />
+                        Back to Events
+                    </button>
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                        <Pencil className="w-4 h-4" />
+                        Edit Event
+                    </button>
+                </div>
 
                 <div className="bg-white rounded-lg shadow-sm p-6">
                     <div className="flex items-start gap-4">
@@ -143,6 +155,24 @@ export default function EventDetailsPage() {
                                 <span className="text-gray-500">
                                     📍 {event.location}
                                 </span>
+                                {(event.locationType === 'online' || event.locationType === 'hybrid') && (
+                                    event.onlineMeetingLink ? (
+                                        <a
+                                            href={event.onlineMeetingLink}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+                                        >
+                                            <Link2 className="w-4 h-4" />
+                                            Meeting link
+                                        </a>
+                                    ) : (
+                                        <span className="inline-flex items-center gap-1 text-red-500">
+                                            <Link2 className="w-4 h-4" />
+                                            No meeting link set
+                                        </span>
+                                    )
+                                )}
                                 <span className="text-gray-500">
                                     🏷️ {event.category}
                                 </span>
@@ -200,6 +230,13 @@ export default function EventDetailsPage() {
                     )}
                 </div>
             </div>
+
+            <EventModal
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                event={event}
+                onSuccess={refreshEvent}
+            />
         </div>
     );
 }

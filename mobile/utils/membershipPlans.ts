@@ -22,6 +22,15 @@ export interface UIMembershipPlan {
     eligibleCourseIds: string[];
     eligibleCategories: string[];
   };
+  courseCount?: number;
+  previewVideos?: PreviewVideo[];
+}
+
+export interface PreviewVideo {
+  title: string;
+  videoUrl: string;
+  thumbnailUrl?: string | null;
+  duration?: string;
 }
 
 export interface EligibleCoursePreview {
@@ -95,6 +104,15 @@ const mapParentPlan = (plan: any): UIMembershipPlan => {
           eligibleCategories: plan.access.courseSelection.eligibleCategories || [],
         }
       : undefined,
+    courseCount: Number(plan?.courseCount || 0),
+    previewVideos: (Array.isArray(plan?.previewVideos) ? plan.previewVideos : [])
+      .map((video: any) => ({
+        title: String(video?.title || ''),
+        videoUrl: String(video?.videoUrl || ''),
+        thumbnailUrl: video?.thumbnailUrl || null,
+        duration: video?.duration || '',
+      }))
+      .filter((video: PreviewVideo) => !!video.videoUrl),
   };
 };
 

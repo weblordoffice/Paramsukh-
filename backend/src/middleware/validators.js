@@ -111,9 +111,8 @@ export const validateCreateEvent = [
     .isISO8601()
     .withMessage('Start time must be a valid datetime'),
   body('location')
-    .trim()
-    .notEmpty()
-    .withMessage('Location is required'),
+    .optional({ checkFalsy: true })
+    .trim(),
   body('category')
     .trim()
     .notEmpty()

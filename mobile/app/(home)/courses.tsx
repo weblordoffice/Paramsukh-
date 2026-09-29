@@ -41,6 +41,8 @@ type PlanVisual = {
 
 const DEFAULT_PLAN_COLOR = '#64748B';
 
+type EnrichedCourse = Course & { dynamicPlanBadges: PlanVisual[] };
+
 const normalize = (value?: string | null) => String(value || '').trim().toLowerCase();
 
 const canonicalizePlanTag = (value: string, planAliases: Record<string, string>) => {
@@ -162,6 +164,38 @@ export default function CoursesScreen() {
   tabTextActive: {
     color: colors.surface,
   },
+  planSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  planSectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  planSectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: colors.text,
+    flexShrink: 1,
+  },
+  planSectionCountPill: {
+    minWidth: 22,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  planSectionCount: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
   creditsBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -196,7 +230,6 @@ export default function CoursesScreen() {
     marginBottom: 20,
   },
   creditsBannerDoneText: { fontSize: 14, color: '#065F46', flex: 1 },
-  creditsBannerDoneLink: { fontWeight: '700', color: '#059669', textDecorationLine: 'underline' },
   card: {
     backgroundColor: colors.surface,
     borderRadius: 16,
@@ -338,7 +371,7 @@ export default function CoursesScreen() {
   const [planLookup, setPlanLookup] = useState<Record<string, PlanVisual>>({});
   const [planAliases, setPlanAliases] = useState<Record<string, string>>({});
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'free' | 'paid'>('free');
+  const [activeTab, setActiveTab] = useState<'all' | 'free' | 'paid'>('all');
   const bottomTabHeight = useBottomTabBarHeight();
   const [creditsLoading, setCreditsLoading] = useState(true);
   const [membershipCredits, setMembershipCredits] = useState<{
@@ -546,7 +579,188 @@ export default function CoursesScreen() {
     return { freeCourses: free, paidCourses: paid };
   }, [enrichedCourses]);
 
-  const displayCourses = activeTab === 'free' ? freeCourses : paidCourses;
+  // Group paid courses into sections — one per membership plan, plus an "Other" catch-all.
+  const paidSections = useMemo(() => {
+    const sections: { key: string; title: string; color: string; courses: EnrichedCourse[] }[] = [];
+    const claimed = new Set<string>();
+
+    Object.keys(planLookup).forEach((slug) => {
+      const visual = planLookup[slug];
+      const coursesForPlan = paidCourses.filter((course) =>
+        (course.includedInPlans || []).some(
+          (tag) => canonicalizePlanTag(tag, planAliases) === slug,
+        ),
+      );
+
+      if (coursesForPlan.length > 0) {
+        sections.push({
+          key: slug,
+          title: visual.label,
+          color: visual.color,
+          courses: coursesForPlan,
+        });
+        coursesForPlan.forEach((course) => claimed.add(String(course._id)));
+      }
+    });
+
+    const otherCourses = paidCourses.filter((course) => !claimed.has(String(course._id)));
+    if (otherCourses.length > 0) {
+      sections.push({
+        key: '__other__',
+        title: 'Other Plans',
+        color: DEFAULT_PLAN_COLOR,
+        courses: otherCourses,
+      });
+    }
+
+    return sections;
+  }, [paidCourses, planLookup, planAliases]);
+
+  const renderSectionHeader = (label: string, count: number, color?: string) => (
+    <View style={styles.planSectionHeader}>
+      <View style={[styles.planSectionDot, { backgroundColor: color || colors.textSecondary }]} />
+      <Text style={styles.planSectionTitle} numberOfLines={1}>{label}</Text>
+      <View style={styles.planSectionCountPill}>
+        <Text style={styles.planSectionCount}>{count}</Text>
+      </View>
+    </View>
+  );
+
+  const renderCourseCard = (course: EnrichedCourse) => {
+    // Don't render access state until credits have loaded — avoids
+    // a flash where all paid courses appear unlocked.
+    if (creditsLoading && course.includedInPlans && course.includedInPlans.length > 0) {
+      return (
+        <View key={course._id} style={[styles.card, { opacity: 0.5 }]}>
+          <View style={[styles.imageContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+            <ActivityIndicator size="small" color="#EAB308" />
+          </View>
+        </View>
+      );
+    }
+
+    const accessible = isCourseAccessible(
+      course.includedInPlans,
+      effectivePlans,
+      isActive,
+      planAliases
+    );
+    const isPaidCourse = !!(course.includedInPlans && course.includedInPlans.length > 0);
+    const needsCreditSelection = !!(membershipCredits?.enabled && isPaidCourse);
+    const isCreditUnlocked = needsCreditSelection
+      ? selectedCourseIds.has(String(course._id))
+      : true;
+    const locked = !accessible || (needsCreditSelection && !isCreditUnlocked);
+    const categoryConfig = getCategoryConfig(course.category);
+
+    return (
+      <TouchableOpacity
+        key={course._id}
+        style={[styles.card, locked && styles.cardLocked]}
+        onPress={() => handleCardPress(course, locked)}
+        activeOpacity={0.7}
+      >
+        {/* Course Image */}
+        <View style={styles.imageContainer}>
+          {course.thumbnailUrl ? (
+            <Image
+              source={{ uri: course.thumbnailUrl }}
+              style={styles.courseImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.imagePlaceholder, { backgroundColor: course.color || '#4F46E5' }]}>
+              <Ionicons name="book" size={48} color={colors.surface} />
+            </View>
+          )}
+
+          {/* Category Badge */}
+          {categoryConfig && (
+            <View style={[styles.categoryBadge, { backgroundColor: categoryConfig.bg }]}>
+              <Ionicons name={categoryConfig.icon as any} size={12} color={categoryConfig.color} />
+              <Text style={[styles.categoryText, { color: categoryConfig.color }]}>
+                {categoryConfig.label}
+              </Text>
+            </View>
+          )}
+
+          {/* Lock / Unlock Overlay */}
+          {(() => {
+            const courseIdStr = String(course._id);
+            const isAlreadyUnlocked = membershipCredits?.enabled && selectedCourseIds.has(courseIdStr);
+            const isEligible = membershipCredits?.enabled && eligibleCourseIds.has(courseIdStr);
+            const hasCredits = membershipCredits?.enabled && (membershipCredits?.remaining || 0) > 0;
+
+            if (locked && isEligible && hasCredits) {
+              return (
+                <View style={styles.unlockOverlay}>
+                  <Ionicons name="lock-open-outline" size={20} color={colors.surface} />
+                  <Text style={styles.unlockOverlayText}>Unlock Course</Text>
+                </View>
+              );
+            }
+
+            if (locked) {
+              return (
+                <View style={styles.lockOverlay}>
+                  <Ionicons name="lock-closed" size={32} color={colors.surface} />
+                </View>
+              );
+            }
+
+            if (isAlreadyUnlocked) {
+              return (
+                <View style={styles.enrolledOverlay}>
+                  <Ionicons name="checkmark-circle" size={24} color={colors.surface} />
+                  <Text style={styles.enrolledOverlayText}>Enrolled</Text>
+                </View>
+              );
+            }
+
+            return null;
+          })()}
+        </View>
+
+        {/* Course Info */}
+        <View style={styles.courseInfo}>
+          <Text style={styles.courseTitle} numberOfLines={2}>
+            {course.title}
+          </Text>
+          <Text style={styles.courseDescription} numberOfLines={2}>
+            {course.description}
+          </Text>
+
+          {/* Plan Badges */}
+          {course.dynamicPlanBadges && course.dynamicPlanBadges.length > 0 && (
+            <View style={styles.badgeContainer}>
+              {course.dynamicPlanBadges.map((plan) => (
+                <View
+                  key={plan.slug}
+                  style={[styles.planBadge, { backgroundColor: `${plan.color}20` }]}
+                >
+                  <Text style={[styles.planBadgeText, { color: plan.color }]}>
+                    {plan.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Course Stats */}
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+              <Text style={styles.statText}>{course.duration}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Ionicons name="play-circle-outline" size={16} color={colors.textSecondary} />
+              <Text style={styles.statText}>{course.totalVideos || 0} videos</Text>
+            </View>
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -567,8 +781,22 @@ export default function CoursesScreen() {
             </Text>
           </View>
 
-          {/* Free / Paid Tabs */}
+          {/* All / Free / Paid Tabs */}
           <View style={styles.tabContainer}>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'all' && styles.tabActive]}
+              onPress={() => setActiveTab('all')}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={activeTab === 'all' ? 'apps' : 'apps-outline'}
+                size={16}
+                color={activeTab === 'all' ? colors.surface : colors.textSecondary}
+              />
+              <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
+                All
+              </Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.tab, activeTab === 'free' && styles.tabActive]}
               onPress={() => setActiveTab('free')}
@@ -625,13 +853,7 @@ export default function CoursesScreen() {
               <View style={styles.creditsBannerDone}>
                 <Ionicons name="checkmark-circle" size={20} color="#065F46" />
                 <Text style={styles.creditsBannerDoneText}>
-                  All {membershipCredits.maxSelectable} courses selected — <Text style={styles.creditsBannerDoneLink} onPress={() => router.push({
-                    pathname: '/(home)/choose-courses',
-                    params: {
-                      membershipId: membershipCredits.membershipId,
-                      maxSelectable: String(membershipCredits.maxSelectable),
-                    },
-                  })}>Manage selections</Text>
+                  All {membershipCredits.maxSelectable} courses selected
                 </Text>
               </View>
             )
@@ -645,161 +867,51 @@ export default function CoursesScreen() {
               <Text style={styles.emptyTitle}>No courses available</Text>
               <Text style={styles.emptySubtitle}>Check back soon for new content</Text>
             </View>
-          ) : displayCourses.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Ionicons
-                name={activeTab === 'free' ? 'lock-open-outline' : 'lock-closed-outline'}
-                size={64}
-                color={colors.border}
-              />
-              <Text style={styles.emptyTitle}>
-                No {activeTab === 'free' ? 'free' : 'paid'} courses
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                {activeTab === 'free'
-                  ? 'Check back soon for free content'
-                  : 'Explore membership plans to access paid courses'}
-              </Text>
-            </View>
+          ) : activeTab === 'free' ? (
+            freeCourses.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="lock-open-outline" size={64} color={colors.border} />
+                <Text style={styles.emptyTitle}>No free courses</Text>
+                <Text style={styles.emptySubtitle}>Check back soon for free content</Text>
+              </View>
+            ) : (
+              <>
+                {renderSectionHeader('Free Courses', freeCourses.length, '#22C55E')}
+                {freeCourses.map(renderCourseCard)}
+              </>
+            )
+          ) : activeTab === 'paid' ? (
+            paidSections.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="lock-closed-outline" size={64} color={colors.border} />
+                <Text style={styles.emptyTitle}>No paid courses</Text>
+                <Text style={styles.emptySubtitle}>Explore membership plans to access paid courses</Text>
+              </View>
+            ) : (
+              <>
+                {paidSections.map((section) => (
+                  <View key={section.key}>
+                    {renderSectionHeader(section.title, section.courses.length, section.color)}
+                    {section.courses.map(renderCourseCard)}
+                  </View>
+                ))}
+              </>
+            )
           ) : (
-            displayCourses.map((course) => {
-              // Don't render access state until credits have loaded — avoids
-              // a flash where all paid courses appear unlocked.
-              if (creditsLoading && course.includedInPlans && course.includedInPlans.length > 0) {
-                return (
-                  <View key={course._id} style={[styles.card, { opacity: 0.5 }]}>
-                    <View style={[styles.imageContainer, { justifyContent: 'center', alignItems: 'center' }]}>
-                      <ActivityIndicator size="small" color="#EAB308" />
-                    </View>
-                  </View>
-                );
-              }
-
-              const accessible = isCourseAccessible(
-                course.includedInPlans,
-                effectivePlans,
-                isActive,
-                planAliases
-              );
-              const isPaidCourse = !!(course.includedInPlans && course.includedInPlans.length > 0);
-              const needsCreditSelection = !!(membershipCredits?.enabled && isPaidCourse);
-              const isCreditUnlocked = needsCreditSelection
-                ? selectedCourseIds.has(String(course._id))
-                : true;
-              const locked = !accessible || (needsCreditSelection && !isCreditUnlocked);
-              const categoryConfig = getCategoryConfig(course.category);
-
-              return (
-                <TouchableOpacity
-                  key={course._id}
-                  style={[
-                    styles.card,
-                    locked && styles.cardLocked,
-                  ]}
-                  onPress={() => handleCardPress(course, locked)}
-                  activeOpacity={0.7}
-                >
-                  {/* Course Image */}
-                  <View style={styles.imageContainer}>
-                    {course.thumbnailUrl ? (
-                      <Image
-                        source={{ uri: course.thumbnailUrl }}
-                        style={styles.courseImage}
-                        resizeMode="cover"
-                      />
-                    ) : (
-                      <View style={[styles.imagePlaceholder, { backgroundColor: course.color || '#4F46E5' }]}>
-                        <Ionicons name="book" size={48} color={colors.surface} />
-                      </View>
-                    )}
-
-                    {/* Category Badge */}
-                    {categoryConfig && (
-                      <View style={[styles.categoryBadge, { backgroundColor: categoryConfig.bg }]}>
-                        <Ionicons name={categoryConfig.icon as any} size={12} color={categoryConfig.color} />
-                        <Text style={[styles.categoryText, { color: categoryConfig.color }]}>
-                          {categoryConfig.label}
-                        </Text>
-                      </View>
-                    )}
-
-                    {/* Lock / Unlock Overlay */}
-                    {(() => {
-                      const courseIdStr = String(course._id);
-                      const isAlreadyUnlocked = membershipCredits?.enabled && selectedCourseIds.has(courseIdStr);
-                      const isEligible = membershipCredits?.enabled && eligibleCourseIds.has(courseIdStr);
-                      const hasCredits = membershipCredits?.enabled && (membershipCredits?.remaining || 0) > 0;
-
-                      if (locked && isEligible && hasCredits) {
-                        return (
-                          <View style={styles.unlockOverlay}>
-                            <Ionicons name="lock-open-outline" size={20} color={colors.surface} />
-                            <Text style={styles.unlockOverlayText}>Unlock Course</Text>
-                          </View>
-                        );
-                      }
-
-                      if (locked) {
-                        return (
-                          <View style={styles.lockOverlay}>
-                            <Ionicons name="lock-closed" size={32} color={colors.surface} />
-                          </View>
-                        );
-                      }
-
-                      if (isAlreadyUnlocked) {
-                        return (
-                          <View style={styles.enrolledOverlay}>
-                            <Ionicons name="checkmark-circle" size={24} color={colors.surface} />
-                            <Text style={styles.enrolledOverlayText}>Enrolled</Text>
-                          </View>
-                        );
-                      }
-
-                      return null;
-                    })()}
-                  </View>
-
-                  {/* Course Info */}
-                  <View style={styles.courseInfo}>
-                    <Text style={styles.courseTitle} numberOfLines={2}>
-                      {course.title}
-                    </Text>
-                    <Text style={styles.courseDescription} numberOfLines={2}>
-                      {course.description}
-                    </Text>
-
-                    {/* Plan Badges */}
-                    {course.dynamicPlanBadges && course.dynamicPlanBadges.length > 0 && (
-                      <View style={styles.badgeContainer}>
-                        {course.dynamicPlanBadges.map((plan) => (
-                          <View
-                            key={plan.slug}
-                            style={[styles.planBadge, { backgroundColor: `${plan.color}20` }]}
-                          >
-                            <Text style={[styles.planBadgeText, { color: plan.color }]}>
-                              {plan.label}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    )}
-
-                    {/* Course Stats */}
-                    <View style={styles.statsRow}>
-                      <View style={styles.statItem}>
-                        <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-                        <Text style={styles.statText}>{course.duration}</Text>
-                      </View>
-                      <View style={styles.statItem}>
-                        <Ionicons name="play-circle-outline" size={16} color={colors.textSecondary} />
-                        <Text style={styles.statText}>{course.totalVideos || 0} videos</Text>
-                      </View>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })
+            <>
+              {freeCourses.length > 0 && (
+                <View>
+                  {renderSectionHeader('Free Courses', freeCourses.length, '#22C55E')}
+                  {freeCourses.map(renderCourseCard)}
+                </View>
+              )}
+              {paidSections.map((section) => (
+                <View key={section.key}>
+                  {renderSectionHeader(section.title, section.courses.length, section.color)}
+                  {section.courses.map(renderCourseCard)}
+                </View>
+              ))}
+            </>
           )}
         </View>
       </ScrollView>

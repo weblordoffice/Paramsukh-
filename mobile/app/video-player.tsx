@@ -305,11 +305,13 @@ export default function VideoPlayerScreen() {
   const videoUrl = params.videoUrl as string;
   const courseId = params.courseId as string;
   const videoId = params.videoId as string;
+  const isFreePreview = params.isFree === 'true';
 
-  // Block access if not enrolled (prevents deep-link bypass)
+  // Block access if not enrolled (prevents deep-link bypass).
+  // Free preview videos are allowed through without enrollment.
   const [accessChecked, setAccessChecked] = useState(false);
   useEffect(() => {
-    if (!courseId || !token) { setAccessChecked(true); return; }
+    if (!courseId || !token || isFreePreview) { setAccessChecked(true); return; }
     let cancelled = false;
     (async () => {
       try {

@@ -16,7 +16,7 @@ import {
   deletePost,
   deleteComment
 } from '../../controller/community/community.controller.js';
-import { getAllPosts, deletePostAdmin, togglePinPost, createPostAdmin, getAdminGroups, getPostCommentsAdmin, deleteCommentAdmin } from '../../controller/community/admin.community.controller.js';
+import { getAllPosts, deletePostAdmin, togglePinPost, createPostAdmin, getAdminGroups, getPostCommentsAdmin, deleteCommentAdmin, getGeneralGroup, updateGeneralGroup } from '../../controller/community/admin.community.controller.js';
 import { runScheduledCleanup } from '../../controller/community/communityCleanup.controller.js';
 
 const router = express.Router();
@@ -27,6 +27,8 @@ router.delete('/posts/:postId/admin', adminAuth, deletePostAdmin);
 router.patch('/posts/:postId/pin', adminAuth, togglePinPost);
 router.post('/admin/posts', adminAuth, communityPostLimiter, sanitizePostContent, validateCreatePost, createPostAdmin);
 router.get('/admin/groups', adminAuth, getAdminGroups);
+router.get('/admin/groups/general', adminAuth, getGeneralGroup);
+router.patch('/admin/groups/general', adminAuth, updateGeneralGroup);
 router.get('/admin/posts/:postId/comments', adminAuth, getPostCommentsAdmin);
 router.delete('/comments/:commentId/admin', adminAuth, deleteCommentAdmin);
 router.get('/admin/cleanup-expired', adminAuth, runScheduledCleanup);  // Scheduled cleanup endpoint

@@ -2,6 +2,7 @@ import { Group, GroupMember, Post, Comment } from '../../models/community.models
 import { evaluateCommunityAccess } from '../../services/entitlement.service.js';
 import { syncUserCommunityMembershipsByPlan } from '../../services/planUpgrade.service.js';
 import { UserMembership } from '../../models/userMembership.models.js';
+import { ensureGeneralGroup, enrollUserInGroup, isPublicGroup } from '../../services/community.service.js';
 
 const normalizeCategory = (value) => String(value || '').trim().toLowerCase();
 
@@ -40,40 +41,6 @@ export const checkCommunityAccess = async (req, res) => {
   }
 };
 
-const ensureGeneralGroup = async () => {
-  const generalGroup = await Group.findOneAndUpdate(
-    { groupType: 'plan', planSlug: 'general' },
-    {
-      $setOnInsert: {
-        name: 'General Community',
-        description: 'A public space for all users. Join the conversation!',
-        groupType: 'plan',
-        planSlug: 'general',
-        isActive: true,
-      }
-    },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
-  return generalGroup;
-};
-
-const enrollUserInGroup = async (groupId, userId) => {
-  // Atomic upsert — prevents race conditions on concurrent enrollment
-  const result = await GroupMember.findOneAndUpdate(
-    { groupId, userId },
-    { $setOnInsert: { groupId, userId, role: 'member', isActive: true }, $set: { isActive: true } },
-    { upsert: true, new: true, rawResult: true }
-  );
-
-  // Only increment memberCount if this was a new insert (not an existing membership)
-  if (!result.lastErrorObject?.updatedExisting) {
-    await Group.findByIdAndUpdate(groupId, { $inc: { memberCount: 1 } });
-    console.log(`👤 Enrolled user ${userId} in group ${groupId}`);
-  }
-
-  return result.value;
-};
-
 const formatPlanLabel = (planSlug) => {
   const normalized = String(planSlug || '').trim().toLowerCase();
   if (!normalized) return 'Plan';
@@ -100,22 +67,17 @@ export const getMyGroups = async (req, res) => {
     const userId = req.user._id;
 
     const access = await evaluateCommunityAccess(userId);
-    if (!access.hasAccess) {
-      return res.status(403).json({
-        success: false,
-        message: "Community access requires an active membership"
-      });
-    }
 
-    const isFreeUser = access.isFreeUser === true;
+    // The General (public) group is available to everyone, regardless of membership.
+    const generalGroup = await ensureGeneralGroup();
+    let generalFormatted = null;
 
-    if (isFreeUser) {
-      const generalGroup = await ensureGeneralGroup();
+    if (generalGroup && generalGroup.isActive !== false) {
       await enrollUserInGroup(generalGroup._id, userId);
       const reFetched = await Group.findById(generalGroup._id).select('memberCount').lean();
       const membership = await GroupMember.findOne({ groupId: generalGroup._id, userId, isActive: true }).lean();
 
-      const formatted = {
+      generalFormatted = {
         _id: generalGroup._id,
         name: generalGroup.name,
         description: generalGroup.description,
@@ -126,16 +88,23 @@ export const getMyGroups = async (req, res) => {
         category: null,
         parentGroupId: null,
         course: null,
+        isPublic: true,
         joinedAt: membership?.joinedAt || new Date(),
         role: membership?.role || 'member',
       };
+    }
 
+    const baseGroups = generalFormatted ? [generalFormatted] : [];
+
+    // Users without plan-based community access only get the General group.
+    if (!access.hasAccess) {
       return res.status(200).json({
         success: true,
-        planGroups: [{ ...formatted, subgroups: [] }],
-        groups: [formatted],
+        generalGroup: generalFormatted,
+        planGroups: [],
+        groups: baseGroups,
         otherGroups: [],
-        totalGroups: 1,
+        totalGroups: baseGroups.length,
       });
     }
 
@@ -153,20 +122,13 @@ export const getMyGroups = async (req, res) => {
       .lean();
 
     if (!activeMemberships.length) {
-      const generalGroup = await ensureGeneralGroup();
-      await enrollUserInGroup(generalGroup._id, userId);
-      const fmt = {
-        _id: generalGroup._id, name: generalGroup.name, description: generalGroup.description,
-        memberCount: generalGroup.memberCount || 0, coverImage: generalGroup.coverImage || null,
-        groupType: 'plan', planSlug: 'general', category: null, parentGroupId: null,
-        course: null, joinedAt: new Date(), role: 'member',
-      };
       return res.status(200).json({
         success: true,
-        planGroups: [{ ...fmt, subgroups: [] }],
-        groups: [fmt],
+        generalGroup: generalFormatted,
+        planGroups: [],
+        groups: baseGroups,
         otherGroups: [],
-        totalGroups: 1,
+        totalGroups: baseGroups.length,
       });
     }
 
@@ -219,6 +181,7 @@ export const getMyGroups = async (req, res) => {
             category: group.category || null,
             parentGroupId: group.parentGroupId || null,
             course: group.courseId || null,
+            isPublic: false,
             joinedAt: mem?.joinedAt || new Date(),
             role: mem?.role || 'member',
           };
@@ -240,14 +203,15 @@ export const getMyGroups = async (req, res) => {
       }
     }
 
-    const allGroups = allPlanGroups.flatMap(pg => [pg, ...pg.subgroups]).filter(g => g._id);
+    const flatPlanGroups = allPlanGroups.flatMap(pg => [pg, ...pg.subgroups]).filter(g => g._id);
 
     return res.status(200).json({
       success: true,
+      generalGroup: generalFormatted,
       planGroups: allPlanGroups,
-      groups: allGroups,
+      groups: [...baseGroups, ...flatPlanGroups],
       otherGroups: [],
-      totalGroups: allPlanGroups.length + allPlanGroups.reduce((sum, pg) => sum + (pg.subgroups?.length || 0), 0),
+      totalGroups: baseGroups.length + allPlanGroups.length + allPlanGroups.reduce((sum, pg) => sum + (pg.subgroups?.length || 0), 0),
     });
 
   } catch (error) {
@@ -272,27 +236,35 @@ export const getGroupPosts = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const skip = (page - 1) * limit;
 
-    // Double-check: User must have active community access
-    const access = await evaluateCommunityAccess(userId);
-    if (!access.hasAccess) {
-      return res.status(403).json({
-        success: false,
-        message: "Community access requires an active membership"
-      });
-    }
-
     // Determine which group IDs to query posts from
     // If this is a plan-level parent group, get posts from all child subgroups too
-    const group = await Group.findById(groupId).select('groupType').lean();
-    if (!group) {
+    const group = await Group.findById(groupId).select('groupType planSlug isPublic isActive').lean();
+    if (!group || group.isActive === false) {
       return res.status(404).json({
         success: false,
         message: "Group not found"
       });
     }
 
-    // Check if user is a member of this group
-    const membership = await GroupMember.findOne({ groupId, userId, isActive: true });
+    const publicGroup = isPublicGroup(group);
+
+    // Public (General) groups are open to any authenticated user.
+    if (!publicGroup) {
+      const access = await evaluateCommunityAccess(userId);
+      if (!access.hasAccess) {
+        return res.status(403).json({
+          success: false,
+          message: "Community access requires an active membership"
+        });
+      }
+    }
+
+    // Check membership; auto-enroll into public groups.
+    let membership = await GroupMember.findOne({ groupId, userId, isActive: true });
+    if (!membership && publicGroup) {
+      await enrollUserInGroup(groupId, userId);
+      membership = true;
+    }
     if (!membership) {
       return res.status(403).json({
         success: false,
@@ -390,8 +362,20 @@ export const createPost = async (req, res) => {
       });
     }
 
-    // Check if user is a member of this group
-    const membership = await GroupMember.findOne({ groupId, userId, isActive: true });
+    const group = await Group.findById(groupId).select('planSlug isPublic isActive').lean();
+    if (!group || group.isActive === false) {
+      return res.status(404).json({
+        success: false,
+        message: "Group not found"
+      });
+    }
+
+    // Members can post; public (General) groups auto-enroll any authenticated user.
+    let membership = await GroupMember.findOne({ groupId, userId, isActive: true });
+    if (!membership && isPublicGroup(group)) {
+      await enrollUserInGroup(groupId, userId);
+      membership = true;
+    }
     if (!membership) {
       return res.status(403).json({
         success: false,
