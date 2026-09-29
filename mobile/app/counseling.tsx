@@ -1,5 +1,5 @@
 import React, { useState , useEffect, useRef, useCallback } from 'react';
-import { ScrollView, Text, TouchableOpacity, View , ActivityIndicator, Linking } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View , ActivityIndicator, Linking, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -28,6 +28,7 @@ export default function CounselingScreen() {
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [confirmedBooking, setConfirmedBooking] = useState<ConfirmedBookingSummary | null>(null);
   const [isBookingLoading, setIsBookingLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { counselingTypes, fetchCounselingTypes, fetchMyBookings, isLoading } = useCounselingStore();
 
@@ -40,6 +41,15 @@ export default function CounselingScreen() {
       isMountedRef1.current = false;
     };
   }, [fetchCounselingTypes]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([
+      fetchCounselingTypes(),
+      fetchMyBookings('confirmed')
+    ]);
+    setRefreshing(false);
+  }, [fetchCounselingTypes, fetchMyBookings]);
 
   useFocusEffect(
     useCallback(() => {
@@ -95,7 +105,18 @@ export default function CounselingScreen() {
         <View className="w-10" />
       </View>
 
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#F1842D"
+            colors={['#F1842D']}
+          />
+        }
+      >
         <View className="p-5">
           {/* Hero Section */}
           <View className="bg-white rounded-3xl p-6 mb-8 shadow-sm border border-gray-100 items-center">

@@ -1480,6 +1480,16 @@ export const handleWebhook = async (req, res) => {
         }
 
         if (pNotes.type === 'booking' && pNotes.bookingId) {
+          // IDEMPOTENCY: Check if this payment was already used for another booking (fraud prevention)
+          const existingBookingWithPayment = await Booking.findOne({
+            razorpayPaymentId: payment.id,
+            _id: { $ne: pNotes.bookingId }
+          });
+          if (existingBookingWithPayment) {
+            console.warn(`⚠️ Payment ${payment.id} already used for booking ${existingBookingWithPayment._id}, skipping booking ${pNotes.bookingId}`);
+            break;
+          }
+
           const booking = await Booking.findById(pNotes.bookingId);
           if (booking) {
             const expectedPaise = Math.round((Number(booking.amount) || 0) * 100);
@@ -1492,6 +1502,7 @@ export const handleWebhook = async (req, res) => {
                 {
                   $set: {
                     paymentId: payment.id,
+                    razorpayPaymentId: payment.id,
                     paymentMethod: 'razorpay',
                     paymentStatus: 'paid',
                     paidAt: new Date(),
@@ -1524,6 +1535,16 @@ export const handleWebhook = async (req, res) => {
         }
 
         if (pNotes.type === 'order' && pNotes.orderId) {
+          // IDEMPOTENCY: Check if this payment was already used for another order (fraud prevention)
+          const existingOrderWithPayment = await Order.findOne({
+            'payment.razorpayPaymentId': payment.id,
+            _id: { $ne: pNotes.orderId }
+          });
+          if (existingOrderWithPayment) {
+            console.warn(`⚠️ Payment ${payment.id} already used for order ${existingOrderWithPayment._id}, skipping order ${pNotes.orderId}`);
+            break;
+          }
+
           const order = await Order.findById(pNotes.orderId);
           if (order) {
             const expectedPaise = Math.round((order.pricing?.total || 0) * 100);

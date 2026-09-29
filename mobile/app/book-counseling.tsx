@@ -36,6 +36,7 @@ export default function BookCounselingScreen() {
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [fetchingSlots, setFetchingSlots] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [optimisticSlot, setOptimisticSlot] = useState<string | null>(null); // Optimistically reserved slot
   const processingRef = useRef(false);
 
   // Effect: Fetch availability when date changes
@@ -73,6 +74,11 @@ export default function BookCounselingScreen() {
     const numericPrice = Number(price) || 0;
     const free = isFree === 'true';
 
+    // Optimistically remove slot from available list
+    const bookedSlot = selectedTime;
+    setOptimisticSlot(bookedSlot);
+    setAvailableSlots(prev => prev.filter(s => s !== bookedSlot));
+
     setProcessing(true);
     try {
       // Step 1: Create booking (pending for paid, confirmed for free)
@@ -88,6 +94,9 @@ export default function BookCounselingScreen() {
       });
 
       if (!result.success) {
+        // Restore slot on failure
+        setAvailableSlots(prev => [...prev, bookedSlot].sort());
+        setOptimisticSlot(null);
         Alert.alert('Booking Failed', result.message || 'Please try again.');
         return;
       }
@@ -155,6 +164,9 @@ export default function BookCounselingScreen() {
 
       const linkResult = await createBookingPaymentLink(bookingId);
       if (!linkResult.success || !linkResult.url || !linkResult.paymentLinkId) {
+        // Restore slot on failure
+        setAvailableSlots(prev => [...prev, bookedSlot].sort());
+        setOptimisticSlot(null);
         Alert.alert('Payment Error', linkResult.message || 'Could not start payment.');
         return;
       }
@@ -175,15 +187,25 @@ export default function BookCounselingScreen() {
 
       if (openResult.success) {
         await clearPendingPaymentLinks('counseling', bookingId, paymentLinkId);
+        setOptimisticSlot(null);
         Alert.alert(
           'Booking Confirmed! 🎉',
           `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${selectedTime} has been booked. Payment received.`,
           [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
         );
+      } else if (openResult.timedOut) {
+        // Payment timed out - keep slot reserved, user can retry
+        Alert.alert('Payment Pending', 'Your payment is being processed. If you paid, your booking will be confirmed shortly.');
       } else {
+        // Payment cancelled or failed - restore slot
+        setAvailableSlots(prev => [...prev, bookedSlot].sort());
+        setOptimisticSlot(null);
         Alert.alert('Payment', openResult.result?.message || 'If you paid, your booking will be confirmed shortly. Otherwise please try again.');
       }
     } catch (e: any) {
+      // Restore slot on error
+      setAvailableSlots(prev => [...prev, bookedSlot].sort());
+      setOptimisticSlot(null);
       Alert.alert('Error', e?.message || 'An unexpected error occurred.');
     } finally {
       processingRef.current = false;

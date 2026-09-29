@@ -72,6 +72,23 @@ export default function CounselingDetailScreen() {
         })();
     }, [bookingId, fetchBookingDetails]);
 
+    // Auto-refresh booking details if meeting link is not yet available
+    useEffect(() => {
+        if (!bookingId || !booking) return;
+
+        // If booking is confirmed but no meeting link, poll for updates every 30 seconds
+        if (booking.status === 'confirmed' && !booking.meetingLink) {
+            const interval = setInterval(async () => {
+                const updated = await fetchBookingDetails(bookingId as string);
+                if (updated?.meetingLink && updated.meetingLink !== booking.meetingLink) {
+                    setBooking(updated);
+                }
+            }, 30000);
+
+            return () => clearInterval(interval);
+        }
+    }, [bookingId, booking, fetchBookingDetails]);
+
     const openMeeting = () => {
         if (!booking?.meetingLink) return;
         Linking.openURL(booking.meetingLink).catch(() =>

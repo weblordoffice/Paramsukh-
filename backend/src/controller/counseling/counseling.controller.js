@@ -335,9 +335,46 @@ export const bookCounseling = async (req, res) => {
       await booking.save();
     } catch (dbError) {
       if (dbError.code === 11000) {
-        return res.status(400).json({
-          success: false,
-          message: 'This time slot was just booked by another user. Please select another time.'
+        // Slot taken - offer waitlist option
+        const waitlistCount = await Booking.countDocuments({
+          counselorType: finalCounselorType,
+          bookingDate: bookingDateObj,
+          bookingTime,
+          status: 'pending',
+          waitlistRank: { $ne: null }
+        });
+
+        const waitlistRank = waitlistCount + 1;
+
+        // Create booking as waitlisted
+        const waitlistedBooking = new Booking({
+          user: userId,
+          counselorType: finalCounselorType,
+          counselorName: finalCounselorName,
+          bookingType: finalBookingType,
+          bookingTitle: finalBookingTitle,
+          bookingDate: bookingDateObj,
+          bookingTime,
+          userNotes: sanitizeNotes(userNotes),
+          userPhone: user.phone || 'N/A',
+          userEmail: user.email || '',
+          isFree,
+          amount: bookingAmount,
+          paymentStatus: isFree ? 'not_required' : 'pending',
+          status: 'pending',
+          waitlistRank
+        });
+
+        await waitlistedBooking.save();
+
+        return res.status(200).json({
+          success: true,
+          message: `You've been added to the waitlist (position #${waitlistRank}). We'll notify you if a spot opens up.`,
+          data: {
+            booking: waitlistedBooking,
+            waitlistRank,
+            isWaitlisted: true
+          }
         });
       }
       throw dbError;
@@ -558,6 +595,34 @@ export const cancelBooking = async (req, res) => {
     recordRefund({ sourceId: booking._id.toString(), refundAmount: booking.amount }).catch(err =>
       console.error('Refund recording failed:', err.message)
     );
+
+    // NOTIFY WAITLISTED USERS: Slot is now available
+    const nextWaitlisted = await Booking.findOneAndUpdate(
+      {
+        counselorType: booking.counselorType,
+        bookingDate: booking.bookingDate,
+        bookingTime: booking.bookingTime,
+        status: 'pending',
+        waitlistRank: { $ne: null }
+      },
+      {
+        $set: { waitlistRank: null },
+        $unset: { waitlistRank: 1 }
+      },
+      { new: true, sort: { waitlistRank: 1 } }
+    );
+
+    if (nextWaitlisted) {
+      await sendNotification(nextWaitlisted.user, {
+        type: 'counseling_waitlist',
+        title: 'Slot Available! 🎉',
+        message: `A spot has opened up for ${booking.bookingTitle} on ${new Date(booking.bookingDate).toLocaleDateString()} at ${booking.bookingTime}. Complete your booking now!`,
+        icon: '📅',
+        priority: 'high',
+        relatedId: nextWaitlisted._id,
+        relatedType: 'booking'
+      });
+    }
 
     // Send notification
     await sendNotification(userId, {

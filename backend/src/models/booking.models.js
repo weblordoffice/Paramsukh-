@@ -60,6 +60,11 @@ const bookingSchema = new mongoose.Schema({
     enum: ['pending', 'confirmed', 'completed', 'cancelled', 'rescheduled', 'no_show'],
     default: 'pending'
   },
+  // Waitlist for full slots
+  waitlistRank: {
+    type: Number,
+    default: null // null means not on waitlist, number indicates position
+  },
   // Payment details
   isFree: {
     type: Boolean,
@@ -307,15 +312,25 @@ bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
     },
     counselorType,
     status: { $in: ['pending', 'confirmed'] }
-  }).select('bookingTime');
-
-  const bookedSlots = bookings.map(b => b.bookingTime);
+  }).select('bookingTime bookingDate');
 
   // Helper to parse "HH:mm" to minutes from midnight
   const parseTimeToMinutes = (timeStr) => {
-    const [hrs, mins] = timeStr.split(':').map(Number);
+    const [hrs, mins] = String(timeStr).split(':').map(Number);
     return hrs * 60 + mins;
   };
+
+  // Filter out bookings outside current business hours (handles legacy bookings with old times)
+  const startMinutes = parseTimeToMinutes(hours.start);
+  const endMinutes = parseTimeToMinutes(hours.end);
+  const interval = service.intervalMinutes || 60;
+
+  const bookedSlots = bookings
+    .filter(b => {
+      const slotMinutes = parseTimeToMinutes(b.bookingTime);
+      return slotMinutes >= startMinutes && slotMinutes < endMinutes;
+    })
+    .map(b => b.bookingTime);
 
   // Helper to format minutes to "HH:mm" (24h format — matches pre-save normalization)
   const formatMinutesToTime = (totalMinutes) => {
@@ -324,12 +339,8 @@ bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   };
 
-  const startMinutes = parseTimeToMinutes(hours.start);
-  const endMinutes = parseTimeToMinutes(hours.end);
-  const interval = service.intervalMinutes || 60;
-
   const availableSlots = [];
-  
+
   // TIMEZONE FIX: Use UTC for current time check
   const now = new Date();
   const isToday = now.toISOString().split('T')[0] === queryDate.toISOString().split('T')[0];
