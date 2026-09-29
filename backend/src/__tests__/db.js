@@ -5,10 +5,17 @@ let mongoServer;
 
 export const setupDB = () => {
   beforeAll(async () => {
-    mongoServer = await MongoMemoryServer.create();
+    mongoServer = await MongoMemoryServer.create({
+      instance: {
+        launchTimeout: 60000,
+      },
+      binary: {
+        version: '6.0.0',
+      },
+    });
     const uri = mongoServer.getUri();
     await mongoose.connect(uri);
-  });
+  }, 120000);
 
   afterAll(async () => {
     await mongoose.disconnect();

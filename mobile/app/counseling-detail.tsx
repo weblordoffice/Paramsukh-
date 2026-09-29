@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Alert, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -40,13 +40,27 @@ export default function CounselingDetailScreen() {
     waitingText: { fontSize: 13, color: colors.textSecondary, textAlign: 'center', marginTop: 4, lineHeight: 19 },
     notesText: { fontSize: 14, color: colors.text, lineHeight: 20 },
     emptyText: { fontSize: 16, color: colors.textSecondary, marginTop: 12 },
+    actionRow: { flexDirection: 'row', gap: 12, marginTop: 16 },
+    cancelButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FEE2E2', borderRadius: 12, paddingVertical: 14 },
+    cancelButtonText: { color: '#DC2626', fontSize: 14, fontWeight: '700' },
+    rescheduleButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#FEF3C7', borderRadius: 12, paddingVertical: 14 },
+    rescheduleButtonText: { color: '#D97706', fontSize: 14, fontWeight: '700' },
+    feedbackButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#F1842D', borderRadius: 12, paddingVertical: 14, marginTop: 16 },
+    feedbackButtonText: { color: colors.surface, fontSize: 14, fontWeight: '700' },
+    feedbackCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.surfaceSecondary },
+    ratingRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginVertical: 12 },
+    starButton: { padding: 4 },
+    feedbackInput: { backgroundColor: colors.background, borderRadius: 12, padding: 12, fontSize: 14, color: colors.text, minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: colors.surfaceSecondary },
 });
     const router = useRouter();
     const { bookingId } = useLocalSearchParams();
-    const { fetchBookingDetails } = useCounselingStore();
+    const { fetchBookingDetails, cancelBooking, rescheduleBooking, submitFeedback, isLoading } = useCounselingStore();
 
     const [booking, setBooking] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [showFeedback, setShowFeedback] = useState(false);
+    const [feedbackRating, setFeedbackRating] = useState(0);
+    const [feedbackComment, setFeedbackComment] = useState('');
 
     useEffect(() => {
         if (!bookingId) return;
@@ -63,6 +77,75 @@ export default function CounselingDetailScreen() {
         Linking.openURL(booking.meetingLink).catch(() =>
             Alert.alert('Error', 'Could not open the meeting link.')
         );
+    };
+
+    const canCancelOrReschedule = () => {
+        if (!booking) return false;
+        const now = new Date();
+        const bookingDate = new Date(booking.bookingDate);
+        const hoursUntil = (bookingDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+        return booking.status !== 'cancelled' && booking.status !== 'completed' && hoursUntil > 24;
+    };
+
+    const handleCancel = () => {
+        Alert.alert(
+            'Cancel Booking',
+            'Are you sure you want to cancel this booking? This action cannot be undone.',
+            [
+                { text: 'No, Keep It', style: 'cancel' },
+                {
+                    text: 'Yes, Cancel',
+                    style: 'destructive',
+                    onPress: async () => {
+                        const result = await cancelBooking(booking._id || bookingId as string, 'User requested cancellation');
+                        if (result.success) {
+                            Alert.alert('Cancelled', 'Your booking has been cancelled.', [
+                                { text: 'OK', onPress: () => router.back() }
+                            ]);
+                        } else {
+                            Alert.alert('Error', result.message || 'Failed to cancel booking');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleReschedule = () => {
+        Alert.alert('Reschedule', 'You will be redirected to select a new time slot.', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Continue',
+                onPress: () => {
+                    router.push({
+                        pathname: '/book-counseling',
+                        params: {
+                            rescheduleId: booking._id || bookingId,
+                            counselorType: booking.counselorType
+                        }
+                    });
+                }
+            }
+        ]);
+    };
+
+    const handleSubmitFeedback = async () => {
+        if (feedbackRating === 0) {
+            Alert.alert('Rating Required', 'Please select a rating before submitting.');
+            return;
+        }
+        const result = await submitFeedback(booking._id || bookingId as string, {
+            rating: feedbackRating,
+            comment: feedbackComment
+        });
+        if (result.success) {
+            Alert.alert('Thank You!', 'Your feedback has been submitted.');
+            setShowFeedback(false);
+            setFeedbackRating(0);
+            setFeedbackComment('');
+        } else {
+            Alert.alert('Error', result.message || 'Failed to submit feedback');
+        }
     };
 
     const platformLabel = (p?: string) => {
@@ -203,6 +286,83 @@ export default function CounselingDetailScreen() {
                         <Text style={styles.notesText}>{booking.userNotes}</Text>
                     </View>
                 ) : null}
+
+                {/* Feedback Section */}
+                {booking.status === 'completed' && !booking.feedbackSubmittedAt ? (
+                    <View style={styles.feedbackCard}>
+                        <Text style={styles.sectionTitle}>How was your session?</Text>
+                        {!showFeedback ? (
+                            <TouchableOpacity style={styles.feedbackButton} onPress={() => setShowFeedback(true)}>
+                                <Ionicons name="star-outline" size={20} color={colors.surface} />
+                                <Text style={styles.feedbackButtonText}>Share Feedback</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <>
+                                <View style={styles.ratingRow}>
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <TouchableOpacity
+                                            key={star}
+                                            style={styles.starButton}
+                                            onPress={() => setFeedbackRating(star)}
+                                        >
+                                            <Ionicons
+                                                name={star <= feedbackRating ? 'star' : 'star-outline'}
+                                                size={32}
+                                                color={star <= feedbackRating ? '#F59E0B' : colors.textSecondary}
+                                            />
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                                <Text style={[styles.infoText, { marginBottom: 8, textAlign: 'center' }]}>
+                                    Tap to rate
+                                </Text>
+                                <View style={styles.feedbackInputContainer}>
+                                    <TextInput
+                                        style={styles.feedbackInput}
+                                        placeholder="Share your experience (optional)"
+                                        placeholderTextColor={colors.textSecondary}
+                                        value={feedbackComment}
+                                        onChangeText={setFeedbackComment}
+                                        multiline
+                                    />
+                                </View>
+                                <View style={styles.actionRow}>
+                                    <TouchableOpacity
+                                        style={[styles.cancelButton, { flex: 1 }]}
+                                        onPress={() => {
+                                            setShowFeedback(false);
+                                            setFeedbackRating(0);
+                                            setFeedbackComment('');
+                                        }}
+                                    >
+                                        <Text style={styles.cancelButtonText}>Skip</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.rescheduleButton, { flex: 1 }]}
+                                        onPress={handleSubmitFeedback}
+                                        disabled={isLoading}
+                                    >
+                                        <Text style={styles.rescheduleButtonText}>Submit</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </>
+                        )}
+                    </View>
+                ) : null}
+
+                {/* Action Buttons */}
+                {canCancelOrReschedule() && (
+                    <View style={styles.actionRow}>
+                        <TouchableOpacity style={styles.cancelButton} onPress={handleCancel} disabled={isLoading}>
+                            <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
+                            <Text style={styles.cancelButtonText}>Cancel</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.rescheduleButton} onPress={handleReschedule} disabled={isLoading}>
+                            <Ionicons name="calendar-outline" size={18} color="#D97706" />
+                            <Text style={styles.rescheduleButtonText}>Reschedule</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
             </ScrollView>
         </SafeAreaView>
     );

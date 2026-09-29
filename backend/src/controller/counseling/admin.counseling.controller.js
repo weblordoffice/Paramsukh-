@@ -100,6 +100,8 @@ export const updateBookingStatusAdmin = async (req, res) => {
             });
         }
 
+        const oldStatus = booking.status;
+
         // Prevent reactivating cancelled bookings to confirmed if slot was re-booked
         if (status === 'confirmed' && oldStatus === 'cancelled') {
             const existingConfirmed = await Booking.findOne({

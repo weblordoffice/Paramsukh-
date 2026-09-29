@@ -48,7 +48,13 @@ interface CounselingState {
     verifyCounselingPayment: (bookingId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => Promise<{ success: boolean; message?: string }>;
     fetchMyBookings: (status?: string) => Promise<UserBooking[]>;
     fetchBookingDetails: (bookingId: string) => Promise<UserBooking | null>;
+    cancelBooking: (bookingId: string, reason?: string) => Promise<{ success: boolean; message?: string }>;
+    rescheduleBooking: (bookingId: string, newDate: string, newTime: string, reason?: string) => Promise<{ success: boolean; message?: string }>;
+    submitFeedback: (bookingId: string, feedback: { rating: number; comment?: string }) => Promise<{ success: boolean; message?: string }>;
+    abortBookingsRequest: () => void;
 }
+
+let activeBookingsRequestId = 0;
 
 export const useCounselingStore = create<CounselingState>((set) => ({
     counselingTypes: [],
@@ -86,15 +92,15 @@ export const useCounselingStore = create<CounselingState>((set) => ({
     },
 
     checkAvailability: async (date: string, counselorType: string) => {
-        set({ isLoading: true, error: null });
+        set({ isLoadingSlots: true, error: null });
         try {
             const response = await apiClient.get(`${API_URL}/counseling/availability`, {
                 params: { date, counselorType }
             });
-            set({ isLoading: false });
+            set({ isLoadingSlots: false });
             return response.data?.data?.availableSlots || [];
         } catch (error: any) {
-            set({ isLoading: false, error: 'Failed to check availability' });
+            set({ isLoadingSlots: false, error: 'Failed to check availability' });
             return [];
         }
     },
@@ -189,17 +195,29 @@ export const useCounselingStore = create<CounselingState>((set) => ({
     },
 
     fetchMyBookings: async (status?: string) => {
+        const requestId = ++activeBookingsRequestId;
         set({ isLoadingBookings: true, errorBookings: null });
         try {
             const response = await apiClient.get(`${API_URL}/counseling/my-bookings`, {
-                params: status ? { status } : {}
+                params: status ? { status } : {},
+                signal: AbortSignal.timeout(10000)
             });
+            if (requestId !== activeBookingsRequestId) {
+                return [];
+            }
             set({ isLoadingBookings: false });
             return response.data?.data?.bookings || [];
         } catch (error: any) {
+            if (requestId !== activeBookingsRequestId) {
+                return [];
+            }
             set({ isLoadingBookings: false, errorBookings: error?.message || 'Failed to load bookings' });
             return [];
         }
+    },
+
+    abortBookingsRequest: () => {
+        activeBookingsRequestId++;
     },
 
     fetchBookingDetails: async (bookingId: string) => {
@@ -211,6 +229,55 @@ export const useCounselingStore = create<CounselingState>((set) => ({
             return null;
         } catch (error: any) {
             return null;
+        }
+    },
+
+    cancelBooking: async (bookingId: string, reason?: string) => {
+        set({ isLoading: true, error: null });
+        try {
+            const response = await apiClient.patch(`${API_URL}/counseling/${bookingId}/cancel`, { reason });
+            set({ isLoading: false });
+            if (response.data?.success) {
+                return { success: true, message: response.data?.message };
+            }
+            return { success: false, message: response.data?.message || 'Cancellation failed' };
+        } catch (error: any) {
+            set({ isLoading: false, error: error.response?.data?.message || 'Cancellation failed' });
+            return { success: false, message: error.response?.data?.message || 'Cancellation failed' };
+        }
+    },
+
+    rescheduleBooking: async (bookingId: string, newDate: string, newTime: string, reason?: string) => {
+        set({ isLoading: true, error: null });
+        try {
+            const response = await apiClient.patch(`${API_URL}/counseling/${bookingId}/reschedule`, {
+                newDate,
+                newTime,
+                reason
+            });
+            set({ isLoading: false });
+            if (response.data?.success) {
+                return { success: true, message: response.data?.message };
+            }
+            return { success: false, message: response.data?.message || 'Reschedule failed' };
+        } catch (error: any) {
+            set({ isLoading: false, error: error.response?.data?.message || 'Reschedule failed' });
+            return { success: false, message: error.response?.data?.message || 'Reschedule failed' };
+        }
+    },
+
+    submitFeedback: async (bookingId: string, feedback: { rating: number; comment?: string }) => {
+        set({ isLoading: true, error: null });
+        try {
+            const response = await apiClient.post(`${API_URL}/counseling/${bookingId}/feedback`, feedback);
+            set({ isLoading: false });
+            if (response.data?.success) {
+                return { success: true, message: response.data?.message };
+            }
+            return { success: false, message: response.data?.message || 'Feedback submission failed' };
+        } catch (error: any) {
+            set({ isLoading: false, error: error.response?.data?.message || 'Feedback submission failed' });
+            return { success: false, message: error.response?.data?.message || 'Feedback submission failed' };
         }
     }
 }));

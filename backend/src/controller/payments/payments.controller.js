@@ -168,10 +168,10 @@ export const createBookingPaymentLink = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid booking amount' });
     }
 
-    // Reuse existing payment link when possible (and not expired)
+    // Reuse existing payment link when possible (and not expiring soon)
     if (booking.paymentLinkId && booking.paymentLinkUrl) {
       const expiresAt = booking.paymentLinkExpiresAt;
-      if (!expiresAt || new Date(expiresAt).getTime() > Date.now() + 5 * 60 * 1000) {
+      if (!expiresAt || new Date(expiresAt).getTime() < Date.now() + 5 * 60 * 1000) {
         return res.status(200).json({
           success: true,
           data: { url: booking.paymentLinkUrl, paymentLinkId: booking.paymentLinkId },
@@ -404,17 +404,50 @@ export const createMembershipPaymentLink = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Reuse a recently created pending link for the same plan to avoid duplicates
-    const pending = user.pendingMembershipPaymentLink;
-    if (pending && pending.linkId && pending.url && pending.plan === finalPlan && pending.amount === amount) {
-      const stillValid = !pending.expiresAt || new Date(pending.expiresAt).getTime() > Date.now() + 5 * 60 * 1000;
-      if (stillValid) {
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+    // Try to atomically acquire the "lock" to create a new payment link
+    // Only succeeds if: no pending link exists OR existing link is older than 5 minutes
+    const lockAcquired = await User.findOneAndUpdate(
+      {
+        _id: userId,
+        $or: [
+          { 'pendingMembershipPaymentLink.linkId': { $exists: false } },
+          { 'pendingMembershipPaymentLink.createdAt': { $lt: fiveMinutesAgo } },
+          {
+            'pendingMembershipPaymentLink.plan': { $ne: finalPlan },
+          },
+          {
+            'pendingMembershipPaymentLink.amount': { $ne: amount },
+          },
+        ],
+      },
+      {
+        $set: {
+          pendingMembershipPaymentLink: {
+            linkId: `temp_${Date.now()}`,
+            url: `temp_${Date.now()}`,
+            plan: finalPlan,
+            amount,
+            createdAt: new Date(),
+            expiresAt: null,
+          },
+        },
+      }
+    );
+
+    // If lock NOT acquired, another request already has a valid pending link — return it
+    if (!lockAcquired) {
+      const freshUser = await User.findById(userId).select('pendingMembershipPaymentLink');
+      const pending = freshUser?.pendingMembershipPaymentLink;
+      if (pending?.linkId && pending?.url) {
         return res.status(200).json({
           success: true,
           message: 'Payment link already created',
           data: {
             paymentLinkId: pending.linkId,
             url: pending.url,
+            expiresAt: pending.expiresAt,
             testMode: isTestMode(),
           },
         });
@@ -427,7 +460,7 @@ export const createMembershipPaymentLink = async (req, res) => {
       contact: user.phone ? String(user.phone).replace('+91', '').trim() : undefined,
     };
 
-    // Create payment link
+    // Create payment link (only one request reaches here due to atomic lock)
     const link = await createRazorpayPaymentLink({
       amount,
       currency: planConfig.currency || 'INR',
@@ -444,29 +477,14 @@ export const createMembershipPaymentLink = async (req, res) => {
       callback_method: callbackUrl ? 'get' : undefined,
     });
 
-    // Atomically set pending link — prevents duplicate link creation in concurrent requests
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    await User.findOneAndUpdate(
-      {
-        _id: userId,
-        $or: [
-          { 'pendingMembershipPaymentLink.linkId': { $exists: false } },
-          { 'pendingMembershipPaymentLink.createdAt': { $lt: fiveMinutesAgo } },
-        ],
+    // Update with real link data
+    await User.findByIdAndUpdate(userId, {
+      $set: {
+        'pendingMembershipPaymentLink.linkId': link.id,
+        'pendingMembershipPaymentLink.url': link.short_url,
+        'pendingMembershipPaymentLink.expiresAt': link.expire_by ? new Date(link.expire_by * 1000) : null,
       },
-      {
-        $set: {
-          pendingMembershipPaymentLink: {
-            linkId: link.id,
-            url: link.short_url,
-            plan: finalPlan,
-            amount,
-            createdAt: new Date(),
-            expiresAt: link.expire_by ? new Date(link.expire_by * 1000) : null,
-          },
-        },
-      }
-    );
+    });
 
     return res.status(200).json({
       success: true,
@@ -475,7 +493,7 @@ export const createMembershipPaymentLink = async (req, res) => {
         paymentLinkId: link.id,
         url: link.short_url,
         callbackUrl,
-        expiresAt: user.pendingMembershipPaymentLink.expiresAt,
+        expiresAt: link.expire_by ? new Date(link.expire_by * 1000) : null,
         testMode: isTestMode(),
       },
     });
@@ -1847,13 +1865,141 @@ export const handleWebhook = async (req, res) => {
         break;
       }
       
-      case 'payment.failed':
-        console.log('❌ Payment failed:', payload.payload.payment.entity.id);
+      case 'payment.failed': {
+        const failedPayment = payload.payload.payment.entity;
+        console.log('❌ Payment failed:', failedPayment.id, 'reason:', failedPayment.error_description);
+        const fNotes = failedPayment.notes || {};
+
+        if (fNotes.type === 'membership' && fNotes.userId) {
+          await User.findOneAndUpdate(
+            { _id: fNotes.userId },
+            { $unset: { pendingMembershipPaymentLink: 1 } }
+          );
+          await sendNotification(fNotes.userId, {
+            type: 'system',
+            title: 'Payment Failed',
+            message: `Your membership payment failed. Please try again.`,
+            icon: '❌',
+            priority: 'high',
+          }).catch(() => {});
+        }
+
+        if (fNotes.type === 'order' && fNotes.orderId) {
+          await Order.findOneAndUpdate(
+            { _id: fNotes.orderId, status: 'pending' },
+            { $set: { 'payment.status': 'failed' } }
+          );
+          await sendNotification(fNotes.userId || failedPayment.entity?.user_id, {
+            type: 'system',
+            title: 'Payment Failed',
+            message: `Your order payment failed. Please retry from My Orders.`,
+            icon: '❌',
+            priority: 'high',
+          }).catch(() => {});
+        }
+
+        if (fNotes.type === 'booking' && fNotes.bookingId) {
+          await Booking.findOneAndUpdate(
+            { _id: fNotes.bookingId },
+            { $set: { paymentStatus: 'failed' } }
+          );
+          await sendNotification(fNotes.userId || failedPayment.entity?.user_id, {
+            type: 'system',
+            title: 'Payment Failed',
+            message: `Your counseling booking payment failed. Please retry.`,
+            icon: '❌',
+            priority: 'high',
+          }).catch(() => {});
+        }
+
+        if (fNotes.type === 'event' && fNotes.registrationId && fNotes.eventId) {
+          await EventRegistration.findOneAndUpdate(
+            { _id: fNotes.registrationId },
+            { $set: { paymentStatus: 'failed' } }
+          );
+          await Event.findByIdAndUpdate(fNotes.eventId, { $inc: { reservedSeats: -1 } });
+        }
         break;
-      
-      case 'refund.created':
-        console.log('💰 Refund created:', payload.payload.refund.entity.id);
+      }
+
+      case 'refund.created': {
+        const refund = payload.payload.refund.entity;
+        console.log('💰 Refund created:', refund.id, 'payment:', refund.payment_id, 'amount:', refund.amount / 100);
+        const rNotes = refund.notes || {};
+
+        if (rNotes.type === 'order' && rNotes.orderId) {
+          await Order.findOneAndUpdate(
+            { _id: rNotes.orderId },
+            {
+              $set: { paymentStatus: 'refunded' },
+              $push: {
+                refunds: {
+                  refundId: refund.id,
+                  amount: refund.amount / 100,
+                  status: 'processed',
+                  createdAt: new Date(),
+                }
+              }
+            }
+          );
+        }
+
+        if (rNotes.type === 'membership' && rNotes.userId) {
+          await User.findOneAndUpdate(
+            { _id: rNotes.userId },
+            {
+              subscriptionStatus: 'cancelled',
+            }
+          );
+          await sendNotification(rNotes.userId, {
+            type: 'system',
+            title: 'Refund Processed',
+            message: `Your membership refund of ₹${refund.amount / 100} has been initiated.`,
+            icon: '💰',
+            priority: 'high',
+          }).catch(() => {});
+        }
+
+        recordTransaction({
+          userId: rNotes.userId || rNotes.orderId,
+          source: 'refund',
+          sourceId: refund.id,
+          amount: -(refund.amount / 100),
+          provider: 'razorpay',
+          providerRef: refund.payment_id,
+          metadata: { refundStatus: 'created', reason: refund.reason },
+        }).catch(err => console.error('Refund transaction recording failed:', err.message));
         break;
+      }
+
+      case 'refund.processed': {
+        const processedRefund = payload.payload.refund.entity;
+        console.log('✅ Refund processed:', processedRefund.id, 'amount:', processedRefund.amount / 100);
+        break;
+      }
+
+      case 'refund.failed': {
+        const failedRefund = payload.payload.refund.entity;
+        console.log('❌ Refund failed:', failedRefund.id, 'reason:', failedRefund.reason);
+        const frNotes = failedRefund.notes || {};
+
+        if (frNotes.type === 'order' && frNotes.orderId) {
+          await Order.findOneAndUpdate(
+            { _id: frNotes.orderId },
+            {
+              $set: { paymentStatus: 'refund_failed' },
+            }
+          );
+          await sendNotification(frNotes.userId, {
+            type: 'system',
+            title: 'Refund Failed',
+            message: `Your refund request failed. Please contact support.`,
+            icon: '❌',
+            priority: 'high',
+          }).catch(() => {});
+        }
+        break;
+      }
       
       default:
         console.log('ℹ️ Unhandled event:', payload.event);

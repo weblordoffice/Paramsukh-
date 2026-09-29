@@ -22,6 +22,8 @@ export interface PollOptions {
   maxAttempts?: number;
   baseIntervalMs?: number;
   backoff?: number;
+  /** Maximum total time to spend polling in milliseconds. Default: 120000 (2 min) */
+  maxTotalTimeMs?: number;
 }
 
 export interface OpenPaymentLinkOptions {
@@ -44,29 +46,38 @@ export interface OpenPaymentLinkOptions {
 export const pollPaymentConfirmation = async (
   confirm: () => Promise<ConfirmResult>,
   options: PollOptions = {}
-): Promise<{ success: boolean; result?: ConfirmResult; attempts: number; exhausted: boolean }> => {
-  const { maxAttempts = 10, baseIntervalMs = 3000, backoff = 1.5 } = options;
+): Promise<{ success: boolean; result?: ConfirmResult; attempts: number; exhausted: boolean; timedOut: boolean }> => {
+  const { maxAttempts = 10, baseIntervalMs = 3000, backoff = 1.5, maxTotalTimeMs = 120000 } = options;
 
   let attempts = 0;
+  const startTime = Date.now();
+
   while (attempts < maxAttempts) {
     attempts += 1;
     try {
       const result = await confirm();
       if (result.success) {
-        return { success: true, result, attempts, exhausted: false };
+        return { success: true, result, attempts, exhausted: false, timedOut: false };
       }
     } catch (error) {
-      // Network/backend hiccup: keep polling
       console.warn(`[PaymentBrowser] Poll attempt ${attempts} failed`, error);
     }
 
+    const elapsed = Date.now() - startTime;
+    const remainingTime = maxTotalTimeMs - elapsed;
+    if (remainingTime <= 0) {
+      console.warn(`[PaymentBrowser] Polling timed out after ${elapsed}ms and ${attempts} attempts`);
+      return { success: false, attempts, exhausted: true, timedOut: true };
+    }
+
     if (attempts < maxAttempts) {
-      const delay = Math.round(baseIntervalMs * Math.pow(backoff, attempts - 1));
+      const exponentialDelay = Math.round(baseIntervalMs * Math.pow(backoff, attempts - 1));
+      const delay = Math.min(exponentialDelay, remainingTime);
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
 
-  return { success: false, attempts, exhausted: true };
+  return { success: false, attempts, exhausted: true, timedOut: false };
 };
 
 /**
@@ -75,7 +86,7 @@ export const pollPaymentConfirmation = async (
  */
 export const openPaymentLink = async (
   options: OpenPaymentLinkOptions
-): Promise<{ opened: boolean; success: boolean; result?: ConfirmResult; attempts: number; exhausted: boolean; error?: any }> => {
+): Promise<{ opened: boolean; success: boolean; result?: ConfirmResult; attempts: number; exhausted: boolean; timedOut: boolean; error?: any }> => {
   const { url, confirm, useAuthSession, callbackUrl } = options;
 
   try {
@@ -91,7 +102,7 @@ export const openPaymentLink = async (
     }
   } catch (error) {
     console.error('[PaymentBrowser] Failed to open browser', error);
-    return { opened: false, success: false, attempts: 0, exhausted: false, error };
+    return { opened: false, success: false, attempts: 0, exhausted: false, timedOut: false, error };
   }
 
   const poll = await pollPaymentConfirmation(confirm, {
@@ -168,4 +179,82 @@ export const clearPendingPaymentLinks = async (
 export const isPendingPaymentExpired = (pending: PendingPaymentLink): boolean => {
   if (!pending.expiresAt) return false;
   return new Date(pending.expiresAt).getTime() < Date.now() + 5 * 60 * 1000;
+};
+
+/**
+ * Clean up expired pending payments from AsyncStorage.
+ * Returns the cleaned entries for reference.
+ */
+export const cleanupExpiredPendingPayments = async (): Promise<PendingPaymentLink[]> => {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_PAYMENT_LINK_KEY);
+    if (!raw) return [];
+
+    const parsed: PendingPaymentLink[] = JSON.parse(raw);
+    const valid: PendingPaymentLink[] = [];
+    const expired: PendingPaymentLink[] = [];
+
+    for (const pending of parsed) {
+      if (isPendingPaymentExpired(pending)) {
+        expired.push(pending);
+      } else {
+        valid.push(pending);
+      }
+    }
+
+    if (expired.length > 0) {
+      await AsyncStorage.setItem(PENDING_PAYMENT_LINK_KEY, JSON.stringify(valid));
+      console.log(`[PaymentBrowser] Cleaned up ${expired.length} expired pending payments`);
+    }
+
+    return expired;
+  } catch (error) {
+    console.error('[PaymentBrowser] Failed to cleanup expired pending payments', error);
+    return [];
+  }
+};
+
+/**
+ * Verify the status of pending payments on app resume.
+ * Returns payments that are still genuinely pending vs already processed.
+ */
+export const verifyPendingPaymentsOnResume = async (
+  checkFn: (pending: PendingPaymentLink) => Promise<{ processed: boolean; currentStatus?: string }>
+): Promise<{ pending: PendingPaymentLink[]; processed: PendingPaymentLink[]; stale: PendingPaymentLink[] }> => {
+  try {
+    const raw = await AsyncStorage.getItem(PENDING_PAYMENT_LINK_KEY);
+    if (!raw) return { pending: [], processed: [], stale: [] };
+
+    const all: PendingPaymentLink[] = JSON.parse(raw);
+    const pending: PendingPaymentLink[] = [];
+    const processed: PendingPaymentLink[] = [];
+    const stale: PendingPaymentLink[] = [];
+
+    for (const item of all) {
+      if (isPendingPaymentExpired(item)) {
+        stale.push(item);
+        continue;
+      }
+
+      try {
+        const result = await checkFn(item);
+        if (result.processed) {
+          processed.push(item);
+        } else {
+          pending.push(item);
+        }
+      } catch {
+        pending.push(item);
+      }
+    }
+
+    if (stale.length > 0 || processed.length > 0) {
+      await AsyncStorage.setItem(PENDING_PAYMENT_LINK_KEY, JSON.stringify(pending));
+    }
+
+    return { pending, processed, stale };
+  } catch (error) {
+    console.error('[PaymentBrowser] Failed to verify pending payments', error);
+    return { pending: [], processed: [], stale: [] };
+  }
 };

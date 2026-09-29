@@ -6,6 +6,24 @@ import { verifyRazorpaySignature, createRefund, fetchPaymentDetails, isRazorpayT
 import { recordTransaction } from '../../services/transaction.service.js';
 import { sendCounselingBookingEmail } from '../../services/emailService.js';
 import mongoose from 'mongoose';
+
+const MAX_REFUND_STATUS_UPDATE_RETRIES = 3;
+const REFUND_STATUS_UPDATE_RETRY_DELAY = 1000;
+
+async function updateRefundStatusWithRetry(bookingId, updateData, retries = 0) {
+  try {
+    await Booking.findByIdAndUpdate(bookingId, { $set: updateData });
+  } catch (error) {
+    if (retries < MAX_REFUND_STATUS_UPDATE_RETRIES) {
+      console.warn(`[RefundStatus] Update failed, retry ${retries + 1}/${MAX_REFUND_STATUS_UPDATE_RETRIES}`);
+      await new Promise(resolve => setTimeout(resolve, REFUND_STATUS_UPDATE_RETRY_DELAY * (retries + 1)));
+      return updateRefundStatusWithRetry(bookingId, updateData, retries + 1);
+    }
+    console.error(`[RefundStatus] Failed after ${MAX_REFUND_STATUS_UPDATE_RETRIES} retries:`, error.message);
+    throw error;
+  }
+}
+
 export const getAllServices = async (req, res) => {
   try {
     const services = await CounselingService.find({ isActive: true });
@@ -246,21 +264,6 @@ export const bookCounseling = async (req, res) => {
       });
     }
 
-    // Check if slot is available
-    const existingBooking = await Booking.findOne({
-      bookingDate: new Date(bookingDate),
-      bookingTime,
-      counselorType: finalCounselorType,
-      status: { $in: ['pending', 'confirmed'] }
-    });
-
-    if (existingBooking) {
-      return res.status(400).json({
-        success: false,
-        message: 'This time slot is already booked. Please select another time.'
-      });
-    }
-
     // Determine if booking is free or paid
     const servicePrice = Number(service.price) || 0;
     const isFree = Boolean(service.isFree || servicePrice === 0);
@@ -275,14 +278,30 @@ export const bookCounseling = async (req, res) => {
       });
     }
 
-    // Create booking
+    // Check if slot is available (pending/confirmed booking exists)
+    const bookingDateObj = new Date(bookingDate);
+    const existingActiveBooking = await Booking.findOne({
+      bookingDate: bookingDateObj,
+      bookingTime,
+      counselorType: finalCounselorType,
+      status: { $in: ['pending', 'confirmed'] }
+    });
+
+    if (existingActiveBooking) {
+      return res.status(400).json({
+        success: false,
+        message: 'This time slot is already booked. Please select another time.'
+      });
+    }
+
+    // Try to create booking - unique index will prevent race conditions
     const booking = new Booking({
       user: userId,
       counselorType: finalCounselorType,
       counselorName: finalCounselorName,
       bookingType: finalBookingType,
       bookingTitle: finalBookingTitle,
-      bookingDate: new Date(bookingDate),
+      bookingDate: bookingDateObj,
       bookingTime,
       userNotes: userNotes || '',
       userPhone: user.phone || 'N/A',
@@ -293,7 +312,17 @@ export const bookCounseling = async (req, res) => {
       status: isFree ? 'confirmed' : 'pending'
     });
 
-    await booking.save();
+    try {
+      await booking.save();
+    } catch (dbError) {
+      if (dbError.code === 11000) {
+        return res.status(400).json({
+          success: false,
+          message: 'This time slot was just booked by another user. Please select another time.'
+        });
+      }
+      throw dbError;
+    }
 
     // Send notification to user
     await sendNotification(userId, {
@@ -472,7 +501,10 @@ export const cancelBooking = async (req, res) => {
     booking.cancellationReason = reason || 'User requested cancellation';
     booking.cancelledBy = 'user';
 
+    await booking.save();
+
     // REFUND PROCESSING: If booking was paid, initiate refund
+    // Update refund status atomically with booking cancellation
     if (!booking.isFree && booking.paymentStatus === 'paid' && booking.paymentId) {
       try {
         console.log(`💰 Processing refund for booking ${booking._id}, payment ${booking.paymentId}`);
@@ -485,14 +517,20 @@ export const cancelBooking = async (req, res) => {
             cancelled_by: 'user'
           }
         );
-        await Booking.findByIdAndUpdate(bookingId, {
-          $set: { refundId: refund.id, refundAmount: booking.amount, refundStatus: 'processed', refundProcessedAt: new Date() }
+
+        // Update with retry logic for idempotency
+        await updateRefundStatusWithRetry(bookingId, {
+          refundId: refund.id,
+          refundAmount: booking.amount,
+          refundStatus: 'processed',
+          refundProcessedAt: new Date()
         });
         console.log(`✅ Refund processed: ${refund.id}`);
       } catch (refundError) {
         console.error('❌ Refund processing failed:', refundError.message);
-        await Booking.findByIdAndUpdate(bookingId, {
-          $set: { refundStatus: 'failed', refundError: refundError.message }
+        await updateRefundStatusWithRetry(bookingId, {
+          refundStatus: 'failed',
+          refundError: refundError.message
         });
       }
     }
@@ -558,6 +596,16 @@ export const rescheduleBooking = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Bookings can only be rescheduled at least 48 hours in advance'
+      });
+    }
+
+    // Prevent rescheduling unpaid bookings without completing payment first
+    if (!booking.isFree && booking.paymentStatus === 'pending' && booking.status === 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Please complete payment for this booking before rescheduling. Your booking is awaiting payment.',
+        requiresPayment: true,
+        bookingId: booking._id
       });
     }
 
@@ -632,6 +680,23 @@ export const updatePaymentStatus = async (req, res) => {
 
     if (booking.isFree) {
       return res.status(400).json({ success: false, message: 'This is a free booking, no payment required' });
+    }
+
+    // Check if booking is already confirmed - prevent double processing
+    if (booking.status === 'confirmed' && booking.paymentStatus === 'paid') {
+      return res.status(200).json({
+        success: true,
+        message: 'Booking already confirmed',
+        data: { booking }
+      });
+    }
+
+    // Check if booking was cancelled - cannot process payment
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message: 'This booking has been cancelled and cannot be activated'
+      });
     }
 
     if (!razorpay_payment_id || !razorpay_order_id || !razorpay_signature) {

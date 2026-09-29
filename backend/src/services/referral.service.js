@@ -168,6 +168,33 @@ export const redeemPoints = async (userId, points, orderId) => {
   return { success: true, points, discount: points * config.pointValueInRupees, transactionId: tx._id };
 };
 
+export const reverseRedeemedPoints = async (userId, orderId) => {
+  const config = await ReferralConfig.findOne();
+  if (!config || !config.isActive) return { success: false, message: 'Referral system is inactive' };
+
+  const tx = await PointTransaction.findOne({ userId, type: 'redeemed', redeemedIn: orderId });
+  if (!tx) return { success: false, message: 'No redemption found for this order' };
+
+  const pointsToReverse = Math.abs(tx.points);
+
+  const user = await User.findOneAndUpdate(
+    { _id: userId },
+    { $inc: { referralPoints: pointsToReverse } },
+    { new: true }
+  );
+
+  tx.status = 'revoked';
+  tx.metadata = { ...tx.metadata, reversedAt: new Date(), reversedIn: orderId };
+  await tx.save();
+
+  return {
+    success: true,
+    pointsReversed: pointsToReverse,
+    transactionId: tx._id,
+    newBalance: user?.referralPoints
+  };
+};
+
 export const getReferralValidation = async (code, newUserId, ip) => {
   const normalizedCode = (code || '').trim().toUpperCase();
 

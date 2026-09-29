@@ -7,11 +7,12 @@ import { recordTransaction } from '../../services/transaction.service.js';
 import { escapeRegex } from '../../utils/sanitizeUtils.js';
 import mongoose from 'mongoose';
 import { sendNotification } from '../notifications/notifications.controller.js';
-import { createRazorpayOrder, verifyRazorpaySignature, createRazorpayPaymentLink, fetchPaymentLink, isRazorpayTestMode } from '../../services/razorpayService.js';
+import { createRazorpayOrder, verifyRazorpaySignature, createRazorpayPaymentLink, fetchPaymentLink, fetchPaymentDetails, isRazorpayTestMode } from '../../services/razorpayService.js';
 import { sendOrderConfirmationEmail } from '../../services/emailService.js';
-import { redeemPoints } from '../../services/referral.service.js';
+import { redeemPoints, reverseRedeemedPoints } from '../../services/referral.service.js';
 import ReferralConfig from '../../models/referralConfig.models.js';
 import { User } from '../../models/user.models.js';
+import { logPaymentAudit } from '../../services/paymentAudit.service.js';
 
 
 // @desc    Create order from cart
@@ -233,6 +234,18 @@ export const createOrder = async (req, res) => {
 
         order.payment.razorpayOrderId = razorpayOrder.id;
         order.payment.razorpayReceiptId = razorpayOrder.receipt;
+
+        await logPaymentAudit({
+          orderId: order._id,
+          userId,
+          action: 'payment_initiated',
+          provider: 'razorpay',
+          providerRef: razorpayOrder.id,
+          amount: razorpayOrder.amount,
+          currency: razorpayOrder.currency,
+          metadata: { receipt: razorpayOrder.receipt },
+          status: 'pending',
+        });
       } catch (rzpError) {
         console.error('Razorpay Order Creation Failed:', rzpError);
         return res.status(500).json({ success: false, message: 'Failed to initiate payment gateway' });
@@ -276,28 +289,94 @@ export const createOrder = async (req, res) => {
       }
     }
 
-    // Record coupon usage
+    // Record coupon usage atomically using MongoDB session if available
     if (dbCoupon && cart.coupon && cart.coupon.code) {
       try {
         const { default: CouponUsage } = await import('../../models/couponUsage.models.js');
-        
-        await CouponUsage.create({
-          coupon: dbCoupon._id,
-          user: userId,
-          order: order._id,
-          discountAmount: order.pricing.discount,
-          usedAt: new Date()
-        });
-
-        // Atomic coupon counter increment
         const { default: Coupon } = await import('../../models/coupon.models.js');
-        await Coupon.findByIdAndUpdate(dbCoupon._id, {
-          $inc: {
-            currentUsageCount: 1,
-            'stats.totalUsed': 1,
-            'stats.totalDiscount': order.pricing.discount
+
+        const discountAmount = order.pricing.discount;
+        let session = null;
+        let useTransaction = false;
+
+        try {
+          session = await mongoose.startSession();
+          useTransaction = !!session.serverSession;
+        } catch (sessionErr) {
+          console.warn('[CreateOrder] Could not create MongoDB session, using non-transactional coupon recording');
+        }
+
+        try {
+          if (useTransaction && session) {
+            try {
+              await session.withTransaction(async () => {
+                await CouponUsage.create([{
+                  coupon: dbCoupon._id,
+                  user: userId,
+                  order: order._id,
+                  discountAmount,
+                  usedAt: new Date()
+                }], { session });
+
+                await Coupon.findOneAndUpdate(
+                  {
+                    _id: dbCoupon._id,
+                    $or: [
+                      { maxUsageCount: { $exists: false } },
+                      { maxUsageCount: null },
+                      { $expr: { $lt: ['$currentUsageCount', '$maxUsageCount'] } }
+                    ]
+                  },
+                  {
+                    $inc: {
+                      currentUsageCount: 1,
+                      'stats.totalUsed': 1,
+                      'stats.totalDiscount': discountAmount
+                    }
+                  },
+                  { new: true, session }
+                );
+              }, { readConcern: { level: 'snapshot' }, writeConcern: { w: 'majority' } });
+              useTransaction = false;
+            } catch (txErr) {
+              console.warn('[CreateOrder] Transaction failed, falling back to non-transactional:', txErr.message);
+              useTransaction = false;
+            }
           }
-        });
+
+          if (!useTransaction) {
+            await CouponUsage.create([{
+              coupon: dbCoupon._id,
+              user: userId,
+              order: order._id,
+              discountAmount,
+              usedAt: new Date()
+            }]);
+
+            await Coupon.findOneAndUpdate(
+              {
+                _id: dbCoupon._id,
+                $or: [
+                  { maxUsageCount: { $exists: false } },
+                  { maxUsageCount: null },
+                ]
+              },
+              {
+                $inc: {
+                  currentUsageCount: 1,
+                  'stats.totalUsed': 1,
+                  'stats.totalDiscount': discountAmount
+                }
+              }
+            );
+          }
+        } catch (innerErr) {
+          console.error('Coupon recording error:', innerErr.message);
+        } finally {
+          if (session) {
+            session.endSession();
+          }
+        }
       } catch (couponUsageErr) {
         console.error('Failed to log coupon usage stats:', couponUsageErr);
       }
@@ -505,6 +584,13 @@ export const cancelOrder = async (req, res) => {
       });
     }
 
+    if (order.payment?.status === 'completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Paid orders cannot be cancelled. Please request a return instead.'
+      });
+    }
+
     order.status = 'cancelled';
     order.cancelledAt = Date.now();
     order.cancellation = {
@@ -516,11 +602,36 @@ export const cancelOrder = async (req, res) => {
     await order.updateStatus('cancelled', 'Cancelled by user', userId);
 
     // Restore inventory
+    const inventoryRestoreFailures = [];
     for (const item of order.items) {
       const product = await Product.findById(item.product);
-      if (product && !product.inventory.isUnlimited) {
+      if (!product) {
+        console.error(`[CancelOrder] Product ${item.product} not found for order ${order._id}, cannot restore inventory`);
+        inventoryRestoreFailures.push({ itemId: item.product, reason: 'Product not found or deleted' });
+        continue;
+      }
+      if (!product.inventory) {
+        console.warn(`[CancelOrder] Product ${item.product} has no inventory object for order ${order._id}`);
+        continue;
+      }
+      if (!product.inventory.isUnlimited) {
         product.inventory.stock += item.quantity;
         await product.save();
+      }
+    }
+    if (inventoryRestoreFailures.length > 0) {
+      console.warn(`[CancelOrder] ${inventoryRestoreFailures.length} items could not restore inventory for order ${order._id}`);
+    }
+
+    // Reverse referral points if they were redeemed for this order
+    if (order.referralPoints?.points && order.referralPoints.points > 0) {
+      try {
+        const reversal = await reverseRedeemedPoints(userId, order._id.toString());
+        if (reversal.success) {
+          console.log(`[CancelOrder] Reversed ${reversal.pointsReversed} referral points for user ${userId}, order ${order._id}`);
+        }
+      } catch (refErr) {
+        console.error('[CancelOrder] Failed to reverse referral points:', refErr);
       }
     }
 
@@ -708,6 +819,16 @@ export const verifyOrderPayment = async (req, res) => {
     // 1. Verify Signature
     const isValid = verifyRazorpaySignature(razorpayOrderId, razorpayPaymentId, razorpaySignature);
     if (!isValid) {
+      await logPaymentAudit({
+        orderId,
+        userId,
+        action: 'idempotency_rejected',
+        provider: 'razorpay',
+        providerRef: razorpayPaymentId,
+        metadata: { razorpayOrderId, reason: 'invalid_signature' },
+        status: 'rejected',
+        errorMessage: 'Invalid payment signature',
+      });
       return res.status(400).json({ success: false, message: 'Invalid payment signature' });
     }
 
@@ -758,6 +879,30 @@ export const verifyOrderPayment = async (req, res) => {
       await order.save();
 
       console.log(`✅ Order #${order.orderNumber} confirmed via Razorpay`);
+
+      await logPaymentAudit({
+        orderId: order._id,
+        userId,
+        action: 'payment_verified',
+        provider: 'razorpay',
+        providerRef: razorpayPaymentId,
+        amount: order.pricing.total,
+        currency: 'INR',
+        metadata: { orderNumber: order.orderNumber },
+        status: 'success',
+      });
+
+      await logPaymentAudit({
+        orderId: order._id,
+        userId,
+        action: 'fulfillment_complete',
+        provider: 'razorpay',
+        providerRef: razorpayPaymentId,
+        amount: order.pricing.total,
+        currency: 'INR',
+        metadata: { orderNumber: order.orderNumber },
+        status: 'success',
+      });
 
       recordTransaction({
         userId: order.user,

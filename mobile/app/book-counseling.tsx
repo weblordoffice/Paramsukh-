@@ -49,7 +49,8 @@ export default function BookCounselingScreen() {
           // We pass the service _id as 'counselorType' for real availability API
           const slots = await checkAvailability(selectedDate, id as string);
           setAvailableSlots(slots);
-        } catch (error) {
+        } catch (error: any) {
+          Alert.alert('Error', error?.message || 'Failed to load available slots. Please try again.');
         } finally {
           setFetchingSlots(false);
         }
