@@ -479,6 +479,32 @@ export const respondRescheduleAdmin = async (req, res) => {
     }
 };
 
+// @desc    Get all pending reschedule requests
+// @route   GET /api/counseling/admin/reschedule-requests
+// @access  Admin
+export const getPendingRescheduleRequests = async (req, res) => {
+    try {
+        const bookings = await Booking.find({
+            'rescheduleRequest.status': 'pending'
+        })
+            .populate('user', 'displayName email phone')
+            .sort({ 'rescheduleRequest.updatedAt': -1 })
+            .lean();
+
+        res.status(200).json({
+            success: true,
+            data: { bookings }
+        });
+    } catch (error) {
+        console.error('Get Pending Reschedule Requests Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve pending reschedule requests',
+            error: error.message
+        });
+    }
+};
+
 // @desc    Wipe all counseling data (bookings, services, exceptions)
 // @route   DELETE /api/counseling/admin/wipe
 // @access  Admin

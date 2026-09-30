@@ -21,6 +21,15 @@ interface Booking {
     meetingId?: string;
     meetingPassword?: string;
     meetingPlatform?: string;
+    rescheduleRequest?: {
+        status: 'none' | 'pending' | 'approved' | 'denied';
+        requestedBy: 'none' | 'user' | 'admin';
+        requestedNewDate?: string;
+        requestedNewTime?: string;
+        reason?: string;
+        respondedAt?: string | null;
+        responseNote?: string | null;
+    };
 }
 
 export default function BookingsPage() {
@@ -36,6 +45,7 @@ export default function BookingsPage() {
         meetingPlatform: 'zoom'
     });
     const [savingMeeting, setSavingMeeting] = useState(false);
+    const [rescheduleLoading, setRescheduleLoading] = useState(false);
 
     // When selected booking changes, fill meeting form from booking
     useEffect(() => {
@@ -134,6 +144,22 @@ export default function BookingsPage() {
         }
     };
 
+    const handleRescheduleResponse = async (action: 'approve' | 'deny') => {
+        if (!selectedBooking) return;
+        setRescheduleLoading(true);
+        try {
+            await apiClient.post(`/api/counseling/admin/${selectedBooking._id}/reschedule-respond`, { action });
+            toast.success(action === 'approve' ? 'Reschedule approved!' : 'Reschedule denied');
+            setSelectedBooking(null);
+            fetchBookings();
+        } catch (error: any) {
+            console.error('Reschedule response error:', error);
+            toast.error(error.response?.data?.message || `Failed to ${action} reschedule`);
+        } finally {
+            setRescheduleLoading(false);
+        }
+    };
+
     const getStatusColor = (status: string) => {
         switch (status?.toLowerCase()) {
             case 'confirmed': return 'bg-green-100 text-green-800';
@@ -195,9 +221,16 @@ export default function BookingsPage() {
                                     <h3 className="text-lg font-bold text-secondary group-hover:text-primary transition-colors">
                                         {booking.bookingTitle || 'Counseling Session'}
                                     </h3>
-                                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
-                                        {booking.status || 'Pending'}
-                                    </span>
+                                    <div className="flex flex-col items-end gap-1">
+                                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
+                                            {booking.status || 'Pending'}
+                                        </span>
+                                        {booking.rescheduleRequest?.status === 'pending' && (
+                                            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700 border border-amber-200">
+                                                Reschedule ⏳
+                                            </span>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div className="space-y-2 text-sm text-gray-600">
@@ -267,6 +300,59 @@ export default function BookingsPage() {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Reschedule Request */}
+                            {selectedBooking.rescheduleRequest?.status === 'pending' && (
+                                <div className={`rounded-xl p-4 border ${selectedBooking.rescheduleRequest.requestedBy === 'user' ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
+                                    <div className="flex items-center justify-between mb-3">
+                                        <h3 className="font-semibold text-secondary">
+                                            {selectedBooking.rescheduleRequest.requestedBy === 'user'
+                                                ? '🔔 Reschedule Request (User → You)'
+                                                : '⏳ Admin Proposed Reschedule (Awaiting User)'}
+                                        </h3>
+                                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">
+                                            Pending
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                                        <div>
+                                            <p className="text-gray-500">Current</p>
+                                            <p className="font-medium">
+                                                {new Date(selectedBooking.bookingDate).toLocaleDateString()} at {selectedBooking.bookingTime}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-500">Requested New</p>
+                                            <p className="font-medium text-primary">
+                                                {new Date(selectedBooking.rescheduleRequest.requestedNewDate).toLocaleDateString()} at {selectedBooking.rescheduleRequest.requestedNewTime}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    {selectedBooking.rescheduleRequest.reason && (
+                                        <p className="text-sm text-gray-600 mb-3">
+                                            <strong>Reason:</strong> {selectedBooking.rescheduleRequest.reason}
+                                        </p>
+                                    )}
+                                    {selectedBooking.rescheduleRequest.requestedBy === 'user' && (
+                                        <div className="flex gap-3">
+                                            <button
+                                                onClick={() => handleRescheduleResponse('approve')}
+                                                disabled={rescheduleLoading}
+                                                className="flex-1 py-2 px-4 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-60"
+                                            >
+                                                {rescheduleLoading ? 'Processing...' : '✓ Approve'}
+                                            </button>
+                                            <button
+                                                onClick={() => handleRescheduleResponse('deny')}
+                                                disabled={rescheduleLoading}
+                                                className="flex-1 py-2 px-4 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-60"
+                                            >
+                                                {rescheduleLoading ? 'Processing...' : '✗ Deny'}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {/* User Info */}
                             <div className="border rounded-xl p-4 space-y-3">

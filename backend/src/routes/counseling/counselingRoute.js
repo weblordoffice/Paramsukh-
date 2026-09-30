@@ -30,7 +30,8 @@ import {
   triggerAutoComplete,
   requestRescheduleAdmin,
   respondRescheduleAdmin,
-  wipeCounselingData
+  wipeCounselingData,
+  getPendingRescheduleRequests
 } from '../../controller/counseling/admin.counseling.controller.js';
 import {
   getAvailabilityExceptions,
@@ -61,6 +62,7 @@ router.delete('/admin/services/:id', adminAuth, deleteService);
 router.post('/admin/cleanup-expired', adminAuth, triggerCleanupExpired);
 router.post('/admin/auto-complete', adminAuth, triggerAutoComplete);
 router.delete('/admin/wipe', adminAuth, wipeCounselingData);
+router.get('/admin/reschedule-requests', adminAuth, getPendingRescheduleRequests);
 
 // Availability Exceptions (MUST be before /admin/:id wildcard)
 router.get('/admin/availability-exceptions', adminAuth, getAvailabilityExceptions);
