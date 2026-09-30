@@ -212,7 +212,7 @@ export const useCounselingStore = create<CounselingState>((set) => ({
         try {
             const response = await apiClient.get(`${API_URL}/counseling/my-bookings`, {
                 params: status ? { status } : {},
-                signal: AbortSignal.timeout(10000)
+                timeout: 10000
             });
             console.log('[fetchMyBookings] response:', JSON.stringify(response.data));
             if (requestId !== activeBookingsRequestId) {
