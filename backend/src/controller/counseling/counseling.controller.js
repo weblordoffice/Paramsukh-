@@ -381,9 +381,16 @@ export const bookCounseling = async (req, res) => {
     }
 
     // Send confirmation email (non-blocking)
-    sendCounselingBookingEmail(user, booking).catch((err) =>
-      console.error('[Email] Booking confirmation email failed:', err?.message || err)
-    );
+    try {
+      const emailPromise = sendCounselingBookingEmail(user, booking);
+      if (emailPromise && typeof emailPromise.catch === 'function') {
+        emailPromise.catch((err) =>
+          console.error('[Email] Booking confirmation email failed:', err?.message || err)
+        );
+      }
+    } catch (emailErr) {
+      console.error('[Email] Booking confirmation email threw synchronously:', emailErr?.message || emailErr);
+    }
 
     // Send notification to user
     await sendNotification(userId, {
