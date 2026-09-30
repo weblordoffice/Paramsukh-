@@ -10,13 +10,14 @@ import {
   Alert,
   Modal,
   Dimensions,
-  Linking
+  Linking,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import apiClient from '../../utils/apiClient';
-import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../../utils/paymentBrowser';
+import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks, verifyPendingPaymentsOnResume, PendingPaymentLink } from '../../utils/paymentBrowser';
 import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '../../utils/razorpayNative';
 import { Video, ResizeMode } from 'expo-av';
 import { useAuthStore } from '../../store/authStore';
@@ -76,6 +77,7 @@ export default function PodcastsScreen() {
   const videoRef = useRef<Video>(null);
 
   const categories = ['All', 'Meditation', 'Discourse', 'Scripture', 'Mindfulness', 'Mantra', 'Other'];
+  const [showMyPodcasts, setShowMyPodcasts] = useState(false);
 
   const fetchPodcasts = useCallback(async () => {
     try {
@@ -95,7 +97,6 @@ export default function PodcastsScreen() {
       }
     } catch (error: any) {
       if (error.response?.status === 401) {
-        // Session expired & refresh failed — silently fall back to free podcasts
         try {
           const publicResponse = await apiClient.get('/podcasts');
           if (publicResponse.data && publicResponse.data.success) {
@@ -130,21 +131,12 @@ export default function PodcastsScreen() {
     }
   }, [user]);
 
-  useEffect(() => {
-    if (podcastId && podcasts.length > 0) {
-      const match = podcasts.find((p) => p._id === podcastId);
-      if (match) {
-        void handlePlayPodcast(match);
-      }
-    }
-  }, [podcastId, podcasts]);
-
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchPodcasts();
   }, [fetchPodcasts]);
 
-  const handlePlayLocalPodcast = async (podcast: Podcast) => {
+  const handlePlayLocalPodcast = useCallback(async (podcast: Podcast) => {
     if (!podcast.videoUrl) {
       Alert.alert('Error', 'Audio source not available');
       return;
@@ -159,9 +151,9 @@ export default function PodcastsScreen() {
       duration: podcast.duration,
       category: podcast.category,
     });
-  };
+  }, [loadAndPlay]);
 
-  const handlePlayPodcast = async (podcast: Podcast) => {
+  const handlePlayPodcast = useCallback(async (podcast: Podcast) => {
     if (!user && podcast.accessType !== 'free') {
       Alert.alert(
         'Login Required',
@@ -174,7 +166,6 @@ export default function PodcastsScreen() {
       return;
     }
 
-    // Free podcasts: play directly
     if (podcast.accessType === 'free') {
       if (podcast.source === 'youtube') {
         await openPodcastOnYouTube(podcast.youtubeUrl);
@@ -230,7 +221,45 @@ export default function PodcastsScreen() {
     } catch (error: any) {
       Alert.alert('Access Denied', error.response?.data?.reason || 'You do not have access to this podcast');
     }
-  };
+  }, [user, token, handlePlayLocalPodcast, stop, setCurrentPodcast, router]);
+
+  // Handle app foreground — verify pending podcast payments
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      if (nextAppState === 'active' && user) {
+        const { processed } = await verifyPendingPaymentsOnResume(async (pending: PendingPaymentLink) => {
+          try {
+            const confirmResponse = await apiClient.post(
+              `/podcasts/${pending.id}/confirm-payment`,
+              { paymentLinkId: pending.paymentLinkId }
+            );
+            return { processed: !!confirmResponse.data?.success };
+          } catch {
+            return { processed: false };
+          }
+        });
+        if (processed.length > 0) {
+          await fetchPodcasts();
+          Alert.alert('Success', 'Podcast unlocked successfully');
+        }
+      }
+    });
+    return () => subscription.remove();
+  }, [user, fetchPodcasts]);
+
+  // Deep-link handler: fetch podcasts first, then play the matching one
+  const pendingDeepLinkRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!podcastId) return;
+    if (podcasts.some((p) => p._id === podcastId)) {
+      const match = podcasts.find((p) => p._id === podcastId)!;
+      void handlePlayPodcast(match);
+      pendingDeepLinkRef.current = null;
+    } else if (pendingDeepLinkRef.current !== podcastId) {
+      pendingDeepLinkRef.current = podcastId;
+      void fetchPodcasts();
+    }
+  }, [podcastId, podcasts, handlePlayPodcast, fetchPodcasts]);
 
   const handleDownloadPodcast = async (podcast: Podcast) => {
     if (!isPremiumMember) {
@@ -242,8 +271,8 @@ export default function PodcastsScreen() {
       return;
     }
 
-    if (podcast.source !== 'local' || !podcast.videoUrl) {
-      Alert.alert('Not Available', 'Only local podcasts can be downloaded for offline listening.');
+    if (!podcast.videoUrl) {
+      Alert.alert('Not Available', 'No audio source available for this podcast.');
       return;
     }
 
@@ -403,9 +432,13 @@ export default function PodcastsScreen() {
     }
   };
 
-  const filteredPodcasts = selectedCategory === 'All'
-    ? podcasts
-    : podcasts.filter((p) => p.category === selectedCategory);
+  const filteredPodcasts = (() => {
+    let list = selectedCategory === 'All' ? podcasts : podcasts.filter((p) => p.category === selectedCategory);
+    if (showMyPodcasts) {
+      list = list.filter((p) => p.canAccess === true);
+    }
+    return list;
+  })();
 
   if (loading && !refreshing) {
     return (
@@ -431,6 +464,21 @@ export default function PodcastsScreen() {
       {/* Categories */}
       <View className="bg-white border-b border-gray-200 py-3">
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-5 gap-2">
+          {user && (
+            <TouchableOpacity
+              className={`px-4 py-2 rounded-[20px] border ${showMyPodcasts
+                ? 'bg-blue-500 border-blue-500'
+                : 'bg-gray-100 border-gray-200'
+                }`}
+              onPress={() => setShowMyPodcasts(!showMyPodcasts)}
+            >
+              <Text
+                className={`text-sm font-semibold ${showMyPodcasts ? 'text-white' : 'text-gray-500'}`}
+              >
+                My Podcasts
+              </Text>
+            </TouchableOpacity>
+          )}
           {categories.map((category) => (
             <TouchableOpacity
               key={category}

@@ -36,6 +36,8 @@ const KNOWN_PATHS = new Set([
   '/shops',
   '/shop-detail',
   '/product-detail',
+  '/blogs',
+  '/blog-detail',
 ]);
 
 const FALLBACK: ResolvedRoute = '/(home)/notifications';
@@ -50,6 +52,8 @@ function sanitizeActionUrl(actionUrl: string): ResolvedRoute | null {
     if (orderMatch) return { pathname: '/order-detail', params: { orderId: orderMatch[1] } };
     const counselingMatch = path.match(/^\/counseling\/([a-fA-F0-9]{24})$/);
     if (counselingMatch) return { pathname: '/counseling-detail', params: { bookingId: counselingMatch[1] } };
+    const blogMatch = path.match(/^\/blogs\/([a-fA-F0-9]{24})$/);
+    if (blogMatch) return { pathname: '/blog-detail', params: { id: blogMatch[1] } };
     return null;
   }
   if (!query) return path;
@@ -109,6 +113,10 @@ export function resolveNotificationRoute(item: NotificationTarget): ResolvedRout
       return '/(home)/community';
     case 'donation':
       return '/donations';
+    case 'blog':
+      return relatedId
+        ? { pathname: '/blog-detail', params: { id: relatedId } }
+        : '/blogs';
     default:
       return FALLBACK;
   }

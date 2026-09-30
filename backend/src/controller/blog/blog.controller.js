@@ -1,13 +1,52 @@
 import Blog from '../../models/blog.models.js';
 
-// Get all blogs (newest first)
+const DEFAULT_PAGE = 1;
+const DEFAULT_LIMIT = 10;
+const MAX_LIMIT = 50;
+
+const buildMatch = (query) => {
+    const match = { deletedAt: null };
+    const { category, search } = query;
+
+    if (category && category !== 'All') {
+        match.category = category;
+    }
+
+    if (search && search.trim()) {
+        const term = search.trim();
+        match.$or = [
+            { title: { $regex: term, $options: 'i' } },
+            { content: { $regex: term, $options: 'i' } },
+        ];
+    }
+
+    return match;
+};
+
+// Get all blogs (paginated, filterable, searchable)
 export const getAllBlogs = async (req, res) => {
     try {
-        const blogs = await Blog.find().sort({ createdAt: -1 });
+        const page = Math.max(1, parseInt(req.query.page, 10) || DEFAULT_PAGE);
+        const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(req.query.limit, 10) || DEFAULT_LIMIT));
+        const skip = (page - 1) * limit;
+
+        const match = buildMatch(req.query);
+
+        const [blogs, total] = await Promise.all([
+            Blog.find(match)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Blog.countDocuments(match),
+        ]);
 
         res.status(200).json({
             success: true,
             count: blogs.length,
+            total,
+            page,
+            totalPages: Math.ceil(total / limit),
             data: { blogs },
         });
     } catch (error) {
@@ -20,10 +59,29 @@ export const getAllBlogs = async (req, res) => {
     }
 };
 
+// Get blog categories
+export const getBlogCategories = async (_req, res) => {
+    try {
+        const categories = await Blog.distinct('category', { deletedAt: null });
+        const sorted = categories.sort();
+        res.status(200).json({
+            success: true,
+            data: { categories: ['All', ...sorted] },
+        });
+    } catch (error) {
+        console.error('Get Blog Categories Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve categories',
+            error: error.message,
+        });
+    }
+};
+
 // Get single blog details
 export const getBlogDetails = async (req, res) => {
     try {
-        const blog = await Blog.findById(req.params.id);
+        const blog = await Blog.findOne({ _id: req.params.id, deletedAt: null }).lean();
 
         if (!blog) {
             return res.status(404).json({
@@ -49,7 +107,7 @@ export const getBlogDetails = async (req, res) => {
 // Create a new blog (admin only)
 export const createBlog = async (req, res) => {
     try {
-        const { title, content, imageUrl, author } = req.body;
+        const { title, content, excerpt, imageUrl, author, category, tags, readTime } = req.body;
 
         if (!title || !content) {
             return res.status(400).json({
@@ -61,8 +119,12 @@ export const createBlog = async (req, res) => {
         const blog = await Blog.create({
             title,
             content,
+            excerpt: excerpt || content.replace(/<[^>]*>/g, '').slice(0, 200) + (content.length > 200 ? '...' : ''),
             imageUrl,
             author: author || 'Admin',
+            category: category || 'Other',
+            tags: tags || [],
+            readTime: readTime || Math.max(1, Math.ceil(content.split(/\s+/).length / 200)),
         });
 
         res.status(201).json({
@@ -82,9 +144,9 @@ export const createBlog = async (req, res) => {
 // Update a blog (admin only)
 export const updateBlog = async (req, res) => {
     try {
-        const { title, content, imageUrl, author } = req.body;
+        const { title, content, excerpt, imageUrl, author, category, tags, readTime } = req.body;
 
-        let blog = await Blog.findById(req.params.id);
+        const blog = await Blog.findOne({ _id: req.params.id, deletedAt: null });
 
         if (!blog) {
             return res.status(404).json({
@@ -93,11 +155,22 @@ export const updateBlog = async (req, res) => {
             });
         }
 
-        blog = await Blog.findByIdAndUpdate(
-            req.params.id,
-            { title, content, imageUrl, author },
-            { new: true, runValidators: true }
-        );
+        if (title !== undefined) blog.title = title;
+        if (content !== undefined) {
+            blog.content = content;
+            if (!excerpt) {
+                blog.excerpt = content.replace(/<[^>]*>/g, '').slice(0, 200) + (content.length > 200 ? '...' : '');
+            }
+            blog.readTime = readTime || Math.max(1, Math.ceil(content.split(/\s+/).length / 200));
+        }
+        if (excerpt !== undefined) blog.excerpt = excerpt;
+        if (imageUrl !== undefined) blog.imageUrl = imageUrl;
+        if (author !== undefined) blog.author = author;
+        if (category !== undefined) blog.category = category;
+        if (tags !== undefined) blog.tags = tags;
+        if (readTime !== undefined) blog.readTime = readTime;
+
+        await blog.save();
 
         res.status(200).json({
             success: true,
@@ -113,10 +186,10 @@ export const updateBlog = async (req, res) => {
     }
 };
 
-// Delete a blog (admin only)
+// Soft-delete a blog (admin only)
 export const deleteBlog = async (req, res) => {
     try {
-        const blog = await Blog.findById(req.params.id);
+        const blog = await Blog.findOne({ _id: req.params.id, deletedAt: null });
 
         if (!blog) {
             return res.status(404).json({
@@ -125,7 +198,8 @@ export const deleteBlog = async (req, res) => {
             });
         }
 
-        await Blog.findByIdAndDelete(req.params.id);
+        blog.deletedAt = new Date();
+        await blog.save();
 
         res.status(200).json({
             success: true,

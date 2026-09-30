@@ -1,6 +1,7 @@
 import express from 'express';
 import {
     getAllBlogs,
+    getBlogCategories,
     getBlogDetails,
     createBlog,
     updateBlog,
@@ -11,6 +12,7 @@ import { adminAuth } from '../../middleware/adminAuth.js';
 const router = express.Router();
 
 // Public routes
+router.get('/categories', getBlogCategories);
 router.get('/', getAllBlogs);
 router.get('/:id', getBlogDetails);
 

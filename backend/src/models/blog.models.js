@@ -10,6 +10,10 @@ const blogSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Please enter blog content'],
     },
+    excerpt: {
+        type: String,
+        trim: true,
+    },
     imageUrl: {
         type: String,
         trim: true,
@@ -19,6 +23,21 @@ const blogSchema = new mongoose.Schema({
         default: 'Admin',
         trim: true,
     },
+    category: {
+        type: String,
+        enum: ['Spirituality', 'Mindfulness', 'Meditation', 'Scripture', 'Discourse', 'Wellness', 'Community', 'Other'],
+        default: 'Other',
+        trim: true,
+    },
+    tags: [{
+        type: String,
+        trim: true,
+    }],
+    readTime: {
+        type: Number,
+        default: 5,
+        min: 1,
+    },
     createdAt: {
         type: Date,
         default: Date.now,
@@ -27,10 +46,25 @@ const blogSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    deletedAt: {
+        type: Date,
+        default: null,
+    },
 });
+
+blogSchema.index({ category: 1 });
+blogSchema.index({ createdAt: -1 });
+blogSchema.index({ title: 'text', content: 'text' });
 
 blogSchema.pre('save', function(next) {
     this.updatedAt = Date.now();
+    if (this.isModified('content') && !this.excerpt) {
+        this.excerpt = this.content.replace(/<[^>]*>/g, '').slice(0, 200) + (this.content.length > 200 ? '...' : '');
+    }
+    if (!this.readTime && this.content) {
+        const wordCount = this.content.split(/\s+/).length;
+        this.readTime = Math.max(1, Math.ceil(wordCount / 200));
+    }
     next();
 });
 
@@ -40,6 +74,15 @@ blogSchema.pre('findOneAndUpdate', function(next) {
     const target = hasSet ? update.$set : update;
     target.updatedAt = Date.now();
     next();
+});
+
+blogSchema.set('toJSON', {
+    virtuals: true,
+    transform: (_doc, ret) => {
+        delete ret.__v;
+        if (ret.deletedAt === null) delete ret.deletedAt;
+        return ret;
+    },
 });
 
 export default mongoose.model('Blog', blogSchema);

@@ -140,10 +140,11 @@ export default function BlogDetailScreen() {
   const handleShare = async () => {
     if (!currentBlog) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const blogUrl = `paramsukh://blog-detail?id=${currentBlog._id}`;
     try {
       await Share.share({
         title: currentBlog.title,
-        message: `${currentBlog.title}\n\nRead more on ParamSukh Gurukul!`,
+        message: `${currentBlog.title}\n\n${currentBlog.excerpt || currentBlog.content.slice(0, 120)}...\n\n${blogUrl}`,
       });
     } catch (err) {
       console.error('Error sharing blog:', err);
@@ -228,10 +229,24 @@ export default function BlogDetailScreen() {
               <Text style={styles.metaText}>{currentBlog.author}</Text>
             </View>
             <View style={styles.metaItem}>
-              <Ionicons name="time-outline" size={16} color={colors.textSecondary} style={styles.metaIcon} />
+              <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} style={styles.metaIcon} />
               <Text style={styles.metaText}>{formatDate(currentBlog.createdAt)}</Text>
             </View>
+            {currentBlog.readTime && (
+              <View style={styles.metaItem}>
+                <Ionicons name="time-outline" size={16} color={colors.textSecondary} style={styles.metaIcon} />
+                <Text style={styles.metaText}>{currentBlog.readTime} min read</Text>
+              </View>
+            )}
           </View>
+
+          {currentBlog.category && currentBlog.category !== 'Other' && (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                {currentBlog.category}
+              </Text>
+            </View>
+          )}
 
           {/* Title */}
           <Text style={styles.title}>{currentBlog.title}</Text>
@@ -240,6 +255,11 @@ export default function BlogDetailScreen() {
           <View style={styles.divider} />
 
           {/* Body Content */}
+          {currentBlog.excerpt && (
+            <Text style={{ ...styles.content, fontStyle: 'italic', color: colors.textSecondary, marginBottom: 16 }}>
+              {currentBlog.excerpt}
+            </Text>
+          )}
           <Text style={styles.content}>{currentBlog.content}</Text>
         </View>
       </ScrollView>

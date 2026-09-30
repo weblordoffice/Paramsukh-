@@ -201,31 +201,32 @@ export const confirmPodcastPayment = async (req, res) => {
               providerRef: paymentId,
               metadata: { podcastName: podcast.title, paymentId },
             }).catch(err => console.error('Transaction recording failed:', err.message));
-        }
 
-        // Send notification
-        try {
-            await sendNotification(
-                userId,
-                {
-                    title: 'Podcast Purchased',
-                    message: `You have successfully purchased "${podcast.title}"`,
-                    type: 'podcast',
-                    relatedId: podcast._id,
-                    relatedType: 'podcast',
-                    data: { podcastId: String(podcastId) },
-                }
-            );
-        } catch (notificationError) {
-            console.error('Notification error:', notificationError);
-        }
+            // Send notification — only on first purchase, not on retry/duplicate
+            try {
+                await sendNotification(
+                    userId,
+                    {
+                        title: 'Podcast Purchased',
+                        message: `You have successfully purchased "${podcast.title}"`,
+                        type: 'podcast',
+                        relatedId: podcast._id,
+                        relatedType: 'podcast',
+                        actionUrl: '/(home)/podcasts',
+                        data: { podcastId: String(podcastId) },
+                    }
+                );
+            } catch (notificationError) {
+                console.error('Notification error:', notificationError);
+            }
 
-        // Send email receipt
-        try {
-            const purchaser = await User.findById(userId).select('email displayName');
-            if (purchaser) await sendPodcastPurchaseEmail(purchaser, podcast);
-        } catch (emailError) {
-            console.error('Podcast purchase email error:', emailError);
+            // Send email receipt — only on first purchase
+            try {
+                const purchaser = await User.findById(userId).select('email displayName');
+                if (purchaser) await sendPodcastPurchaseEmail(purchaser, podcast);
+            } catch (emailError) {
+                console.error('Podcast purchase email error:', emailError);
+            }
         }
 
         res.status(200).json({
@@ -416,29 +417,31 @@ export const verifyPodcastPayment = async (req, res) => {
               providerRef: razorpay_payment_id,
               metadata: { podcastName: podcast.title, paymentId: razorpay_payment_id, orderId: razorpay_order_id },
             }).catch(err => console.error('Transaction recording failed:', err.message));
-        }
 
-        try {
-            await sendNotification(
-                userId,
-                {
-                    title: 'Podcast Purchased',
-                    message: `You have successfully purchased "${podcast.title}"`,
-                    type: 'podcast',
-                    relatedId: podcast._id,
-                    relatedType: 'podcast',
-                    data: { podcastId: String(podcastId) },
-                }
-            );
-        } catch (notificationError) {
-            console.error('Notification error:', notificationError);
-        }
+            // Send notification — only on first purchase, not on retry/duplicate
+            try {
+                await sendNotification(
+                    userId,
+                    {
+                        title: 'Podcast Purchased',
+                        message: `You have successfully purchased "${podcast.title}"`,
+                        type: 'podcast',
+                        relatedId: podcast._id,
+                        relatedType: 'podcast',
+                        actionUrl: '/(home)/podcasts',
+                        data: { podcastId: String(podcastId) },
+                    }
+                );
+            } catch (notificationError) {
+                console.error('Notification error:', notificationError);
+            }
 
-        try {
-            const purchaser = await User.findById(userId).select('email displayName');
-            if (purchaser) await sendPodcastPurchaseEmail(purchaser, podcast);
-        } catch (emailError) {
-            console.error('Podcast purchase email error:', emailError);
+            try {
+                const purchaser = await User.findById(userId).select('email displayName');
+                if (purchaser) await sendPodcastPurchaseEmail(purchaser, podcast);
+            } catch (emailError) {
+                console.error('Podcast purchase email error:', emailError);
+            }
         }
 
         res.status(200).json({
@@ -528,33 +531,34 @@ export const handlePodcastPaymentWebhook = async (req, res) => {
                       providerRef: paymentId,
                       metadata: { podcastName: podcast?.title, paymentId },
                     }).catch(err => console.error('Transaction recording failed:', err.message));
-                }
 
-                // Send notification
-                try {
-                    const podcast = await Podcast.findById(podcastId);
-                    await sendNotification(
-                        userId,
-                        {
-                            title: 'Podcast Purchased',
-                            message: `You have successfully purchased "${podcast?.title}"`,
-                            type: 'podcast',
-                            relatedId: podcastId,
-                            relatedType: 'podcast',
-                            data: { podcastId: String(podcastId) },
-                        }
-                    );
-                } catch (notificationError) {
-                    console.error('Webhook notification error:', notificationError);
-                }
+                    // Send notification — only on first purchase (webhook can fire multiple times)
+                    try {
+                        const purchasedPodcast = await Podcast.findById(podcastId);
+                        await sendNotification(
+                            userId,
+                            {
+                                title: 'Podcast Purchased',
+                                message: `You have successfully purchased "${purchasedPodcast?.title || 'the podcast'}"`,
+                                type: 'podcast',
+                                relatedId: podcastId,
+                                relatedType: 'podcast',
+                                actionUrl: '/(home)/podcasts',
+                                data: { podcastId: String(podcastId) },
+                            }
+                        );
+                    } catch (notificationError) {
+                        console.error('Webhook notification error:', notificationError);
+                    }
 
-                // Send email receipt
-                try {
-                    const purchaser = await User.findById(userId).select('email displayName');
-                    const purchasedPodcast = await Podcast.findById(podcastId).select('title price');
-                    if (purchaser && purchasedPodcast) await sendPodcastPurchaseEmail(purchaser, purchasedPodcast);
-                } catch (emailError) {
-                    console.error('Webhook podcast email error:', emailError);
+                    // Send email receipt — only on first purchase
+                    try {
+                        const purchaser = await User.findById(userId).select('email displayName');
+                        const purchasedPodcast = await Podcast.findById(podcastId).select('title price');
+                        if (purchaser && purchasedPodcast) await sendPodcastPurchaseEmail(purchaser, purchasedPodcast);
+                    } catch (emailError) {
+                        console.error('Webhook podcast email error:', emailError);
+                    }
                 }
             }
         }

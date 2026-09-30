@@ -93,12 +93,11 @@ async function resolveAudience({ section, filters = {} }) {
     }
 
     case 'podcasts': {
-      // Users who have purchased/subscribed to podcasts
-      const { PodcastAccess } = await import('../../models/podcast.models.js');
+      const { default: PodcastPurchase } = await import('../../models/podcastPurchase.model.js');
       const podcastId = filters.podcastId;
-      const pQuery = { status: 'active' };
+      const pQuery = {};
       if (podcastId) pQuery.podcastId = podcastId;
-      const accesses = await PodcastAccess.find(pQuery).distinct('userId');
+      const accesses = await PodcastPurchase.find(pQuery).distinct('userId');
       return accesses;
     }
 
