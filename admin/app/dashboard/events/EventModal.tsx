@@ -247,6 +247,28 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
             return;
         }
 
+        // Frontend validation before API call
+        if (!formData.title.trim()) {
+            toast.error('Event title is required');
+            return;
+        }
+        if (!formData.category) {
+            toast.error('Category is required');
+            return;
+        }
+        if (!formData.eventDate) {
+            toast.error('Event date is required');
+            return;
+        }
+        if (!formData.eventTime) {
+            toast.error('Event time is required');
+            return;
+        }
+        if (formData.locationType !== 'online' && !formData.location.trim()) {
+            toast.error('Location is required for physical/hybrid events');
+            return;
+        }
+
         setSubmitting(true);
 
         try {
