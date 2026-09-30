@@ -214,12 +214,14 @@ export const useCounselingStore = create<CounselingState>((set) => ({
                 params: status ? { status } : {},
                 signal: AbortSignal.timeout(10000)
             });
+            console.log('[fetchMyBookings] response:', JSON.stringify(response.data));
             if (requestId !== activeBookingsRequestId) {
                 return [];
             }
             set({ isLoadingBookings: false });
             return response.data?.data?.bookings || [];
         } catch (error: any) {
+            console.log('[fetchMyBookings] error:', JSON.stringify(error?.response?.data || error?.message));
             if (requestId !== activeBookingsRequestId) {
                 return [];
             }

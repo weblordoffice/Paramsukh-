@@ -104,6 +104,7 @@ export default function CounselingScreen() {
 
   const loadBookings = useCallback(async () => {
     const bookings = await fetchMyBookings();
+    console.log('[DEBUG] bookings returned:', JSON.stringify(bookings));
     if (isMountedRef.current) {
       setAllBookings(bookings);
     }
