@@ -22,11 +22,12 @@ import { router as appRouter } from 'expo-router';
 import Constants from 'expo-constants';
 import { useAuthStore } from '../store/authStore';
 import { useNotificationStore } from '../store/notificationStore';
+import { resolveNotificationRoute } from '../utils/notificationNavigation';
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 export function usePushNotifications() {
   const { token: authToken } = useAuthStore();
-  const { registerDeviceToken, fetchUnreadCount } = useNotificationStore();
+  const { registerDeviceToken, fetchUnreadCount, markAsRead } = useNotificationStore();
   const isExpoGo = Constants.appOwnership === 'expo';
 
   const notificationListener = useRef<any>(null);
@@ -107,9 +108,18 @@ export function usePushNotifications() {
         responseListener.current = Notifications.addNotificationResponseReceivedListener(
           (response: any) => {
             const data = response?.notification?.request?.content?.data || {};
-            handleNotificationTap(data);
+            handleNotificationTap(data, { markAsRead, fetchUnreadCount });
           }
         );
+
+        // Cold-start: app launched by tapping a notification before listeners mounted
+        try {
+          const lastResponse = await Notifications.getLastNotificationResponseAsync();
+          const coldData = (lastResponse as any)?.notification?.request?.content?.data;
+          if (coldData && (coldData.notificationId || coldData.relatedId || coldData.actionUrl)) {
+            handleNotificationTap(coldData, { markAsRead, fetchUnreadCount });
+          }
+        } catch {}
       } catch (err) {
       }
     };
@@ -121,51 +131,36 @@ export function usePushNotifications() {
       notificationListener.current?.remove();
       responseListener.current?.remove();
     };
-  }, [authToken, isExpoGo, registerDeviceToken, fetchUnreadCount]); // Re-run when authToken changes (on login/logout)
+  }, [authToken, isExpoGo, registerDeviceToken, fetchUnreadCount, markAsRead]); // Re-run when authToken changes (on login/logout)
 }
 
 /**
  * Navigate to the correct screen when a user taps a push notification.
- * We use the `actionUrl` or `relatedType` + `relatedId` from the push data.
+ * Uses the shared allow-listed resolver so push taps and in-app taps agree,
+ * with a safe fallback to the notifications list (never a 404).
  */
-function handleNotificationTap(data: Record<string, any>) {
+function handleNotificationTap(
+  data: Record<string, any>,
+  store?: { markAsRead?: (id: string) => Promise<boolean>; fetchUnreadCount?: () => Promise<number> },
+) {
   try {
-    if (data.actionUrl) {
-      appRouter.push(data.actionUrl);
-      return;
+    // Mark exactly this notification read (backend includes notificationId in push data)
+    if (data.notificationId && store?.markAsRead) {
+      store.markAsRead(String(data.notificationId)).catch(() => {});
+    } else if (store?.fetchUnreadCount) {
+      store.fetchUnreadCount().catch(() => {});
     }
-
-    const { relatedType, relatedId } = data;
-    if (!relatedType || !relatedId) return;
-
-    switch (relatedType) {
-      case 'event':
-        appRouter.push({ pathname: '/event-detail', params: { eventId: relatedId } });
-        break;
-      case 'course':
-        appRouter.push({ pathname: '/course-detail', params: { courseId: relatedId } });
-        break;
-      case 'booking':
-        // No /counseling-booking page, so redirect to counseling summary/list if available, 
-        // or just stay put if specific booking detail isn't implemented.
-        appRouter.push('/counseling');
-        break;
-      case 'membership':
-        appRouter.push('/(home)/my-membership');
-        break;
-      case 'support':
-        appRouter.push('/(home)/help-support');
-        break;
-      case 'order':
-        appRouter.push({ pathname: '/order-detail', params: { orderId: relatedId } });
-        break;
-      case 'post':
-        appRouter.push('/(home)/community');
-        break;
-      default:
-        appRouter.push('/(home)/notifications');
-    }
+    const destination = resolveNotificationRoute({
+      type: data.type,
+      actionUrl: data.actionUrl ?? null,
+      relatedType: data.relatedType ?? null,
+      relatedId: data.relatedId ? String(data.relatedId) : null,
+    });
+    appRouter.push(destination as any);
   } catch (e) {
-    // navigation failures shouldn't crash the app
+    // navigation failures shouldn't crash the app — fall back to the list
+    try {
+      appRouter.push('/(home)/notifications' as any);
+    } catch {}
   }
 }

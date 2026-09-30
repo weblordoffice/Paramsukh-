@@ -1,6 +1,9 @@
 import { Resend } from 'resend';
 
-const FROM = process.env.RESEND_FROM || 'Paramsukh <onboarding@resend.dev>';
+// Lazy: src/index.js calls dotenv.config() AFTER static imports are evaluated,
+// so reading RESEND_FROM at module load would permanently lock in the fallback.
+// Resolve it at send time instead.
+const getFrom = () => process.env.RESEND_FROM || 'Paramsukh <onboarding@resend.dev>';
 
 let resend = null;
 const getResend = () => {
@@ -32,7 +35,7 @@ export const sendEmail = async ({ to, subject, html }) => {
         if (!instance) {
             return { success: false, message: 'Missing API Key' };
         }
-        const { data, error } = await instance.emails.send({ from: FROM, to, subject, html });
+        const { data, error } = await instance.emails.send({ from: getFrom(), to, subject, html });
         if (error) {
             console.error('Resend error:', error);
             return { success: false, error };
@@ -262,6 +265,85 @@ export const sendCertificateEarnedEmail = (user, courseName, certificateId) => {
                 <p style="margin:4px 0 0;font-size:14px;font-weight:600;color:#d97706;font-family:monospace">${certificateId}</p>
             </div>
             <p style="font-size:13px;color:#9ca3af">Share this certificate ID to let others verify your achievement.</p>
+        `),
+    }));
+};
+
+export const sendOrderCancellationEmail = (user, order) => {
+    if (!canSendEmail(user)) return;
+    safeSend(() => sendEmail({
+        to: user.email,
+        subject: `Order #${order.orderNumber} Cancelled`,
+        html: baseTemplate('Order Cancelled', `
+            <p style="font-size:15px;color:#374151;line-height:1.6">Hi <strong>${user.displayName}</strong>,</p>
+            <p style="font-size:15px;color:#374151;line-height:1.6">Your order <strong>#${order.orderNumber}</strong> has been cancelled.</p>
+            <p style="font-size:15px;color:#374151;line-height:1.6">If you paid for this order, a refund will be processed automatically within 5-7 business days.</p>
+            <p style="font-size:15px;color:#374151;line-height:1.6">If you have any questions, please contact our support team.</p>
+        `),
+    }));
+};
+
+export const sendRefundProcessedEmail = (user, { type, amount, orderNumber, bookingTitle }) => {
+    if (!canSendEmail(user)) return;
+    const subject = type === 'order'
+        ? `Refund Processed for Order #${orderNumber}`
+        : `Refund Processed for ${bookingTitle}`;
+    const content = type === 'order'
+        ? `<p style="font-size:15px;color:#374151;line-height:1.6">Your refund of <strong>₹${amount}</strong> for order <strong>#${orderNumber}</strong> has been processed.</p>
+           <p style="font-size:15px;color:#374151;line-height:1.6">The amount will be credited to your original payment method within 5-7 business days.</p>`
+        : `<p style="font-size:15px;color:#374151;line-height:1.6">Your refund of <strong>₹${amount}</strong> for <strong>${bookingTitle}</strong> has been processed.</p>
+           <p style="font-size:15px;color:#374151;line-height:1.6">The amount will be credited to your original payment method within 5-7 business days.</p>`;
+    safeSend(() => sendEmail({
+        to: user.email,
+        subject,
+        html: baseTemplate('Refund Processed', `
+            <p style="font-size:15px;color:#374151;line-height:1.6">Hi <strong>${user.displayName}</strong>,</p>
+            ${content}
+            <p style="font-size:15px;color:#374151;line-height:1.6">Thank you for your patience.</p>
+        `),
+    }));
+};
+
+export const sendBookingCancellationEmail = (user, booking) => {
+    if (!canSendEmail(user)) return;
+    const bookingDate = new Date(booking.bookingDate).toLocaleDateString('en-IN', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+    safeSend(() => sendEmail({
+        to: user.email,
+        subject: `Booking Cancelled — ${booking.bookingTitle}`,
+        html: baseTemplate('Booking Cancelled', `
+            <p style="font-size:15px;color:#374151;line-height:1.6">Hi <strong>${user.displayName}</strong>,</p>
+            <p style="font-size:15px;color:#374151;line-height:1.6">Your session <strong>${booking.bookingTitle}</strong> scheduled for <strong>${bookingDate}</strong> at <strong>${booking.bookingTime}</strong> has been cancelled.</p>
+            ${!booking.isFree && booking.paymentStatus === 'paid' ? `<p style="font-size:15px;color:#374151;line-height:1.6">If you paid for this booking, a refund will be processed automatically within 5-7 business days.</p>` : ''}
+            <p style="font-size:15px;color:#374151;line-height:1.6">We hope to see you again soon.</p>
+        `),
+    }));
+};
+
+export const sendPaymentFailedEmail = (user, { context, amount } = {}) => {
+    if (!canSendEmail(user)) return;
+    safeSend(() => sendEmail({
+        to: user.email,
+        subject: `Payment Failed${context ? ` — ${context}` : ''}`,
+        html: baseTemplate('Payment Failed', `
+            <p style="font-size:15px;color:#374151;line-height:1.6">Hi <strong>${user.displayName || 'Friend'}</strong>,</p>
+            <p style="font-size:15px;color:#374151;line-height:1.6">Your payment${context ? ` for <strong>${context}</strong>` : ''}${amount ? ` of <strong>₹${amount}</strong>` : ''} could not be completed.</p>
+            <p style="font-size:15px;color:#374151;line-height:1.6">No amount has been charged. Please try again from the app, or contact support if the issue persists.</p>
+        `),
+    }));
+};
+
+export const sendOrderStatusEmail = (user, order, status) => {
+    if (!canSendEmail(user)) return;
+    const label = status ? String(status).charAt(0).toUpperCase() + String(status).slice(1) : 'Updated';
+    safeSend(() => sendEmail({
+        to: user.email,
+        subject: `Order #${order.orderNumber} ${label}`,
+        html: baseTemplate(`Order ${label}`, `
+            <p style="font-size:15px;color:#374151;line-height:1.6">Hi <strong>${user.displayName || 'Friend'}</strong>,</p>
+            <p style="font-size:15px;color:#374151;line-height:1.6">Your order <strong>#${order.orderNumber}</strong> is now <strong>${label}</strong>.</p>
+            <p style="font-size:13px;color:#9ca3af">Track your order in the app under My Orders.</p>
         `),
     }));
 };

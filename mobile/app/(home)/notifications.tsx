@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useNotificationStore, type NotificationItem } from '../../store/notificationStore';
+import { resolveNotificationRoute } from '../../utils/notificationNavigation';
 import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
 import { useTheme } from '../../hooks/useTheme';
 
@@ -53,6 +54,8 @@ const TYPE_STYLE: Record<string, { icon: string; color: string }> = {
   podcast_episode: { icon: 'musical-notes', color: '#8B5CF6' },
   // Support notifications
   support_reply: { icon: 'chatbox-ellipses', color: '#2563EB' },
+  // Donations / referrals
+  donation: { icon: 'heart', color: '#EC4899' },
   // System notifications
   system: { icon: 'settings', color: '#6B7280' },
   general: { icon: 'notifications', color: '#EC4899' },
@@ -274,53 +277,18 @@ export default function NotificationsScreen() {
   };
 
   const handleMarkAsRead = async (item: NotificationItem) => {
+    // Mark only this notification read first so the header badge stays correct,
+    // then navigate via the shared allow-listed resolver (never a 404).
     if (!item.isRead) await markAsRead(item._id);
 
     try {
-      if (item.actionUrl) {
-        router.push(item.actionUrl as any);
-        return;
-      }
-
-      const { relatedType, relatedId } = item;
-
-      if (relatedType === 'support' || item.type === 'support_reply') {
-        router.push('/(home)/help-support');
-        return;
-      }
-
-      if (!relatedType || !relatedId) return;
-
-      switch (relatedType) {
-        case 'event':
-          router.push({ pathname: '/event-detail', params: { eventId: relatedId } });
-          break;
-        case 'course':
-          router.push({ pathname: '/course-detail', params: { courseId: relatedId } });
-          break;
-        case 'booking':
-          router.push({ pathname: '/counseling-detail', params: { bookingId: relatedId } });
-          break;
-        case 'membership':
-          router.push('/(home)/my-membership');
-          break;
-        case 'support':
-          router.push('/(home)/help-support');
-          break;
-        case 'order':
-          router.push({ pathname: '/order-detail', params: { orderId: relatedId } });
-          break;
-        case 'podcast':
-          router.push({ pathname: '/(home)/podcasts', params: { podcastId: relatedId } });
-          break;
-        case 'post':
-          router.push('/(home)/community');
-          break;
-        default:
-          break;
-      }
+      const destination = resolveNotificationRoute(item);
+      router.push(destination as any);
     } catch (err) {
       console.error('Failed to navigate from notification tap:', err);
+      try {
+        router.push('/(home)/notifications' as any);
+      } catch {}
     }
   };
 

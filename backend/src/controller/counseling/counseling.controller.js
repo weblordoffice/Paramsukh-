@@ -4,7 +4,7 @@ import CounselingService from '../../models/counselingService.model.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { verifyRazorpaySignature, createRefund, fetchPaymentDetails, isRazorpayTestMode } from '../../services/razorpayService.js';
 import { recordTransaction } from '../../services/transaction.service.js';
-import { sendCounselingBookingEmail } from '../../services/emailService.js';
+import { sendCounselingBookingEmail, sendBookingCancellationEmail } from '../../services/emailService.js';
 import { sanitizeNotes } from '../../utils/sanitizeUtils.js';
 import mongoose from 'mongoose';
 
@@ -391,7 +391,7 @@ export const bookCounseling = async (req, res) => {
       priority: 'high',
       relatedId: booking._id,
       relatedType: 'booking',
-      actionUrl: `/counseling/${booking._id}`
+      actionUrl: `/counseling-detail?bookingId=${booking._id}`
     });
 
     // COUNSELOR NOTIFICATION: Notify admins about new booking
@@ -632,6 +632,14 @@ export const cancelBooking = async (req, res) => {
       icon: '❌',
       priority: 'medium'
     });
+
+    // Send cancellation email
+    try {
+      const bookingUser = await User.findById(userId).select('email displayName');
+      if (bookingUser) sendBookingCancellationEmail(bookingUser, booking);
+    } catch (emailErr) {
+      console.error('Booking cancellation email failed:', emailErr?.message || emailErr);
+    }
 
     res.status(200).json({
       success: true,

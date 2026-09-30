@@ -159,7 +159,7 @@ export const confirmDonationPayment = async (req, res) => {
         }).catch(err => console.error('Transaction recording failed:', err.message));
 
         try {
-            await sendNotification(userId, { type: 'system', title: 'Donation Received', message: `Thank you for your donation of ₹${amount}!`, icon: '🙏', priority: 'high', relatedId: donation._id, relatedType: 'donation' });
+            await sendNotification(userId, { type: 'system', title: 'Donation Received', message: `Thank you for your donation of ₹${amount}!`, icon: '🙏', priority: 'high', relatedId: donation._id, relatedType: 'donation', actionUrl: '/donations' });
         } catch (e) { /* ignore */ }
 
         try {
@@ -243,7 +243,7 @@ export const verifyDonationPayment = async (req, res) => {
         }).catch(err => console.error('Transaction recording failed:', err.message));
 
         try {
-            await sendNotification(userId, { type: 'system', title: 'Donation Received', message: `Thank you for your donation of ₹${Number(amount)}!`, icon: '🙏', priority: 'high', relatedId: donation._id, relatedType: 'donation' });
+            await sendNotification(userId, { type: 'system', title: 'Donation Received', message: `Thank you for your donation of ₹${Number(amount)}!`, icon: '🙏', priority: 'high', relatedId: donation._id, relatedType: 'donation', actionUrl: '/donations' });
         } catch (e) { /* ignore */ }
 
         try {
@@ -296,6 +296,21 @@ export const handleDonationWebhook = async (req, res) => {
             } catch (e) {
                 console.error('Donation webhook email failed:', e?.message || e);
             }
+
+            try {
+                if (userId) {
+                    await sendNotification(userId, {
+                        type: 'general',
+                        title: 'Donation Received 🙏',
+                        message: `Thank you for your donation of ₹${amount}!`,
+                        icon: '🙏',
+                        priority: 'high',
+                        relatedId: donation._id,
+                        relatedType: 'donation',
+                        actionUrl: '/donations',
+                    });
+                }
+            } catch (e) { /* push failure must not break webhook */ }
         }
 
         return res.status(200).json({ status: 'ok' });

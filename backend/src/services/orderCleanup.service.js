@@ -47,7 +47,7 @@ export const expirePendingOrders = async () => {
           priority: 'medium',
           relatedId: order._id,
           relatedType: 'order',
-          actionUrl: `/orders/${order._id}`
+          actionUrl: `/order-detail?orderId=${order._id}`
         });
       } catch (nErr) {
         console.error('[OrderCleanup] Notification skipped:', nErr.message);

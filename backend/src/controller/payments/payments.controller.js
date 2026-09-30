@@ -27,7 +27,7 @@ import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
 import { recordTransaction } from '../../services/transaction.service.js';
 import { AdminPaymentLink } from '../../models/adminPaymentLink.models.js';
-import { sendMembershipPurchaseEmail, sendCounselingBookingEmail, sendOrderConfirmationEmail, sendEventRegistrationEmail } from '../../services/emailService.js';
+import { sendMembershipPurchaseEmail, sendCounselingBookingEmail, sendOrderConfirmationEmail, sendEventRegistrationEmail, sendPaymentFailedEmail, sendRefundProcessedEmail } from '../../services/emailService.js';
 
 const MAX_ADMIN_LINK_EXPIRY_HOURS = 24 * 30;
 
@@ -282,16 +282,23 @@ export const confirmBookingPaymentLink = async (req, res) => {
 
     try {
       await sendNotification(userId, {
-        type: 'system',
+        type: 'counseling_booked',
         title: 'Payment Confirmed',
         message: `Payment of ₹${confirmedBooking.amount} received. Your counseling session is confirmed for ${confirmedBooking.bookingDate?.toLocaleDateString?.() || 'the selected date'}`,
         icon: '✅',
         priority: 'high',
         relatedId: confirmedBooking._id,
         relatedType: 'booking',
+        actionUrl: `/counseling-detail?bookingId=${confirmedBooking._id}`,
       });
     } catch (notifyErr) {
       console.error('Failed to send payment confirmation notification:', notifyErr.message);
+    }
+    try {
+      const bUser = await User.findById(userId).select('email displayName preferences');
+      if (bUser) sendCounselingBookingEmail(bUser, confirmedBooking);
+    } catch (emailErr) {
+      console.error('Booking confirmation email skipped:', emailErr?.message || emailErr);
     }
     return res.status(200).json({
       success: true,
@@ -1429,6 +1436,18 @@ export const handleWebhook = async (req, res) => {
             const { User } = await import('../../models/user.models.js');
             const mUserForEmail = await User.findById(pNotes.userId).select('email displayName subscriptionPlan referredBy');
             sendMembershipPurchaseEmail(mUserForEmail);
+            // In-app + push for the same business event (idempotent: only on first confirm)
+            try {
+              await sendNotification(pNotes.userId, {
+                type: 'membership_activated',
+                title: 'Membership Activated! 🎉',
+                message: `Your ${planConfig.slug} membership is now active.`,
+                icon: '🎉',
+                priority: 'high',
+                relatedType: 'membership',
+                actionUrl: '/(home)/my-membership',
+              });
+            } catch (e) { console.error('Membership notify failed:', e?.message || e); }
 
             if (mUserForEmail && mUserForEmail.referredBy) {
               const { fireTrigger } = await import('../../services/referral.service.js');
@@ -1527,6 +1546,18 @@ export const handleWebhook = async (req, res) => {
                   const bUser = await User.findById(confirmedBooking.user).select('email displayName');
                   if (bUser) await sendCounselingBookingEmail(bUser, confirmedBooking);
                 } catch (e) { console.error('Counseling email failed:', e?.message || e); }
+                try {
+                  await sendNotification(confirmedBooking.user, {
+                    type: 'counseling_booked',
+                    title: 'Counseling Session Confirmed! ✅',
+                    message: 'Payment received. Your counseling session is confirmed.',
+                    icon: '✅',
+                    priority: 'high',
+                    relatedId: confirmedBooking._id,
+                    relatedType: 'booking',
+                    actionUrl: `/counseling-detail?bookingId=${confirmedBooking._id}`,
+                  });
+                } catch (e) { console.error('Counseling notify failed:', e?.message || e); }
               } else {
                 console.log(`ℹ️ Booking ${pNotes.bookingId} already confirmed`);
               }
@@ -1580,6 +1611,18 @@ export const handleWebhook = async (req, res) => {
                   const oUser = await User.findById(order.user).select('email displayName');
                   if (oUser) await sendOrderConfirmationEmail(oUser, confirmedOrder);
                 } catch (e) { console.error('Order email failed:', e?.message || e); }
+                try {
+                  await sendNotification(order.user, {
+                    type: 'payment_success',
+                    title: 'Payment Successful! ✅',
+                    message: `Payment received for order #${confirmedOrder.orderNumber}. Your order is confirmed.`,
+                    icon: '✅',
+                    priority: 'high',
+                    relatedId: confirmedOrder._id,
+                    relatedType: 'order',
+                    actionUrl: `/order-detail?orderId=${confirmedOrder._id}`,
+                  });
+                } catch (e) { console.error('Order notify failed:', e?.message || e); }
               } else {
                 console.log(`ℹ️ Order ${pNotes.orderId} already confirmed`);
               }
@@ -1618,6 +1661,19 @@ export const handleWebhook = async (req, res) => {
               const eUser = await User.findById(eventReg.userId).select('email displayName');
               if (eUser) await sendEventRegistrationEmail(eUser, evt?.title, eventReg.paymentAmount || 0);
             } catch (e) { console.error('Event email failed:', e?.message || e); }
+            try {
+              const evtTitle = await Event.findById(pNotes.eventId).select('title').lean();
+              await sendNotification(eventReg.userId, {
+                type: 'event_registered',
+                title: 'Event Registration Confirmed! 🎟️',
+                message: `You're registered for ${evtTitle?.title || 'the event'}.`,
+                icon: '🎟️',
+                priority: 'high',
+                relatedId: pNotes.eventId,
+                relatedType: 'event',
+                actionUrl: `/event-detail?eventId=${pNotes.eventId}`,
+              });
+            } catch (e) { console.error('Event notify failed:', e?.message || e); }
           } else {
             console.log(`ℹ️ Event registration ${pNotes.registrationId} already confirmed or not found`);
           }
@@ -1890,6 +1946,13 @@ export const handleWebhook = async (req, res) => {
         const failedPayment = payload.payload.payment.entity;
         console.log('❌ Payment failed:', failedPayment.id, 'reason:', failedPayment.error_description);
         const fNotes = failedPayment.notes || {};
+        const notifyFailureEmail = async (userId, context, amount) => {
+          try {
+            if (!userId) return;
+            const fUser = await User.findById(userId).select('email displayName preferences');
+            if (fUser) sendPaymentFailedEmail(fUser, { context, amount });
+          } catch (e) { console.error('Failure email skipped:', e?.message || e); }
+        };
 
         if (fNotes.type === 'membership' && fNotes.userId) {
           await User.findOneAndUpdate(
@@ -1897,12 +1960,15 @@ export const handleWebhook = async (req, res) => {
             { $unset: { pendingMembershipPaymentLink: 1 } }
           );
           await sendNotification(fNotes.userId, {
-            type: 'system',
+            type: 'payment_failed',
             title: 'Payment Failed',
             message: `Your membership payment failed. Please try again.`,
             icon: '❌',
             priority: 'high',
+            relatedType: 'membership',
+            actionUrl: '/(home)/my-membership',
           }).catch(() => {});
+          await notifyFailureEmail(fNotes.userId, 'membership', failedPayment.amount / 100);
         }
 
         if (fNotes.type === 'order' && fNotes.orderId) {
@@ -1911,12 +1977,16 @@ export const handleWebhook = async (req, res) => {
             { $set: { 'payment.status': 'failed' } }
           );
           await sendNotification(fNotes.userId || failedPayment.entity?.user_id, {
-            type: 'system',
+            type: 'payment_failed',
             title: 'Payment Failed',
             message: `Your order payment failed. Please retry from My Orders.`,
             icon: '❌',
             priority: 'high',
+            relatedId: fNotes.orderId,
+            relatedType: 'order',
+            actionUrl: `/order-detail?orderId=${fNotes.orderId}`,
           }).catch(() => {});
+          await notifyFailureEmail(fNotes.userId, 'order', failedPayment.amount / 100);
         }
 
         if (fNotes.type === 'booking' && fNotes.bookingId) {
@@ -1925,12 +1995,16 @@ export const handleWebhook = async (req, res) => {
             { $set: { paymentStatus: 'failed' } }
           );
           await sendNotification(fNotes.userId || failedPayment.entity?.user_id, {
-            type: 'system',
+            type: 'payment_failed',
             title: 'Payment Failed',
             message: `Your counseling booking payment failed. Please retry.`,
             icon: '❌',
             priority: 'high',
+            relatedId: fNotes.bookingId,
+            relatedType: 'booking',
+            actionUrl: `/counseling-detail?bookingId=${fNotes.bookingId}`,
           }).catch(() => {});
+          await notifyFailureEmail(fNotes.userId, 'counseling booking', failedPayment.amount / 100);
         }
 
         if (fNotes.type === 'event' && fNotes.registrationId && fNotes.eventId) {
@@ -1939,6 +2013,19 @@ export const handleWebhook = async (req, res) => {
             { $set: { paymentStatus: 'failed' } }
           );
           await Event.findByIdAndUpdate(fNotes.eventId, { $inc: { reservedSeats: -1 } });
+          if (fNotes.userId) {
+            await sendNotification(fNotes.userId, {
+              type: 'payment_failed',
+              title: 'Payment Failed',
+              message: 'Your event registration payment failed. Please try again.',
+              icon: '❌',
+              priority: 'high',
+              relatedId: fNotes.eventId,
+              relatedType: 'event',
+              actionUrl: `/event-detail?eventId=${fNotes.eventId}`,
+            }).catch(() => {});
+            await notifyFailureEmail(fNotes.userId, 'event registration', failedPayment.amount / 100);
+          }
         }
         break;
       }
@@ -1949,7 +2036,7 @@ export const handleWebhook = async (req, res) => {
         const rNotes = refund.notes || {};
 
         if (rNotes.type === 'order' && rNotes.orderId) {
-          await Order.findOneAndUpdate(
+          const refundedOrder = await Order.findOneAndUpdate(
             { _id: rNotes.orderId },
             {
               $set: { paymentStatus: 'refunded' },
@@ -1961,8 +2048,25 @@ export const handleWebhook = async (req, res) => {
                   createdAt: new Date(),
                 }
               }
-            }
+            },
+            { new: true }
           );
+          if (rNotes.userId) {
+            await sendNotification(rNotes.userId, {
+              type: 'system',
+              title: 'Refund Processed',
+              message: `Your refund of ₹${refund.amount / 100} has been processed.`,
+              icon: '💰',
+              priority: 'high',
+              relatedId: rNotes.orderId,
+              relatedType: 'order',
+              actionUrl: `/order-detail?orderId=${rNotes.orderId}`,
+            }).catch(() => {});
+            try {
+              const ru = await User.findById(rNotes.userId).select('email displayName preferences');
+              if (ru) sendRefundProcessedEmail(ru, { type: 'order', amount: refund.amount / 100, orderNumber: refundedOrder?.orderNumber || rNotes.orderId });
+            } catch (e) { console.error('Refund email skipped:', e?.message || e); }
+          }
         }
 
         if (rNotes.type === 'membership' && rNotes.userId) {
@@ -1978,7 +2082,13 @@ export const handleWebhook = async (req, res) => {
             message: `Your membership refund of ₹${refund.amount / 100} has been initiated.`,
             icon: '💰',
             priority: 'high',
+            relatedType: 'membership',
+            actionUrl: '/(home)/my-membership',
           }).catch(() => {});
+          try {
+            const ru = await User.findById(rNotes.userId).select('email displayName preferences');
+            if (ru) sendRefundProcessedEmail(ru, { type: 'membership', amount: refund.amount / 100, bookingTitle: 'membership' });
+          } catch (e) { console.error('Refund email skipped:', e?.message || e); }
         }
 
         recordTransaction({

@@ -89,17 +89,29 @@ function buildMessage(expoPushToken, { title, body, data = {}, sound = 'default'
 }
 
 async function sendToExpo(messages) {
+  const headers = {
+    Accept: 'application/json',
+    'Accept-Encoding': 'gzip, deflate',
+    'Content-Type': 'application/json',
+  };
+  // Optional Expo access token (FCM/APNs credentials live in the Expo project;
+  // token here only raises rate limits / enables push receipts).
+  if (process.env.EXPO_ACCESS_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.EXPO_ACCESS_TOKEN}`;
+  }
   const res = await fetch(EXPO_PUSH_URL, {
     method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Accept-Encoding': 'gzip, deflate',
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify(messages),
   });
 
-  const json = await res.json();
+  let json = null;
+  try {
+    json = await res.json();
+  } catch {
+    console.warn('⚠️  Push: non-JSON response from Expo push service');
+    return null;
+  }
 
   // Log any individual ticket errors without throwing — push failure shouldn't
   // crash the main business logic that called it.
@@ -107,13 +119,16 @@ async function sendToExpo(messages) {
     json.data.forEach((ticket, i) => {
       if (ticket.status === 'error') {
         console.warn(`⚠️  Push ticket[${i}] error:`, ticket.message, ticket.details);
-        // Clean up dead tokens automatically
-        if (ticket.details?.error === 'DeviceNotRegistered') {
+        // Clean up dead/invalid tokens automatically so future sends stay healthy
+        const errCode = ticket.details?.error;
+        if (errCode === 'DeviceNotRegistered' || errCode === 'InvalidCredentials') {
           const badToken = messages[i]?.to;
           if (badToken) DeviceToken.deleteOne({ token: badToken }).catch(() => {});
         }
       }
     });
+  } else if (json?.errors) {
+    console.warn('⚠️  Push request errors:', json.errors);
   }
 
   return json;

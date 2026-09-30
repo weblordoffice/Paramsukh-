@@ -1,6 +1,8 @@
 import Order from '../../models/order.models.js';
 import Product from '../../models/product.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
+import { User } from '../../models/user.models.js';
+import { sendOrderCancellationEmail, sendOrderStatusEmail } from '../../services/emailService.js';
 
 // @desc    Update order status (Admin only)
 // @route   PATCH /api/orders/:id/status
@@ -67,8 +69,20 @@ export const updateOrderStatusAdmin = async (req, res) => {
             icon: '📦',
             priority: 'medium',
             relatedId: order._id,
-            relatedType: 'order'
+            relatedType: 'order',
+            actionUrl: `/order-detail?orderId=${order._id}`
         });
+
+        // Trigger user-specific email for order status changes (business event).
+        try {
+            const orderUser = await User.findById(order.user).select('email displayName preferences');
+            if (orderUser) {
+                if (status === 'cancelled') sendOrderCancellationEmail(orderUser, order);
+                else sendOrderStatusEmail(orderUser, order, status);
+            }
+        } catch (emailErr) {
+            console.error('[AdminOrderStatus] Email skipped:', emailErr?.message || emailErr);
+        }
 
         res.status(200).json({
             success: true,

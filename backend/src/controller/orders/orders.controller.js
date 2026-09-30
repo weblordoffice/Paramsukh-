@@ -8,7 +8,7 @@ import { escapeRegex } from '../../utils/sanitizeUtils.js';
 import mongoose from 'mongoose';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { createRazorpayOrder, verifyRazorpaySignature, createRazorpayPaymentLink, fetchPaymentLink, fetchPaymentDetails, isRazorpayTestMode } from '../../services/razorpayService.js';
-import { sendOrderConfirmationEmail } from '../../services/emailService.js';
+import { sendOrderConfirmationEmail, sendOrderCancellationEmail } from '../../services/emailService.js';
 import { redeemPoints, reverseRedeemedPoints } from '../../services/referral.service.js';
 import ReferralConfig from '../../models/referralConfig.models.js';
 import { User } from '../../models/user.models.js';
@@ -401,10 +401,21 @@ export const createOrder = async (req, res) => {
         priority: 'high',
         relatedId: order._id,
         relatedType: 'order',
-        actionUrl: `/orders/${order._id}`
+        actionUrl: `/order-detail?orderId=${order._id}`
       });
     } catch (nErr) {
       console.error('[CreateOrder] Notification skipped:', nErr.message);
+    }
+
+    // COD / non-online orders are confirmed immediately — trigger confirmation email
+    // from the backend business event (not frontend).
+    if (!isOnlinePayment) {
+      try {
+        const orderUser = await User.findById(userId).select('email displayName preferences');
+        if (orderUser) sendOrderConfirmationEmail(orderUser, order);
+      } catch (emailErr) {
+        console.error('[CreateOrder] Confirmation email skipped:', emailErr?.message || emailErr);
+      }
     }
 
     res.status(201).json({
@@ -641,8 +652,19 @@ export const cancelOrder = async (req, res) => {
       title: 'Order Cancelled',
       message: `Order #${order.orderNumber} has been cancelled`,
       icon: '❌',
-      priority: 'medium'
+      priority: 'medium',
+      relatedId: order._id,
+      relatedType: 'order',
+      actionUrl: `/order-detail?orderId=${order._id}`
     });
+
+    // Send cancellation email
+    try {
+      const orderUser = await User.findById(userId).select('email displayName');
+      if (orderUser) sendOrderCancellationEmail(orderUser, order);
+    } catch (emailErr) {
+      console.error('Order cancellation email failed:', emailErr?.message || emailErr);
+    }
 
     res.status(200).json({
       success: true,
@@ -931,7 +953,7 @@ export const verifyOrderPayment = async (req, res) => {
           priority: 'high',
           relatedId: order._id,
           relatedType: 'order',
-          actionUrl: `/orders/${order._id}`
+          actionUrl: `/order-detail?orderId=${order._id}`
         });
       } catch (nErr) {
         console.error('Notification failed:', nErr);
@@ -1106,7 +1128,7 @@ export const verifyOrderPaymentByLink = async (req, res) => {
         priority: 'high',
         relatedId: confirmedOrder._id,
         relatedType: 'order',
-        actionUrl: `/orders/${confirmedOrder._id}`,
+        actionUrl: `/order-detail?orderId=${confirmedOrder._id}`,
       });
     } catch (e) {
       console.error('Notification failed:', e);

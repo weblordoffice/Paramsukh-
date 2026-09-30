@@ -6,23 +6,36 @@ import { sendPushToUser, sendPushToUsers } from '../../services/pushService.js';
 // @access  Private
 export const registerDeviceToken = async (req, res) => {
   try {
-    const { token, platform } = req.body;
+    let { token, platform } = req.body;
     const userId = req.user._id;
 
-    if (!token) {
+    if (!token || typeof token !== 'string') {
       return res.status(400).json({ success: false, message: 'Device token is required' });
     }
+    token = token.trim();
+    if (token.length < 10) {
+      return res.status(400).json({ success: false, message: 'Invalid device token' });
+    }
 
-    // Upsert token
+    // Normalize platform — mobile sends Platform.OS (ios/android/web); accept
+    // common variants (e.g. "expo", "ios-simulator") instead of rejecting them.
+    const rawPlatform = String(platform || 'android').toLowerCase();
+    const normalizedPlatform = rawPlatform.includes('ios') || rawPlatform.includes('apple')
+      ? 'ios'
+      : rawPlatform.includes('web') || rawPlatform.includes('expo')
+        ? 'web'
+        : 'android';
+
+    // Upsert token (re-assign to current user on shared devices, refresh lastUsedAt)
     const deviceToken = await DeviceToken.findOneAndUpdate(
       { token },
       {
         user: userId,
         token,
-        platform: platform || 'android',
+        platform: normalizedPlatform,
         lastUsedAt: Date.now()
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true, runValidators: true }
     );
 
     res.status(200).json({
@@ -32,6 +45,10 @@ export const registerDeviceToken = async (req, res) => {
     });
   } catch (error) {
     console.error('Register Device Token Error:', error);
+    // Duplicate-key race on concurrent registration — treat as success
+    if (error?.code === 11000) {
+      return res.status(200).json({ success: true, message: 'Device token already registered' });
+    }
     res.status(500).json({ success: false, message: 'Failed to register device token' });
   }
 };
@@ -282,18 +299,33 @@ export const createTestNotification = async (req, res) => {
 
 // Helper function to send notification (to be used by other controllers)
 // Saves to DB AND fires a real Expo device push.
+// Idempotent: skips exact duplicates created within the last 60s (webhook retries).
 export const sendNotification = async (userId, notificationData) => {
   try {
+    if (!userId || !notificationData?.title || !notificationData?.message) {
+      throw new Error('userId, title and message are required');
+    }
+    const dedupeWindow = new Date(Date.now() - 60 * 1000);
+    const duplicate = await Notification.findOne({
+      user: userId,
+      title: notificationData.title,
+      message: notificationData.message,
+      createdAt: { $gte: dedupeWindow },
+    }).lean();
+    if (duplicate) return duplicate;
+
     const notification = await Notification.createNotification({
       user: userId,
       ...notificationData
     });
 
-    // Fire real push — non-blocking, failure is logged but does not throw
+    // Fire real push — non-blocking, failure is logged but does not throw.
+    // Includes notificationId so the app can mark exactly this item read on tap.
     sendPushToUser(userId, {
       title: notificationData.title,
       body: notificationData.message,
       data: {
+        notificationId: notification._id?.toString?.() || null,
         type: notificationData.type,
         relatedId: notificationData.relatedId?.toString?.() || null,
         relatedType: notificationData.relatedType || null,
@@ -312,10 +344,12 @@ export const sendNotification = async (userId, notificationData) => {
 // Saves to DB AND fires real Expo device pushes to all recipients.
 export const sendBulkNotifications = async (userIds, notificationData) => {
   try {
-    const notifications = await Notification.sendToMultipleUsers(userIds, notificationData);
+    const uniqueIds = [...new Set((userIds || []).map(String))];
+    if (!uniqueIds.length) return [];
+    const notifications = await Notification.sendToMultipleUsers(uniqueIds, notificationData);
 
     // Fire real pushes to all users — non-blocking
-    sendPushToUsers(userIds, {
+    sendPushToUsers(uniqueIds, {
       title: notificationData.title,
       body: notificationData.message,
       data: {

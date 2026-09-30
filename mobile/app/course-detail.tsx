@@ -337,7 +337,7 @@ export default function CourseDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  const courseId = params.id as string;
+  const courseId = (params.id as string) || (params.courseId as string);
   const courseTitle = (params.title as string) || 'Course';
   const courseColor = (params.color as string) || '#8B5CF6';
   const courseDuration = (params.duration as string) || '6 weeks';

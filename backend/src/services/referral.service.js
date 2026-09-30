@@ -71,14 +71,14 @@ export const fireTrigger = async (triggerEvent, { referrerId, referredUserId, am
     if (awarded.length > 0 && config.notifyOnEarn) {
       const totalPoints = awarded.reduce((s, a) => s + a.points, 0);
       try {
-        const Notification = (await import('../models/notification.models.js')).default;
-        await Notification.create({
-          user: referrerId,
-          type: 'referral_earn',
+        const { sendNotification } = await import('../controller/notifications/notifications.controller.js');
+        await sendNotification(referrerId, {
+          type: 'general',
           title: 'Points Earned!',
-          body: `You earned ${totalPoints} referral points!`,
-          data: { awarded, triggerEvent },
-          isRead: false,
+          message: `You earned ${totalPoints} referral points!`,
+          icon: '🎁',
+          priority: 'medium',
+          actionUrl: '/(home)/referral',
         });
       } catch (_) {}
 

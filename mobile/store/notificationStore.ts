@@ -83,13 +83,17 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   markAsRead: async (id: string) => {
     try {
+      // Only decrement when the item is currently unread — prevents double-tap
+      // drift and keeps the header badge in sync with the server.
+      const current = get().notifications.find((n) => n._id === id);
+      const wasUnread = current ? !current.isRead : true;
       const response = await apiClient.patch(`${API_URL}/notifications/${id}/read`);
       if (response.data?.success) {
         set((state) => ({
           notifications: state.notifications.map((n) =>
             n._id === id ? { ...n, isRead: true } : n
           ),
-          unreadCount: Math.max(0, state.unreadCount - 1),
+          unreadCount: wasUnread ? Math.max(0, state.unreadCount - 1) : state.unreadCount,
         }));
         return true;
       }
