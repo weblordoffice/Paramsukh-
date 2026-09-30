@@ -74,6 +74,7 @@ export default function VideosTab({ eventId, videos, onUpdate }: VideosTabProps)
                 const uploadData = new FormData();
                 uploadData.append('video', videoFile);
                 const uploadRes = await apiClient.post('/api/upload/video?folder=events', uploadData, {
+                    timeout: 30 * 60 * 1000,
                     onUploadProgress: (progressEvent) => {
                         const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 100));
                         setUploadProgress(percentCompleted);

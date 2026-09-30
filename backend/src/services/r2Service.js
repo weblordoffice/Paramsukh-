@@ -142,8 +142,8 @@ export const uploadVideo = async (fileInput, folder = 'videos', filename = 'vide
             CacheControl: cc,
             ContentDisposition: contentDisposition || 'inline',
           },
-          queueSize: 4,
-          partSize: 20 * 1024 * 1024,
+          queueSize: 10,
+          partSize: 50 * 1024 * 1024,
         });
 
         await upload.done();

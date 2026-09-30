@@ -189,7 +189,14 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             };
 
             const response = await apiClient.post(`${API_URL}${endpoint}`, formData, {
-                headers
+                headers,
+                timeout: 30 * 60 * 1000,
+                onUploadProgress: (progressEvent: any) => {
+                    if (progressEvent.total) {
+                        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                        console.log(`[uploadMedia] ${type} upload: ${percent}%`);
+                    }
+                }
             });
 
             if (response.data?.success) {
