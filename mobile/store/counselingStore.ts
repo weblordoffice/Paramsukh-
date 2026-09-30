@@ -15,10 +15,12 @@ interface CounselorType {
     price?: number;
 }
 
-interface UserBooking {
+export interface UserBooking {
     _id: string;
     bookingTitle: string;
     counselorName: string;
+    counselorType?: string;
+    bookingType?: string;
     bookingDate: string;
     bookingTime: string;
     status: string;
@@ -30,6 +32,14 @@ interface UserBooking {
     userNotes?: string;
     amount?: number;
     paymentStatus?: string;
+    isFree?: boolean;
+    rescheduleRequest?: {
+        status: 'none' | 'pending' | 'approved' | 'denied';
+        requestedBy: 'none' | 'user' | 'admin';
+        requestedNewDate?: string;
+        requestedNewTime?: string;
+        reason?: string;
+    };
 }
 
 interface CounselingState {
