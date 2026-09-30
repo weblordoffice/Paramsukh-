@@ -62,7 +62,7 @@ export default function CommunityScreen() {
     paddingTop: Platform.OS === 'ios' ? 50 : 40,
     paddingHorizontal: 20,
     paddingBottom: 16,
-    shadowColor: '#5C4A42',
+    shadowColor: colors.border,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
@@ -86,12 +86,12 @@ export default function CommunityScreen() {
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     letterSpacing: 0.3,
   },
   headerSubtitle: {
     fontSize: 15,
-    color: '#5C4A42',
+    color: colors.textSecondary,
     marginTop: 2,
     fontWeight: '500',
   },
@@ -169,7 +169,7 @@ export default function CommunityScreen() {
     height: '100%',
     backgroundColor: colors.surface,
     zIndex: 999,
-    shadowColor: '#2C2420',
+    shadowColor: colors.border,
     shadowOffset: { width: 4, height: 0 },
     shadowOpacity: 0.12,
     shadowRadius: 16,
@@ -187,7 +187,7 @@ export default function CommunityScreen() {
   sidebarTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     letterSpacing: 0.5,
   },
   sidebarContent: {
@@ -201,7 +201,7 @@ export default function CommunityScreen() {
   sidebarSectionTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#8C7B73',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 12,
@@ -232,14 +232,14 @@ export default function CommunityScreen() {
   planGroupName: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
   },
   planGroupNameActive: {
     color: '#F1842D',
   },
   planGroupMeta: {
     fontSize: 11,
-    color: '#8C7B73',
+    color: colors.textSecondary,
     fontWeight: '500',
     marginTop: 2,
   },
@@ -276,7 +276,7 @@ export default function CommunityScreen() {
   },
   subgroupText: {
     fontSize: 14,
-    color: '#5C4A42',
+    color: colors.textSecondary,
     fontWeight: '500',
     flex: 1,
   },
@@ -286,7 +286,7 @@ export default function CommunityScreen() {
   },
   subgroupCount: {
     fontSize: 11,
-    color: '#8C7B73',
+    color: colors.textSecondary,
     fontWeight: '600',
     backgroundColor: 'rgba(92, 74, 66, 0.06)',
     paddingHorizontal: 6,
@@ -313,7 +313,7 @@ export default function CommunityScreen() {
   sidebarItemText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#5C4A42',
+    color: colors.textSecondary,
   },
   sidebarItemTextActive: {
     color: '#F1842D',
@@ -328,14 +328,14 @@ export default function CommunityScreen() {
   emptyStateText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     marginTop: 16,
     marginBottom: 8,
     letterSpacing: 0.3,
   },
   emptyStateSubtext: {
     fontSize: 15,
-    color: '#5C4A42',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -352,7 +352,7 @@ export default function CommunityScreen() {
     padding: 24,
     width: '100%',
     maxWidth: 400,
-    shadowColor: '#2C2420',
+    shadowColor: colors.border,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 20,
@@ -361,7 +361,7 @@ export default function CommunityScreen() {
   postTypeModalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     marginBottom: 24,
     textAlign: 'center',
     letterSpacing: 0.3,
@@ -391,12 +391,12 @@ export default function CommunityScreen() {
   postTypeOptionTitle: {
     fontSize: 17,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     marginBottom: 4,
   },
   postTypeOptionDescription: {
     fontSize: 14,
-    color: '#5C4A42',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   postTypeCancelButton: {
@@ -430,7 +430,7 @@ export default function CommunityScreen() {
   groupChipText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#5C4A42',
+    color: colors.textSecondary,
     maxWidth: 120,
   },
   groupChipTextActive: {
@@ -439,16 +439,16 @@ export default function CommunityScreen() {
   groupChipSubText: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#8C7B73',
+    color: colors.textSecondary,
   },
   assessmentBanner: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     marginHorizontal: 20,
     marginTop: 16,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: '#BFDBFE',
+    borderColor: colors.border,
     overflow: 'hidden',
   },
   bannerContent: {
@@ -460,7 +460,7 @@ export default function CommunityScreen() {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#DBEAFE',
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -487,7 +487,7 @@ export default function CommunityScreen() {
     padding: 18,
     borderWidth: 1,
     borderColor: 'rgba(92, 74, 66, 0.08)',
-    shadowColor: '#5C4A42',
+    shadowColor: colors.border,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
@@ -501,7 +501,7 @@ export default function CommunityScreen() {
   createPostText: {
     flex: 1,
     fontSize: 15,
-    color: '#5C4A42',
+    color: colors.textSecondary,
     marginLeft: 12,
     fontWeight: '500',
   },
@@ -519,7 +519,7 @@ export default function CommunityScreen() {
   sectionTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     marginBottom: 16,
     letterSpacing: 0.3,
   },
@@ -530,7 +530,7 @@ export default function CommunityScreen() {
     marginBottom: 18,
     borderWidth: 1,
     borderColor: 'rgba(92, 74, 66, 0.08)',
-    shadowColor: '#5C4A42',
+    shadowColor: colors.border,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
@@ -561,17 +561,17 @@ export default function CommunityScreen() {
   userName: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
   },
   postTime: {
     fontSize: 13,
-    color: '#8C7B73',
+    color: colors.textSecondary,
     marginTop: 2,
     fontWeight: '500',
   },
   postContent: {
     fontSize: 15,
-    color: '#5C4A42',
+    color: colors.textSecondary,
     lineHeight: 22,
     marginBottom: 16,
     fontWeight: '500',
@@ -590,7 +590,7 @@ export default function CommunityScreen() {
     backgroundColor: colors.surface,
     borderRadius: 20,
     marginBottom: 18,
-    shadowColor: '#5C4A42',
+    shadowColor: colors.border,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
@@ -605,7 +605,7 @@ export default function CommunityScreen() {
   },
   mediaLabel: {
     fontSize: 14,
-    color: '#5C4A42',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   postActions: {
@@ -622,7 +622,7 @@ export default function CommunityScreen() {
   },
   actionText: {
     fontSize: 14,
-    color: '#8C7B73',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   likedText: {
@@ -650,7 +650,7 @@ export default function CommunityScreen() {
     padding: 24,
     paddingBottom: 40,
     maxHeight: '80%',
-    shadowColor: '#2C2420',
+    shadowColor: colors.border,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.12,
     shadowRadius: 20,
@@ -668,7 +668,7 @@ export default function CommunityScreen() {
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     letterSpacing: 0.3,
   },
   postInput: {
@@ -677,7 +677,7 @@ export default function CommunityScreen() {
     borderRadius: 16,
     padding: 16,
     fontSize: 15,
-    color: '#2C2420',
+    color: colors.text,
     minHeight: 110,
     textAlignVertical: 'top',
     backgroundColor: 'rgba(255, 254, 249, 0.5)',
@@ -750,7 +750,7 @@ export default function CommunityScreen() {
     elevation: 3,
   },
   publishButtonDisabled: {
-    backgroundColor: '#8C7B73',
+    backgroundColor: colors.border,
     shadowOpacity: 0,
   },
   publishButtonText: {
@@ -778,7 +778,7 @@ export default function CommunityScreen() {
   filterButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2C2420',
+    color: colors.text,
   },
   filterModalOverlay: {
     flex: 1,
@@ -799,7 +799,7 @@ export default function CommunityScreen() {
     padding: 24,
     paddingBottom: 40,
     maxHeight: '60%',
-    shadowColor: '#2C2420',
+    shadowColor: colors.border,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.12,
     shadowRadius: 20,
@@ -814,7 +814,7 @@ export default function CommunityScreen() {
   filterModalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     letterSpacing: 0.3,
   },
   filterOptionsContainer: {
@@ -838,7 +838,7 @@ export default function CommunityScreen() {
     flex: 1,
     fontSize: 16,
     fontWeight: '500',
-    color: '#5C4A42',
+    color: colors.textSecondary,
   },
   filterOptionTextActive: {
     color: '#F1842D',
@@ -1388,8 +1388,8 @@ export default function CommunityScreen() {
                         setShowSidebar(false);
                       }}
                     >
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: activeGroup?._id === g._id ? '#F1842D' : 'rgba(92, 74, 66, 0.12)', marginRight: 12 }} />
-                      <Text style={{ fontSize: 14, color: activeGroup?._id === g._id ? '#2C2420' : '#5C4A42', fontWeight: activeGroup?._id === g._id ? '600' : '500' }} numberOfLines={1}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: activeGroup?._id === g._id ? '#F1842D' : colors.border, marginRight: 12 }} />
+                      <Text style={{ fontSize: 14, color: activeGroup?._id === g._id ? colors.text : colors.textSecondary, fontWeight: activeGroup?._id === g._id ? '600' : '500' }} numberOfLines={1}>
                         {g.name}
                       </Text>
                     </TouchableOpacity>
@@ -1479,7 +1479,7 @@ export default function CommunityScreen() {
                       style={[styles.groupChip, !activeGroup?._id && styles.groupChipActive]}
                       onPress={() => { setActiveGroup(null); setCurrentPage(1); }}
                     >
-                      <Ionicons name="grid-outline" size={14} color={!activeGroup?._id ? '#FFF' : '#5C4A42'} />
+                        <Ionicons name="grid-outline" size={14} color={!activeGroup?._id ? colors.text : colors.textSecondary} />
                       <Text style={[styles.groupChipText, !activeGroup?._id && styles.groupChipTextActive]}>All</Text>
                     </TouchableOpacity>
                     {generalGroup && (
@@ -1679,8 +1679,8 @@ export default function CommunityScreen() {
                         <Ionicons name="globe" size={24} color="#F1842D" />
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 17, fontWeight: '700', color: '#2C2420' }}>{generalGroup.name}</Text>
-                        <Text style={{ fontSize: 13, color: '#5C4A42', fontWeight: '500', marginTop: 2 }}>
+                        <Text style={{ fontSize: 17, fontWeight: '700', color: colors.text }}>{generalGroup.name}</Text>
+                        <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: '500', marginTop: 2 }}>
                           {generalGroup.memberCount} members · Open to everyone
                         </Text>
                       </View>
@@ -1716,8 +1716,8 @@ export default function CommunityScreen() {
                             <Ionicons name="shield" size={24} color="#F1842D" />
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 17, fontWeight: '700', color: '#2C2420' }}>{pg.name}</Text>
-                            <Text style={{ fontSize: 13, color: '#5C4A42', fontWeight: '500', marginTop: 2 }}>
+                            <Text style={{ fontSize: 17, fontWeight: '700', color: colors.text }}>{pg.name}</Text>
+                            <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: '500', marginTop: 2 }}>
                               {pg.memberCount} members · Combined feed
                             </Text>
                           </View>
@@ -1742,10 +1742,10 @@ export default function CommunityScreen() {
                                   <Ionicons name="pricetag-outline" size={18} color="#5C4A42" />
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                  <Text style={{ fontSize: 15, fontWeight: '600', color: '#2C2420' }}>
+                                  <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }}>
                                     {sub.category ? sub.category.charAt(0).toUpperCase() + sub.category.slice(1) : sub.name}
                                   </Text>
-                                  <Text style={{ fontSize: 12, color: '#8C7B73', fontWeight: '500', marginTop: 1 }}>
+                                  <Text style={{ fontSize: 12, color: colors.textSecondary, fontWeight: '500', marginTop: 1 }}>
                                     {sub.memberCount} members
                                   </Text>
                                 </View>
@@ -1771,8 +1771,8 @@ export default function CommunityScreen() {
                       <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20 }}>
                         <View style={{ width: 50, height: 50, borderRadius: 12, backgroundColor: 'rgba(92, 74, 66, 0.08)', marginRight: 16 }} />
                         <View>
-                          <Text style={{ fontSize: 17, fontWeight: '700', color: '#2C2420' }}>{g.name}</Text>
-                          <Text style={{ fontSize: 14, color: '#5C4A42', fontWeight: '500' }}>{g.memberCount} members</Text>
+                          <Text style={{ fontSize: 17, fontWeight: '700', color: colors.text }}>{g.name}</Text>
+                          <Text style={{ fontSize: 14, color: colors.textSecondary, fontWeight: '500' }}>{g.memberCount} members</Text>
                         </View>
                       </View>
                     </TouchableOpacity>
@@ -1857,7 +1857,7 @@ export default function CommunityScreen() {
               )}
 
               <View>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#5C4A42', marginBottom: 8 }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary, marginBottom: 8 }}>
                   Tags
                 </Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>

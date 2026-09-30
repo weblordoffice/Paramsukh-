@@ -43,7 +43,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#2C2420',
+    backgroundColor: colors.text,
     opacity: 0.92,
   },
   heroContent: {
@@ -112,10 +112,10 @@ const makeStyles = (colors: any) => StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 28,
   },
-  sectionTitle: {
+    sectionTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     marginBottom: 18,
     letterSpacing: 0.3,
   },
@@ -131,7 +131,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     padding: 20,
     alignItems: 'center',
     marginBottom: 16,
-    shadowColor: '#5C4A42',
+    shadowColor: colors.border,
     shadowOffset: { width: 4, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 12,
@@ -148,13 +148,13 @@ const makeStyles = (colors: any) => StyleSheet.create({
   featureTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     marginBottom: 4,
   },
   featureDescription: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#5C4A42',
+    color: colors.textSecondary,
     textAlign: 'center',
     lineHeight: 19,
   },
@@ -166,7 +166,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   quickAccessList: {
     backgroundColor: colors.surface,
     borderRadius: 24,
-    shadowColor: '#5C4A42',
+    shadowColor: colors.border,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 16,
@@ -195,17 +195,17 @@ const makeStyles = (colors: any) => StyleSheet.create({
   quickAccessTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     marginBottom: 3,
   },
   quickAccessDescription: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#5C4A42',
+    color: colors.textSecondary,
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(244, 243, 235, 0.9)',
+    backgroundColor: colors.border,
     marginHorizontal: 20,
   },
   blogSection: {
@@ -233,7 +233,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     borderRadius: 20,
     marginRight: 16,
     overflow: 'hidden',
-    shadowColor: '#5C4A42',
+    shadowColor: colors.border,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 10,
@@ -242,7 +242,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   blogImageContainer: {
     height: 120,
     width: '100%',
-    backgroundColor: '#F4F3EB',
+    backgroundColor: colors.surfaceSecondary,
   },
   blogImage: {
     height: '100%',
@@ -261,13 +261,13 @@ const makeStyles = (colors: any) => StyleSheet.create({
   blogTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     marginBottom: 4,
     height: 38,
   },
   blogAuthor: {
     fontSize: 11,
-    color: '#8C7B73',
+    color: colors.textSecondary,
     fontWeight: '500',
   },
   modalContainer: {
@@ -336,7 +336,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     padding: 20,
   },
   fallbackPlayerText: {
-    color: '#8C7B73',
+    color: colors.textSecondary,
     fontSize: 14,
     marginBottom: 16,
     textAlign: 'center',
@@ -357,7 +357,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   sectionSubtitle: {
     fontSize: 13,
-    color: '#8C7B73',
+    color: colors.textSecondary,
     marginHorizontal: 20,
     marginTop: -8,
     marginBottom: 16,
@@ -372,7 +372,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#5C4A42',
+    shadowColor: colors.border,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
@@ -415,7 +415,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   recCourseTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     marginBottom: 10,
   },
   aiExplanationCard: {
@@ -433,7 +433,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   aiExplanationText: {
     fontSize: 12,
-    color: '#5C4A42',
+    color: colors.textSecondary,
     lineHeight: 16,
   },
 });
