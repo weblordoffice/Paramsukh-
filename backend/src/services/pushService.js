@@ -23,7 +23,10 @@ const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 export const sendPushToUser = async (userId, payload) => {
   try {
     const tokens = await DeviceToken.find({ user: userId }).select('token').lean();
-    if (!tokens.length) return;
+    if (!tokens.length) {
+      console.warn(`[Push] No device tokens registered for user ${userId} — push skipped`);
+      return;
+    }
 
     const messages = tokens.map(({ token }) => buildMessage(token, payload));
     await sendToExpo(messages);

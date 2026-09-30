@@ -211,9 +211,16 @@ export const sendPodcastPurchaseEmail = (user, podcast) => {
 };
 
 export const sendCounselingBookingEmail = (user, booking) => {
-    if (user && !canSendEmail(user)) return;
+    if (user && !canSendEmail(user)) {
+        console.log(`[Email] Skipped — user has email notifications disabled`);
+        return;
+    }
     const email = user?.email || booking?.userEmail;
-    if (!email) return;
+    if (!email) {
+        console.log(`[Email] Skipped — no email address (user=${!!user}, userEmail=${booking?.userEmail})`);
+        return;
+    }
+    console.log(`[Email] Sending counseling booking email to ${email} for booking ${booking?._id}`);
     const dateStr = booking?.bookingDate
         ? new Date(booking.bookingDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
         : '';

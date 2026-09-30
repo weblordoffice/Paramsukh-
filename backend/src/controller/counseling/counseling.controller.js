@@ -380,6 +380,11 @@ export const bookCounseling = async (req, res) => {
       throw dbError;
     }
 
+    // Send confirmation email (non-blocking)
+    sendCounselingBookingEmail(user, booking).catch((err) =>
+      console.error('[Email] Booking confirmation email failed:', err?.message || err)
+    );
+
     // Send notification to user
     await sendNotification(userId, {
       type: 'counseling_booked',

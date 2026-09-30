@@ -331,7 +331,9 @@ export const sendNotification = async (userId, notificationData) => {
         relatedType: notificationData.relatedType || null,
         actionUrl: notificationData.actionUrl || null,
       },
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error(`[Push] Failed to send push to user ${userId}:`, err?.message || err);
+    });
 
     return notification;
   } catch (error) {
