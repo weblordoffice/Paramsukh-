@@ -43,8 +43,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.background,
-    opacity: 0.85,
+    opacity: 0,
   },
   heroContent: {
     padding: 28,
@@ -71,19 +70,19 @@ const makeStyles = (colors: any) => StyleSheet.create({
   heroGreeting: {
     fontSize: 14,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.7)',
+    color: colors.textSecondary,
     marginBottom: 3,
   },
   heroTitle: {
     fontSize: 28,
     fontWeight: '700',
-    color: colors.surface,
+    color: colors.text,
     letterSpacing: 0.5,
   },
   heroDescription: {
     fontSize: 15,
     fontWeight: '500',
-    color: 'rgba(255, 255, 255, 0.85)',
+    color: colors.textSecondary,
     lineHeight: 22,
     marginBottom: 22,
   },
@@ -712,7 +711,7 @@ export default function HomeTab() {
           <View style={styles.heroContent}>
             <View style={styles.heroHeader}>
               <View style={styles.heroIconContainer}>
-                <Ionicons name="sparkles" size={32} color={colors.surface} />
+                <Ionicons name="sparkles" size={32} color={colors.primary} />
               </View>
               <View style={styles.heroTextContainer}>
                 <Text style={styles.heroGreeting}>Welcome to</Text>
