@@ -1496,7 +1496,7 @@ export default function AIChatPanel({
 
   const handleOpenProfile = () => {
     onClose?.();
-    router.push('/profile-menu');
+    router.push('/(home)/profile-menu');
   };
 
   const handleClosePanel = () => {

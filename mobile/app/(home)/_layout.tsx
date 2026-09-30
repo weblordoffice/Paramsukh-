@@ -254,6 +254,12 @@ export default function HomeLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="profile-menu"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
 
       {/* Menu Bottom Sheet Modal */}

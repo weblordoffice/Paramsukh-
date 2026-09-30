@@ -49,7 +49,7 @@ export default function Header({ useSafeArea = false }: HeaderProps) {
 
   const navigateToProfile = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/profile-menu');
+    router.push('/(home)/profile-menu');
   };
 
   const navigateToNotifications = () => {

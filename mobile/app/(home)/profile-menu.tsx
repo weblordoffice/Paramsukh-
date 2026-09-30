@@ -3,13 +3,13 @@ import { ScrollView, Text, TouchableOpacity, View, Alert, ActivityIndicator } fr
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore } from '../../store/authStore';
 import axios from 'axios';
-import { API_URL } from '../config/api';
+import { API_URL } from '../../config/api';
 
-import { getInitials } from '../utils/userUtils';
-import { hasActiveMembership } from '../utils/membership';
-import { useTheme } from '../hooks/useTheme';
+import { getInitials } from '../../utils/userUtils';
+import { hasActiveMembership } from '../../utils/membership';
+import { useTheme } from '../../hooks/useTheme';
 
 interface WellnessProfile {
   age?: number;
@@ -102,7 +102,7 @@ export default function ProfileMenuScreen() {
       description: 'Update your personal information',
       icon: 'person-outline',
       color: '#3B82F6',
-      route: '/(home)/edit-profile',
+      route: '/edit-profile',
     },
     {
       id: 'my-orders',
@@ -118,7 +118,7 @@ export default function ProfileMenuScreen() {
       description: 'View achievements and stats',
       icon: 'trophy-outline',
       color: '#10B981',
-      route: '/(home)/my-progress',
+      route: '/my-progress',
     },
     {
       id: 'referral',
@@ -126,7 +126,7 @@ export default function ProfileMenuScreen() {
       description: 'Invite friends to earn free premium',
       icon: 'gift-outline',
       color: '#EC4899',
-      route: '/(home)/referral',
+      route: '/referral',
     },
     {
       id: 'settings',
@@ -134,7 +134,7 @@ export default function ProfileMenuScreen() {
       description: 'App preferences and notifications',
       icon: 'settings-outline',
       color: '#F59E0B',
-      route: '/(home)/settings',
+      route: '/settings',
     },
     ...(isPremiumMember ? [{
       id: 'downloads',
@@ -142,7 +142,7 @@ export default function ProfileMenuScreen() {
       description: 'Watch saved premium videos offline',
       icon: 'download-outline',
       color: '#2563EB',
-      route: '/(home)/downloads',
+      route: '/downloads',
     }] : []),
     {
       id: 'help-support',
@@ -150,7 +150,7 @@ export default function ProfileMenuScreen() {
       description: 'Get help and contact us',
       icon: 'help-circle-outline',
       color: '#8B5CF6',
-      route: '/(home)/help-support',
+      route: '/help-support',
     },
     {
       id: 'terms-privacy',
@@ -158,7 +158,7 @@ export default function ProfileMenuScreen() {
       description: 'Legal information',
       icon: 'document-text-outline',
       color: colors.textSecondary,
-      route: '/(home)/terms-privacy',
+      route: '/terms-privacy',
     },
   ];
 
