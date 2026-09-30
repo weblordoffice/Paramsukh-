@@ -485,12 +485,12 @@ export const respondRescheduleAdmin = async (req, res) => {
 export const wipeCounselingData = async (req, res) => {
     try {
         const { default: CounselingService } = await import('../../models/counselingService.model.js');
-        const { default: AvailabilityException } = await import('../../models/availabilityException.model.js');
+        const { default: CounselorAvailabilityException } = await import('../../models/counselorAvailabilityException.model.js');
 
         const [bookingCount, serviceCount, exceptionCount] = await Promise.all([
             Booking.deleteMany({}),
             CounselingService.deleteMany({}),
-            AvailabilityException.deleteMany({})
+            CounselorAvailabilityException.deleteMany({})
         ]);
 
         res.status(200).json({
