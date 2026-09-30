@@ -192,98 +192,98 @@ export default function ProfileMenuScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
-        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} className="w-10">
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: colors.surface }}>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text className="text-xl font-bold text-gray-900">Profile</Text>
-        <View className="w-10" />
+        <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>Profile</Text>
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <View className="p-5">
           {/* Profile Header */}
-          <View className="bg-white rounded-3xl p-6 mb-5 items-center shadow-sm">
-            <View className="w-24 h-24 rounded-full bg-blue-50 items-center justify-center border-4 border-blue-500 mb-3">
-              <Text className="text-4xl font-bold text-blue-500">{getUserInitial()}</Text>
+          <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 24, marginBottom: 20, alignItems: 'center', shadowColor: colors.border, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
+            <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: colors.primary, marginBottom: 12 }}>
+              <Text style={{ fontSize: 36, fontWeight: '700', color: colors.primary }}>{getUserInitial()}</Text>
             </View>
-            <Text className="text-xl font-bold text-gray-900 mb-1">{user?.displayName || 'User'}</Text>
-            <Text className="text-sm text-gray-500">Spiritual Seeker</Text>
+            <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 4 }}>{user?.displayName || 'User'}</Text>
+            <Text style={{ fontSize: 14, color: colors.textSecondary }}>Spiritual Seeker</Text>
 
             <TouchableOpacity
-              className="mt-4 px-6 py-2 rounded-xl bg-blue-50 border border-blue-200"
+              style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border }}
               onPress={() => router.push('/(home)/edit-profile')}
             >
-              <Text className="text-sm font-semibold text-blue-600">Edit Profile</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>Edit Profile</Text>
             </TouchableOpacity>
           </View>
 
           {/* Wellness Profile Card */}
           {loadingWellness ? (
-            <View className="bg-white rounded-2xl p-5 mb-5 items-center shadow-sm">
-              <ActivityIndicator size="small" color="#F1842D" />
-              <Text className="text-xs text-gray-400 mt-2">Loading wellness profile...</Text>
+            <View style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 20, marginBottom: 20, alignItems: 'center', shadowColor: colors.border, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
+              <ActivityIndicator size="small" color={colors.primary} />
+              <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 8 }}>Loading wellness profile...</Text>
             </View>
           ) : wellness ? (
-            <View className="bg-white rounded-2xl p-5 mb-5 shadow-sm border border-gray-100">
-              <View className="flex-row items-center justify-between mb-4">
-                <Text className="text-base font-bold text-gray-900">My Wellness Profile</Text>
-                <View className="px-2.5 py-1 rounded-full bg-orange-50 border border-orange-100">
-                  <Text className="text-[10px] font-bold text-orange-600 tracking-wider">ASSESSED</Text>
+            <View style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 20, marginBottom: 20, shadowColor: colors.border, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2, borderWidth: 1, borderColor: colors.border }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>My Wellness Profile</Text>
+                <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border }}>
+                  <Text style={{ fontSize: 10, fontWeight: '700', color: colors.primary, letterSpacing: 1 }}>ASSESSED</Text>
                 </View>
               </View>
 
               {/* Personal Info Row */}
-              <View className="flex-row flex-wrap gap-x-4 gap-y-2 mb-4">
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                 {wellness.age ? (
-                  <View className="flex-row items-center gap-1.5">
-                    <Ionicons name="person-outline" size={13} color="#8C7B73" />
-                    <Text className="text-xs text-gray-600">{wellness.age} yrs</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="person-outline" size={13} color={colors.textSecondary} />
+                    <Text style={{ fontSize: 12, color: colors.text }}>{wellness.age} yrs</Text>
                   </View>
                 ) : null}
                 {wellness.occupation ? (
-                  <View className="flex-row items-center gap-1.5">
-                    <Ionicons name="briefcase-outline" size={13} color="#8C7B73" />
-                    <Text className="text-xs text-gray-600">{wellness.occupation}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="briefcase-outline" size={13} color={colors.textSecondary} />
+                    <Text style={{ fontSize: 12, color: colors.text }}>{wellness.occupation}</Text>
                   </View>
                 ) : null}
                 {wellness.location ? (
-                  <View className="flex-row items-center gap-1.5">
-                    <Ionicons name="location-outline" size={13} color="#8C7B73" />
-                    <Text className="text-xs text-gray-600">{wellness.location}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
+                    <Text style={{ fontSize: 12, color: colors.text }}>{wellness.location}</Text>
                   </View>
                 ) : null}
               </View>
 
               {/* Wellness Scales */}
               {(wellness.stressLevel != null || wellness.sleepQuality != null || wellness.energyLevel != null || wellness.moodRating != null) && (
-                <View className="mb-4">
-                  <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Wellness Scales</Text>
-                  <View className="flex-row flex-wrap gap-2">
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Wellness Scales</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                     {wellness.stressLevel != null && (
-                      <View className="flex-row items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
-                        <Text className="text-xs text-gray-500">Stress</Text>
-                        <Text className="text-xs font-bold text-orange-600">{scaleLabel(wellness.stressLevel, 'Low', 'High')}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border }}>
+                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>Stress</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>{scaleLabel(wellness.stressLevel, 'Low', 'High')}</Text>
                       </View>
                     )}
                     {wellness.sleepQuality != null && (
-                      <View className="flex-row items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
-                        <Text className="text-xs text-gray-500">Sleep</Text>
-                        <Text className="text-xs font-bold text-indigo-600">{scaleLabel(wellness.sleepQuality, 'Poor', 'Great')}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border }}>
+                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>Sleep</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#8B5CF6' }}>{scaleLabel(wellness.sleepQuality, 'Poor', 'Great')}</Text>
                       </View>
                     )}
                     {wellness.energyLevel != null && (
-                      <View className="flex-row items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
-                        <Text className="text-xs text-gray-500">Energy</Text>
-                        <Text className="text-xs font-bold text-green-600">{scaleLabel(wellness.energyLevel, 'Low', 'High')}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border }}>
+                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>Energy</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#10B981' }}>{scaleLabel(wellness.energyLevel, 'Low', 'High')}</Text>
                       </View>
                     )}
                     {wellness.moodRating != null && (
-                      <View className="flex-row items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
-                        <Text className="text-xs text-gray-500">Mood</Text>
-                        <Text className="text-xs font-bold text-blue-600">{scaleLabel(wellness.moodRating, 'Low', 'High')}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border }}>
+                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>Mood</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#3B82F6' }}>{scaleLabel(wellness.moodRating, 'Low', 'High')}</Text>
                       </View>
                     )}
                   </View>
@@ -293,16 +293,15 @@ export default function ProfileMenuScreen() {
               {/* Wellness Goals */}
               {activeGoals.length > 0 && (
                 <View>
-                  <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">My Focus Areas</Text>
-                  <View className="flex-row flex-wrap gap-2">
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>My Focus Areas</Text>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                     {activeGoals.map((goal: any, i: number) => (
                       <View
                         key={i}
-                        className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full"
-                        style={{ backgroundColor: goal.color + '15', borderWidth: 1, borderColor: goal.color + '30' }}
+                        style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: goal.color + '15', borderWidth: 1, borderColor: goal.color + '30' }}
                       >
                         <Ionicons name={goal.icon as any} size={12} color={goal.color} />
-                        <Text className="text-xs font-semibold" style={{ color: goal.color }}>{goal.label}</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: goal.color }}>{goal.label}</Text>
                       </View>
                     ))}
                   </View>
@@ -310,13 +309,13 @@ export default function ProfileMenuScreen() {
               )}
 
               {activeGoals.length === 0 && !wellness.stressLevel && !wellness.age && !wellness.occupation && !wellness.location && (
-                <View className="items-center py-3">
-                  <Text className="text-sm text-gray-400">No wellness profile completed yet</Text>
+                <View style={{ alignItems: 'center', paddingVertical: 12 }}>
+                  <Text style={{ fontSize: 14, color: colors.textSecondary }}>No wellness profile completed yet</Text>
                   <TouchableOpacity
-                    className="mt-2 px-4 py-2 rounded-xl bg-orange-50 border border-orange-100"
+                    style={{ marginTop: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border }}
                     onPress={() => router.push('/(home)/edit-profile')}
                   >
-                    <Text className="text-xs font-bold text-orange-600">Complete Assessment</Text>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary }}>Complete Assessment</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -324,22 +323,21 @@ export default function ProfileMenuScreen() {
           ) : null}
 
           {/* Menu Items */}
-          <View className="gap-3 mb-5">
+          <View style={{ gap: 12, marginBottom: 20 }}>
             {menuItems.map((item) => (
               <TouchableOpacity
                 key={item.id}
-                className="bg-white rounded-2xl p-4 flex-row items-center gap-3 shadow-sm"
+                style={{ backgroundColor: colors.surface, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: colors.border, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}
                 onPress={() => router.push(item.route as any)}
               >
                 <View
-                  className="w-12 h-12 rounded-xl items-center justify-center"
-                  style={{ backgroundColor: item.color + '15' }}
+                  style={{ width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: item.color + '15' }}
                 >
-                  <Ionicons name={item.icon as any} size={24} style={{ color: item.color }} />
+                  <Ionicons name={item.icon as any} size={24} color={item.color} />
                 </View>
-                <View className="flex-1">
-                  <Text className="text-base font-bold text-gray-900">{item.title}</Text>
-                  <Text className="text-xs text-gray-500 mt-0.5">{item.description}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>{item.title}</Text>
+                  <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>{item.description}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
@@ -348,11 +346,11 @@ export default function ProfileMenuScreen() {
 
           {/* Sign Out Button */}
           <TouchableOpacity
-            className="bg-red-50 rounded-2xl p-4 flex-row items-center justify-center gap-2 border-2 border-red-200"
+            style={{ backgroundColor: colors.danger + '12', borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 2, borderColor: colors.danger + '30' }}
             onPress={handleSignOut}
           >
-            <Ionicons name="log-out-outline" size={22} color="#EF4444" />
-            <Text className="text-base font-bold text-red-500">Sign Out</Text>
+            <Ionicons name="log-out-outline" size={22} color={colors.danger} />
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.danger }}>Sign Out</Text>
           </TouchableOpacity>
 
           <View className="h-10" />
