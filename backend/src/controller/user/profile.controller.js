@@ -13,7 +13,7 @@ import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.ser
 import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
 import { verifyRazorpaySignature, fetchPaymentDetails } from '../../services/razorpayService.js';
 import { sendMembershipPurchaseEmail } from '../../services/emailService.js';
-import { sendOTP, verifyOTP } from '../../services/otpService.js';
+import { sendOTP, verifyOTP, sendEmailOTP, verifyEmailOTP } from '../../services/otpService.js';
 
 /**
  * Get user profile
@@ -835,6 +835,162 @@ export const purchaseMembership = async (req, res) => {
       success: false,
       message: "Internal server error",
       error: error.message
+    });
+  }
+};
+
+/**
+ * Request OTP to change email or phone
+ * POST /api/user/profile/request-contact-change
+ */
+export const requestContactChange = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { field, value } = req.body;
+
+    if (!field || !['email', 'phone'].includes(field)) {
+      return res.status(400).json({
+        success: false,
+        message: "field must be 'email' or 'phone'"
+      });
+    }
+
+    if (!value || typeof value !== 'string' || !value.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: `New ${field} is required`
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (field === 'email') {
+      const normalizedEmail = value.toLowerCase().trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(normalizedEmail)) {
+        return res.status(400).json({ success: false, message: 'Invalid email address' });
+      }
+      if (user.email === normalizedEmail) {
+        return res.status(400).json({ success: false, message: 'This is already your email' });
+      }
+      const existing = await User.findOne({ email: normalizedEmail, _id: { $ne: userId } });
+      if (existing) {
+        return res.status(400).json({ success: false, message: 'This email is already in use by another account' });
+      }
+      await sendEmailOTP(normalizedEmail);
+    } else if (field === 'phone') {
+      const cleanPhone = value.replace(/^\+91/, '').replace(/\D/g, '');
+      if (cleanPhone.length !== 10) {
+        return res.status(400).json({ success: false, message: 'Phone number must be 10 digits' });
+      }
+      const fullPhone = `+91${cleanPhone}`;
+      if (user.phone === fullPhone) {
+        return res.status(400).json({ success: false, message: 'This is already your phone number' });
+      }
+      const existing = await User.findOne({ phone: fullPhone, _id: { $ne: userId } });
+      if (existing) {
+        return res.status(400).json({ success: false, message: 'This phone number is already in use by another account' });
+      }
+      await sendOTP(cleanPhone);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Verification OTP sent to your ${field === 'email' ? 'email' : 'phone'}`
+    });
+  } catch (error) {
+    console.error('❌ requestContactChange error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to send OTP'
+    });
+  }
+};
+
+/**
+ * Verify OTP and update email or phone
+ * POST /api/user/profile/verify-contact-change
+ */
+export const verifyContactChange = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { field, value, otp } = req.body;
+
+    if (!field || !['email', 'phone'].includes(field)) {
+      return res.status(400).json({
+        success: false,
+        message: "field must be 'email' or 'phone'"
+      });
+    }
+
+    if (!value || typeof value !== 'string' || !value.trim()) {
+      return res.status(400).json({ success: false, message: `New ${field} is required` });
+    }
+
+    if (!otp || typeof otp !== 'string' || otp.trim().length !== 6) {
+      return res.status(400).json({ success: false, message: '6-digit OTP is required' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    let updatedUser;
+
+    if (field === 'email') {
+      const normalizedEmail = value.toLowerCase().trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(normalizedEmail)) {
+        return res.status(400).json({ success: false, message: 'Invalid email address' });
+      }
+      const existing = await User.findOne({ email: normalizedEmail, _id: { $ne: userId } });
+      if (existing) {
+        return res.status(400).json({ success: false, message: 'This email is already in use' });
+      }
+      const verification = await verifyEmailOTP(normalizedEmail, otp.trim());
+      if (!verification.success) {
+        return res.status(400).json({ success: false, message: verification.message });
+      }
+      updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { email: normalizedEmail },
+        { new: true, runValidators: true }
+      ).select('-__v');
+    } else if (field === 'phone') {
+      const cleanPhone = value.replace(/^\+91/, '').replace(/\D/g, '');
+      if (cleanPhone.length !== 10) {
+        return res.status(400).json({ success: false, message: 'Phone number must be 10 digits' });
+      }
+      const fullPhone = `+91${cleanPhone}`;
+      const existing = await User.findOne({ phone: fullPhone, _id: { $ne: userId } });
+      if (existing) {
+        return res.status(400).json({ success: false, message: 'This phone number is already in use' });
+      }
+      const verification = await verifyOTP(cleanPhone, otp.trim());
+      if (!verification.success) {
+        return res.status(400).json({ success: false, message: verification.message });
+      }
+      updatedUser = await User.findByIdAndUpdate(
+        userId,
+        { phone: fullPhone },
+        { new: true, runValidators: true }
+      ).select('-__v');
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `${field === 'email' ? 'Email' : 'Phone'} updated successfully`,
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error('❌ verifyContactChange error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update contact'
     });
   }
 };

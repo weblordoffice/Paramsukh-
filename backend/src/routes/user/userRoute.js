@@ -10,7 +10,9 @@ import {
   deactivateAccount,
   deleteAccount,
   requestDeleteAccountOtp,
-  purchaseMembership
+  purchaseMembership,
+  requestContactChange,
+  verifyContactChange
 } from '../../controller/user/profile.controller.js';
 import {
   getUserCertificates,
@@ -55,6 +57,8 @@ router.put('/profile', protectedRoutes, updateProfile);
 router.put('/profile/photo', protectedRoutes, updateProfilePhoto);
 router.delete('/profile/photo', protectedRoutes, removeProfilePhoto);
 router.put('/preferences', protectedRoutes, updatePreferences);
+router.post('/profile/request-contact-change', protectedRoutes, requestContactChange);
+router.post('/profile/verify-contact-change', protectedRoutes, verifyContactChange);
 router.get('/subscription', protectedRoutes, getSubscription);
 router.post('/membership/purchase', protectedRoutes, purchaseMembership);
 router.get('/stats', protectedRoutes, getUserStats);

@@ -211,3 +211,132 @@ export const clearOTP = (phone) => {
   const cleanPhone = phone.replace(/^\+91/, '').replace(/\D/g, '');
   otpStore.delete(cleanPhone);
 };
+
+// ─── Email OTP (for contact change verification) ───────────────────────────
+
+const emailOtpStore = new Map();
+
+const getResend = () => {
+  // Lazy import to avoid issues before dotenv.config() runs
+  const { Resend } = require('resend');
+  if (!process.env.RESEND_API_KEY) return null;
+  return new Resend(process.env.RESEND_API_KEY);
+};
+
+const getFrom = () => process.env.RESEND_FROM || 'ParamSukh <noreply@mail.paramsukhonlinegurukul.com>';
+
+/**
+ * Send OTP to an email address for contact change verification
+ * @param {string} email
+ * @returns {Promise<{success: boolean, message: string}>}
+ */
+export const sendEmailOTP = async (email) => {
+  const normalizedEmail = String(email).toLowerCase().trim();
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(normalizedEmail)) {
+    throw new Error('Invalid email address.');
+  }
+
+  const resend = getResend();
+  const isTestMode = !resend || process.env.RESEND_API_KEY?.toLowerCase() === 'test';
+  const otp = isTestMode ? '123456' : generateOTP();
+
+  if (!isTestMode) {
+    const fromAddress = getFrom();
+    try {
+      const { data, error } = await resend.emails.send({
+        from: fromAddress,
+        to: normalizedEmail,
+        subject: 'Your ParamSukh OTP — Email Verification',
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
+            <div style="background: #F1842D; padding: 20px 24px; border-radius: 12px 12px 0 0; text-align: center;">
+              <h1 style="color: #fff; margin: 0; font-size: 24px;">ParamSukh</h1>
+            </div>
+            <div style="background: #fff; padding: 32px 24px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+              <h2 style="color: #1C1917; margin: 0 0 16px; font-size: 20px;">Verify your email address</h2>
+              <p style="color: #57534e; font-size: 15px; line-height: 1.6; margin: 0 0 24px;">
+                You requested to change your email to this address. Please use the OTP below to verify:
+              </p>
+              <div style="background: #F4F3EB; border: 2px dashed #F1842D; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 24px;">
+                <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #F1842D;">${otp}</span>
+              </div>
+              <p style="color: #A8A29E; font-size: 12px; margin: 0;">
+                This OTP is valid for 10 minutes. If you did not request this, please ignore this email.
+              </p>
+            </div>
+          </div>
+        `,
+      });
+
+      if (error) {
+        throw new Error(`Failed to send email: ${error.message}`);
+      }
+    } catch (emailError) {
+      console.error('[Email OTP] Send failed:', emailError?.message || emailError);
+      throw new Error('Failed to send verification email. Please try again.');
+    }
+  }
+
+  const expiresAt = Date.now() + (OTP_EXPIRY_MINUTES * 60 * 1000);
+  emailOtpStore.set(normalizedEmail, {
+    otp,
+    expiresAt,
+    attempts: 0
+  });
+
+  return {
+    success: true,
+    message: 'Verification OTP sent to your email'
+  };
+};
+
+/**
+ * Verify email OTP
+ * @param {string} email
+ * @param {string} otp
+ * @returns {Promise<{success: boolean, message: string}>}
+ */
+export const verifyEmailOTP = async (email, otp) => {
+  const normalizedEmail = String(email).toLowerCase().trim();
+
+  // In development, accept 123456 for any email
+  if (process.env.NODE_ENV !== 'production' && otp.toString() === '123456') {
+    emailOtpStore.delete(normalizedEmail);
+    return { success: true, message: 'OTP verified successfully' };
+  }
+
+  const stored = emailOtpStore.get(normalizedEmail);
+
+  if (!stored) {
+    return { success: false, message: 'OTP expired or not found. Please request a new one.' };
+  }
+
+  if (Date.now() > stored.expiresAt) {
+    emailOtpStore.delete(normalizedEmail);
+    return { success: false, message: 'OTP expired. Please request a new one.' };
+  }
+
+  if (stored.attempts >= 7) {
+    emailOtpStore.delete(normalizedEmail);
+    return { success: false, message: 'Too many failed attempts. Please request a new OTP.' };
+  }
+
+  if (stored.otp === otp.toString()) {
+    emailOtpStore.delete(normalizedEmail);
+    return { success: true, message: 'OTP verified successfully' };
+  } else {
+    stored.attempts += 1;
+    emailOtpStore.set(normalizedEmail, stored);
+    return { success: false, message: `Invalid OTP. ${7 - stored.attempts} attempts remaining.` };
+  }
+};
+
+/**
+ * Clear email OTP
+ */
+export const clearEmailOTP = (email) => {
+  const normalizedEmail = String(email).toLowerCase().trim();
+  emailOtpStore.delete(normalizedEmail);
+};
