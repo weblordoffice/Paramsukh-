@@ -1,19 +1,40 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ScrollView, Text, TouchableOpacity, View, Alert } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../store/authStore';
+import axios from 'axios';
+import { API_URL } from '../config/api';
 
 import { getInitials } from '../utils/userUtils';
 import { hasActiveMembership } from '../utils/membership';
 import { useTheme } from '../hooks/useTheme';
+
+interface WellnessProfile {
+  age?: number;
+  occupation?: string;
+  location?: string;
+  stressLevel?: number;
+  sleepQuality?: number;
+  energyLevel?: number;
+  moodRating?: number;
+  physicalActivityLevel?: string;
+  physicalIssue?: boolean;
+  specialDiseaseIssue?: boolean;
+  relationshipIssue?: boolean;
+  financialIssue?: boolean;
+  mentalHealthIssue?: boolean;
+  spiritualGrowth?: boolean;
+}
 
 export default function ProfileMenuScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const { user: authUser, logout, fetchCurrentUser } = useAuthStore();
   const [user, setUser] = useState(authUser);
+  const [wellness, setWellness] = useState<WellnessProfile | null>(null);
+  const [loadingWellness, setLoadingWellness] = useState(true);
   const isMountedRef = useRef(true);
 
   useEffect(() => {
@@ -26,6 +47,25 @@ export default function ProfileMenuScreen() {
       }
     };
     loadUser();
+
+    // Fetch wellness profile
+    const loadWellness = async () => {
+      try {
+        const token = await useAuthStore.getState().token;
+        const res = await axios.get(`${API_URL}/user/profile`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        if (res.data?.profileDetails) {
+          setWellness(res.data.profileDetails as WellnessProfile);
+        }
+      } catch (err) {
+        console.warn('Failed to load wellness profile:', err);
+      } finally {
+        if (isMountedRef.current) setLoadingWellness(false);
+      }
+    };
+    loadWellness();
+
     return () => {
       isMountedRef.current = false;
     };
@@ -36,6 +76,24 @@ export default function ProfileMenuScreen() {
   };
 
   const isPremiumMember = hasActiveMembership(user);
+
+  const wellnessGoals = wellness ? [
+    wellness.physicalIssue && { label: 'Physical Wellness', icon: 'fitness-outline', color: '#10B981' },
+    wellness.specialDiseaseIssue && { label: 'Chronic Illness', icon: 'medical-outline', color: '#EF4444' },
+    wellness.relationshipIssue && { label: 'Relationships', icon: 'heart-outline', color: '#EC4899' },
+    wellness.financialIssue && { label: 'Financial Freedom', icon: 'cash-outline', color: '#22C55E' },
+    wellness.mentalHealthIssue && { label: 'Mental Clarity', icon: 'brain-outline', color: '#6366F1' },
+    wellness.spiritualGrowth && { label: 'Spiritual Growth', icon: 'rose-outline', color: '#F59E0B' },
+  ].filter(Boolean) : [];
+
+  const scaleLabel = (value?: number, low = 'Low', high = 'High') => {
+    if (value == null) return '—';
+    if (value <= 3) return `${value}/10 · ${low}`;
+    if (value <= 6) return `${value}/10 · Moderate`;
+    return `${value}/10 · ${high}`;
+  };
+
+  const activeGoals = wellnessGoals.filter(Boolean);
 
   const menuItems = [
     {
@@ -161,6 +219,109 @@ export default function ProfileMenuScreen() {
               <Text className="text-sm font-semibold text-blue-600">Edit Profile</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Wellness Profile Card */}
+          {loadingWellness ? (
+            <View className="bg-white rounded-2xl p-5 mb-5 items-center shadow-sm">
+              <ActivityIndicator size="small" color="#F1842D" />
+              <Text className="text-xs text-gray-400 mt-2">Loading wellness profile...</Text>
+            </View>
+          ) : wellness ? (
+            <View className="bg-white rounded-2xl p-5 mb-5 shadow-sm border border-gray-100">
+              <View className="flex-row items-center justify-between mb-4">
+                <Text className="text-base font-bold text-gray-900">My Wellness Profile</Text>
+                <View className="px-2.5 py-1 rounded-full bg-orange-50 border border-orange-100">
+                  <Text className="text-[10px] font-bold text-orange-600 tracking-wider">ASSESSED</Text>
+                </View>
+              </View>
+
+              {/* Personal Info Row */}
+              <View className="flex-row flex-wrap gap-x-4 gap-y-2 mb-4">
+                {wellness.age ? (
+                  <View className="flex-row items-center gap-1.5">
+                    <Ionicons name="person-outline" size={13} color="#8C7B73" />
+                    <Text className="text-xs text-gray-600">{wellness.age} yrs</Text>
+                  </View>
+                ) : null}
+                {wellness.occupation ? (
+                  <View className="flex-row items-center gap-1.5">
+                    <Ionicons name="briefcase-outline" size={13} color="#8C7B73" />
+                    <Text className="text-xs text-gray-600">{wellness.occupation}</Text>
+                  </View>
+                ) : null}
+                {wellness.location ? (
+                  <View className="flex-row items-center gap-1.5">
+                    <Ionicons name="location-outline" size={13} color="#8C7B73" />
+                    <Text className="text-xs text-gray-600">{wellness.location}</Text>
+                  </View>
+                ) : null}
+              </View>
+
+              {/* Wellness Scales */}
+              {(wellness.stressLevel != null || wellness.sleepQuality != null || wellness.energyLevel != null || wellness.moodRating != null) && (
+                <View className="mb-4">
+                  <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Wellness Scales</Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {wellness.stressLevel != null && (
+                      <View className="flex-row items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
+                        <Text className="text-xs text-gray-500">Stress</Text>
+                        <Text className="text-xs font-bold text-orange-600">{scaleLabel(wellness.stressLevel, 'Low', 'High')}</Text>
+                      </View>
+                    )}
+                    {wellness.sleepQuality != null && (
+                      <View className="flex-row items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
+                        <Text className="text-xs text-gray-500">Sleep</Text>
+                        <Text className="text-xs font-bold text-indigo-600">{scaleLabel(wellness.sleepQuality, 'Poor', 'Great')}</Text>
+                      </View>
+                    )}
+                    {wellness.energyLevel != null && (
+                      <View className="flex-row items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
+                        <Text className="text-xs text-gray-500">Energy</Text>
+                        <Text className="text-xs font-bold text-green-600">{scaleLabel(wellness.energyLevel, 'Low', 'High')}</Text>
+                      </View>
+                    )}
+                    {wellness.moodRating != null && (
+                      <View className="flex-row items-center gap-1.5 bg-gray-50 px-3 py-1.5 rounded-xl border border-gray-100">
+                        <Text className="text-xs text-gray-500">Mood</Text>
+                        <Text className="text-xs font-bold text-blue-600">{scaleLabel(wellness.moodRating, 'Low', 'High')}</Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {/* Wellness Goals */}
+              {activeGoals.length > 0 && (
+                <View>
+                  <Text className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">My Focus Areas</Text>
+                  <View className="flex-row flex-wrap gap-2">
+                    {activeGoals.map((goal: any, i: number) => (
+                      <View
+                        key={i}
+                        className="flex-row items-center gap-1.5 px-3 py-1.5 rounded-full"
+                        style={{ backgroundColor: goal.color + '15', borderWidth: 1, borderColor: goal.color + '30' }}
+                      >
+                        <Ionicons name={goal.icon as any} size={12} color={goal.color} />
+                        <Text className="text-xs font-semibold" style={{ color: goal.color }}>{goal.label}</Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {activeGoals.length === 0 && !wellness.stressLevel && !wellness.age && !wellness.occupation && !wellness.location && (
+                <View className="items-center py-3">
+                  <Text className="text-sm text-gray-400">No wellness profile completed yet</Text>
+                  <TouchableOpacity
+                    className="mt-2 px-4 py-2 rounded-xl bg-orange-50 border border-orange-100"
+                    onPress={() => router.push('/(home)/edit-profile')}
+                  >
+                    <Text className="text-xs font-bold text-orange-600">Complete Assessment</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          ) : null}
 
           {/* Menu Items */}
           <View className="gap-3 mb-5">
