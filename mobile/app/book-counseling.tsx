@@ -25,7 +25,8 @@ export default function BookCounselingScreen() {
   const duration = service?.duration || '60 mins';
   const color = service?.color || '#F1842D';
   const bgColor = service?.bgColor || colors.background;
-  const isFree = service?.isFree ? 'true' : 'false';
+  const numericPrice = Number(price) || 0;
+  const isFree = service?.isFree || numericPrice === 0 ? 'true' : 'false';
 
   // Set today as initial date
   const today = new Date().toISOString().split('T')[0];
