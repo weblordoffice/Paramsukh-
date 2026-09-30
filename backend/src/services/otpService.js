@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { Resend } from 'resend';
 
 // In-memory OTP store for temporary verification state.
 const otpStore = new Map();
@@ -217,8 +218,6 @@ export const clearOTP = (phone) => {
 const emailOtpStore = new Map();
 
 const getResend = () => {
-  // Lazy import to avoid issues before dotenv.config() runs
-  const { Resend } = require('resend');
   if (!process.env.RESEND_API_KEY) return null;
   return new Resend(process.env.RESEND_API_KEY);
 };
