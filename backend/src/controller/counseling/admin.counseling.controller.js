@@ -332,3 +332,119 @@ export const triggerAutoComplete = async (req, res) => {
         });
     }
 };
+
+// @desc    Reschedule a booking (Admin - bypasses 48hr user restriction)
+// @route   PATCH /api/counseling/admin/:id/reschedule
+// @access  Admin
+export const rescheduleBookingAdmin = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { newDate, newTime, reason } = req.body;
+
+        if (!newDate || !newTime) {
+            return res.status(400).json({
+                success: false,
+                message: 'New date and time are required'
+            });
+        }
+
+        const booking = await Booking.findById(id);
+        if (!booking) {
+            return res.status(404).json({
+                success: false,
+                message: 'Booking not found'
+            });
+        }
+
+        if (['cancelled', 'completed'].includes(booking.status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot reschedule a ${booking.status} booking`
+            });
+        }
+
+        // Check if new slot conflicts with another booking
+        const conflict = await Booking.findOne({
+            _id: { $ne: id },
+            counselorType: booking.counselorType,
+            bookingDate: new Date(newDate),
+            bookingTime: newTime,
+            status: { $in: ['pending', 'confirmed'] }
+        });
+
+        if (conflict) {
+            return res.status(409).json({
+                success: false,
+                message: 'The new time slot is already booked. Please select a different time.'
+            });
+        }
+
+        const oldDate = booking.bookingDate;
+        const oldTime = booking.bookingTime;
+
+        booking.rescheduledFrom = oldDate;
+        booking.bookingDate = new Date(newDate);
+        booking.bookingTime = newTime;
+        booking.rescheduledReason = reason || 'Rescheduled by admin';
+        booking.rescheduledBy = 'admin';
+
+        await booking.save();
+
+        // Notify user
+        await sendNotification(booking.user, {
+            type: 'counseling_rescheduled',
+            title: 'Booking Rescheduled by Admin',
+            message: `Your session "${booking.bookingTitle}" has been rescheduled from ${oldDate.toLocaleDateString()} ${oldTime} to ${new Date(newDate).toLocaleDateString()} ${newTime}${reason ? `. Reason: ${reason}` : ''}`,
+            icon: '📅',
+            priority: 'high',
+            relatedId: booking._id,
+            relatedType: 'booking'
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Booking rescheduled successfully',
+            data: { booking }
+        });
+    } catch (error) {
+        console.error('Reschedule Booking Admin Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to reschedule booking',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Wipe all counseling data (bookings, services, exceptions)
+// @route   DELETE /api/counseling/admin/wipe
+// @access  Admin
+export const wipeCounselingData = async (req, res) => {
+    try {
+        const { default: CounselingService } = await import('../../models/counselingService.model.js');
+        const { default: AvailabilityException } = await import('../../models/availabilityException.model.js');
+
+        const [bookingCount, serviceCount, exceptionCount] = await Promise.all([
+            Booking.deleteMany({}),
+            CounselingService.deleteMany({}),
+            AvailabilityException.deleteMany({})
+        ]);
+
+        res.status(200).json({
+            success: true,
+            message: 'All counseling data wiped',
+            data: {
+                bookingsDeleted: bookingCount.deletedCount,
+                servicesDeleted: serviceCount.deletedCount,
+                exceptionsDeleted: exceptionCount.deletedCount
+            }
+        });
+    } catch (error) {
+        console.error('Wipe Counseling Data Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to wipe counseling data',
+            error: error.message
+        });
+    }
+};

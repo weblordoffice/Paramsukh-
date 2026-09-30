@@ -25,7 +25,9 @@ import {
   updateBookingMeetingAdmin,
   deleteBookingAdmin,
   triggerCleanupExpired,
-  triggerAutoComplete
+  triggerAutoComplete,
+  rescheduleBookingAdmin,
+  wipeCounselingData
 } from '../../controller/counseling/admin.counseling.controller.js';
 import {
   getAvailabilityExceptions,
@@ -55,6 +57,7 @@ router.delete('/admin/services/:id', adminAuth, deleteService);
 // Cleanup & Automation (MUST be before /admin/:id wildcard)
 router.post('/admin/cleanup-expired', adminAuth, triggerCleanupExpired);
 router.post('/admin/auto-complete', adminAuth, triggerAutoComplete);
+router.delete('/admin/wipe', adminAuth, wipeCounselingData);
 
 // Availability Exceptions (MUST be before /admin/:id wildcard)
 router.get('/admin/availability-exceptions', adminAuth, getAvailabilityExceptions);
@@ -67,6 +70,7 @@ router.get('/all', adminAuth, getAllBookings);
 router.get('/admin/:id', adminAuth, getBookingDetailsAdmin);
 router.patch('/admin/:id/status', adminAuth, updateBookingStatusAdmin);
 router.patch('/admin/:id/meeting', adminAuth, updateBookingMeetingAdmin);
+router.patch('/admin/:id/reschedule', adminAuth, rescheduleBookingAdmin);
 router.delete('/admin/:id', adminAuth, deleteBookingAdmin);
 
 // ========================================
