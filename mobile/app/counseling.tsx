@@ -152,7 +152,14 @@ export default function CounselingScreen() {
               <Text className="text-base font-bold text-[#2C2420] mb-1">
                 {confirmedBooking.bookingTitle || 'Counseling Session'}
               </Text>
-              <Text className="text-xs text-[#5C4A42] mb-3">with {confirmedBooking.counselorName || 'Expert Counselor'}</Text>
+              <View className="flex-row items-center gap-2 mb-2">
+                <Text className="text-xs text-[#5C4A42]">with {confirmedBooking.counselorName || 'Expert Counselor'}</Text>
+                <View className={`px-2 py-0.5 rounded-full ${(confirmedBooking.isFree || confirmedBooking.amount === 0) ? 'bg-green-100' : 'bg-orange-100'}`}>
+                  <Text className={`text-[10px] font-bold ${(confirmedBooking.isFree || confirmedBooking.amount === 0) ? 'text-green-700' : 'text-orange-700'}`}>
+                    {(confirmedBooking.isFree || confirmedBooking.amount === 0) ? 'FREE' : `₹${confirmedBooking.amount}`}
+                  </Text>
+                </View>
+              </View>
 
               <View className="flex-row items-center gap-4">
                 <View className="flex-row items-center gap-1.5">
@@ -235,16 +242,16 @@ export default function CounselingScreen() {
                           </View>
                           
                           <View className="flex-row flex-wrap gap-2 mb-2">
-                            {type.isFree ? (
-                              <View className="bg-green-50 px-2 py-1 rounded border border-green-100">
-                                <Text className="text-[10px] font-bold text-green-700 tracking-wider">FREE</Text>
-                              </View>
-                            ) : (
-                              <View className="bg-orange-50 px-2 py-1 rounded border border-orange-100">
-                                <Text className="text-[10px] font-bold text-orange-700 tracking-wider">PREMIUM</Text>
-                              </View>
-                            )}
-                          </View>
+                             {type.isFree ? (
+                               <View className="bg-green-50 px-2 py-1 rounded border border-green-100">
+                                 <Text className="text-[10px] font-bold text-green-700 tracking-wider">FREE</Text>
+                               </View>
+                             ) : (
+                               <View className="bg-orange-50 px-2 py-1 rounded border border-orange-100">
+                                 <Text className="text-[10px] font-bold text-orange-700 tracking-wider">₹{type.price}</Text>
+                               </View>
+                             )}
+                           </View>
 
                           <Text className="text-sm text-[#5C4A42] leading-5 mb-3">
                             {type.description}
