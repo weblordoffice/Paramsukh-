@@ -2,7 +2,7 @@ import { Stack, usePathname, useRouter } from 'expo-router';
 import './global.css';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { useEffect, useMemo, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Appearance } from 'react-native';
 import { useAuthStore, setClerkSignOut } from '../store/authStore';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 import { getPendingPaymentLinks, isPendingPaymentExpired, clearPendingPaymentLinks } from '../utils/paymentBrowser';
@@ -254,6 +254,13 @@ export default function RootLayout() {
       setIsReady(true);
     }
     initAuth();
+  }, []);
+
+  useEffect(() => {
+    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
+      useThemeStore.getState().syncWithSystem();
+    });
+    return () => subscription.remove();
   }, []);
 
   if (!isReady) {
