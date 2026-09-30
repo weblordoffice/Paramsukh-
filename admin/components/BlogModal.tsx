@@ -227,6 +227,7 @@ export default function BlogModal({ isOpen, onClose, blog, onSuccess }: BlogModa
                                             )}
                                         </div>
                                     )}
+                                    <p className="text-xs text-gray-400 mt-1.5">Recommended: 1200 × 630 px (16:9 ratio works best)</p>
                                 </div>
 
                                 {/* Preview */}

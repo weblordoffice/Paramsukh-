@@ -269,6 +269,7 @@ export default function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePo
                                 className="hidden"
                             />
                         </label>
+                        <p className="text-xs text-gray-400 mt-1.5">Recommended: 1200 × 630 px (16:9 ratio works best)</p>
                         {images.length > 0 && (
                             <div className="flex flex-wrap gap-3 mt-3">
                                 {images.map((url, index) => (

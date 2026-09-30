@@ -470,6 +470,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                         Upload Image
                                     </button>
                                 </div>
+                                <p className="text-xs text-gray-400 mt-1">Recommended: 800 × 450 px (16:9 ratio)</p>
                             </div>
                         </div>
                     </div>
@@ -531,6 +532,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                         Upload Image
                                     </button>
                                 </div>
+                                <p className="text-xs text-gray-400 mt-1">Recommended: 1600 × 400 px (4:1 ratio)</p>
                             </div>
                         </div>
                     </div>

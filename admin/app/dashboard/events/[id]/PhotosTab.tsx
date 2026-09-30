@@ -256,7 +256,7 @@ export default function PhotosTab({ eventId, photos, onUpdate }: PhotosTabProps)
                                     <p className="text-sm font-medium text-blue-600">
                                         {uploading ? 'Uploading...' : 'Click to upload photos from your computer'}
                                     </p>
-                                    <p className="text-xs text-gray-400 mt-1">JPG, PNG, GIF up to 10MB each</p>
+                                    <p className="text-xs text-gray-400 mt-1">JPG, PNG, GIF up to 10MB each · Recommended: 1200 × 800 px</p>
                                 </div>
 
                                 <div className="flex items-center gap-3">

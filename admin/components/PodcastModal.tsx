@@ -587,6 +587,7 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
                                             )}
                                         </div>
                                     )}
+                                    <p className="text-xs text-gray-400 mt-1.5">Recommended: 500 × 500 px (1:1 square ratio)</p>
                                 </div>
 
                                 {/* Preview */}

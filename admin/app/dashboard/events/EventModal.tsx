@@ -393,6 +393,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                                 Upload
                                             </button>
                                         </div>
+                                        <p className="text-xs text-gray-400 mt-1">Recommended: 800 × 450 px (16:9 ratio)</p>
                                     </div>
                                 </div>
 
@@ -424,6 +425,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                                 Upload
                                             </button>
                                         </div>
+                                        <p className="text-xs text-gray-400 mt-1">Recommended: 1600 × 400 px (4:1 wide banner ratio)</p>
                                     </div>
                                 </div>
                             </div>

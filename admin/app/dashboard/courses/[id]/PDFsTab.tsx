@@ -435,7 +435,7 @@ export default function PDFsTab({ courseId, pdfs, onUpdate }: PDFsTabProps) {
                                         )}
                                     </button>
                                     <p className="text-xs text-gray-500 mt-1">
-                                        Optional preview image for the PDF (URL or local upload)
+                                        Optional preview image for the PDF — Recommended: 300 × 200 px (3:2 ratio)
                                     </p>
                                 </div>
 

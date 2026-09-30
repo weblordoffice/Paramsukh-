@@ -522,6 +522,7 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
                                                 Upload Image
                                             </button>
                                         </div>
+                                        <p className="text-xs text-gray-400 mt-1">Recommended: 1280 × 720 px (16:9 ratio)</p>
                                     </div>
                                 </div>
 

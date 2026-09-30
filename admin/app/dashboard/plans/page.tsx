@@ -936,6 +936,7 @@ export default function MembershipPlansPage() {
                               <Upload className="w-4 h-4" /> Image
                             </button>
                           </div>
+                          <p className="text-xs text-gray-400 mt-1">Recommended: 600 × 400 px (3:2 ratio)</p>
                         </div>
                       </div>
                       <div>

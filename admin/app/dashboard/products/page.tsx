@@ -388,6 +388,7 @@ export default function ProductsPage() {
                                                 }}
                                             />
                                         </div>
+                                        <p className="text-xs text-gray-400 mt-1.5">Recommended: 800 × 800 px (1:1 square ratio for best display)</p>
                                     </div>
                                 </div>
                             </div>

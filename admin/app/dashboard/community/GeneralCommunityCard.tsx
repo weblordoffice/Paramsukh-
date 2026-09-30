@@ -186,6 +186,7 @@ export default function GeneralCommunityCard() {
                                     {uploading ? 'Uploading...' : 'Upload'}
                                 </button>
                             </div>
+                            <p className="text-xs text-gray-400 mt-1">Recommended: 1200 × 400 px (3:1 wide banner ratio)</p>
                         </div>
                     </div>
 
