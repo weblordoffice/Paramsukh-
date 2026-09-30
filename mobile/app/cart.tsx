@@ -13,7 +13,7 @@ export default function CartScreen() {
   const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background || '#F8FAFC',
+        backgroundColor: colors.background,
     },
     center: {
         justifyContent: 'center',
@@ -26,9 +26,9 @@ export default function CartScreen() {
         paddingHorizontal: 20,
         paddingTop: 50,
         paddingBottom: 16,
-        backgroundColor: colors.surface || '#FFFFFF',
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: colors.border || '#E2E8F0',
+        borderBottomColor: colors.border,
     },
     backButton: {
         padding: 8,
@@ -36,13 +36,13 @@ export default function CartScreen() {
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     clearButton: {
         padding: 8,
     },
     clearText: {
-        color: '#EF4444',
+        color: colors.danger,
         fontWeight: '600',
     },
     headerActions: {
@@ -62,7 +62,7 @@ export default function CartScreen() {
         paddingHorizontal: 16,
     },
     myOrdersLinkText: {
-        color: '#3B82F6',
+        color: colors.primary,
         fontSize: 15,
         fontWeight: '600',
     },
@@ -72,24 +72,24 @@ export default function CartScreen() {
     },
     emptyText: {
         fontSize: 18,
-        color: colors.textSecondary || '#64748B',
+        color: colors.textSecondary,
         marginTop: 16,
         marginBottom: 24,
     },
     startShoppingButton: {
-        backgroundColor: '#0F172A',
+        backgroundColor: colors.text,
         paddingHorizontal: 24,
         paddingVertical: 12,
         borderRadius: 24,
     },
     startShoppingText: {
-        color: '#FFFFFF',
+        color: colors.surface,
         fontWeight: '700',
         fontSize: 16,
     },
     cartItem: {
         flexDirection: 'row',
-        backgroundColor: colors.surface || '#FFFFFF',
+        backgroundColor: colors.surface,
         borderRadius: 12,
         padding: 12,
         marginBottom: 16,
@@ -99,13 +99,13 @@ export default function CartScreen() {
         shadowRadius: 4,
         elevation: 2,
         borderWidth: 1,
-        borderColor: colors.border || '#E2E8F0',
+        borderColor: colors.border,
     },
     itemImageContainer: {
         width: 80,
         height: 80,
         borderRadius: 8,
-        backgroundColor: colors.surfaceSecondary || '#F1F5F9',
+        backgroundColor: colors.surfaceSecondary,
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
@@ -122,12 +122,12 @@ export default function CartScreen() {
     itemName: {
         fontSize: 15,
         fontWeight: '600',
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     itemPrice: {
         fontSize: 15,
         fontWeight: '700',
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     quantityControls: {
         flexDirection: 'row',
@@ -138,11 +138,11 @@ export default function CartScreen() {
         width: 28,
         height: 28,
         borderRadius: 14,
-        backgroundColor: colors.surfaceSecondary || '#F1F5F9',
+        backgroundColor: colors.surfaceSecondary,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: colors.border || '#CBD5E1',
+        borderColor: colors.border,
     },
     quantityBox: {
         minWidth: 20,
@@ -151,19 +151,19 @@ export default function CartScreen() {
     quantityText: {
         fontSize: 14,
         fontWeight: '600',
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     removeBtn: {
         marginLeft: 'auto',
         padding: 4,
     },
     summaryCard: {
-        backgroundColor: colors.surface || '#FFFFFF',
+        backgroundColor: colors.surface,
         borderRadius: 12,
         padding: 16,
         marginTop: 8,
         borderWidth: 1,
-        borderColor: colors.border || '#E2E8F0',
+        borderColor: colors.border,
     },
     summaryRow: {
         flexDirection: 'row',
@@ -172,57 +172,57 @@ export default function CartScreen() {
     },
     summaryLabel: {
         fontSize: 14,
-        color: colors.textSecondary || '#64748B',
+        color: colors.textSecondary,
     },
     summaryValue: {
         fontSize: 14,
         fontWeight: '600',
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     divider: {
         height: 1,
-        backgroundColor: colors.border || '#E2E8F0',
+        backgroundColor: colors.border,
         marginVertical: 12,
     },
     totalLabel: {
         fontSize: 16,
         fontWeight: '700',
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     totalValue: {
         fontSize: 18,
         fontWeight: '700',
-        color: '#D97706',
+        color: colors.text,
     },
     referralBanner: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FFFBEB',
+        backgroundColor: colors.surfaceSecondary,
         borderRadius: 12,
         padding: 12,
         marginTop: 12,
         gap: 8,
         borderWidth: 1,
-        borderColor: '#FDE68A',
+        borderColor: colors.border,
     },
     referralBannerText: {
         flex: 1,
         fontSize: 13,
-        color: '#92400E',
+        color: colors.text,
     },
     referralBannerValue: {
         fontWeight: '700',
-        color: '#EAB308',
+        color: colors.warning,
     },
     footer: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: colors.surface || '#FFFFFF',
+        backgroundColor: colors.surface,
         padding: 16,
         borderTopWidth: 1,
-        borderTopColor: colors.border || '#E2E8F0',
+        borderTopColor: colors.border,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -3 },
         shadowOpacity: 0.1,
@@ -230,7 +230,7 @@ export default function CartScreen() {
         elevation: 8,
     },
     checkoutButton: {
-        backgroundColor: '#0F172A',
+        backgroundColor: colors.text,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -239,7 +239,7 @@ export default function CartScreen() {
         borderRadius: 12,
     },
     checkoutButtonText: {
-        color: '#FFFFFF',
+        color: colors.surface,
         fontSize: 16,
         fontWeight: '700',
     },
@@ -297,7 +297,7 @@ export default function CartScreen() {
     if (isLoading && !cart) {
         return (
             <View style={[styles.container, styles.center]}>
-                <ActivityIndicator size="large" color="#EAB308" />
+                <ActivityIndicator size="large" color={colors.primary} />
             </View>
         );
     }
@@ -311,7 +311,7 @@ export default function CartScreen() {
                     <Text style={styles.startShoppingText}>Start Shopping</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.myOrdersLink} onPress={() => router.push('/orders')}>
-                    <Ionicons name="receipt-outline" size={18} color="#3B82F6" />
+                    <Ionicons name="receipt-outline" size={18} color={colors.primary} />
                     <Text style={styles.myOrdersLinkText}>My Orders</Text>
                 </TouchableOpacity>
             </View>
@@ -367,7 +367,7 @@ export default function CartScreen() {
 
                                 <View style={styles.quantityBox}>
                                     {updatingItemId === item._id ? (
-                                        <ActivityIndicator size="small" color="#EAB308" />
+                                        <ActivityIndicator size="small" color={colors.primary} />
                                     ) : (
                                         <Text style={styles.quantityText}>{item.quantity}</Text>
                                     )}
@@ -385,7 +385,7 @@ export default function CartScreen() {
                                     style={styles.removeBtn}
                                     onPress={() => handleRemove(item._id)}
                                 >
-                                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -400,7 +400,7 @@ export default function CartScreen() {
                     </View>
                     <View style={styles.summaryRow}>
                         <Text style={styles.summaryLabel}>Discount</Text>
-                        <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₹{cart.discount}</Text>
+                        <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{cart.discount}</Text>
                     </View>
                     {cart.shippingCost > 0 && (
                         <View style={styles.summaryRow}>
@@ -421,7 +421,7 @@ export default function CartScreen() {
                         style={styles.referralBanner}
                         onPress={() => router.push('/checkout')}
                     >
-                        <Ionicons name="gift-outline" size={18} color="#EAB308" />
+                        <Ionicons name="gift-outline" size={18} color={colors.warning} />
                         <Text style={styles.referralBannerText}>
                             You have <Text style={styles.referralBannerValue}>{referralPoints} referral points</Text> — redeem at checkout
                         </Text>

@@ -151,12 +151,11 @@ export default function SignInScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1 }}
-      className="bg-gray-50"
+      style={{ flex: 1, backgroundColor: colors.background }}
     >
       <ScrollView
         ref={scrollViewRef}
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: colors.background }}
         contentContainerStyle={{
           paddingBottom: 400,
           minHeight: '100%'
@@ -166,31 +165,32 @@ export default function SignInScreen() {
         nestedScrollEnabled={true}
         scrollEnabled={true}
       >
-        <View className="bg-white pt-16 pb-12 px-6 items-center">
+        <View style={{ backgroundColor: colors.surface }} className="pt-16 pb-12 px-6 items-center">
           <Image
             source={require('../assets/paramsukh.png')}
             className="w-48 h-48 mb-6"
             resizeMode="contain"
           />
-          <Text className="text-3xl font-bold text-gray-900 mb-2">ParamSukh</Text>
-          <Text className="text-gray-600 text-base">Sign in to continue</Text>
+          <Text style={{ color: colors.text }} className="text-3xl font-bold mb-2">ParamSukh</Text>
+          <Text style={{ color: colors.textSecondary }} className="text-base">Sign in to continue</Text>
         </View>
 
         <View className="px-6 pt-8 pb-8">
           {!otpSent ? (
             <>
               <View className="mb-5">
-                <Text className="text-gray-700 font-medium mb-2">Phone Number</Text>
-                <View className="flex-row items-center bg-white rounded-xl px-4 py-4 border border-gray-300 shadow-sm">
-                  <Text className="text-gray-600 mr-2 text-base font-medium">+91</Text>
+                <Text style={{ color: colors.text }} className="font-medium mb-2">Phone Number</Text>
+                <View style={{ backgroundColor: colors.surface, borderColor: colors.border }} className="flex-row items-center rounded-xl px-4 py-4 border shadow-sm">
+                  <Text style={{ color: colors.textSecondary }} className="mr-2 text-base font-medium">+91</Text>
                   <TextInput
-                    className="flex-1 text-base text-gray-900"
+                    style={{ color: colors.text }}
+                    className="flex-1 text-base"
                     placeholder="9876543210"
                     keyboardType="phone-pad"
                     value={phone}
                     onChangeText={setPhone}
                     maxLength={10}
-                    placeholderTextColor={colors.textSecondary || '#6B7280'}
+                    placeholderTextColor={colors.textSecondary}
                   />
                 </View>
               </View>
@@ -207,34 +207,36 @@ export default function SignInScreen() {
                 )}
               </TouchableOpacity>
 
-              <View className="mt-4 px-3 py-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <Text className="text-blue-700 text-xs text-center">
+              <View style={{ backgroundColor: colors.surfaceSecondary, borderColor: colors.border }} className="mt-4 px-3 py-3 border rounded-lg">
+                <Text style={{ color: colors.text }} className="text-xs text-center">
                   ℹ️ For security, you can request OTP up to 3 times per 10 minutes
                 </Text>
               </View>
 
               <View className="mt-4">
-                <Text className="text-gray-700 font-medium mb-2">Referral Code (Optional)</Text>
+                <Text style={{ color: colors.text }} className="font-medium mb-2">Referral Code (Optional)</Text>
                 <TextInput
-                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-base text-gray-900 shadow-sm"
+                  style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }}
+                  className="rounded-xl px-4 py-4 border text-base shadow-sm"
                   placeholder="PARAM-XXXXXXXX"
                   value={referralCode}
                   onChangeText={(text) => setReferralCode(text.toUpperCase().replace(/[^A-Z0-9-]/g, ''))}
                   autoCapitalize="characters"
-                  placeholderTextColor={colors.textSecondary || '#6B7280'}
+                  placeholderTextColor={colors.textSecondary}
                 />
               </View>
 
               {/* Divider */}
               <View className="flex-row items-center my-6">
-                <View className="flex-grow h-px bg-gray-300" />
-                <Text className="mx-4 text-gray-500 font-semibold text-sm">or</Text>
-                <View className="flex-grow h-px bg-gray-300" />
+                <View style={{ backgroundColor: colors.border }} className="flex-grow h-px" />
+                <Text style={{ color: colors.textSecondary }} className="mx-4 font-semibold text-sm">or</Text>
+                <View style={{ backgroundColor: colors.border }} className="flex-grow h-px" />
               </View>
 
               {/* Google OAuth button */}
               <TouchableOpacity
-                className="flex-row items-center justify-center bg-white border border-gray-300 rounded-xl py-4 shadow-sm active:bg-gray-50"
+                style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+                className="flex-row items-center justify-center border rounded-xl py-4 shadow-sm"
                 onPress={handleGoogleSignIn}
                 disabled={isLoading}
               >
@@ -243,14 +245,14 @@ export default function SignInScreen() {
                   className="w-5 h-5 mr-3"
                   resizeMode="contain"
                 />
-                <Text className="text-gray-700 font-bold text-base">Continue with Google</Text>
+                <Text style={{ color: colors.text }} className="font-bold text-base">Continue with Google</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 className="mt-6"
                 onPress={() => router.replace('/signup')}
               >
-                <Text className="text-center text-gray-600">
+                <Text style={{ color: colors.textSecondary }} className="text-center">
                   Don&apos;t have an account?{' '}
                   <Text className="text-purple-600 font-semibold">Sign Up</Text>
                 </Text>
@@ -259,19 +261,20 @@ export default function SignInScreen() {
           ) : (
             <>
               <View className="mb-5">
-                <Text className="text-gray-700 font-medium mb-2">Enter OTP</Text>
+                <Text style={{ color: colors.text }} className="font-medium mb-2">Enter OTP</Text>
                 <TextInput
                   ref={otpInputRef}
-                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-2xl text-center tracking-widest font-bold text-gray-900 shadow-sm"
+                  style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }}
+                  className="rounded-xl px-4 py-4 border text-2xl text-center tracking-widest font-bold shadow-sm"
                   placeholder="000000"
                   keyboardType="number-pad"
                   value={otp}
                   onChangeText={(text) => setOtp(text.replace(/[^0-9]/g, ''))}
                   maxLength={6}
                   autoFocus
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={colors.textSecondary}
                 />
-                <Text className="text-gray-500 text-sm mt-2 text-center">
+                <Text style={{ color: colors.textSecondary }} className="text-sm mt-2 text-center">
                   OTP sent to +91{phone}
                 </Text>
               </View>
@@ -299,7 +302,7 @@ export default function SignInScreen() {
                 </TouchableOpacity>
 
                 {resendTimer > 0 ? (
-                  <Text className="text-gray-500">Resend in {resendTimer}s</Text>
+                  <Text style={{ color: colors.textSecondary }}>Resend in {resendTimer}s</Text>
                 ) : (
                   <TouchableOpacity onPress={handleSendOTP}>
                     <Text className="text-purple-600 font-medium">Resend OTP</Text>
@@ -309,7 +312,7 @@ export default function SignInScreen() {
             </>
           )}
         </View>
-        <Text className="text-gray-500 text-xs text-center px-8 pb-8">
+        <Text style={{ color: colors.textSecondary }} className="text-xs text-center px-8 pb-8">
           By continuing, you agree to our{' '}
           <Text
             className="text-purple-600 underline"

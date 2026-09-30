@@ -59,7 +59,7 @@ export default function OrderDetailScreen() {
         marginTop: 4,
     },
     statusBadge: {
-        backgroundColor: '#10B981',
+        backgroundColor: colors.success,
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 4,
@@ -76,13 +76,13 @@ export default function OrderDetailScreen() {
         gap: 8,
         backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: '#FECACA',
+        borderColor: colors.danger,
         borderRadius: 12,
         paddingVertical: 16,
         marginTop: 8,
     },
     cancelButtonText: {
-        color: '#EF4444',
+        color: colors.danger,
         fontSize: 16,
         fontWeight: '700',
     },
@@ -131,7 +131,7 @@ export default function OrderDetailScreen() {
     },
     addressText: {
         fontSize: 14,
-        color: '#4B5563',
+        color: colors.textSecondary,
         marginBottom: 6,
     },
     summaryRow: {

@@ -18,6 +18,8 @@ import AIChatPanel from './AIChatPanel';
 import { useAIAssistantStore } from '../store/aiAssistantStore';
 import { useAuthStore } from '../store/authStore';
 import { buildAIScreenContext } from '../utils/aiScreenContext';
+import { useTheme } from '../hooks/useTheme';
+import type { ThemeColors } from '../theme/colors';
 
 const HIDDEN_PATHS = new Set([
   '/signin',
@@ -56,6 +58,8 @@ export default function AIAssistantWidget() {
   const initialWidth = winWidth || 390;
   const initialHeight = winHeight || 844;
   const user = useAuthStore((state) => state.user);
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const widgetPosition = useAIAssistantStore((state) => state.widgetPosition);
   const hydrated = useAIAssistantStore((state) => state.hydrated);
@@ -279,7 +283,11 @@ export default function AIAssistantWidget() {
             ]}
           >
             <LinearGradient
-              colors={['rgba(255,248,239,0.95)', 'rgba(248,243,236,1)']}
+              colors={
+                isDark
+                  ? ['rgba(41, 37, 36, 0.95)', 'rgba(28, 25, 23, 1)']
+                  : ['rgba(255,248,239,0.95)', 'rgba(248,243,236,1)']
+              }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.sheetGlow}
@@ -299,7 +307,7 @@ export default function AIAssistantWidget() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ThemeColors) => StyleSheet.create({
   fabWrap: {
     position: 'absolute',
     borderRadius: FAB_SIZE / 2,
@@ -387,7 +395,7 @@ const styles = StyleSheet.create({
     width: 17,
     height: 17,
     borderRadius: 9,
-    backgroundColor: '#FFF8F0',
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -397,7 +405,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#31B878',
+    backgroundColor: colors.success,
   },
   overlay: {
     flex: 1,
@@ -408,7 +416,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheet: {
-    backgroundColor: '#F8F3EC',
+    backgroundColor: colors.background,
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     height: Platform.OS === 'web' ? '94%' : '92%',
@@ -431,7 +439,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 5,
     borderRadius: 3,
-    backgroundColor: '#D8C8B5',
+    backgroundColor: colors.border,
     alignSelf: 'center',
     marginTop: 12,
     marginBottom: 0,

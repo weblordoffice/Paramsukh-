@@ -277,24 +277,24 @@ export default function MembershipScreen() {
   };
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View className="flex-1" style={{ backgroundColor: colors.background }}>
       <Header />
       <ScrollView showsVerticalScrollIndicator={false}>
         <View className="p-4">
           {/* Header */}
           <View className="items-center mb-6 py-4">
             <Text className="text-5xl mb-3">🙏</Text>
-            <Text className="text-[28px] font-extrabold text-gray-900 mb-2">Namo Jinanam</Text>
-            <Text className="text-[15px] text-gray-500 text-center leading-[22px] px-5">
+            <Text className="text-[28px] font-extrabold mb-2" style={{ color: colors.text }}>Namo Jinanam</Text>
+            <Text className="text-[15px] text-center leading-[22px] px-5" style={{ color: colors.textSecondary }}>
               Pick your courses, then pay — only what you choose gets unlocked
             </Text>
 
             {isLoading ? (
               <ActivityIndicator size="small" color="#3B82F6" style={{ marginTop: 12 }} />
             ) : currentSubscription?.status === 'active' && (
-              <View className="mt-3 bg-green-100 px-4 py-2 rounded-full flex-row items-center gap-2">
-                <Ionicons name="checkmark-circle" size={16} color="#10B981" />
-                <Text className="text-green-700 font-semibold text-sm">
+              <View className="mt-3 px-4 py-2 rounded-full flex-row items-center gap-2" style={{ backgroundColor: colors.surfaceSecondary }}>
+                <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                <Text className="font-semibold text-sm" style={{ color: colors.text }}>
                   Active: {currentSubscription.selectedPlanLabel || currentSubscription.plan}
                 </Text>
               </View>
@@ -302,12 +302,12 @@ export default function MembershipScreen() {
           </View>
 
           {/* Special Features Banner */}
-          <View className="bg-purple-100 rounded-2xl p-4 mb-5 border-2 border-purple-300">
+          <View className="rounded-2xl p-4 mb-5 border-2" style={{ backgroundColor: colors.surfaceSecondary, borderColor: colors.border }}>
             <View className="flex-row items-center gap-2 mb-2">
               <Ionicons name="gift" size={20} color="#8B5CF6" />
-              <Text className="text-base font-bold text-purple-900">Membership Benefits</Text>
+              <Text className="text-base font-bold" style={{ color: colors.text }}>Membership Benefits</Text>
             </View>
-            <Text className="text-sm text-purple-700 leading-5">
+            <Text className="text-sm leading-5" style={{ color: colors.textSecondary }}>
               • Group follow-up for all courses{'\n'}
               • Free membership counseling by support team{'\n'}
               • 1-on-1 counseling with Gurudev (₹999/-)
@@ -318,12 +318,12 @@ export default function MembershipScreen() {
           {plansLoading ? (
             <View className="items-center py-12">
               <ActivityIndicator size="large" color="#8B5CF6" />
-              <Text className="text-gray-500 mt-3 text-sm">Loading plans...</Text>
+              <Text className="mt-3 text-sm" style={{ color: colors.textSecondary }}>Loading plans...</Text>
             </View>
           ) : plans.length === 0 && (
-            <View className="bg-white rounded-2xl p-4 mb-4 border border-gray-200 flex-row items-center gap-2">
-              <Ionicons name="information-circle-outline" size={18} color="#64748B" />
-              <Text className="text-sm text-gray-600 flex-1">
+            <View className="rounded-2xl p-4 mb-4 border flex-row items-center gap-2" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+              <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
+              <Text className="text-sm flex-1" style={{ color: colors.textSecondary }}>
                 No membership plans are available right now.
               </Text>
             </View>
@@ -384,7 +384,7 @@ export default function MembershipScreen() {
                         >
                           <Ionicons
                             name={feature.included ? "checkmark" : "close"}
-                            size={12} color={colors.surface}
+                            size={12} color="#FFF"
                           />
                         </View>
                         <Text className={`text-sm flex-1 ${!feature.included ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
@@ -424,17 +424,17 @@ export default function MembershipScreen() {
 
                 {/* Expanded Course Selection */}
                 {isExpanded && hasCourseSelection && (
-                  <View className="bg-white rounded-b-[20px] border-t border-gray-200 p-4 shadow-lg">
+                  <View className="rounded-b-[20px] border-t p-4 shadow-lg" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
                     {/* Selection counter */}
                     <View className="flex-row items-center justify-between mb-3 px-2">
-                      <Text className="text-sm font-semibold text-gray-700">
+                      <Text className="text-sm font-semibold" style={{ color: colors.text }}>
                         {selectedCount === 0
                           ? `Pick up to ${maxSelectable} courses`
                           : `Selected ${selectedCount}/${maxSelectable}`}
                       </Text>
                       {selectedCount > 0 && (
                         <TouchableOpacity onPress={() => setSelectedCourses((prev) => ({ ...prev, [plan.id]: [] }))}>
-                          <Text className="text-xs text-red-500 font-medium">Clear</Text>
+                          <Text className="text-xs font-medium" style={{ color: colors.danger }}>Clear</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -442,7 +442,7 @@ export default function MembershipScreen() {
                     {isCoursesLoading ? (
                       <ActivityIndicator color="#8B5CF6" style={{ padding: 20 }} />
                     ) : courses.length === 0 ? (
-                      <Text className="text-sm text-gray-400 text-center py-4">No courses available for this plan</Text>
+                      <Text className="text-sm text-center py-4" style={{ color: colors.textSecondary }}>No courses available for this plan</Text>
                     ) : (
                       <View className="gap-3">
                         {courses.map((course) => {
@@ -453,9 +453,11 @@ export default function MembershipScreen() {
                               key={course._id}
                               onPress={() => toggleCourseSelection(plan.id, course._id, maxSelectable)}
                               activeOpacity={0.7}
-                              className={`flex-row items-center p-3 rounded-xl border ${
-                                isSelected ? 'border-purple-400 bg-purple-50' : 'border-gray-200 bg-gray-50'
-                              }`}
+                              className="flex-row items-center p-3 rounded-xl border"
+                              style={{
+                                borderColor: isSelected ? '#8B5CF6' : colors.border,
+                                backgroundColor: isSelected ? colors.surfaceSecondary : colors.surface,
+                              }}
                             >
                               <View
                                 className="w-12 h-12 rounded-xl items-center justify-center mr-3"
@@ -468,7 +470,7 @@ export default function MembershipScreen() {
                                 )}
                               </View>
                               <View className="flex-1">
-                                <Text className="text-sm font-semibold text-gray-900" numberOfLines={2}>
+                                <Text className="text-sm font-semibold" style={{ color: colors.text }} numberOfLines={2}>
                                   {course.title}
                                 </Text>
                                 <View className="flex-row items-center gap-2 mt-1">
@@ -480,15 +482,14 @@ export default function MembershipScreen() {
                                     </View>
                                   )}
                                   {(course.totalVideos || 0) > 0 && (
-                                    <Text className="text-[10px] text-gray-400">
+                                    <Text className="text-[10px]" style={{ color: colors.textSecondary }}>
                                       {course.totalVideos} videos
                                     </Text>
                                   )}
                                 </View>
                               </View>
-                              <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ml-2 ${
-                                isSelected ? 'bg-purple-500 border-purple-500' : 'border-gray-300'
-                              }`}>
+                              <View className="w-6 h-6 rounded-full border-2 items-center justify-center ml-2"
+                                style={isSelected ? { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' } : { borderColor: colors.border }}>
                                 {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
                               </View>
                             </TouchableOpacity>
@@ -528,21 +529,21 @@ export default function MembershipScreen() {
           })}
 
           {/* Counseling Info */}
-          <View className="bg-white rounded-2xl p-5 mt-3 mb-4">
+          <View className="rounded-2xl p-5 mt-3 mb-4" style={{ backgroundColor: colors.surface }}>
             <View className="flex-row items-center gap-2 mb-3">
               <Ionicons name="people" size={22} color="#3B82F6" />
-              <Text className="text-lg font-bold text-gray-900">One-to-One Counseling</Text>
+              <Text className="text-lg font-bold" style={{ color: colors.text }}>One-to-One Counseling</Text>
             </View>
             <View className="gap-2">
               <View className="flex-row items-start gap-2">
                 <Text className="text-green-600 font-bold">✓</Text>
-                <Text className="text-sm text-gray-700 flex-1">
+                <Text className="text-sm flex-1" style={{ color: colors.text }}>
                   <Text className="font-semibold">Membership Counseling</Text> - Free by support team
                 </Text>
               </View>
               <View className="flex-row items-start gap-2">
                 <Text className="text-purple-600 font-bold">⭐</Text>
-                <Text className="text-sm text-gray-700 flex-1">
+                <Text className="text-sm flex-1" style={{ color: colors.text }}>
                   <Text className="font-semibold">Counseling with Gurudev</Text> - ₹999/-
                 </Text>
               </View>

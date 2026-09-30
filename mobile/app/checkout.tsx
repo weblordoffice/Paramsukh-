@@ -18,7 +18,7 @@ export default function CheckoutScreen() {
   const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background || '#F8FAFC',
+        backgroundColor: colors.background,
     },
     header: {
         flexDirection: 'row',
@@ -27,9 +27,9 @@ export default function CheckoutScreen() {
         paddingHorizontal: 20,
         paddingTop: 50,
         paddingBottom: 16,
-        backgroundColor: colors.surface || '#FFFFFF',
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: colors.border || '#E2E8F0',
+        borderBottomColor: colors.border,
     },
     backButton: {
         padding: 8,
@@ -37,7 +37,7 @@ export default function CheckoutScreen() {
     headerTitle: {
         fontSize: 18,
         fontWeight: '700',
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     scrollContent: {
         padding: 16,
@@ -55,10 +55,10 @@ export default function CheckoutScreen() {
     sectionTitle: {
         fontSize: 16,
         fontWeight: '700',
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     card: {
-        backgroundColor: colors.surface || '#FFFFFF',
+        backgroundColor: colors.surface,
         borderRadius: 12,
         padding: 16,
         shadowColor: '#000',
@@ -67,30 +67,30 @@ export default function CheckoutScreen() {
         shadowRadius: 4,
         elevation: 2,
         borderWidth: 1,
-        borderColor: colors.border || '#E2E8F0',
+        borderColor: colors.border,
     },
     formCard: {
-        backgroundColor: colors.surface || '#FFFFFF',
+        backgroundColor: colors.surface,
         borderRadius: 12,
         padding: 16,
         borderWidth: 1,
-        borderColor: colors.border || '#E2E8F0',
+        borderColor: colors.border,
     },
     formTitle: {
         fontSize: 16,
         fontWeight: '700',
         marginBottom: 16,
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     input: {
-        backgroundColor: colors.surface || '#FFFFFF',
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: colors.border || '#CBD5E1',
+        borderColor: colors.border,
         borderRadius: 8,
         padding: 12,
         fontSize: 14,
         marginBottom: 12,
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     row: {
         flexDirection: 'row',
@@ -106,20 +106,20 @@ export default function CheckoutScreen() {
         paddingHorizontal: 16,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: colors.border || '#E2E8F0',
+        borderColor: colors.border,
     },
     cancelButtonText: {
-        color: colors.text || '#0F172A',
+        color: colors.text,
         fontWeight: '600',
     },
     saveButton: {
-        backgroundColor: '#0F172A',
+        backgroundColor: colors.text,
         paddingVertical: 10,
         paddingHorizontal: 24,
         borderRadius: 8,
     },
     saveButtonText: {
-        color: '#FFFFFF',
+        color: colors.surface,
         fontWeight: '600',
     },
     addressHeader: {
@@ -131,31 +131,31 @@ export default function CheckoutScreen() {
     addressType: {
         fontSize: 12,
         fontWeight: '700',
-        color: colors.textSecondary || '#64748B',
-        backgroundColor: colors.surfaceSecondary || '#F1F5F9',
+        color: colors.textSecondary,
+        backgroundColor: colors.surfaceSecondary,
         paddingHorizontal: 8,
         paddingVertical: 2,
         borderRadius: 4,
     },
     defaultBadge: {      
         fontSize: 12,
-        color: '#10B981',
+        color: colors.success,
         fontWeight: '600',
     },
     addressName: {
         fontSize: 16,
         fontWeight: '700',
-        color: colors.text || '#0F172A',
+        color: colors.text,
         marginBottom: 4,
     },
     addressText: {
         fontSize: 14,
-        color: '#475569',
+        color: colors.textSecondary,
         marginBottom: 2,
     },
     phoneText: {
         fontSize: 14,
-        color: colors.text || '#0F172A',
+        color: colors.text,
         marginTop: 6,
         fontWeight: '500',
     },
@@ -171,12 +171,12 @@ export default function CheckoutScreen() {
     addressList: {
         marginTop: 16,
         borderTopWidth: 1,
-        borderTopColor: colors.border || '#E2E8F0',
+        borderTopColor: colors.border,
         paddingTop: 12,
     },
     otherAddressLabel: {
         fontSize: 13,
-        color: colors.textSecondary || '#64748B',
+        color: colors.textSecondary,
         marginBottom: 8,
     },
     otherAddressItem: {
@@ -187,28 +187,28 @@ export default function CheckoutScreen() {
     },
     otherAddressText: {
         fontSize: 14,
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     paymentOption: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.surface || '#FFFFFF',
+        backgroundColor: colors.surface,
         padding: 16,
         borderRadius: 12,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: colors.border || '#E2E8F0',
+        borderColor: colors.border,
     },
     paymentOptionActive: {
         borderColor: '#3B82F6',
-        backgroundColor: '#EFF6FF',
+        backgroundColor: colors.surfaceSecondary,
     },
     radioCircle: {
         width: 20,
         height: 20,
         borderRadius: 10,
         borderWidth: 2,
-        borderColor: colors.textSecondary || '#94A3B8',
+        borderColor: colors.textSecondary,
         alignItems: 'center',
         justifyContent: 'center',
         marginRight: 12,
@@ -222,7 +222,7 @@ export default function CheckoutScreen() {
     paymentText: {
         fontSize: 15,
         fontWeight: '500',
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     referralBalanceRow: {
         flexDirection: 'row',
@@ -232,15 +232,15 @@ export default function CheckoutScreen() {
     },
     referralBalanceText: {
         fontSize: 14,
-        color: '#4B5563',
+        color: colors.textSecondary,
     },
     referralBalanceValue: {
         fontWeight: '700',
-        color: '#EAB308',
+        color: colors.warning,
     },
     referralRateText: {
         fontSize: 12,
-        color: colors.textSecondary || '#64748B',
+        color: colors.textSecondary,
     },
     referralInputRow: {
         flexDirection: 'row',
@@ -248,13 +248,13 @@ export default function CheckoutScreen() {
     },
     referralInput: {
         flex: 1,
-        backgroundColor: '#FFFFFF',
+        backgroundColor: colors.surface,
         borderWidth: 1,
-        borderColor: colors.border || '#CBD5E1',
+        borderColor: colors.border,
         borderRadius: 8,
         padding: 12,
         fontSize: 14,
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     referralClearButton: {
         marginLeft: 8,
@@ -269,7 +269,7 @@ export default function CheckoutScreen() {
     referralDiscountText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#10B981',
+        color: colors.success,
     },
     summaryRow: {
         flexDirection: 'row',
@@ -280,37 +280,37 @@ export default function CheckoutScreen() {
     summaryLabel: {
         fontSize: 14,
         fontWeight: '500',
-        color: colors.textSecondary || '#64748B',
+        color: colors.textSecondary,
     },
     summaryValue: {
         fontSize: 14,
         fontWeight: '700',
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     divider: {
         height: 1,
-        backgroundColor: colors.border || '#E2E8F0',
+        backgroundColor: colors.border,
         marginVertical: 12,
     },
     totalLabel: {
         fontSize: 16,
         fontWeight: '700',
-        color: colors.text || '#0F172A',
+        color: colors.text,
     },
     totalValue: {    
         fontSize: 18,
         fontWeight: '700',
-        color: '#D97706',
+        color: colors.text,
     },
     footer: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: colors.surface || '#FFFFFF',
+        backgroundColor: colors.surface,
         padding: 16,
         borderTopWidth: 1,
-        borderTopColor: colors.border || '#E2E8F0',
+        borderTopColor: colors.border,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: -3 },
         shadowOpacity: 0.1,
@@ -318,7 +318,7 @@ export default function CheckoutScreen() {
         elevation: 8,
     },
     placeOrderButton: {
-        backgroundColor: '#0F172A',
+        backgroundColor: colors.text,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
@@ -330,7 +330,7 @@ export default function CheckoutScreen() {
         opacity: 0.6,
     },
     placeOrderText: {
-        color: '#FFFFFF',
+        color: colors.surface,
         fontSize: 16,
         fontWeight: '700',
     },
@@ -342,18 +342,18 @@ export default function CheckoutScreen() {
     },
     emptyCartText: {
         fontSize: 16,
-        color: colors.textSecondary || '#64748B',
+        color: colors.textSecondary,
         marginTop: 16,
         marginBottom: 24,
     },
     shopButton: {
-        backgroundColor: '#0F172A',
+        backgroundColor: colors.text,
         paddingVertical: 12,
         paddingHorizontal: 24,
         borderRadius: 12,
     },
     shopButtonText: {
-        color: '#FFFFFF',
+        color: colors.surface,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -568,13 +568,13 @@ export default function CheckoutScreen() {
         <View style={styles.container}>
           <View style={styles.header}>
             <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-              <Ionicons name="arrow-back" size={24} color={colors.text || '#0F172A'} />
+              <Ionicons name="arrow-back" size={24} color={colors.text} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Checkout</Text>
             <View style={{ width: 40 }} />
           </View>
           <View style={styles.emptyCart}>
-            <Ionicons name="cart-outline" size={64} color={colors.border || '#CBD5E1'} />
+            <Ionicons name="cart-outline" size={64} color={colors.border} />
             <Text style={styles.emptyCartText}>Your cart is empty</Text>
             <TouchableOpacity style={styles.shopButton} onPress={() => router.replace('/shops')}>
               <Text style={styles.shopButtonText}>Continue Shopping</Text>
@@ -591,7 +591,7 @@ export default function CheckoutScreen() {
         <View style={styles.container}>
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                    <Ionicons name="arrow-back" size={24} color={colors.text || '#0F172A'} />
+                    <Ionicons name="arrow-back" size={24} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Checkout</Text>
                 <View style={{ width: 40 }} />
@@ -602,7 +602,7 @@ export default function CheckoutScreen() {
                 {/* Shipping Address Section */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Ionicons name="location-outline" size={20} color={colors.text || '#0F172A'} />
+                        <Ionicons name="location-outline" size={20} color={colors.text} />
                         <Text style={styles.sectionTitle}>Shipping Address</Text>
                     </View>
 
@@ -613,14 +613,14 @@ export default function CheckoutScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Full Name"
-                                placeholderTextColor="#64748B"
+                                placeholderTextColor={colors.textSecondary}
                                 value={newAddress.fullName}
                                 onChangeText={t => setNewAddress({ ...newAddress, fullName: t })}
                             />
                             <TextInput
                                 style={styles.input}
                                 placeholder="Phone Number"
-                                placeholderTextColor="#64748B"
+                                placeholderTextColor={colors.textSecondary}
                                 keyboardType="phone-pad"
                                 value={newAddress.phone}
                                 onChangeText={t => setNewAddress({ ...newAddress, phone: t })}
@@ -628,7 +628,7 @@ export default function CheckoutScreen() {
                             <TextInput
                                 style={styles.input}
                                 placeholder="Address Line 1 (House No, Street)"
-                                placeholderTextColor="#64748B"
+                                placeholderTextColor={colors.textSecondary}
                                 value={newAddress.addressLine1}
                                 onChangeText={t => setNewAddress({ ...newAddress, addressLine1: t })}
                             />       
@@ -636,14 +636,14 @@ export default function CheckoutScreen() {
                                 <TextInput
                                     style={[styles.input, { flex: 1, marginRight: 8 }]}
                                     placeholder="City"
-                                    placeholderTextColor="#64748B"
+                                    placeholderTextColor={colors.textSecondary}
                                     value={newAddress.city}
                                     onChangeText={t => setNewAddress({ ...newAddress, city: t })}
                                 />
                                 <TextInput
                                     style={[styles.input, { flex: 1 }]}
                                     placeholder="State"
-                                    placeholderTextColor="#64748B"
+                                    placeholderTextColor={colors.textSecondary}
                                     value={newAddress.state}
                                     onChangeText={t => setNewAddress({ ...newAddress, state: t })}
                                 />    
@@ -652,15 +652,15 @@ export default function CheckoutScreen() {
                                 <TextInput
                                     style={[styles.input, { flex: 1, marginRight: 8 }]}
                                     placeholder="Pincode"
-                                    placeholderTextColor="#64748B"
+                                    placeholderTextColor={colors.textSecondary}
                                     keyboardType="numeric"
                                     value={newAddress.pincode}
                                     onChangeText={t => setNewAddress({ ...newAddress, pincode: t })}
                                 />
                                 <TextInput
-                                    style={[styles.input, { flex: 1, backgroundColor: colors.surfaceSecondary || '#F1F5F9' }]}
+                                    style={[styles.input, { flex: 1, backgroundColor: colors.surfaceSecondary }]}
                                     placeholder="Country"
-                                    placeholderTextColor={colors.textSecondary || '#64748B'}
+                                    placeholderTextColor={colors.textSecondary}
                                     value={newAddress.country}
                                     editable={false}
                                 />
@@ -681,7 +681,7 @@ export default function CheckoutScreen() {
                                     disabled={isAddressLoading}
                                 >
                                     {isAddressLoading ? (
-                                        <ActivityIndicator color="#FFFFFF" size="small" />
+                                        <ActivityIndicator color={colors.surface} size="small" />
                                     ) : (
                                         <Text style={styles.saveButtonText}>Save & Use</Text>
                                     )}
@@ -718,7 +718,7 @@ export default function CheckoutScreen() {
                                                     style={styles.otherAddressItem}
                                                     onPress={() => setSelectedAddressId(addr._id)}
                                                 >
-                                                    <Ionicons name="location-outline" size={16} color="#64748B" />
+                                                    <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
                                                     <Text style={styles.otherAddressText} numberOfLines={1}>
                                                         {addr.fullName}, {addr.city}
                                                     </Text>
@@ -728,7 +728,7 @@ export default function CheckoutScreen() {
                                     )}
                                 </>
                             ) : (
-                                <ActivityIndicator color="#EAB308" />
+                                <ActivityIndicator color={colors.primary} />
                             )}
                         </View>
                     )}
@@ -737,7 +737,7 @@ export default function CheckoutScreen() {
                 {/* Payment Method */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Ionicons name="card-outline" size={20} color={colors.text || '#0F172A'} />
+                        <Ionicons name="card-outline" size={20} color={colors.text} />
                         <Text style={styles.sectionTitle}>Payment Method</Text>
                     </View>
                     <TouchableOpacity
@@ -764,7 +764,7 @@ export default function CheckoutScreen() {
                 {referralPoints > 0 && (
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
-                            <Ionicons name="gift-outline" size={20} color={colors.text || '#0F172A'} />
+                            <Ionicons name="gift-outline" size={20} color={colors.text} />
                             <Text style={styles.sectionTitle}>Use Referral Points</Text>
                         </View>
                         <View style={styles.card}>
@@ -778,7 +778,7 @@ export default function CheckoutScreen() {
                                 <TextInput
                                     style={styles.referralInput}
                                     placeholder="Enter points to redeem"
-                                    placeholderTextColor="#64748B"
+                                    placeholderTextColor={colors.textSecondary}
                                     keyboardType="numeric"
                                     value={usePoints > 0 ? String(usePoints) : ''}
                                     onChangeText={(text) => {
@@ -791,13 +791,13 @@ export default function CheckoutScreen() {
                                         style={styles.referralClearButton}
                                         onPress={() => setUsePoints(0)}
                                     >
-                                        <Ionicons name="close-circle" size={20} color="#64748B" />
+                                        <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
                                     </TouchableOpacity>
                                 )}
                             </View>
                             {usePoints > 0 && (
                                 <View style={styles.referralDiscountRow}>
-                                    <Ionicons name="checkmark-circle" size={16} color="#10B981" />
+                                    <Ionicons name="checkmark-circle" size={16} color={colors.success} />
                                     <Text style={styles.referralDiscountText}>
                                         You&apos;ll save ₹{usePoints * pointValue} on this order
                                     </Text>
@@ -810,7 +810,7 @@ export default function CheckoutScreen() {
                 {/* Order Summary */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Ionicons name="receipt-outline" size={20} color={colors.text || '#0F172A'} />
+                        <Ionicons name="receipt-outline" size={20} color={colors.text} />
                         <Text style={styles.sectionTitle}>Order Summary</Text>
                     </View>
                     <View style={styles.card}>
@@ -826,8 +826,8 @@ export default function CheckoutScreen() {
                         </View>
                         {usePoints > 0 && (
                             <View style={styles.summaryRow}>
-                                <Text style={[styles.summaryLabel, { color: '#10B981' }]}>Referral Discount</Text>
-                                <Text style={[styles.summaryValue, { color: '#10B981' }]}>-₹{usePoints * pointValue}</Text>
+                                <Text style={[styles.summaryLabel, { color: colors.success }]}>Referral Discount</Text>
+                                <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{usePoints * pointValue}</Text>
                             </View>
                         )}
                         <View style={styles.divider} />
@@ -847,13 +847,13 @@ export default function CheckoutScreen() {
                     activeOpacity={0.85}
                 >
                     {isOrderLoading || isProcessing ? (
-                        <ActivityIndicator color="#FFFFFF" />
+                        <ActivityIndicator color={colors.surface} />
                     ) : (
                         <>
                             <Text style={styles.placeOrderText}>
                                 Place Order • ₹{finalTotal}
                             </Text>
-                            <Ionicons name="checkmark-circle-outline" size={20} color="#FFFFFF" />
+                            <Ionicons name="checkmark-circle-outline" size={20} color={colors.surface} />
                         </>
                     )}
                 </TouchableOpacity>

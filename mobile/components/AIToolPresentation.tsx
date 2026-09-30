@@ -1,7 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, Linking, Pressable, StyleSheet, Text, View, TextInput, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAddressStore } from '../store/addressStore';
+import { useTheme } from '../hooks/useTheme';
+import type { ThemeColors } from '../theme/colors';
 
 import type { AIToolPresentation as AIToolPresentationType, AIToolPresentationSection } from '../store/aiAssistantStore';
 
@@ -57,7 +59,9 @@ const formatPreviewText = (value?: string | null, maxLength = 180) => {
 const renderDetailCard = (
   key: string,
   icon: keyof typeof Ionicons.glyphMap,
-  value?: string | null,
+  value: string | null | undefined,
+  _styles?: Record<string, unknown>,
+  _colors?: ThemeColors,
   options?: { wide?: boolean }
 ) => {
   const text = String(value || '').trim();
@@ -68,14 +72,18 @@ const renderDetailCard = (
   return (
     <View key={key} style={[styles.detailCard, options?.wide && styles.detailCardWide]}>
       <View style={styles.detailCardIconWrap}>
-        <Ionicons name={icon} size={13} color="#C26D1D" />
+        <Ionicons name={icon} size={13} color="#F1842D" />
       </View>
       <Text style={styles.detailCardText}>{text}</Text>
     </View>
   );
 };
 
-const renderMetaTagCard = (key: string, value?: string | null, tone: 'accent' | 'neutral' = 'neutral') => {
+const renderMetaTagCard = (
+  key: string,
+  value: string | null | undefined,
+  tone: 'accent' | 'neutral' = 'neutral',
+) => {
   const text = formatLabel(value);
   if (!text) {
     return null;
@@ -90,7 +98,7 @@ const renderMetaTagCard = (key: string, value?: string | null, tone: 'accent' | 
   );
 };
 
-const renderRows = (rows?: { label: string; value: string }[]) => {
+const renderRows = (rows: { label: string; value: string }[] | undefined, _styles?: Record<string, unknown>) => {
   if (!Array.isArray(rows) || rows.length === 0) {
     return null;
   }
@@ -107,7 +115,12 @@ const renderRows = (rows?: { label: string; value: string }[]) => {
   );
 };
 
-const renderCommunityActionPreview = (section: AIToolPresentationSection) => {
+const renderCommunityActionPreview = (
+  section: AIToolPresentationSection,
+  _styles?: Record<string, unknown>,
+  _colors?: ThemeColors,
+) => {
+  const colors = _colors || { primary: '#F1842D', text: '#2C2420', surface: '#FFFFFF' };
   const metadata = section.metadata || {};
   const actionKind = String(metadata.communityActionKind || '').trim();
   if (!actionKind) {
@@ -149,7 +162,7 @@ const renderCommunityActionPreview = (section: AIToolPresentationSection) => {
               <Ionicons
                 name={actionKind === 'comment_reply' ? 'return-up-forward-outline' : 'chatbubble-ellipses-outline'}
                 size={12}
-                color="#B85C14"
+                color={colors.primary}
               />
             </View>
             <Text style={styles.communityActionTargetLabel}>{targetLabel}</Text>
@@ -174,7 +187,7 @@ const renderCommunityActionPreview = (section: AIToolPresentationSection) => {
         <View style={styles.communityActionMetaRow}>
           {communityName ? (
             <View style={styles.communityActionMetaCard}>
-              <Ionicons name="people-outline" size={12} color="#B85C14" />
+              <Ionicons name="people-outline" size={12} color={colors.primary} />
               <Text style={styles.communityActionMetaText} numberOfLines={1}>
                 {communityName}
               </Text>
@@ -182,7 +195,7 @@ const renderCommunityActionPreview = (section: AIToolPresentationSection) => {
           ) : null}
           {tagsLabel ? (
             <View style={styles.communityActionMetaCard}>
-              <Ionicons name="pricetags-outline" size={12} color="#B85C14" />
+              <Ionicons name="pricetags-outline" size={12} color={colors.primary} />
               <Text style={styles.communityActionMetaText} numberOfLines={1}>
                 {tagsLabel}
               </Text>
@@ -194,7 +207,12 @@ const renderCommunityActionPreview = (section: AIToolPresentationSection) => {
   );
 };
 
-const renderComparisonMetric = (label: string, value?: string | null, options?: { accent?: boolean }) => {
+const renderComparisonMetric = (
+  label: string,
+  value: string | null | undefined,
+  _styles?: Record<string, unknown>,
+  options?: { accent?: boolean },
+) => {
   const text = String(value || '').trim();
   if (!text) {
     return null;

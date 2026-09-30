@@ -31,11 +31,10 @@ const PRE_SELECT_KEY = 'preselected_courses';
 
 // Single accent for the membership surface — carried by the one primary CTA per card.
 const ACCENT = '#7C3AED';
-const ACCENT_SOFT = '#F5F3FF';
 
 /* ─── Component ──────────────────────────────────────────────────────── */
 export default function MyMembershipScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const styles = StyleSheet.create({
     root: { flex: 1, backgroundColor: colors.background },
 
@@ -131,14 +130,14 @@ export default function MyMembershipScreen() {
         marginBottom: 18,
         paddingVertical: 12,
         borderTopWidth: 1,
-        borderTopColor: colors.surfaceSecondary,
+        borderTopColor: colors.border,
     },
     featuresLabel: {
         fontSize: 12, fontWeight: '700', color: colors.text,
         textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12,
     },
     featureRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
-    featureText: { fontSize: 14, color: '#4B5563', flex: 1, fontWeight: '500' },
+    featureText: { fontSize: 14, color: colors.text, flex: 1, fontWeight: '500' },
     manageBtn: {
         flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
         gap: 8, paddingVertical: 14, borderRadius: 14,
@@ -160,7 +159,7 @@ export default function MyMembershipScreen() {
         borderRadius: 14,
         borderWidth: 1.5,
         borderColor: '#8B5CF6',
-        backgroundColor: '#F5F3FF',
+        backgroundColor: colors.surfaceSecondary,
         marginTop: 12,
     },
     courseSelectBtnText: { fontSize: 14, fontWeight: '600', color: '#8B5CF6' },
@@ -172,7 +171,7 @@ export default function MyMembershipScreen() {
         paddingVertical: 10,
         marginTop: 8,
     },
-    courseSelectDoneText: { fontSize: 13, color: '#22C55E', fontWeight: '500' },
+    courseSelectDoneText: { fontSize: 13, color: colors.success, fontWeight: '500' },
 
     /* ── Section title ── */
     sectionTitle: { fontSize: 19, fontWeight: '700', color: colors.text, marginBottom: 14 },
@@ -254,14 +253,14 @@ export default function MyMembershipScreen() {
     /* ── Value line + preview videos ── */
     valueRow: {
         flexDirection: 'row', alignItems: 'center', gap: 8,
-        backgroundColor: ACCENT_SOFT, borderRadius: 12,
+        backgroundColor: colors.surfaceSecondary, borderRadius: 12,
         paddingHorizontal: 12, paddingVertical: 10, marginBottom: 14,
     },
     valueText: { fontSize: 13.5, fontWeight: '700', color: ACCENT, flex: 1 },
     previewStrip: { marginBottom: 14, marginHorizontal: -2 },
     previewStripContent: { gap: 10, paddingHorizontal: 2 },
     previewVideoCard: { width: 132 },
-    previewVideoThumb: { width: 132, height: 78, borderRadius: 12, backgroundColor: '#111827' },
+    previewVideoThumb: { width: 132, height: 78, borderRadius: 12, backgroundColor: colors.surfaceSecondary },
     previewVideoThumbFallback: { alignItems: 'center', justifyContent: 'center', backgroundColor: ACCENT },
     previewPlayBadge: {
         position: 'absolute', top: 27, left: 54,
@@ -294,7 +293,7 @@ export default function MyMembershipScreen() {
     purchasedText: { fontSize: 14, fontWeight: '700', color: colors.textSecondary },
 
     /* ── Purchase history ── */
-    refundNote: { fontSize: 13, color: '#F59E0B', marginBottom: 14, fontWeight: '500' },
+    refundNote: { fontSize: 13, color: colors.warning, marginBottom: 14, fontWeight: '500' },
     emptyBox: { alignItems: 'center', paddingVertical: 32, gap: 10 },
     emptyTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
     emptySub: { fontSize: 14, color: colors.textSecondary },
@@ -369,7 +368,7 @@ export default function MyMembershipScreen() {
     },
     previewCourseTitle: { fontSize: 14, fontWeight: '600', color: colors.text },
     previewCourseMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
-    previewRowSelected: { backgroundColor: '#F0FDF4' },
+    previewRowSelected: { backgroundColor: colors.surfaceSecondary },
     previewRowDisabled: { opacity: 0.4 },
 });
     const router = useRouter();
@@ -779,7 +778,7 @@ export default function MyMembershipScreen() {
 
     return (
         <SafeAreaView style={styles.root}>
-            <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
             {/* Header */}
             <View style={styles.header}>
@@ -857,9 +856,9 @@ export default function MyMembershipScreen() {
                                             <Text style={[styles.activePlanName, { color: ACCENT }]}>{cfg.name}</Text>
                                             <Text style={styles.activePlanTagline}>{cfg.tagline}</Text>
                                         </View>
-                                        <View style={[styles.statusBadge, { backgroundColor: '#F0FDF4', borderColor: '#10B981' }]}>
-                                            <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
-                                            <Text style={[styles.statusText, { color: '#10B981' }]}>Active</Text>
+                                        <View style={[styles.statusBadge, { backgroundColor: colors.surfaceSecondary, borderColor: colors.success }]}>
+                                            <View style={[styles.statusDot, { backgroundColor: colors.success }]} />
+                                            <Text style={[styles.statusText, { color: colors.success }]}>Active</Text>
                                         </View>
                                     </View>
 
@@ -907,7 +906,7 @@ export default function MyMembershipScreen() {
 
                                     {isPrimary && activeMembership?.courseSelection?.enabled && activeMembership.courseSelection.remaining === 0 && (
                                         <View style={styles.courseSelectDone}>
-                                            <Ionicons name="checkmark-circle" size={18} color="#22C55E" />
+                                            <Ionicons name="checkmark-circle" size={18} color={colors.success} />
                                             <Text style={styles.courseSelectDoneText}>
                                                 All {activeMembership.courseSelection.used} courses selected
                                             </Text>
@@ -928,9 +927,9 @@ export default function MyMembershipScreen() {
                                     {activePlan ? activePlan.charAt(0).toUpperCase() + activePlan.slice(1) : 'Active'}
                                 </Text>
                             </View>
-                            <View style={[styles.statusBadge, { backgroundColor: '#F0FDF4', borderColor: '#10B981' }]}>
-                                <View style={[styles.statusDot, { backgroundColor: '#10B981' }]} />
-                                <Text style={[styles.statusText, { color: '#10B981' }]}>Active</Text>
+                            <View style={[styles.statusBadge, { backgroundColor: colors.surfaceSecondary, borderColor: colors.success }]}>
+                                <View style={[styles.statusDot, { backgroundColor: colors.success }]} />
+                                <Text style={[styles.statusText, { color: colors.success }]}>Active</Text>
                             </View>
                         </View>
                         <TouchableOpacity
@@ -1063,7 +1062,7 @@ export default function MyMembershipScreen() {
                                     <View
                                         style={[
                                             styles.checkCircle,
-                                            { backgroundColor: f.included ? ACCENT_SOFT : colors.surfaceSecondary },
+                                            { backgroundColor: f.included ? colors.surfaceSecondary : colors.surfaceSecondary },
                                         ]}
                                     >
                                         <Ionicons
@@ -1160,7 +1159,7 @@ export default function MyMembershipScreen() {
                     </View>
                 ) : purchases.length === 0 ? (
                     <View style={styles.emptyBox}>
-                        <Ionicons name="receipt-outline" size={40} color="#334155" />
+                        <Ionicons name="receipt-outline" size={40} color={colors.textSecondary} />
                         <Text style={styles.emptyTitle}>No purchases yet</Text>
                         <Text style={styles.emptySub}>Membership payments will appear here</Text>
                     </View>
@@ -1187,11 +1186,11 @@ export default function MyMembershipScreen() {
                                             ₹{typeof p.amount === 'number' ? p.amount.toLocaleString('en-IN') : p.amount}
                                         </Text>
                                         <View style={[styles.purchaseStatusBadge, { 
-                                            backgroundColor: done ? '#F0FDF4' : colors.surfaceSecondary,
-                                            borderColor: done ? '#10B981' : colors.border,
+                                            backgroundColor: colors.surfaceSecondary,
+                                            borderColor: done ? colors.success : colors.border,
                                             borderWidth: 1
                                         }]}>
-                                            <Text style={[styles.purchaseStatusText, { color: done ? '#10B981' : colors.textSecondary }]}>
+                                            <Text style={[styles.purchaseStatusText, { color: done ? colors.success : colors.textSecondary }]}>
                                                 {p.status || 'completed'}
                                             </Text>
                                         </View>
@@ -1311,7 +1310,7 @@ export default function MyMembershipScreen() {
                                                 <Ionicons name="information-circle-outline" size={22} color={colors.textSecondary} />
                                             </TouchableOpacity>
                                             {isSelected ? (
-                                                <Ionicons name="checkmark-circle" size={24} color="#22C55E" />
+                                                <Ionicons name="checkmark-circle" size={24} color={colors.success} />
                                             ) : disabled ? (
                                                 <Ionicons name="lock-closed" size={20} color={colors.textSecondary} />
                                             ) : (

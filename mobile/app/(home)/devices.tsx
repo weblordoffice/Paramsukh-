@@ -141,7 +141,7 @@ export default function DevicesScreen() {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </SafeAreaView>
     );
@@ -180,7 +180,7 @@ export default function DevicesScreen() {
                 borderRadius: 12,
                 marginBottom: 12,
                 borderWidth: device.isCurrentDevice ? 1.5 : 0,
-                borderColor: device.isCurrentDevice ? '#3B82F6' : 'transparent',
+                borderColor: device.isCurrentDevice ? colors.primary : 'transparent',
                 shadowColor: '#000',
                 shadowOpacity: 0.05,
                 shadowRadius: 2,
@@ -193,7 +193,7 @@ export default function DevicesScreen() {
                     width: 48,
                     height: 48,
                     borderRadius: 24,
-                    backgroundColor: device.isCurrentDevice ? '#EFF6FF' : colors.surfaceSecondary,
+                    backgroundColor: device.isCurrentDevice ? colors.surfaceSecondary : colors.surfaceSecondary,
                     justifyContent: 'center',
                     alignItems: 'center',
                     marginRight: 14
@@ -202,7 +202,7 @@ export default function DevicesScreen() {
                   <Ionicons
                     name={device.os.toLowerCase().includes('ios') || device.os.toLowerCase().includes('android') ? 'phone-portrait-outline' : 'desktop-outline'}
                     size={24}
-                    color={device.isCurrentDevice ? '#3B82F6' : colors.textSecondary}
+                    color={device.isCurrentDevice ? colors.primary : colors.textSecondary}
                   />
                 </View>
 
@@ -212,8 +212,8 @@ export default function DevicesScreen() {
                       {device.deviceName}
                     </Text>
                     {device.isCurrentDevice && (
-                      <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: '#BFDBFE' }}>
-                        <Text style={{ fontSize: 11, fontWeight: '600', color: '#1D4ED8' }}>This Device</Text>
+                      <View style={{ backgroundColor: colors.surfaceSecondary, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12, borderWidth: 1, borderColor: colors.border }}>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: colors.primary }}>This Device</Text>
                       </View>
                     )}
                   </View>
@@ -232,12 +232,12 @@ export default function DevicesScreen() {
                   style={{
                     padding: 8,
                     borderRadius: 8,
-                    backgroundColor: '#FEF2F2',
+                    backgroundColor: colors.surfaceSecondary,
                     justifyContent: 'center',
                     alignItems: 'center'
                   }}
                 >
-                  <Ionicons name="trash-outline" size={20} color="#EF4444" />
+                  <Ionicons name="trash-outline" size={20} color={colors.danger} />
                 </TouchableOpacity>
               )}
             </View>
@@ -251,17 +251,17 @@ export default function DevicesScreen() {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: '#FEF2F2',
+              backgroundColor: colors.surfaceSecondary,
               borderWidth: 1,
-              borderColor: '#FCA5A5',
+              borderColor: colors.border,
               paddingVertical: 14,
               borderRadius: 12,
               gap: 8,
               marginTop: 10
             }}
           >
-            <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-            <Text style={{ fontSize: 15, fontWeight: '600', color: '#B91C1C' }}>
+            <Ionicons name="log-out-outline" size={20} color={colors.danger} />
+            <Text style={{ fontSize: 15, fontWeight: '600', color: colors.danger }}>
               Log Out All Other Devices
             </Text>
           </TouchableOpacity>

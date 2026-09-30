@@ -133,12 +133,12 @@ export default function DownloadsScreen() {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
-    backgroundColor: '#FEF2F2',
+    backgroundColor: colors.surfaceSecondary,
   },
   removeText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#DC2626',
+    color: colors.danger,
   },
   centered: {
     flex: 1,
@@ -161,7 +161,7 @@ export default function DownloadsScreen() {
   },
   membershipBtn: {
     marginTop: 18,
-    backgroundColor: '#2563EB',
+    backgroundColor: colors.primary,
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 14,
@@ -237,7 +237,7 @@ export default function DownloadsScreen() {
     return (
       <SafeAreaView style={styles.root}>
         <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </SafeAreaView>
     );

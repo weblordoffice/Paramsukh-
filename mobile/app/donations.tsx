@@ -14,7 +14,7 @@ export default function DonationsScreen() {
   const { colors } = useTheme();
   const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: colors.border },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   backBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
   scroll: { padding: 16, paddingBottom: 40 },
@@ -22,11 +22,11 @@ export default function DonationsScreen() {
   heroEmoji: { fontSize: 48, marginBottom: 12 },
   heroTitle: { fontSize: 24, fontWeight: '800', color: colors.text, marginBottom: 8 },
   heroSubtitle: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', paddingHorizontal: 20 },
-  card: { backgroundColor: '#FFF', borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
+  card: { backgroundColor: colors.surface, borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
   label: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 8 },
   amountInput: { fontSize: 32, fontWeight: '700', color: '#8B5CF6', borderBottomWidth: 2, borderBottomColor: colors.border, paddingVertical: 8, marginBottom: 12 },
   presets: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
-  presetBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: '#FFF' },
+  presetBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   presetActive: { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' },
   presetText: { fontSize: 14, fontWeight: '600', color: colors.textSecondary },
   presetTextActive: { color: '#FFF' },
@@ -39,14 +39,14 @@ export default function DonationsScreen() {
   historySection: { marginTop: 10 },
   historyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 12 },
   emptyText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginTop: 16 },
-  historyCard: { backgroundColor: '#FFF', borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
+  historyCard: { backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
   historyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   historyInfo: { flex: 1 },
   historyAmount: { fontSize: 16, fontWeight: '700', color: colors.text },
   historyDate: { fontSize: 12, color: colors.textSecondary },
-  historyStatus: { fontSize: 12, fontWeight: '600', color: '#10B981', textTransform: 'capitalize' },
+  historyStatus: { fontSize: 12, fontWeight: '600', color: colors.success, textTransform: 'capitalize' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  receiptCard: { width: '100%', maxWidth: 380, backgroundColor: '#FFF', borderRadius: 16, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 10 },
+  receiptCard: { width: '100%', maxWidth: 380, backgroundColor: colors.surface, borderRadius: 16, padding: 24, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 12, elevation: 10 },
   receiptHeader: { alignItems: 'center', marginBottom: 16 },
   receiptEmoji: { fontSize: 40, marginBottom: 6 },
   receiptTitle: { fontSize: 20, fontWeight: '800', color: colors.text },
@@ -240,7 +240,7 @@ export default function DonationsScreen() {
             donations.slice(0, 10).map(d => (
               <TouchableOpacity key={d._id} style={styles.historyCard} onPress={() => setSelectedDonation(d)}>
                 <View style={styles.historyRow}>
-                  <Ionicons name="heart-circle" size={24} color="#EF4444" />
+                  <Ionicons name="heart-circle" size={24} color={colors.danger} />
                   <View style={styles.historyInfo}>
                     <Text style={styles.historyAmount}>₹{d.amount}</Text>
                     <Text style={styles.historyDate}>{new Date(d.createdAt).toLocaleDateString('en-IN')}</Text>

@@ -296,14 +296,14 @@ export default function EventDetailScreen() {
 
   if (isLoading || !event) {
     return (
-      <View style={{ flex: 1, backgroundColor: colors.surface, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={eventColor} />
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.surface }}>
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       <ScrollView 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -357,7 +357,7 @@ export default function EventDetailScreen() {
                 </View>
                 <View style={{ width: 8 }} />
                 <View style={{ paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, backgroundColor: colors.surfaceSecondary }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#4B5563', textTransform: 'uppercase' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.textSecondary, textTransform: 'uppercase' }}>
                     {event.status === 'cancelled' 
                       ? 'Cancelled' 
                       : (event.startTime && new Date() > new Date(event.startTime) ? 'Past' : 'Upcoming')}
@@ -411,7 +411,7 @@ export default function EventDetailScreen() {
           {/* Description Section */}
           <View style={{ marginTop: 32 }}>
             <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 12 }}>About the Event</Text>
-            <Text style={{ fontSize: 16, color: '#4B5563', lineHeight: 24 }}>
+            <Text style={{ fontSize: 16, color: colors.text, lineHeight: 24 }}>
               {event.description || event.shortDescription || 'No detailed description available for this event.'}
             </Text>
           </View>
@@ -427,7 +427,7 @@ export default function EventDetailScreen() {
                   {event.requirements.map((item: string, idx: number) => (
                     <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                       <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: eventColor, marginRight: 10 }} />
-                      <Text style={{ fontSize: 15, color: '#4B5563' }}>{item}</Text>
+                      <Text style={{ fontSize: 15, color: colors.text }}>{item}</Text>
                     </View>
                   ))}
                 </View>
@@ -439,7 +439,7 @@ export default function EventDetailScreen() {
                   {event.whatToBring.map((item: string, idx: number) => (
                     <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                       <Ionicons name="add-circle" size={14} color={eventColor} style={{ marginRight: 6 }} />
-                      <Text style={{ fontSize: 15, color: '#4B5563' }}>{item}</Text>
+                      <Text style={{ fontSize: 15, color: colors.text }}>{item}</Text>
                     </View>
                   ))}
                 </View>
@@ -448,7 +448,7 @@ export default function EventDetailScreen() {
               {event.additionalInfo && (
                 <View>
                   <Text style={{ fontSize: 14, fontWeight: '700', color: colors.text, marginBottom: 6 }}>Notes</Text>
-                  <Text style={{ fontSize: 15, color: '#4B5563' }}>{event.additionalInfo}</Text>
+                  <Text style={{ fontSize: 15, color: colors.text }}>{event.additionalInfo}</Text>
                 </View>
               )}
             </View>
@@ -460,44 +460,44 @@ export default function EventDetailScreen() {
               <TouchableOpacity 
                 style={{ 
                   marginTop: 32, 
-                  backgroundColor: '#EFF6FF', 
+                  backgroundColor: colors.surfaceSecondary, 
                   borderRadius: 20, 
                   padding: 20, 
                   flexDirection: 'row', 
                   alignItems: 'center',
                   borderWidth: 1,
-                  borderColor: '#DBEAFE'
+                  borderColor: colors.border
                 }}
                 onPress={() => { if (event.onlineMeetingLink) Linking.openURL(event.onlineMeetingLink).catch(() => {}); }}
               >
-                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#3B82F6', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
                   <Ionicons name="videocam" size={24} color={colors.surface} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#1E40AF' }}>Join Online Meeting</Text>
-                  <Text style={{ fontSize: 14, color: '#3B82F6' }}>Tap to open the meeting link</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Join Online Meeting</Text>
+                  <Text style={{ fontSize: 14, color: colors.primary }}>Tap to open the meeting link</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={20} color="#3B82F6" />
+                <Ionicons name="chevron-forward" size={20} color={colors.primary} />
               </TouchableOpacity>
             ) : (
               <View
                 style={{
                   marginTop: 32,
-                  backgroundColor: '#F8FAFC',
+                  backgroundColor: colors.surfaceSecondary,
                   borderRadius: 20,
                   padding: 20,
                   flexDirection: 'row',
                   alignItems: 'center',
                   borderWidth: 1,
-                  borderColor: '#E2E8F0'
+                  borderColor: colors.border
                 }}
               >
-                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#94A3B8', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+                <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colors.textSecondary, alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
                   <Ionicons name="lock-closed" size={22} color={colors.surface} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#334155' }}>Online Event</Text>
-                  <Text style={{ fontSize: 14, color: '#64748B' }}>Register to get the meeting link</Text>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Online Event</Text>
+                  <Text style={{ fontSize: 14, color: colors.textSecondary }}>Register to get the meeting link</Text>
                 </View>
               </View>
             )
@@ -557,7 +557,7 @@ export default function EventDetailScreen() {
           </View>
         ) : event.hasAttended ? (
           <View style={{ 
-            backgroundColor: '#3B82F6', 
+            backgroundColor: colors.primary, 
             paddingHorizontal: 32, 
             height: 56, 
             borderRadius: 16, 
@@ -571,7 +571,7 @@ export default function EventDetailScreen() {
         ) : isRegistered ? (
           <TouchableOpacity
             style={{ 
-              backgroundColor: '#EF4444', 
+              backgroundColor: colors.danger, 
               paddingHorizontal: 24, 
               height: 56, 
               borderRadius: 16, 
@@ -673,9 +673,9 @@ export default function EventDetailScreen() {
             <View style={{ marginTop: 32 }}>
               {event.isPaid ? (
                 <>
-                  <View style={{ backgroundColor: '#FFFBEB', padding: 12, borderRadius: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center' }}>
-                    <Ionicons name="information-circle" size={18} color="#D97706" style={{ marginRight: 8 }} />
-                    <Text style={{ fontSize: 12, color: '#B45309', fontWeight: '600' }}>
+                  <View style={{ backgroundColor: colors.surfaceSecondary, padding: 12, borderRadius: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center' }}>
+                    <Ionicons name="information-circle" size={18} color={colors.warning} style={{ marginRight: 8 }} />
+                    <Text style={{ fontSize: 12, color: colors.text, fontWeight: '600' }}>
                       Tickets are non-refundable once purchased.
                     </Text>
                   </View>

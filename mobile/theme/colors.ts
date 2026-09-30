@@ -1,5 +1,8 @@
 // Central color palettes for light and dark themes.
-// Screens should consume these via the useTheme() hook instead of hardcoding hex values.
+// Screens must consume these via the useTheme() hook instead of hardcoding hex values.
+//
+// Light = warm cream/earth brand (matches tab bar, header, and screen surfaces).
+// Dark  = warm charcoal companion — same brand accents, no navy clash.
 
 export interface ThemeColors {
   background: string;
@@ -16,13 +19,13 @@ export interface ThemeColors {
 }
 
 export const lightColors: ThemeColors = {
-  background: '#F9FAFB',
+  background: '#F4F3EB',
   surface: '#FFFFFF',
-  surfaceSecondary: '#F3F4F6',
-  text: '#111827',
-  textSecondary: '#6B7280',
-  border: '#E5E7EB',
-  primary: '#3B82F6',
+  surfaceSecondary: '#EBE5D3',
+  text: '#2C2420',
+  textSecondary: '#8C7B73',
+  border: '#E2DAC6',
+  primary: '#F1842D',
   danger: '#EF4444',
   success: '#10B981',
   warning: '#F59E0B',
@@ -30,16 +33,16 @@ export const lightColors: ThemeColors = {
 };
 
 export const darkColors: ThemeColors = {
-  background: '#0F172A',
-  surface: '#1E293B',
-  surfaceSecondary: '#334155',
-  text: '#F1F5F9',
-  textSecondary: '#94A3B8',
-  border: '#334155',
-  primary: '#3B82F6',
-  danger: '#EF4444',
-  success: '#10B981',
-  warning: '#F59E0B',
+  background: '#1C1917',
+  surface: '#292524',
+  surfaceSecondary: '#44403C',
+  text: '#FAF7F1',
+  textSecondary: '#A8A29E',
+  border: '#44403C',
+  primary: '#F1842D',
+  danger: '#F87171',
+  success: '#34D399',
+  warning: '#FBBF24',
   statusBarStyle: 'light',
 };
 

@@ -187,7 +187,7 @@ export default function EventMediaScreen() {
   const currentPhotoIndex = selectedPhoto ? photos.findIndex(p => p.id === selectedPhoto.id) + 1 : 1;
 
   return (
-    <View className="flex-1 bg-gray-50">
+    <View style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
       <View
         className="flex-row items-center pt-[50px] px-4 pb-4"
@@ -210,7 +210,7 @@ export default function EventMediaScreen() {
       </View>
 
       {/* Tab Switcher */}
-      <View className="flex-row bg-white border-b border-gray-200">
+      <View style={{ backgroundColor: colors.surface, borderColor: colors.border }} className="flex-row border-b">
         <TouchableOpacity 
           className="flex-1 py-4 items-center border-b-2"
           style={{ borderColor: activeTab === 'videos' ? eventColor : 'transparent' }}
@@ -237,17 +237,17 @@ export default function EventMediaScreen() {
           {isLoading ? (
             <View className="py-20 items-center justify-center">
               <ActivityIndicator size="large" color={eventColor} />
-              <Text className="text-gray-500 mt-4">Loading media...</Text>
+              <Text style={{ color: colors.textSecondary }} className="mt-4">Loading media...</Text>
             </View>
           ) : activeTab === 'videos' ? (
             <>
               {videos.length === 0 ? (
                 <View className="py-20 items-center justify-center">
-                  <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center mb-4">
+                  <View style={{ backgroundColor: colors.surfaceSecondary }} className="w-20 h-20 rounded-full items-center justify-center mb-4">
                     <Ionicons name="videocam-off" size={40} color={colors.textSecondary} />
                   </View>
-                  <Text className="text-lg font-bold text-gray-900 mb-1">No Recordings Yet</Text>
-                  <Text className="text-sm text-gray-500 text-center px-6">
+                  <Text style={{ color: colors.text }} className="text-lg font-bold mb-1">No Recordings Yet</Text>
+                  <Text style={{ color: colors.textSecondary }} className="text-sm text-center px-6">
                     Check back later. Event recordings are usually uploaded within 48 hours.
                   </Text>
                 </View>
@@ -302,23 +302,23 @@ export default function EventMediaScreen() {
                     </View>
 
                     {/* Video Info */}
-                    <View className="p-4 bg-white rounded-b-xl">
-                      <Text className="text-base font-bold text-gray-900 mb-1.5" numberOfLines={2}>
+                    <View style={{ backgroundColor: colors.surface }} className="p-4 rounded-b-xl">
+                      <Text style={{ color: colors.text }} className="text-base font-bold mb-1.5" numberOfLines={2}>
                         {video.title || `Event Recording ${index + 1}`}
                       </Text>
                       {video.description && (
-                        <Text className="text-sm text-gray-600 mb-3" numberOfLines={2}>
+                        <Text style={{ color: colors.textSecondary }} className="text-sm mb-3" numberOfLines={2}>
                           {video.description}
                         </Text>
                       )}
                       <View className="flex-row items-center gap-3">
                         <View className="flex-row items-center gap-1.5">
                           <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-                          <Text className="text-xs text-gray-500">{video.duration || 'Full length'}</Text>
+                          <Text style={{ color: colors.textSecondary }} className="text-xs">{video.duration || 'Full length'}</Text>
                         </View>
                         <View className="flex-row items-center gap-1.5">
                           <Ionicons name="play-circle-outline" size={14} color={colors.textSecondary} />
-                          <Text className="text-xs text-gray-500">Watch Now</Text>
+                          <Text style={{ color: colors.textSecondary }} className="text-xs">Watch Now</Text>
                         </View>
                       </View>
                     </View>
@@ -330,11 +330,11 @@ export default function EventMediaScreen() {
             <>
               {photos.length === 0 ? (
                 <View className="py-20 items-center justify-center">
-                  <View className="w-20 h-20 rounded-full bg-gray-100 items-center justify-center mb-4">
+                  <View style={{ backgroundColor: colors.surfaceSecondary }} className="w-20 h-20 rounded-full items-center justify-center mb-4">
                     <Ionicons name="images-outline" size={40} color={colors.textSecondary} />
                   </View>
-                  <Text className="text-lg font-bold text-gray-900 mb-1">No Photos Yet</Text>
-                  <Text className="text-sm text-gray-500 text-center px-6">
+                  <Text style={{ color: colors.text }} className="text-lg font-bold mb-1">No Photos Yet</Text>
+                  <Text style={{ color: colors.textSecondary }} className="text-sm text-center px-6">
                     Check back later. Event photos are usually uploaded shortly after the event concludes.
                   </Text>
                 </View>

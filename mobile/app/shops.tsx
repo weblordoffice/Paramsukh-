@@ -61,7 +61,7 @@ export default function ShopsScreen() {
     position: 'absolute',
     top: -2,
     right: -2,
-    backgroundColor: '#EF4444',
+    backgroundColor: colors.danger,
     borderRadius: 10,
     minWidth: 18,
     height: 18,
@@ -201,7 +201,7 @@ export default function ShopsScreen() {
     alignItems: 'center',
   },
   addButtonActive: {
-    backgroundColor: '#10B981',
+    backgroundColor: colors.success,
   },
   addButtonText: {
     fontSize: 13,
@@ -350,7 +350,7 @@ export default function ShopsScreen() {
           </Text>
 
           {isLoading ? (
-            <ActivityIndicator size="large" color="#EAB308" style={{ marginTop: 20 }} />
+            <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
           ) : (
             <View style={styles.grid}>
               {products.map(product => {

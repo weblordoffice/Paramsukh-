@@ -21,7 +21,7 @@ export default function AssignmentViewerScreen() {
   const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -29,8 +29,8 @@ export default function AssignmentViewerScreen() {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    backgroundColor: '#FFF',
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   closeBtn: {
     padding: 4,
@@ -42,11 +42,11 @@ export default function AssignmentViewerScreen() {
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1E293B',
+    color: colors.text,
   },
   headerSubtitle: {
     fontSize: 12,
-    color: '#64748B',
+    color: colors.textSecondary,
     marginTop: 1,
   },
   scrollContent: {
@@ -54,12 +54,12 @@ export default function AssignmentViewerScreen() {
   },
   description: {
     fontSize: 14,
-    color: '#475569',
+    color: colors.textSecondary,
     lineHeight: 20,
     marginBottom: 24,
   },
   questionCard: {
-    backgroundColor: '#FFF',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     padding: 16,
     marginBottom: 20,
@@ -90,7 +90,7 @@ export default function AssignmentViewerScreen() {
   questionText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1E293B',
+    color: colors.text,
     flex: 1,
     lineHeight: 22,
   },
@@ -104,28 +104,28 @@ export default function AssignmentViewerScreen() {
     padding: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F1F5F9',
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceSecondary,
   },
   optionText: {
     fontSize: 14,
-    color: '#475569',
+    color: colors.text,
     flex: 1,
   },
   optionCorrect: {
-    borderColor: '#10B981',
-    backgroundColor: '#DCFCE7',
+    borderColor: colors.success,
+    backgroundColor: colors.surfaceSecondary,
   },
   textCorrect: {
-    color: '#065F46',
+    color: colors.success,
     fontWeight: '600',
   },
   optionWrong: {
-    borderColor: '#EF4444',
-    backgroundColor: '#FEE2E2',
+    borderColor: colors.danger,
+    backgroundColor: colors.surfaceSecondary,
   },
   textWrong: {
-    color: '#991B1B',
+    color: colors.danger,
     fontWeight: '600',
   },
   inputContainer: {
@@ -134,14 +134,14 @@ export default function AssignmentViewerScreen() {
   },
   input: {
     flex: 1,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 14,
-    color: '#1E293B',
+    color: colors.text,
   },
   checkBtn: {
     paddingHorizontal: 16,
@@ -158,7 +158,7 @@ export default function AssignmentViewerScreen() {
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: colors.border,
   },
   expHeader: {
     flexDirection: 'row',
@@ -169,12 +169,12 @@ export default function AssignmentViewerScreen() {
   expTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#475569',
+    color: colors.textSecondary,
     textTransform: 'uppercase',
   },
   expText: {
     fontSize: 14,
-    color: '#64748B',
+    color: colors.textSecondary,
     lineHeight: 20,
   },
   finishBtn: {
@@ -196,17 +196,17 @@ export default function AssignmentViewerScreen() {
   },
   errorText: {
     fontSize: 16,
-    color: '#64748B',
+    color: colors.textSecondary,
     marginBottom: 20,
   },
   backButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: '#0F172A',
+    backgroundColor: colors.text,
     borderRadius: 8,
   },
   backButtonText: {
-    color: '#FFF',
+    color: colors.background,
     fontWeight: '600',
   }
 });
@@ -265,12 +265,12 @@ export default function AssignmentViewerScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle={colors.statusBarStyle === 'dark' ? 'dark-content' : 'light-content'} />
       
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} style={styles.closeBtn}>
-          <Ionicons name="close" size={28} color="#1E293B" />
+          <Ionicons name="close" size={28} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle} numberOfLines={1}>{assignment.title}</Text>
@@ -328,10 +328,10 @@ export default function AssignmentViewerScreen() {
                       >
                         <Text style={textStyle}>{option}</Text>
                         {showExp && isActuallyCorrect && (
-                          <Ionicons name="checkmark-circle" size={20} color="#10B981" />
+                          <Ionicons name="checkmark-circle" size={20} color={colors.success} />
                         )}
                         {showExp && isCurrentOption && !isActuallyCorrect && (
-                          <Ionicons name="close-circle" size={20} color="#EF4444" />
+                          <Ionicons name="close-circle" size={20} color={colors.danger} />
                         )}
                       </TouchableOpacity>
                     );
@@ -358,11 +358,11 @@ export default function AssignmentViewerScreen() {
               {showExp && (
                 <View style={styles.explanationBox}>
                   <View style={styles.expHeader}>
-                    <Ionicons name="information-circle-outline" size={18} color="#475569" />
+                    <Ionicons name="information-circle-outline" size={18} color={colors.textSecondary} />
                     <Text style={styles.expTitle}>Explanation</Text>
                   </View>
                   {q.type !== 'mcq' && (
-                    <Text style={{ fontSize: 14, fontWeight: '600', marginBottom: 4, color: (answers[q._id] || '').trim().toLowerCase() === (q.correctAnswer || '').trim().toLowerCase() ? '#10B981' : '#EF4444' }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', marginBottom: 4, color: (answers[q._id] || '').trim().toLowerCase() === (q.correctAnswer || '').trim().toLowerCase() ? colors.success : colors.danger }}>
                       {(answers[q._id] || '').trim().toLowerCase() === (q.correctAnswer || '').trim().toLowerCase()
                         ? '✅ Correct answer!'
                         : `❌ Your answer: "${answers[q._id]}"`}

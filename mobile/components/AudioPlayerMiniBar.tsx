@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayerStore } from '../store/audioPlayerStore';
+import { useTheme } from '../hooks/useTheme';
 
 function formatTime(ms: number): string {
     if (!ms || ms <= 0) return '0:00';
@@ -12,6 +13,7 @@ function formatTime(ms: number): string {
 }
 
 export default function AudioPlayerMiniBar() {
+    const { colors } = useTheme();
     const {
         currentTrack,
         isPlaying,
@@ -21,6 +23,69 @@ export default function AudioPlayerMiniBar() {
         togglePlayPause,
         stop,
     } = useAudioPlayerStore();
+
+    const styles = useMemo(() => StyleSheet.create({
+        container: {
+            backgroundColor: colors.surface,
+            borderTopWidth: 1,
+            borderTopColor: colors.border,
+        },
+        progressBar: {
+            height: 3,
+            backgroundColor: colors.surfaceSecondary,
+        },
+        progressFill: {
+            height: '100%',
+            backgroundColor: '#3B82F6',
+        },
+        content: {
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 14,
+            paddingVertical: 10,
+        },
+        thumbnail: {
+            width: 44,
+            height: 44,
+            borderRadius: 8,
+            backgroundColor: colors.surfaceSecondary,
+        },
+        thumbnailPlaceholder: {
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        info: {
+            flex: 1,
+            marginLeft: 12,
+            marginRight: 8,
+        },
+        title: {
+            fontSize: 14,
+            fontWeight: '700',
+            color: colors.text,
+        },
+        host: {
+            fontSize: 12,
+            color: colors.textSecondary,
+            marginTop: 2,
+        },
+        controlBtn: {
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: colors.surfaceSecondary,
+            alignItems: 'center',
+            justifyContent: 'center',
+        },
+        closeBtn: {
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginLeft: 8,
+        },
+    }), [colors]);
 
     if (!currentTrack) return null;
 
@@ -50,7 +115,7 @@ export default function AudioPlayerMiniBar() {
                 />
                 {!currentTrack.thumbnailUrl?.startsWith('http') ? (
                     <View style={[styles.thumbnail, styles.thumbnailPlaceholder]}>
-                        <Ionicons name="musical-note" size={18} color="#6B7280" />
+                        <Ionicons name="musical-note" size={18} color={colors.textSecondary} />
                     </View>
                 ) : null}
 
@@ -65,77 +130,14 @@ export default function AudioPlayerMiniBar() {
                     <Ionicons
                         name={isBuffering ? 'hourglass-outline' : isPlaying ? 'pause' : 'play'}
                         size={24}
-                        color="#111827"
+                        color={colors.text}
                     />
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.closeBtn} onPress={stop}>
-                    <Ionicons name="close" size={20} color="#9CA3AF" />
+                    <Ionicons name="close" size={20} color={colors.textSecondary} />
                 </TouchableOpacity>
             </View>
         </View>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        backgroundColor: '#FFFFFF',
-        borderTopWidth: 1,
-        borderTopColor: '#E5E7EB',
-    },
-    progressBar: {
-        height: 3,
-        backgroundColor: '#E5E7EB',
-    },
-    progressFill: {
-        height: '100%',
-        backgroundColor: '#3B82F6',
-    },
-    content: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-    },
-    thumbnail: {
-        width: 44,
-        height: 44,
-        borderRadius: 8,
-        backgroundColor: '#F3F4F6',
-    },
-    thumbnailPlaceholder: {
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    info: {
-        flex: 1,
-        marginLeft: 12,
-        marginRight: 8,
-    },
-    title: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#111827',
-    },
-    host: {
-        fontSize: 12,
-        color: '#6B7280',
-        marginTop: 2,
-    },
-    controlBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F3F4F6',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    closeBtn: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginLeft: 8,
-    },
-});

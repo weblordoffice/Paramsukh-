@@ -54,7 +54,7 @@ export default function ShopDetailScreen() {
     position: 'absolute',
     top: -2,
     right: -2,
-    backgroundColor: '#EF4444',
+    backgroundColor: colors.danger,
     borderRadius: 10,
     minWidth: 18,
     height: 18,
@@ -245,7 +245,7 @@ export default function ShopDetailScreen() {
     backgroundColor: colors.textSecondary,
   },
   addToCartButtonActive: {
-    backgroundColor: '#10B981',
+    backgroundColor: colors.success,
   },
   addToCartText: {
     fontSize: 13,
@@ -389,7 +389,7 @@ export default function ShopDetailScreen() {
               <Text style={styles.statText}>Est. {currentShop.established}</Text>
             </View>
             <View style={styles.statItem}>
-              <Ionicons name="shield-checkmark" size={20} color="#10B981" />
+              <Ionicons name="shield-checkmark" size={20} color={colors.success} />
               <Text style={styles.statText}>Verified Seller</Text>
             </View>
           </View>

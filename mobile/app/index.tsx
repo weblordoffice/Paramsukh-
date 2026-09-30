@@ -3,12 +3,14 @@ import { useRouter } from 'expo-router';
 import { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuthStore } from '../store/authStore';
+import { useTheme } from '../hooks/useTheme';
 
 const dlog = (...args: any[]) => {
   if (__DEV__) console.log('[index]', ...args);
 };
 
 export default function Home() {
+  const { colors } = useTheme();
   const router = useRouter();
   const [hasChecked, setHasChecked] = useState(false);
   const hasCheckedRef = useRef(false);
@@ -98,8 +100,8 @@ export default function Home() {
 
   if (!hasChecked) {
     return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <ActivityIndicator size="large" color="#3B82F6" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }

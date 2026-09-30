@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -13,6 +13,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { AIMemoryItem } from '../store/aiAssistantStore';
+import { useTheme } from '../hooks/useTheme';
+import type { ThemeColors } from '../theme/colors';
 
 type AIMemorySheetProps = {
   visible: boolean;
@@ -38,6 +40,8 @@ export default function AIMemorySheet({
   onDeleteItem,
   onClearAll,
 }: AIMemorySheetProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const confirmDelete = (memoryId: string) => {
     Alert.alert(
       'Delete memory',
@@ -84,12 +88,12 @@ export default function AIMemorySheet({
               <Text style={styles.subtitle}>What the assistant remembers about the user</Text>
             </View>
             <TouchableOpacity style={styles.headerButton} onPress={onClose}>
-              <Ionicons name="close" size={20} color="#111827" />
+              <Ionicons name="close" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
 
           <View style={styles.tipCard}>
-            <Ionicons name="shield-checkmark-outline" size={18} color="#F1842D" />
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
             <Text style={styles.tipText}>
               Only durable preferences and goals should be remembered here, and the user can remove them at any time.
             </Text>
@@ -107,7 +111,7 @@ export default function AIMemorySheet({
 
           {loading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color="#F1842D" />
+              <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : (
             <ScrollView
@@ -118,7 +122,7 @@ export default function AIMemorySheet({
               {memoryItems.length === 0 ? (
                 <View style={styles.emptyState}>
                   <View style={styles.emptyIcon}>
-                    <Ionicons name="leaf-outline" size={26} color="#F1842D" />
+                    <Ionicons name="leaf-outline" size={26} color={colors.primary} />
                   </View>
                   <Text style={styles.emptyTitle}>No saved memory yet</Text>
                   <Text style={styles.emptySubtitle}>
@@ -133,7 +137,7 @@ export default function AIMemorySheet({
                         <Text style={styles.badgeText}>{item.category}</Text>
                       </View>
                       <TouchableOpacity style={styles.deleteButton} onPress={() => confirmDelete(item.id)}>
-                        <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                        <Ionicons name="trash-outline" size={16} color={colors.danger} />
                       </TouchableOpacity>
                     </View>
                     <Text style={styles.cardTitle}>{prettyKey(item.key)}</Text>
@@ -152,7 +156,7 @@ export default function AIMemorySheet({
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(35, 24, 15, 0.28)',
@@ -162,7 +166,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheet: {
-    backgroundColor: '#F8F3EC',
+    backgroundColor: colors.background,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     minHeight: '55%',
@@ -174,7 +178,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 5,
     borderRadius: 3,
-    backgroundColor: '#D8C8B5',
+    backgroundColor: colors.border,
     alignSelf: 'center',
     marginTop: 12,
   },
@@ -187,20 +191,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#1F2937',
+    color: colors.text,
   },
   subtitle: {
     marginTop: 2,
     fontSize: 13,
-    color: '#6B7280',
+    color: colors.textSecondary,
   },
   headerButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#EFE4D6',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -208,9 +212,9 @@ const styles = StyleSheet.create({
     marginTop: 16,
     padding: 14,
     borderRadius: 18,
-    backgroundColor: '#FFF7EC',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#F3DEC5',
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
@@ -219,7 +223,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 13,
     lineHeight: 19,
-    color: '#7C4A23',
+    color: colors.text,
   },
   actionsRow: {
     marginTop: 14,
@@ -230,15 +234,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 16,
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#E7D8C9',
+    borderColor: colors.border,
   },
   secondaryButtonDisabled: {
     opacity: 0.45,
   },
   secondaryButtonText: {
-    color: '#7C4A23',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '700',
   },
@@ -267,7 +271,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#FFF0E2',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
@@ -275,20 +279,20 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#374151',
+    color: colors.text,
   },
   emptySubtitle: {
     marginTop: 6,
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
-    color: '#6B7280',
+    color: colors.textSecondary,
   },
   card: {
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#EFE3D5',
+    borderColor: colors.border,
     padding: 14,
   },
   cardTopRow: {
@@ -300,10 +304,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: '#FFF0E2',
+    backgroundColor: colors.surfaceSecondary,
   },
   badgeText: {
-    color: '#A16207',
+    color: colors.primary,
     fontSize: 11,
     fontWeight: '800',
     textTransform: 'uppercase',
@@ -312,9 +316,9 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#EFE4D6',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -322,18 +326,18 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 15,
     fontWeight: '800',
-    color: '#1F2937',
+    color: colors.text,
   },
   cardValue: {
     marginTop: 6,
     fontSize: 14,
     lineHeight: 20,
-    color: '#4B5563',
+    color: colors.textSecondary,
   },
   cardMeta: {
     marginTop: 10,
     fontSize: 12,
-    color: '#9CA3AF',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
 });

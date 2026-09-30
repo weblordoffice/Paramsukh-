@@ -34,6 +34,8 @@ import AIHistorySheet from './AIHistorySheet';
 import AIMemorySheet from './AIMemorySheet';
 import { AIToolPresentationSection, useAIAssistantStore } from '../store/aiAssistantStore';
 import { useAuthStore } from '../store/authStore';
+import { useTheme } from '../hooks/useTheme';
+import type { ThemeColors } from '../theme/colors';
 import apiClient from '../utils/apiClient';
 import { pollPaymentConfirmation } from '../utils/paymentBrowser';
 import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '../utils/razorpayNative';
@@ -461,6 +463,8 @@ export default function AIChatPanel({
   const { width } = useWindowDimensions();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const messages = useAIAssistantStore((state) => state.messages);
   const sessionId = useAIAssistantStore((state) => state.sessionId);
@@ -1532,7 +1536,7 @@ export default function AIChatPanel({
   if (!hydrated) {
     return (
       <View style={styles.loadingState}>
-        <ActivityIndicator size="large" color="#F1842D" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingStateText}>Loading your AI workspace...</Text>
       </View>
     );
@@ -1573,7 +1577,7 @@ export default function AIChatPanel({
           <View style={styles.headerTopRow}>
             <View style={styles.headerLeft}>
               <View style={styles.headerBadge}>
-                <Ionicons name="sparkles" size={28} color="#F26716" />
+                <Ionicons name="sparkles" size={28} color={colors.primary} />
                 <View style={styles.headerBadgeSpark} />
               </View>
               <View style={styles.headerTextWrap}>
@@ -1594,16 +1598,16 @@ export default function AIChatPanel({
 
             <View style={styles.headerActions}>
               <TouchableOpacity style={styles.headerActionButton} onPress={handleOpenHistory}>
-                <Ionicons name="time-outline" size={19} color="#263142" />
+                <Ionicons name="time-outline" size={19} color={colors.text} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.headerActionButton} onPress={handleOpenMemory}>
-                <Ionicons name="library-outline" size={19} color="#263142" />
+                <Ionicons name="library-outline" size={19} color={colors.text} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.headerActionButton} onPress={handleStartNewChat}>
-                <Ionicons name="add" size={23} color="#263142" />
+                <Ionicons name="add" size={23} color={colors.text} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.headerActionButton} onPress={handleClosePanel}>
-                <Ionicons name="close" size={21} color="#111827" />
+                <Ionicons name="close" size={21} color={colors.text} />
               </TouchableOpacity>
             </View>
           </View>
@@ -1611,7 +1615,7 @@ export default function AIChatPanel({
           {context ? (
             <View style={styles.contextCard}>
               <View style={styles.contextIconWrap}>
-                <Ionicons name={getContextIcon(context)} size={23} color="#F26716" />
+                <Ionicons name={getContextIcon(context)} size={23} color={colors.primary} />
               </View>
               <View style={styles.contextTextWrap}>
                 <Text style={styles.contextLabel}>Current Screen</Text>
@@ -1631,7 +1635,7 @@ export default function AIChatPanel({
         >
           {context ? (
             <View style={styles.contextAcknowledgement}>
-              <Ionicons name="checkmark-circle-outline" size={19} color="#C65D13" />
+              <Ionicons name="checkmark-circle-outline" size={19} color={colors.primary} />
               <Text style={styles.contextAcknowledgementText}>
                 I understand you&apos;re on the{' '}
                 <Text style={styles.contextAcknowledgementStrong}>{context.label}</Text> screen.
@@ -1641,7 +1645,7 @@ export default function AIChatPanel({
 
           {activeConversationLoading ? (
             <View style={styles.inlineLoadingCard}>
-              <ActivityIndicator size="small" color="#F1842D" />
+              <ActivityIndicator size="small" color={colors.primary} />
               <Text style={styles.inlineLoadingText}>Loading conversation...</Text>
             </View>
           ) : null}
@@ -1673,7 +1677,7 @@ export default function AIChatPanel({
                         style={styles.quickReplyChip}
                         onPress={() => sendMessage(reply.prompt)}
                       >
-                        <Ionicons name={reply.icon} size={17} color="#F26716" />
+                        <Ionicons name={reply.icon} size={17} color={colors.primary} />
                         <Text style={styles.quickReplyText}>{reply.label}</Text>
                       </TouchableOpacity>
                     ))}
@@ -1687,12 +1691,12 @@ export default function AIChatPanel({
             <View style={styles.messageBlock}>
               <View style={styles.assistantRow}>
                 <View style={styles.assistantAvatar}>
-                  <Ionicons name="sparkles" size={18} color="#F1842D" />
+                  <Ionicons name="sparkles" size={18} color={colors.primary} />
                 </View>
                   <View style={styles.assistantContentWrap}>
                     <View style={[styles.messageBubble, styles.assistantBubble, styles.loadingBubble]}>
                       <View style={styles.loadingHeaderRow}>
-                        <ActivityIndicator size="small" color="#F1842D" />
+                        <ActivityIndicator size="small" color={colors.primary} />
                         <Text style={styles.loadingText}>{activeThinkingStages[thinkingStageIndex]}</Text>
                       </View>
                       <Text style={styles.loadingSubtext}>
@@ -1708,13 +1712,13 @@ export default function AIChatPanel({
         <View style={styles.composerShell}>
           <View style={styles.composer}>
             <View style={styles.composerLeading}>
-              <Ionicons name="sparkles-outline" size={22} color="#F26716" />
+              <Ionicons name="sparkles-outline" size={22} color={colors.primary} />
             </View>
             <View style={styles.composerDivider} />
             <TextInput
               style={styles.input}
               placeholder={getComposerPlaceholder(context)}
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textSecondary}
               value={input}
               onChangeText={setInput}
               multiline
@@ -1726,7 +1730,7 @@ export default function AIChatPanel({
               disabled={!canSend}
             >
               <LinearGradient
-                colors={canSend ? ['#FF9C45', '#F26716'] : ['#F8C49D', '#F4A971']}
+                colors={canSend ? ['#FF9C45', '#F26716'] : [colors.surfaceSecondary, colors.border]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.sendButton}
@@ -1759,6 +1763,8 @@ interface CounselorCallingProps {
 }
 
 const CounselorCallingIndicator = React.memo<CounselorCallingProps>(({ serviceName, statusText }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   // Three concentric ring animations, staggered for depth
   const ring1 = useSharedValue(0);
   const ring2 = useSharedValue(0);
@@ -1886,16 +1892,6 @@ const CounselorCallingIndicator = React.memo<CounselorCallingProps>(({ serviceNa
 
 CounselorCallingIndicator.displayName = 'CounselorCallingIndicator';
 
-const renderInlineMessage = (text: string) =>
-  text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
-    const isBold = part.startsWith('**') && part.endsWith('**');
-    return (
-      <Text key={`${part}-${index}`} style={isBold ? styles.formattedBold : undefined}>
-        {isBold ? part.slice(2, -2) : part}
-      </Text>
-    );
-  });
-
 function FormattedAssistantText({
   text,
   compact = false,
@@ -1903,6 +1899,18 @@ function FormattedAssistantText({
   text: string;
   compact?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
+
+  const renderInlineMessage = (msgText: string) =>
+    msgText.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+      const isBold = part.startsWith('**') && part.endsWith('**');
+      return (
+        <Text key={`${part}-${index}`} style={isBold ? styles.formattedBold : undefined}>
+          {isBold ? part.slice(2, -2) : part}
+        </Text>
+      );
+    });
   const lines = text.split(/\r?\n/);
 
   return (
@@ -1956,6 +1964,8 @@ function FormattedAssistantText({
 
 // ─── ChatMessageRow ───────────────────────────────────────────────────────────
 const ChatMessageRow = React.memo<ChatMessageRowProps>(({ message, onPresentationAction, thinkingText, thinkingSubtext, showCounselorCalling, counselorServiceName }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const hasPresentation = !!message.presentation?.sections?.length;
   const introText = message.narrative?.intro?.trim() || message.text;
   const outroText = message.narrative?.outro?.trim() || '';
@@ -1973,7 +1983,7 @@ const ChatMessageRow = React.memo<ChatMessageRowProps>(({ message, onPresentatio
       {message.role === 'assistant' ? (
         <View style={styles.assistantRow}>
           <View style={styles.assistantAvatar}>
-            <Ionicons name="sparkles" size={18} color="#F1842D" />
+            <Ionicons name="sparkles" size={18} color={colors.primary} />
           </View>
           <View style={styles.assistantContentWrap}>
             {!introText.trim() && !hasPresentation ? (
@@ -1990,7 +2000,7 @@ const ChatMessageRow = React.memo<ChatMessageRowProps>(({ message, onPresentatio
               ) : (
                 <View style={[styles.messageBubble, styles.assistantBubble, styles.loadingBubble]}>
                   <View style={styles.loadingHeaderRow}>
-                    <ActivityIndicator size="small" color="#F1842D" />
+                    <ActivityIndicator size="small" color={colors.primary} />
                     <Text style={styles.loadingText}>
                       {message.actionStatus === 'Thinking...' || !message.actionStatus
                         ? (thinkingText || 'Thinking...')
@@ -2037,7 +2047,7 @@ const ChatMessageRow = React.memo<ChatMessageRowProps>(({ message, onPresentatio
                 <View style={styles.toolChipRow}>
                   {message.toolLabels.map((label: string) => (
                     <View key={`${message.id}-${label}`} style={styles.toolChip}>
-                      <Ionicons name="sparkles-outline" size={11} color="#C26D1D" />
+                      <Ionicons name="sparkles-outline" size={11} color={colors.primary} />
                       <Text style={styles.toolChipText}>{label}</Text>
                     </View>
                   ))}
@@ -2068,7 +2078,7 @@ const ChatMessageRow = React.memo<ChatMessageRowProps>(({ message, onPresentatio
               <Text style={styles.userTimestamp}>
                 {formatMessageTime(message.createdAt)}
               </Text>
-              <Ionicons name="checkmark-done" size={13} color="#F1842D" />
+              <Ionicons name="checkmark-done" size={13} color={colors.primary} />
             </View>
           </View>
         </View>
@@ -2091,28 +2101,28 @@ const ChatMessageRow = React.memo<ChatMessageRowProps>(({ message, onPresentatio
 
 ChatMessageRow.displayName = 'ChatMessageRow';
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ThemeColors) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FCF8F3',
+    backgroundColor: colors.background,
   },
   loadingState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F8F3EC',
+    backgroundColor: colors.background,
     gap: 12,
   },
   loadingStateText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   header: {
     paddingHorizontal: 18,
     paddingTop: 18,
     paddingBottom: 12,
-    backgroundColor: '#FCF8F3',
+    backgroundColor: colors.background,
   },
   headerCompact: {
     paddingTop: 14,
@@ -2142,14 +2152,14 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     letterSpacing: -0.3,
-    color: '#172033',
+    color: colors.text,
   },
   headerTitleCompact: {
     fontSize: 17,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: '#667085',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   headerSubtitleCompact: {
@@ -2170,7 +2180,7 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 2,
-    backgroundColor: '#F26716',
+    backgroundColor: colors.primary,
     transform: [{ rotate: '45deg' }],
   },
   headerActions: {
@@ -2189,11 +2199,11 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#EEE6DE',
+    borderColor: colors.border,
     shadowColor: '#684A36',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.07,
@@ -2206,9 +2216,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 21,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#EEE5DC',
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     shadowColor: '#71513B',
@@ -2221,7 +2231,7 @@ const styles = StyleSheet.create({
     width: 54,
     height: 54,
     borderRadius: 16,
-    backgroundColor: '#FFF2E6',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 14,
@@ -2232,7 +2242,7 @@ const styles = StyleSheet.create({
   contextLabel: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#C65D13',
+    color: colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.7,
   },
@@ -2240,7 +2250,7 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontSize: 17,
     fontWeight: '800',
-    color: '#182131',
+    color: colors.text,
   },
   newChatChip: {
     flexDirection: 'row',
@@ -2250,7 +2260,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     minHeight: 46,
     borderRadius: 16,
-    backgroundColor: '#F1842D',
+    backgroundColor: colors.primary,
     borderWidth: 0,
   },
   newChatChipStacked: {
@@ -2270,11 +2280,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#F6EBDD',
+    backgroundColor: colors.surfaceSecondary,
   },
   activeConversationText: {
     maxWidth: 210,
-    color: '#A16207',
+    color: colors.primary,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -2292,7 +2302,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     minHeight: 44,
     borderRadius: 22,
-    backgroundColor: '#FFF0DF',
+    backgroundColor: colors.surfaceSecondary,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 9,
@@ -2302,11 +2312,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontWeight: '600',
-    color: '#A64B0E',
+    color: colors.text,
   },
   contextAcknowledgementStrong: {
     fontWeight: '800',
-    color: '#E35F0F',
+    color: colors.primary,
   },
   inlineLoadingCard: {
     marginBottom: 14,
@@ -2315,12 +2325,12 @@ const styles = StyleSheet.create({
     gap: 10,
     padding: 12,
     borderRadius: 16,
-    backgroundColor: '#FFF7EC',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#F3DEC5',
+    borderColor: colors.border,
   },
   inlineLoadingText: {
-    color: '#7C4A23',
+    color: colors.text,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -2335,13 +2345,13 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFF9F3',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
     marginTop: 2,
     borderWidth: 1,
-    borderColor: '#EFE4D8',
+    borderColor: colors.border,
     shadowColor: '#7A4F30',
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.08,
@@ -2366,7 +2376,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   userBubble: {
-    backgroundColor: '#F1842D',
+    backgroundColor: colors.primary,
     borderTopRightRadius: 12,
     borderBottomRightRadius: 8,
     borderTopLeftRadius: 24,
@@ -2378,13 +2388,13 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   assistantBubble: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 10,
     borderBottomLeftRadius: 10,
     borderTopRightRadius: 24,
     borderBottomRightRadius: 24,
     borderWidth: 1,
-    borderColor: '#EEE6DE',
+    borderColor: colors.border,
     shadowColor: '#694D3B',
     shadowOffset: { width: 0, height: 9 },
     shadowOpacity: 0.07,
@@ -2399,8 +2409,8 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     paddingHorizontal: 16,
     borderRadius: 21,
-    backgroundColor: '#FFFFFF',
-    borderColor: '#EEE6DE',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
     shadowOpacity: 0,
     shadowRadius: 0,
     elevation: 0,
@@ -2411,12 +2421,12 @@ const styles = StyleSheet.create({
     left: 0,
     width: 3,
     bottom: 0,
-    backgroundColor: '#FFB574',
+    backgroundColor: colors.primary,
   },
   assistantEyebrow: {
     fontSize: 11,
     fontWeight: '800',
-    color: '#B75B16',
+    color: colors.primary,
     letterSpacing: 0.65,
     textTransform: 'uppercase',
     marginBottom: 6,
@@ -2433,21 +2443,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   assistantText: {
-    color: '#202938',
+    color: colors.text,
   },
   assistantSummaryText: {
     fontSize: 14,
     lineHeight: 21,
-    color: '#374151',
+    color: colors.text,
   },
   assistantFollowupBubble: {
     maxWidth: '100%',
     paddingVertical: 11,
     paddingHorizontal: 14,
     borderRadius: 18,
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#EEDFCF',
+    borderColor: colors.border,
     shadowOpacity: 0,
     shadowRadius: 0,
     elevation: 0,
@@ -2455,7 +2465,7 @@ const styles = StyleSheet.create({
   assistantFollowupLabel: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#A16207',
+    color: colors.primary,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     marginBottom: 5,
@@ -2463,7 +2473,7 @@ const styles = StyleSheet.create({
   assistantFollowupText: {
     fontSize: 13,
     lineHeight: 20,
-    color: '#4B5563',
+    color: colors.textSecondary,
   },
   assistantMetaRow: {
     marginTop: 6,
@@ -2473,7 +2483,7 @@ const styles = StyleSheet.create({
   },
   assistantTimestamp: {
     fontSize: 11,
-    color: '#8B95A5',
+    color: colors.textSecondary,
   },
   toolSummaryWrap: {
     marginTop: 8,
@@ -2484,7 +2494,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.3,
-    color: '#B7791F',
+    color: colors.primary,
   },
   toolChipRow: {
     flexDirection: 'row',
@@ -2498,14 +2508,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
-    backgroundColor: '#FFF3E3',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#F0D6B6',
+    borderColor: colors.border,
   },
   toolChipText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#A85D18',
+    color: colors.primary,
   },
   userMetaRow: {
     marginTop: 7,
@@ -2516,7 +2526,7 @@ const styles = StyleSheet.create({
   },
   userTimestamp: {
     fontSize: 11,
-    color: '#8B95A5',
+    color: colors.textSecondary,
   },
   loadingBubble: {
     gap: 8,
@@ -2528,12 +2538,12 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   loadingText: {
-    color: '#6B7280',
+    color: colors.textSecondary,
     fontSize: 14,
     fontWeight: '600',
   },
   loadingSubtext: {
-    color: '#9A6B44',
+    color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 18,
   },
@@ -2546,11 +2556,11 @@ const styles = StyleSheet.create({
   formattedHeading: {
     marginTop: 2,
     fontWeight: '800',
-    color: '#E86110',
+    color: colors.primary,
   },
   formattedBold: {
     fontWeight: '800',
-    color: '#192231',
+    color: colors.text,
   },
   formattedBulletRow: {
     flexDirection: 'row',
@@ -2559,7 +2569,7 @@ const styles = StyleSheet.create({
   },
   formattedBullet: {
     marginTop: 1,
-    color: '#F26716',
+    color: colors.primary,
     fontSize: 18,
     lineHeight: 22,
     fontWeight: '900',
@@ -2577,9 +2587,9 @@ const styles = StyleSheet.create({
     minHeight: 42,
     paddingHorizontal: 14,
     borderRadius: 21,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#ECE2D9',
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -2592,19 +2602,19 @@ const styles = StyleSheet.create({
   quickReplyText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#283141',
+    color: colors.text,
   },
   composerShell: {
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: Platform.OS === 'ios' ? 12 : 10,
-    backgroundColor: '#FCF8F3',
+    backgroundColor: colors.background,
   },
   composer: {
     minHeight: 68,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderRadius: 34,
     marginHorizontal: 0,
     marginBottom: 0,
@@ -2612,7 +2622,7 @@ const styles = StyleSheet.create({
     paddingRight: 7,
     paddingVertical: 7,
     borderWidth: 1,
-    borderColor: '#EDE4DB',
+    borderColor: colors.border,
     shadowColor: '#624733',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.12,
@@ -2630,7 +2640,7 @@ const styles = StyleSheet.create({
   composerDivider: {
     width: 1,
     height: 29,
-    backgroundColor: '#E7D8C9',
+    backgroundColor: colors.border,
   },
   input: {
     flex: 1,
@@ -2638,7 +2648,7 @@ const styles = StyleSheet.create({
     maxHeight: 88,
     paddingHorizontal: 5,
     paddingVertical: 7,
-    color: '#111827',
+    color: colors.text,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -2660,18 +2670,18 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   sendButtonDisabled: {
-    backgroundColor: '#F9B680',
+    backgroundColor: colors.surfaceSecondary,
   },
   callingCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderTopLeftRadius: 12,
     borderBottomLeftRadius: 8,
     borderTopRightRadius: 24,
     borderBottomRightRadius: 24,
     borderWidth: 1,
-    borderColor: '#F8E6D5',
+    borderColor: colors.border,
     padding: 16,
     gap: 16,
     width: '88%',
@@ -2695,8 +2705,8 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 1.5,
-    borderColor: '#F9B680',
-    backgroundColor: '#FFF4EA',
+    borderColor: colors.primary,
+    backgroundColor: colors.surfaceSecondary,
   },
   callingRing1: {
     zIndex: 1,
@@ -2711,7 +2721,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: '#F1842D',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
@@ -2728,7 +2738,7 @@ const styles = StyleSheet.create({
   callingLabel: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#E06B13',
+    color: colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
     marginBottom: 2,
@@ -2736,7 +2746,7 @@ const styles = StyleSheet.create({
   callingService: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#253243',
+    color: colors.text,
     lineHeight: 18,
   },
   callingDotsRow: {
@@ -2747,7 +2757,7 @@ const styles = StyleSheet.create({
   },
   callingDot: {
     fontSize: 8,
-    color: '#F1842D',
+    color: colors.primary,
     opacity: 0.7,
   },
 });

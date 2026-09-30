@@ -12,6 +12,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { AIConversationSummary } from '../store/aiAssistantStore';
+import { useTheme } from '../hooks/useTheme';
+import type { ThemeColors } from '../theme/colors';
 
 type TopicId = 'popular' | 'courses' | 'events' | 'community' | 'plans';
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -118,6 +120,8 @@ export default function AIChatHome({
   onOpenProfile,
   onClose,
 }: AIChatHomeProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const inputRef = useRef<TextInput>(null);
   const [activeTopic, setActiveTopic] = useState<TopicId>('popular');
   const [showAll, setShowAll] = useState(false);
@@ -138,7 +142,11 @@ export default function AIChatHome({
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={['#FFFDF9', '#FFF8F0', '#F9F1E7']}
+        colors={
+          isDark
+            ? [colors.background, colors.surface, colors.background]
+            : ['#FFFDF9', '#FFF8F0', '#F9F1E7']
+        }
         locations={[0, 0.52, 1]}
         style={StyleSheet.absoluteFill}
       />
@@ -150,7 +158,7 @@ export default function AIChatHome({
       >
         <View style={styles.topBar}>
           <View style={styles.brandMark}>
-            <Ionicons name="sparkles" size={compact ? 24 : 28} color="#F47A20" />
+            <Ionicons name="sparkles" size={compact ? 24 : 28} color={colors.primary} />
           </View>
           <View style={styles.topActions}>
             <RoundAction label="Open chat history" icon="time-outline" onPress={onOpenHistory} />
@@ -183,14 +191,14 @@ export default function AIChatHome({
         <View style={[styles.askShell, compact && styles.askShellCompact]}>
           <View style={styles.askInner}>
             <View style={styles.askIcon}>
-              <Ionicons name="sparkles" size={23} color="#F47A20" />
+              <Ionicons name="sparkles" size={23} color={colors.primary} />
             </View>
             <TextInput
               ref={inputRef}
               accessibilityLabel="Ask ParamSukh AI"
               style={[styles.askInput, compact && styles.askInputCompact]}
               placeholder="Ask about courses, events, memberships, podcasts, plans or community..."
-              placeholderTextColor="#8F9198"
+              placeholderTextColor={colors.textSecondary}
               value={input}
               onChangeText={onChangeInput}
               onSubmitEditing={() => canSend && onSend()}
@@ -227,7 +235,7 @@ export default function AIChatHome({
                   setShowAll(false);
                 }}
               >
-                <Ionicons name={topic.icon} size={17} color={selected ? '#F26716' : '#252A34'} />
+                <Ionicons name={topic.icon} size={17} color={selected ? colors.primary : colors.text} />
                 <Text style={[styles.topicLabel, selected && styles.topicLabelActive]}>
                   {topic.label}
                 </Text>
@@ -252,18 +260,22 @@ export default function AIChatHome({
               disabled={isSending}
             >
               <View style={styles.suggestionIcon}>
-                <Ionicons name={suggestion.icon} size={21} color="#F26716" />
+                <Ionicons name={suggestion.icon} size={21} color={colors.primary} />
               </View>
               <Text style={[styles.suggestionText, compact && styles.suggestionTextCompact]}>
                 {suggestion.text}
               </Text>
-              <Ionicons name="chevron-forward" size={19} color="#8B8178" />
+              <Ionicons name="chevron-forward" size={19} color={colors.textSecondary} />
             </TouchableOpacity>
           ))}
         </View>
 
         <LinearGradient
-          colors={['#FFF2E1', '#FFE2C3', '#FFF8EF']}
+          colors={
+            isDark
+              ? [colors.surfaceSecondary, colors.surface, colors.surfaceSecondary]
+              : ['#FFF2E1', '#FFE2C3', '#FFF8EF']
+          }
           start={{ x: 0, y: 1 }}
           end={{ x: 1, y: 0 }}
           style={[styles.featureCard, compact && styles.featureCardCompact]}
@@ -277,7 +289,7 @@ export default function AIChatHome({
           />
           <View style={[styles.featureCopy, compact && styles.featureCopyCompact]}>
             <View style={styles.featureEyebrow}>
-              <Ionicons name="sparkles" size={13} color="#E86216" />
+              <Ionicons name="sparkles" size={13} color={colors.primary} />
               <Text style={styles.featureEyebrowText}>FEATURED AI ASSISTANT</Text>
             </View>
             <Text style={[styles.featureTitle, compact && styles.featureTitleCompact]}>
@@ -310,7 +322,7 @@ export default function AIChatHome({
                 onPress={() => onOpenConversation(conversation.id)}
               >
                 <View style={styles.recentIcon}>
-                  <Ionicons name="chatbubble-outline" size={18} color="#F26716" />
+                  <Ionicons name="chatbubble-outline" size={18} color={colors.primary} />
                 </View>
                 <Text style={styles.recentTitle} numberOfLines={1}>
                   {conversation.title}
@@ -318,7 +330,7 @@ export default function AIChatHome({
                 <Text style={styles.recentTime}>
                   {relativeTime(conversation.lastMessageAt || conversation.updatedAt)}
                 </Text>
-                <Ionicons name="chevron-forward" size={17} color="#9A9188" />
+                <Ionicons name="chevron-forward" size={17} color={colors.textSecondary} />
               </TouchableOpacity>
             ))}
           </View>
@@ -331,9 +343,11 @@ export default function AIChatHome({
 }
 
 function RoundAction({ label, icon, onPress }: { label: string; icon: IconName; onPress: () => void }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   return (
     <TouchableOpacity accessibilityLabel={label} style={styles.roundAction} onPress={onPress}>
-      <Ionicons name={icon} size={20} color="#172033" />
+      <Ionicons name={icon} size={20} color={colors.text} />
     </TouchableOpacity>
   );
 }
@@ -349,10 +363,12 @@ function SectionHeader({
   onAction: () => void;
   sparkle?: boolean;
 }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   return (
     <View style={styles.sectionHeader}>
       <View style={styles.sectionTitleRow}>
-        {sparkle ? <Ionicons name="sparkles" size={16} color="#F47A20" /> : null}
+        {sparkle ? <Ionicons name="sparkles" size={16} color={colors.primary} /> : null}
         <Text style={styles.sectionTitle}>{title}</Text>
       </View>
       {action ? (
@@ -365,9 +381,11 @@ function SectionHeader({
 }
 
 function EmptyRecent({ text, icon = false }: { text: string; icon?: boolean }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   return (
     <View style={styles.emptyRecent}>
-      {icon ? <Ionicons name="chatbubbles-outline" size={20} color="#D27B3E" /> : null}
+      {icon ? <Ionicons name="chatbubbles-outline" size={20} color={colors.primary} /> : null}
       <Text style={styles.emptyRecentText}>{text}</Text>
     </View>
   );
@@ -381,8 +399,8 @@ const shadow = {
   elevation: 3,
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFF9F2' },
+const getStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   ambientGlow: {
     position: 'absolute',
     top: 130,
@@ -403,23 +421,23 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.88)',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#F0E8DF',
+    borderColor: colors.border,
     ...shadow,
   },
   avatarButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#FFE0C4',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.border,
   },
   avatarImage: { width: '100%', height: '100%', borderRadius: 22 },
-  avatarInitials: { fontSize: 14, fontWeight: '800', color: '#8B4A20' },
+  avatarInitials: { fontSize: 14, fontWeight: '800', color: colors.text },
   avatarStatus: {
     position: 'absolute',
     right: -1,
@@ -427,9 +445,9 @@ const styles = StyleSheet.create({
     width: 11,
     height: 11,
     borderRadius: 6,
-    backgroundColor: '#F47A20',
+    backgroundColor: colors.primary,
     borderWidth: 2,
-    borderColor: '#FFF9F2',
+    borderColor: colors.background,
   },
   heroCopy: { marginTop: 28, marginBottom: 22 },
   heroCopyCompact: { marginTop: 18, marginBottom: 16 },
@@ -438,18 +456,18 @@ const styles = StyleSheet.create({
     lineHeight: 38,
     fontWeight: '800',
     letterSpacing: -0.8,
-    color: '#111827',
+    color: colors.text,
   },
   greetingCompact: { fontSize: 25, lineHeight: 32 },
   wave: { fontSize: 27 },
-  heroSubtitle: { marginTop: 4, fontSize: 16, color: '#5F636B' },
+  heroSubtitle: { marginTop: 4, fontSize: 16, color: colors.textSecondary },
   heroSubtitleCompact: { fontSize: 14 },
   askShell: {
     borderRadius: 26,
     padding: 5,
-    backgroundColor: 'rgba(255,255,255,0.72)',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#FFFFFF',
+    borderColor: colors.border,
     shadowColor: '#F1842D',
     shadowOffset: { width: 0, height: 11 },
     shadowOpacity: 0.16,
@@ -460,9 +478,9 @@ const styles = StyleSheet.create({
   askInner: {
     minHeight: 76,
     borderRadius: 22,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#F4E8DB',
+    borderColor: colors.border,
     paddingLeft: 13,
     paddingRight: 8,
     flexDirection: 'row',
@@ -477,7 +495,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
     lineHeight: 21,
-    color: '#1E293B',
+    color: colors.text,
     textAlignVertical: 'center',
   },
   askInputCompact: { fontSize: 13, lineHeight: 18 },
@@ -485,7 +503,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#F47A20',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#D95E0E',
@@ -494,28 +512,28 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 4,
   },
-  sendButtonDisabled: { backgroundColor: '#F8B17F', shadowOpacity: 0 },
+  sendButtonDisabled: { backgroundColor: colors.surfaceSecondary, shadowOpacity: 0 },
   topicRow: { gap: 10, paddingTop: 22, paddingBottom: 8, paddingHorizontal: 1 },
   topicChip: {
     minHeight: 42,
     paddingHorizontal: 16,
     borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#EFE7DF',
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     ...shadow,
   },
   topicChipActive: {
-    backgroundColor: '#FFF8F1',
-    borderColor: '#F47A20',
+    backgroundColor: colors.surfaceSecondary,
+    borderColor: colors.primary,
     shadowColor: '#F47A20',
     shadowOpacity: 0.08,
   },
-  topicLabel: { fontSize: 14, fontWeight: '600', color: '#252A34' },
-  topicLabelActive: { color: '#E85F0D' },
+  topicLabel: { fontSize: 14, fontWeight: '600', color: colors.text },
+  topicLabelActive: { color: colors.primary },
   sectionHeader: {
     marginTop: 23,
     marginBottom: 12,
@@ -524,17 +542,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { fontSize: 17, fontWeight: '800', color: '#171A21' },
-  sectionAction: { fontSize: 13, fontWeight: '700', color: '#F26716' },
+  sectionTitle: { fontSize: 17, fontWeight: '800', color: colors.text },
+  sectionAction: { fontSize: 13, fontWeight: '700', color: colors.primary },
   suggestionList: { gap: 10 },
   suggestionCard: {
     minHeight: 72,
     paddingHorizontal: 13,
     paddingVertical: 10,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#F2EAE2',
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     ...shadow,
@@ -544,7 +562,7 @@ const styles = StyleSheet.create({
     width: 46,
     height: 46,
     borderRadius: 14,
-    backgroundColor: '#FFF3E8',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 13,
@@ -555,7 +573,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
     fontWeight: '600',
-    color: '#1E2430',
+    color: colors.text,
   },
   suggestionTextCompact: { fontSize: 13, lineHeight: 18 },
   featureCard: {
@@ -604,11 +622,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '800',
     letterSpacing: 0.45,
-    color: '#E86216',
+    color: colors.primary,
   },
-  featureTitle: { fontSize: 20, lineHeight: 25, fontWeight: '800', color: '#111827' },
+  featureTitle: { fontSize: 20, lineHeight: 25, fontWeight: '800', color: colors.text },
   featureTitleCompact: { fontSize: 17, lineHeight: 21 },
-  featureDescription: { marginTop: 7, fontSize: 13, lineHeight: 19, color: '#4B5563' },
+  featureDescription: { marginTop: 7, fontSize: 13, lineHeight: 19, color: colors.textSecondary },
   featureDescriptionCompact: { fontSize: 11, lineHeight: 16 },
   featureButton: {
     alignSelf: 'flex-start',
@@ -616,7 +634,7 @@ const styles = StyleSheet.create({
     minHeight: 38,
     borderRadius: 12,
     paddingHorizontal: 14,
-    backgroundColor: '#F47A20',
+    backgroundColor: colors.primary,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
@@ -627,9 +645,9 @@ const styles = StyleSheet.create({
     minHeight: 58,
     paddingHorizontal: 13,
     borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#F2EAE2',
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     ...shadow,
@@ -638,23 +656,23 @@ const styles = StyleSheet.create({
     width: 33,
     height: 33,
     borderRadius: 11,
-    backgroundColor: '#FFF5EC',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
-  recentTitle: { flex: 1, fontSize: 13, fontWeight: '600', color: '#252A34' },
-  recentTime: { marginHorizontal: 9, fontSize: 11, color: '#8B8D93' },
+  recentTitle: { flex: 1, fontSize: 13, fontWeight: '600', color: colors.text },
+  recentTime: { marginHorizontal: 9, fontSize: 11, color: colors.textSecondary },
   emptyRecent: {
     minHeight: 62,
     paddingHorizontal: 16,
     borderRadius: 17,
-    backgroundColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#F2EAE2',
+    borderColor: colors.border,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  emptyRecentText: { flex: 1, fontSize: 12, lineHeight: 17, color: '#777A81' },
+  emptyRecentText: { flex: 1, fontSize: 12, lineHeight: 17, color: colors.textSecondary },
 });

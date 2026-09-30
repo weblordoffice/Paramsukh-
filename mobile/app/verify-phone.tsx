@@ -102,12 +102,11 @@ export default function VerifyPhoneScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1 }}
-      className="bg-gray-50"
+      style={{ flex: 1, backgroundColor: colors.background }}
     >
       <ScrollView
         ref={scrollViewRef}
-        style={{ flex: 1 }}
+        style={{ flex: 1, backgroundColor: colors.background }}
         contentContainerStyle={{
           paddingBottom: 200,
           minHeight: '100%'
@@ -115,17 +114,17 @@ export default function VerifyPhoneScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <View className="bg-white pt-20 pb-10 px-6 items-center border-b border-gray-100">
+        <View style={{ backgroundColor: colors.surface, borderColor: colors.border }} className="pt-20 pb-10 px-6 items-center border-b">
           <Image
             source={require('../assets/paramsukh.png')}
             className="w-36 h-36 mb-4"
             resizeMode="contain"
           />
-          <Text className="text-2xl font-bold text-gray-900 mb-1">Verify Mobile Number</Text>
-          <Text className="text-gray-500 text-sm text-center px-4">
+          <Text style={{ color: colors.text }} className="text-2xl font-bold mb-1">Verify Mobile Number</Text>
+          <Text style={{ color: colors.textSecondary }} className="text-sm text-center px-4">
             Hello {user?.displayName || 'there'}! Please link your mobile number to complete your profile registration.
           </Text>
-          <Text className="text-gray-400 text-xs text-center px-4 mt-2">
+          <Text style={{ color: colors.textSecondary }} className="text-xs text-center px-4 mt-2">
             {user?.authProvider === 'clerk' || user?.authProvider === 'google'
               ? 'Your existing account will be linked to this number. Do not use a number that belongs to someone else.'
               : 'This number will be verified via a one-time code.'}
@@ -136,17 +135,18 @@ export default function VerifyPhoneScreen() {
           {!otpSent ? (
             <>
               <View className="mb-6">
-                <Text className="text-gray-700 font-semibold mb-2">Phone Number</Text>
-                <View className="flex-row items-center bg-white rounded-xl px-4 py-4 border border-gray-300 shadow-sm focus:border-purple-500">
-                  <Text className="text-gray-600 mr-2 text-base font-semibold">+91</Text>
+                <Text style={{ color: colors.text }} className="font-semibold mb-2">Phone Number</Text>
+                <View style={{ backgroundColor: colors.surface, borderColor: colors.border }} className="flex-row items-center rounded-xl px-4 py-4 border shadow-sm">
+                  <Text style={{ color: colors.textSecondary }} className="mr-2 text-base font-semibold">+91</Text>
                   <TextInput
-                    className="flex-1 text-base text-gray-900"
+                    style={{ color: colors.text }}
+                    className="flex-1 text-base"
                     placeholder="9876543210"
                     keyboardType="phone-pad"
                     value={phone}
                     onChangeText={setPhone}
                     maxLength={10}
-                    placeholderTextColor={colors.textSecondary || '#6B7280'}
+                    placeholderTextColor={colors.textSecondary}
                   />
                 </View>
               </View>
@@ -166,19 +166,20 @@ export default function VerifyPhoneScreen() {
           ) : (
             <>
               <View className="mb-6">
-                <Text className="text-gray-700 font-semibold mb-2">Enter Verification Code</Text>
+                <Text style={{ color: colors.text }} className="font-semibold mb-2">Enter Verification Code</Text>
                 <TextInput
                   ref={otpInputRef}
-                  className="bg-white rounded-xl px-4 py-4 border border-gray-300 text-2xl text-center tracking-widest font-bold text-gray-900 shadow-sm"
+                  style={{ backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }}
+                  className="rounded-xl px-4 py-4 border text-2xl text-center tracking-widest font-bold shadow-sm"
                   placeholder="000000"
                   keyboardType="number-pad"
                   value={otp}
                   onChangeText={(text) => setOtp(text.replace(/[^0-9]/g, ''))}
                   maxLength={6}
                   autoFocus
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={colors.textSecondary}
                 />
-                <Text className="text-gray-500 text-xs mt-2 text-center">
+                <Text style={{ color: colors.textSecondary }} className="text-xs mt-2 text-center">
                   6-digit code sent to +91 {phone}
                 </Text>
               </View>
@@ -199,24 +200,25 @@ export default function VerifyPhoneScreen() {
 
               <View className="flex-row items-center justify-between mb-6">
                 {resendTimer > 0 ? (
-                  <Text className="text-gray-500 text-sm">Resend in {resendTimer}s</Text>
+                  <Text style={{ color: colors.textSecondary }} className="text-sm">Resend in {resendTimer}s</Text>
                 ) : (
                   <TouchableOpacity onPress={handleSendOTP}>
                     <Text className="text-purple-600 font-semibold text-sm">Resend Verification Code</Text>
                   </TouchableOpacity>
                 )}
                 <TouchableOpacity onPress={() => setOtpSent(false)}>
-                  <Text className="text-gray-500 font-semibold text-sm">Change Number</Text>
+                  <Text style={{ color: colors.textSecondary }} className="font-semibold text-sm">Change Number</Text>
                 </TouchableOpacity>
               </View>
             </>
           )}
 
           <TouchableOpacity
-            className="border border-red-200 bg-red-50 rounded-xl py-3 mt-4"
+            style={{ backgroundColor: colors.surfaceSecondary, borderColor: colors.border }}
+            className="border rounded-xl py-3 mt-4"
             onPress={handleLogout}
           >
-            <Text className="text-red-600 font-semibold text-center text-sm">Sign Out / Use Another Account</Text>
+            <Text style={{ color: colors.danger }} className="font-semibold text-center text-sm">Sign Out / Use Another Account</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

@@ -154,7 +154,7 @@ export default function CoursesScreen() {
     gap: 6,
   },
   tabActive: {
-    backgroundColor: '#EAB308',
+    backgroundColor: colors.primary,
   },
   tabText: {
     fontSize: 14,
@@ -200,9 +200,9 @@ export default function CoursesScreen() {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F5F3FF',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#DDD6FE',
+    borderColor: colors.border,
     borderRadius: 14,
     padding: 14,
     marginBottom: 20,
@@ -215,21 +215,21 @@ export default function CoursesScreen() {
     flex: 1,
     flexShrink: 1,
   },
-  creditsBannerText: { fontSize: 14, color: '#4C1D95', flex: 1, flexShrink: 1 },
+  creditsBannerText: { fontSize: 14, color: colors.text, flex: 1, flexShrink: 1 },
   creditsBannerBold: { fontWeight: '700' },
-  creditsBannerLink: { fontSize: 13, fontWeight: '700', color: '#7C3AED', flexShrink: 0 },
+  creditsBannerLink: { fontSize: 13, fontWeight: '700', color: colors.primary, flexShrink: 0 },
   creditsBannerDone: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#A7F3D0',
+    borderColor: colors.border,
     borderRadius: 14,
     padding: 14,
     marginBottom: 20,
   },
-  creditsBannerDoneText: { fontSize: 14, color: '#065F46', flex: 1 },
+  creditsBannerDoneText: { fontSize: 14, color: colors.text, flex: 1 },
   card: {
     backgroundColor: colors.surface,
     borderRadius: 16,
@@ -633,7 +633,7 @@ export default function CoursesScreen() {
       return (
         <View key={course._id} style={[styles.card, { opacity: 0.5 }]}>
           <View style={[styles.imageContainer, { justifyContent: 'center', alignItems: 'center' }]}>
-            <ActivityIndicator size="small" color="#EAB308" />
+            <ActivityIndicator size="small" color={colors.primary} />
           </View>
         </View>
       );
@@ -769,7 +769,7 @@ export default function CoursesScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: bottomTabHeight }}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#EAB308']} />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
         }
       >
         <View style={styles.scrollContent}>
@@ -851,7 +851,7 @@ export default function CoursesScreen() {
               </TouchableOpacity>
             ) : (
               <View style={styles.creditsBannerDone}>
-                <Ionicons name="checkmark-circle" size={20} color="#065F46" />
+                <Ionicons name="checkmark-circle" size={20} color={colors.success} />
                 <Text style={styles.creditsBannerDoneText}>
                   All {membershipCredits.maxSelectable} courses selected
                 </Text>
@@ -860,7 +860,7 @@ export default function CoursesScreen() {
           )}
 
           {isLoading ? (
-            <ActivityIndicator size="large" color="#EAB308" style={{ marginTop: 20 }} />
+            <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
           ) : enrichedCourses.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="book-outline" size={64} color={colors.border} />

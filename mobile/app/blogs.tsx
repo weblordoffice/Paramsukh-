@@ -21,7 +21,7 @@ export default function BlogsScreen() {
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F4F3EB',
+    borderBottomColor: colors.border,
     backgroundColor: colors.surface,
   },
   backButton: {
@@ -35,7 +35,7 @@ export default function BlogsScreen() {
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
   },
   headerRightPlaceholder: {
     width: 40,
@@ -63,7 +63,7 @@ export default function BlogsScreen() {
   cardImageContainer: {
     height: 180,
     width: '100%',
-    backgroundColor: '#F4F3EB',
+    backgroundColor: colors.surfaceSecondary,
   },
   cardImage: {
     width: '100%',
@@ -82,7 +82,7 @@ export default function BlogsScreen() {
   blogTitle: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#2C2420',
+    color: colors.text,
     lineHeight: 24,
     marginBottom: 8,
   },
@@ -93,22 +93,22 @@ export default function BlogsScreen() {
   },
   blogAuthor: {
     fontSize: 12,
-    color: '#8C7B73',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   bullet: {
     fontSize: 12,
-    color: '#8C7B73',
+    color: colors.textSecondary,
     marginHorizontal: 8,
   },
   blogDate: {
     fontSize: 12,
-    color: '#8C7B73',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   blogSnippet: {
     fontSize: 14,
-    color: '#5C4A42',
+    color: colors.textSecondary,
     lineHeight: 20,
     fontWeight: '400',
   },
@@ -119,7 +119,7 @@ export default function BlogsScreen() {
   },
   emptyText: {
     fontSize: 15,
-    color: '#8C7B73',
+    color: colors.textSecondary,
     fontWeight: '600',
     marginTop: 12,
   },
@@ -166,7 +166,7 @@ export default function BlogsScreen() {
             <Image source={{ uri: item.imageUrl }} style={styles.cardImage} />
           ) : (
             <View style={styles.placeholderImage}>
-              <Ionicons name="document-text" size={36} color="#8C7B73" />
+              <Ionicons name="document-text" size={36} color={colors.textSecondary} />
             </View>
           )}
         </View>
@@ -198,7 +198,7 @@ export default function BlogsScreen() {
             router.back();
           }}
         >
-          <Ionicons name="arrow-back" size={24} color="#2C2420" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>All Blogs</Text>
         <View style={styles.headerRightPlaceholder} />
@@ -207,7 +207,7 @@ export default function BlogsScreen() {
       {/* Content */}
       {isLoading && blogs.length === 0 ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#F1842D" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
@@ -220,13 +220,13 @@ export default function BlogsScreen() {
             <RefreshControl
               refreshing={isLoading}
               onRefresh={fetchBlogs}
-              tintColor="#F1842D"
-              colors={['#F1842D']}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
             />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons name="document-text-outline" size={48} color="#8C7B73" />
+              <Ionicons name="document-text-outline" size={48} color={colors.textSecondary} />
               <Text style={styles.emptyText}>No blog posts available</Text>
             </View>
           }

@@ -14,6 +14,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 
 import { AIConversationSummary } from '../store/aiAssistantStore';
+import { useTheme } from '../hooks/useTheme';
+import type { ThemeColors } from '../theme/colors';
 
 type AIHistorySheetProps = {
   visible: boolean;
@@ -56,6 +58,8 @@ export default function AIHistorySheet({
   onDeleteConversation,
   onClearAll,
 }: AIHistorySheetProps) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
   const [renameConversationId, setRenameConversationId] = useState('');
   const [draftTitle, setDraftTitle] = useState('');
   const hasConversations = useMemo(() => conversations.length > 0, [conversations.length]);
@@ -124,7 +128,7 @@ export default function AIHistorySheet({
               <Text style={styles.subtitle}>Continue previous AI conversations</Text>
             </View>
             <TouchableOpacity style={styles.headerButton} onPress={onClose}>
-              <Ionicons name="close" size={20} color="#111827" />
+              <Ionicons name="close" size={20} color={colors.text} />
             </TouchableOpacity>
           </View>
 
@@ -144,7 +148,7 @@ export default function AIHistorySheet({
 
           {loading ? (
             <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color="#F1842D" />
+              <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : (
             <ScrollView
@@ -155,7 +159,7 @@ export default function AIHistorySheet({
               {!hasConversations ? (
                 <View style={styles.emptyState}>
                   <View style={styles.emptyIcon}>
-                    <Ionicons name="chatbubbles-outline" size={28} color="#F1842D" />
+                    <Ionicons name="chatbubbles-outline" size={28} color={colors.primary} />
                   </View>
                   <Text style={styles.emptyTitle}>No saved chats yet</Text>
                   <Text style={styles.emptySubtitle}>Start a new conversation and it will appear here.</Text>
@@ -180,7 +184,7 @@ export default function AIHistorySheet({
                             <Ionicons
                               name={isActive ? 'sparkles' : 'time-outline'}
                               size={14}
-                              color={isActive ? '#FFFFFF' : '#F1842D'}
+                              color={isActive ? '#FFFFFF' : colors.primary}
                             />
                           </View>
                           <View style={styles.cardTextWrap}>
@@ -190,7 +194,7 @@ export default function AIHistorySheet({
                                 value={draftTitle}
                                 onChangeText={setDraftTitle}
                                 placeholder="Rename chat"
-                                placeholderTextColor="#9CA3AF"
+                                placeholderTextColor={colors.textSecondary}
                               />
                             ) : (
                               <Text style={styles.cardTitle} numberOfLines={1}>
@@ -216,7 +220,7 @@ export default function AIHistorySheet({
                         {isRenaming ? (
                           <>
                             <TouchableOpacity style={styles.inlineAction} onPress={handleRenameSave}>
-                              <Ionicons name="checkmark" size={16} color="#16A34A" />
+                              <Ionicons name="checkmark" size={16} color={colors.success} />
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={styles.inlineAction}
@@ -225,16 +229,16 @@ export default function AIHistorySheet({
                                 setDraftTitle('');
                               }}
                             >
-                              <Ionicons name="close" size={16} color="#6B7280" />
+                              <Ionicons name="close" size={16} color={colors.textSecondary} />
                             </TouchableOpacity>
                           </>
                         ) : (
                           <>
                             <TouchableOpacity style={styles.inlineAction} onPress={() => beginRename(conversation)}>
-                              <Ionicons name="pencil-outline" size={16} color="#6B7280" />
+                              <Ionicons name="pencil-outline" size={16} color={colors.textSecondary} />
                             </TouchableOpacity>
                             <TouchableOpacity style={styles.inlineAction} onPress={() => confirmDelete(conversation.id)}>
-                              <Ionicons name="trash-outline" size={16} color="#DC2626" />
+                              <Ionicons name="trash-outline" size={16} color={colors.danger} />
                             </TouchableOpacity>
                           </>
                         )}
@@ -251,7 +255,7 @@ export default function AIHistorySheet({
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (colors: ThemeColors) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(35, 24, 15, 0.28)',
@@ -261,7 +265,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sheet: {
-    backgroundColor: '#F8F3EC',
+    backgroundColor: colors.background,
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     minHeight: '62%',
@@ -273,7 +277,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 5,
     borderRadius: 3,
-    backgroundColor: '#D8C8B5',
+    backgroundColor: colors.border,
     alignSelf: 'center',
     marginTop: 12,
   },
@@ -286,20 +290,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '800',
-    color: '#1F2937',
+    color: colors.text,
   },
   subtitle: {
     marginTop: 2,
     fontSize: 13,
-    color: '#6B7280',
+    color: colors.textSecondary,
   },
   headerButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#EFE4D6',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -316,7 +320,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 16,
-    backgroundColor: '#F1842D',
+    backgroundColor: colors.primary,
   },
   primaryButtonText: {
     color: '#FFFFFF',
@@ -327,15 +331,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 16,
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#E7D8C9',
+    borderColor: colors.border,
   },
   secondaryButtonDisabled: {
     opacity: 0.45,
   },
   secondaryButtonText: {
-    color: '#7C4A23',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '700',
   },
@@ -364,7 +368,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#FFF0E2',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
@@ -372,25 +376,25 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#374151',
+    color: colors.text,
   },
   emptySubtitle: {
     marginTop: 6,
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
-    color: '#6B7280',
+    color: colors.textSecondary,
   },
   card: {
-    backgroundColor: '#FFFDF9',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#EFE3D5',
+    borderColor: colors.border,
     padding: 14,
   },
   cardActive: {
-    borderColor: '#F1842D',
-    backgroundColor: '#FFF7F0',
+    borderColor: colors.primary,
+    backgroundColor: colors.surface,
   },
   cardPressable: {},
   cardTopRow: {
@@ -401,13 +405,13 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#FFF0E2',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 10,
   },
   cardBadgeActive: {
-    backgroundColor: '#F1842D',
+    backgroundColor: colors.primary,
   },
   cardTextWrap: {
     flex: 1,
@@ -415,29 +419,29 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 15,
     fontWeight: '800',
-    color: '#1F2937',
+    color: colors.text,
   },
   renameInput: {
     height: 40,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E8DDCF',
-    backgroundColor: '#FFFFFF',
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
     paddingHorizontal: 12,
-    color: '#111827',
+    color: colors.text,
     fontSize: 14,
     fontWeight: '600',
   },
   cardMeta: {
     marginTop: 4,
     fontSize: 12,
-    color: '#6B7280',
+    color: colors.textSecondary,
   },
   cardSummary: {
     marginTop: 10,
     fontSize: 13,
     lineHeight: 19,
-    color: '#6B7280',
+    color: colors.textSecondary,
   },
   cardActions: {
     marginTop: 12,
@@ -449,9 +453,9 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: '#EFE4D6',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },

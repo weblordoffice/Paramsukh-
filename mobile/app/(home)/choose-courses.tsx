@@ -33,11 +33,11 @@ interface EligibleCourse {
 export default function ChooseCoursesScreen() {
   const { colors } = useTheme();
   const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: { flex: 1, backgroundColor: colors.background },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  loadingText: { marginTop: 12, fontSize: 14, color: '#64748B' },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A', marginTop: 16 },
-  emptySub: { fontSize: 14, color: '#64748B', marginTop: 4 },
+  loadingText: { marginTop: 12, fontSize: 14, color: colors.textSecondary },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 16 },
+  emptySub: { fontSize: 14, color: colors.textSecondary, marginTop: 4 },
   toast: {
     position: 'absolute',
     top: 8,
@@ -56,8 +56,8 @@ export default function ChooseCoursesScreen() {
     shadowRadius: 8,
     elevation: 5,
   },
-  toastSuccess: { backgroundColor: '#ECFDF5' },
-  toastError: { backgroundColor: '#FEF2F2' },
+  toastSuccess: { backgroundColor: colors.surfaceSecondary },
+  toastError: { backgroundColor: colors.surfaceSecondary },
   toastText: { fontSize: 13, fontWeight: '600', flex: 1 },
   header: {
     flexDirection: 'row',
@@ -65,11 +65,12 @@ export default function ChooseCoursesScreen() {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: colors.border,
+    backgroundColor: colors.surface,
   },
   backBtn: { padding: 4, marginRight: 8 },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: '#1A1A1A' },
-  headerSub: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: colors.text },
+  headerSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   creditsBadge: {
     backgroundColor: '#8B5CF6',
     borderRadius: 20,
@@ -83,16 +84,16 @@ export default function ChooseCoursesScreen() {
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     marginBottom: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   cardSelected: {
-    borderColor: '#22C55E',
-    backgroundColor: '#F0FDF4',
+    borderColor: colors.success,
+    backgroundColor: colors.surfaceSecondary,
     opacity: 0.8,
   },
   cardMain: { flex: 1, flexDirection: 'row', alignItems: 'center' },
@@ -107,7 +108,7 @@ export default function ChooseCoursesScreen() {
   },
   thumbImage: { width: 56, height: 56, borderRadius: 12 },
   cardBody: { flex: 1 },
-  cardTitle: { fontSize: 14, fontWeight: '600', color: '#1A1A1A' },
+  cardTitle: { fontSize: 14, fontWeight: '600', color: colors.text },
   cardMeta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginTop: 6 },
   categoryPill: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6 },
   categoryText: { fontSize: 10, fontWeight: '600', textTransform: 'capitalize' },
@@ -116,12 +117,12 @@ export default function ChooseCoursesScreen() {
   cardAction: { marginLeft: 12, width: 70, alignItems: 'center' },
   selectBtn: { padding: 4 },
   undoBtn: { alignItems: 'center', gap: 2 },
-  undoText: { fontSize: 10, color: '#EF4444', fontWeight: '500' },
+  undoText: { fontSize: 10, color: colors.danger, fontWeight: '500' },
   footer: {
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
-    backgroundColor: '#FFF',
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
   },
   footerBtn: {
     backgroundColor: '#8B5CF6',
@@ -297,16 +298,16 @@ export default function ChooseCoursesScreen() {
           <Ionicons
             name={toast.type === 'success' ? 'checkmark-circle' : 'alert-circle'}
             size={18}
-            color={toast.type === 'success' ? '#065F46' : '#991B1B'}
+            color={toast.type === 'success' ? colors.success : colors.danger}
           />
-          <Text style={[styles.toastText, toast.type === 'success' ? { color: '#065F46' } : { color: '#991B1B' }]}>
+          <Text style={[styles.toastText, { color: colors.text }]}>
             {toast.message}
           </Text>
         </Animated.View>
       )}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="chevron-back" size={24} color="#1A1A1A" />
+          <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Choose Your Courses</Text>
@@ -325,7 +326,7 @@ export default function ChooseCoursesScreen() {
 
       {maxSelectable === 0 ? (
         <View style={styles.centered}>
-          <Ionicons name="checkmark-circle" size={48} color="#22C55E" />
+          <Ionicons name="checkmark-circle" size={48} color={colors.success} />
           <Text style={styles.emptyTitle}>All Done</Text>
           <Text style={styles.emptySub}>All course credits have been used.</Text>
           <TouchableOpacity
@@ -406,7 +407,7 @@ export default function ChooseCoursesScreen() {
                     <ActivityIndicator size="small" color="#8B5CF6" />
                   ) : course.alreadySelected ? (
                     <View style={styles.undoBtn}>
-                      <Ionicons name="close-circle" size={24} color="#EF4444" />
+                      <Ionicons name="close-circle" size={24} color={colors.danger} />
                       <Text style={styles.undoText}>Tap to remove</Text>
                     </View>
                   ) : remaining <= 0 ? (

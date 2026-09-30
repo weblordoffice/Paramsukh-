@@ -57,7 +57,7 @@ const TYPE_STYLE: Record<string, { icon: string; color: string }> = {
   // Donations / referrals
   donation: { icon: 'heart', color: '#EC4899' },
   // System notifications
-  system: { icon: 'settings', color: '#6B7280' },
+  system: { icon: 'settings', color: '' }, // resolved via colors.textSecondary at render
   general: { icon: 'notifications', color: '#EC4899' },
 };
 
@@ -117,7 +117,7 @@ export default function NotificationsScreen() {
   markAllText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3B82F6',
+    color: colors.primary,
   },
   markAllTextDisabled: {
     color: colors.textSecondary,
@@ -128,22 +128,22 @@ export default function NotificationsScreen() {
     justifyContent: 'space-between',
     paddingVertical: 12,
     paddingHorizontal: 20,
-    backgroundColor: '#FEE2E2',
+    backgroundColor: colors.surfaceSecondary,
     borderBottomWidth: 1,
-    borderBottomColor: '#FECACA',
+    borderBottomColor: colors.border,
   },
   errorText: {
     fontSize: 14,
-    color: '#B91C1C',
+    color: colors.danger,
     flex: 1,
   },
   retryText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#B91C1C',
+    color: colors.danger,
   },
   unreadCountContainer: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: colors.surfaceSecondary,
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
@@ -152,7 +152,7 @@ export default function NotificationsScreen() {
   unreadCountText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#3B82F6',
+    color: colors.primary,
   },
   loadingContainer: {
     flex: 1,
@@ -181,9 +181,9 @@ export default function NotificationsScreen() {
     elevation: 2,
   },
   notificationCardUnread: {
-    backgroundColor: '#F0F9FF',
+    backgroundColor: colors.surfaceSecondary,
     borderLeftWidth: 4,
-    borderLeftColor: '#3B82F6',
+    borderLeftColor: colors.primary,
   },
   iconContainer: {
     width: 48,
@@ -211,7 +211,7 @@ export default function NotificationsScreen() {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#3B82F6',
+    backgroundColor: colors.primary,
     marginLeft: 8,
   },
   notificationMessage: {
@@ -342,7 +342,7 @@ export default function NotificationsScreen() {
 
       {isLoading && notifications.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading notifications...</Text>
         </View>
       ) : (
@@ -350,7 +350,7 @@ export default function NotificationsScreen() {
           contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomTabHeight }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} tintColor={colors.primary} />
           }
         >
           {notifications.length === 0 ? (
@@ -364,6 +364,7 @@ export default function NotificationsScreen() {
           ) : (
             notifications.map((notification) => {
               const style = TYPE_STYLE[notification.type] || TYPE_STYLE.general;
+              const iconColor = style.color || colors.textSecondary;
               return (
                 <TouchableOpacity
                   key={notification._id}
@@ -375,12 +376,12 @@ export default function NotificationsScreen() {
                   activeOpacity={0.7}
                 >
                   <View
-                    style={[styles.iconContainer, { backgroundColor: style.color + '20' }]}
+                    style={[styles.iconContainer, { backgroundColor: iconColor + '20' }]}
                   >
                     <Ionicons
                       name={style.icon as any}
                       size={24}
-                      color={style.color}
+                      color={iconColor}
                     />
                   </View>
 

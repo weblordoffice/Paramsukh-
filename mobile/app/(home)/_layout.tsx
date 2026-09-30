@@ -34,7 +34,7 @@ export default function HomeLayout() {
   handleBar: {
     width: 40,
     height: 4,
-    backgroundColor: '#F4F3EB',
+    backgroundColor: colors.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 16,
@@ -43,13 +43,13 @@ export default function HomeLayout() {
   modalHeader: {
     paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F4F3EB',
+    borderBottomColor: colors.border,
     marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#2C2420',
+    color: colors.text,
     textAlign: 'center',
     letterSpacing: 0.25,
   },
@@ -59,7 +59,7 @@ export default function HomeLayout() {
   menuItem: {
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#F4F3EB',
+    borderColor: colors.border,
     borderRadius: 20,
     padding: 20,
     flexDirection: 'row',
@@ -82,11 +82,11 @@ export default function HomeLayout() {
   menuText: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#2C2420',
+    color: colors.text,
   },
   menuArrow: {
     fontSize: 24,
-    color: '#8C7B73',
+    color: colors.textSecondary,
   },
 });
   const [menuModalVisible, setMenuModalVisible] = useState(false);
@@ -109,8 +109,8 @@ export default function HomeLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#F1842D',
-          tabBarInactiveTintColor: '#8C7B73',
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textSecondary,
           tabBarStyle: {
             backgroundColor: colors.surface,
             borderTopWidth: 0,

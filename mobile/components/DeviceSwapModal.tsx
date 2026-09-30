@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../hooks/useTheme';
 
 interface ActiveDevice {
   deviceId: string;
@@ -25,6 +26,7 @@ export default function DeviceSwapModal({
   onClose,
   isLoading
 }: DeviceSwapModalProps) {
+  const { colors } = useTheme();
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 
   const handleConfirm = () => {
@@ -57,17 +59,20 @@ export default function DeviceSwapModal({
       onRequestClose={onClose}
     >
       <View className="flex-1 justify-end bg-black/50">
-        <View className="bg-white rounded-t-3xl px-6 pt-6 pb-10 max-h-[80%]">
+        <View
+          className="rounded-t-3xl px-6 pt-6 pb-10 max-h-[80%]"
+          style={{ backgroundColor: colors.surface }}
+        >
           {/* Header */}
           <View className="flex-row justify-between items-center mb-4">
-            <Text className="text-xl font-bold text-gray-900">Device Limit Reached</Text>
+            <Text className="text-xl font-bold" style={{ color: colors.text }}>Device Limit Reached</Text>
             <TouchableOpacity onPress={onClose} disabled={isLoading}>
-              <Ionicons name="close" size={24} color="#6B7280" />
+              <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
           {/* Description */}
-          <Text className="text-gray-600 text-sm mb-6 leading-relaxed">
+          <Text className="text-sm mb-6 leading-relaxed" style={{ color: colors.textSecondary }}>
             Your account is already active on 2 other devices. To sign in on this device, select one device to log out and replace:
           </Text>
 
@@ -80,34 +85,43 @@ export default function DeviceSwapModal({
                   key={device.deviceId}
                   onPress={() => setSelectedDeviceId(device.deviceId)}
                   disabled={isLoading}
-                  className={`flex-row items-center justify-between p-4 mb-3 rounded-xl border ${
-                    isSelected ? 'border-purple-600 bg-purple-50/50' : 'border-gray-200 bg-gray-50/30'
-                  }`}
+                  className="flex-row items-center justify-between p-4 mb-3 rounded-xl border"
+                  style={{
+                    borderColor: isSelected ? '#7C3AED' : colors.border,
+                    backgroundColor: isSelected ? `${colors.primary}1A` : 'transparent',
+                  }}
                 >
                   <View className="flex-row items-center flex-1 mr-4">
-                    <View className={`w-12 h-12 rounded-full justify-center items-center mr-3 ${
-                      isSelected ? 'bg-purple-100' : 'bg-gray-100'
-                    }`}>
+                    <View
+                      className="w-12 h-12 rounded-full justify-center items-center mr-3"
+                      style={{
+                        backgroundColor: isSelected ? `${colors.primary}30` : colors.surfaceSecondary,
+                      }}
+                    >
                       <Ionicons
                         name={device.os.toLowerCase().includes('ios') || device.os.toLowerCase().includes('android') ? 'phone-portrait-outline' : 'desktop-outline'}
                         size={22}
-                        color={isSelected ? '#7C3AED' : '#4B5563'}
+                        color={isSelected ? '#7C3AED' : colors.textSecondary}
                       />
                     </View>
                     <View className="flex-1">
-                      <Text className="font-semibold text-gray-900 text-base">{device.deviceName}</Text>
-                      <Text className="text-gray-500 text-xs mt-1">
+                      <Text className="font-semibold text-base" style={{ color: colors.text }}>{device.deviceName}</Text>
+                      <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
                         {device.os} • {device.browser}
                       </Text>
-                      <Text className="text-gray-400 text-xs mt-0.5">
+                      <Text className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
                         Last seen: {formatLastSeen(device.lastSeen)}
                       </Text>
                     </View>
                   </View>
 
-                  <View className={`w-6 h-6 rounded-full border-2 items-center justify-center ${
-                    isSelected ? 'border-purple-600 bg-purple-600' : 'border-gray-300'
-                  }`}>
+                  <View
+                    className="w-6 h-6 rounded-full border-2 items-center justify-center"
+                    style={{
+                      borderColor: isSelected ? '#7C3AED' : colors.border,
+                      backgroundColor: isSelected ? '#7C3AED' : 'transparent',
+                    }}
+                  >
                     {isSelected && <Ionicons name="checkmark" size={14} color="#FFFFFF" />}
                   </View>
                 </TouchableOpacity>

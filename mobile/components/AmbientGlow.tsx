@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '../hooks/useTheme';
 
 const { width, height } = Dimensions.get('window');
 
@@ -10,11 +11,16 @@ interface AmbientGlowProps {
 }
 
 export default function AmbientGlow({ children, style }: AmbientGlowProps) {
+  const { colors, isDark } = useTheme();
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, { backgroundColor: colors.background }, style]}>
       {/* Cinematic gradient background */}
       <LinearGradient
-        colors={['#080C16', '#0E1122', '#140E24', '#0A0716']}
+        colors={
+          isDark
+            ? ['#080C16', '#0E1122', '#140E24', '#0A0716']
+            : [colors.background, colors.surfaceSecondary, colors.background, colors.border]
+        }
         locations={[0, 0.35, 0.7, 1]}
         style={StyleSheet.absoluteFillObject}
       />
@@ -36,7 +42,6 @@ export default function AmbientGlow({ children, style }: AmbientGlowProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#080C16',
   },
   glowOrb: {
     position: 'absolute',

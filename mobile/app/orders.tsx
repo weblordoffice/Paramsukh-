@@ -88,7 +88,7 @@ export default function OrderHistoryScreen() {
     },
     itemCount: {
         fontSize: 14,
-        color: '#4B5563',
+        color: colors.textSecondary,
     },
     totalAmount: {
         fontSize: 16,
@@ -171,10 +171,10 @@ export default function OrderHistoryScreen() {
 
     const getStatusColor = (status: string) => {
         switch (status) {
-            case 'delivered': return '#10B981';
+            case 'delivered': return colors.success;
             case 'processing': return '#3B82F6';
-            case 'cancelled': return '#EF4444';
-            default: return '#F59E0B'; // pending
+            case 'cancelled': return colors.danger;
+            default: return colors.warning; // pending
         }
     };
 
@@ -190,7 +190,7 @@ export default function OrderHistoryScreen() {
 
             {isLoading ? (
                 <View style={styles.center}>
-                    <ActivityIndicator size="large" color="#EAB308" />
+                    <ActivityIndicator size="large" color={colors.primary} />
                 </View>
             ) : (
                 <FlatList

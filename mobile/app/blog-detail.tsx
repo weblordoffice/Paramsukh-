@@ -23,7 +23,7 @@ export default function BlogDetailScreen() {
   },
   errorText: {
     fontSize: 16,
-    color: '#8C7B73',
+    color: colors.textSecondary,
     fontWeight: '600',
     marginBottom: 16,
   },
@@ -67,7 +67,7 @@ export default function BlogDetailScreen() {
   imageContainer: {
     height: 280,
     width: '100%',
-    backgroundColor: '#F4F3EB',
+    backgroundColor: colors.surfaceSecondary,
   },
   image: {
     width: '100%',
@@ -99,24 +99,24 @@ export default function BlogDetailScreen() {
   },
   metaText: {
     fontSize: 13,
-    color: '#8C7B73',
+    color: colors.textSecondary,
     fontWeight: '600',
   },
   title: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#2C2420',
+    color: colors.text,
     lineHeight: 32,
     marginBottom: 16,
   },
   divider: {
     height: 1,
-    backgroundColor: '#F4F3EB',
+    backgroundColor: colors.border,
     marginBottom: 20,
   },
   content: {
     fontSize: 16,
-    color: '#5C4A42',
+    color: colors.text,
     lineHeight: 26,
     fontWeight: '400',
   },
@@ -167,7 +167,7 @@ export default function BlogDetailScreen() {
   if (isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#F1842D" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -197,10 +197,10 @@ export default function BlogDetailScreen() {
             router.back();
           }}
         >
-          <Ionicons name="arrow-back" size={24} color="#2C2420" />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.circleButton} onPress={handleShare}>
-          <Ionicons name="share-social-outline" size={22} color="#2C2420" />
+          <Ionicons name="share-social-outline" size={22} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -214,7 +214,7 @@ export default function BlogDetailScreen() {
             <Image source={{ uri: currentBlog.imageUrl }} style={styles.image} />
           ) : (
             <View style={styles.placeholderContainer}>
-              <Ionicons name="document-text" size={64} color="#8C7B73" />
+              <Ionicons name="document-text" size={64} color={colors.textSecondary} />
             </View>
           )}
         </View>
@@ -224,11 +224,11 @@ export default function BlogDetailScreen() {
           {/* Metadata */}
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
-              <Ionicons name="person-outline" size={16} color="#8C7B73" style={styles.metaIcon} />
+              <Ionicons name="person-outline" size={16} color={colors.textSecondary} style={styles.metaIcon} />
               <Text style={styles.metaText}>{currentBlog.author}</Text>
             </View>
             <View style={styles.metaItem}>
-              <Ionicons name="time-outline" size={16} color="#8C7B73" style={styles.metaIcon} />
+              <Ionicons name="time-outline" size={16} color={colors.textSecondary} style={styles.metaIcon} />
               <Text style={styles.metaText}>{formatDate(currentBlog.createdAt)}</Text>
             </View>
           </View>

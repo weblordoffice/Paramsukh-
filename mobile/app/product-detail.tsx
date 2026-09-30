@@ -137,7 +137,7 @@ export default function ProductDetailScreen() {
     description: {
         fontSize: 15,
         lineHeight: 24,
-        color: '#4B5563',
+        color: colors.textSecondary,
         marginBottom: 16,
     },
     specRow: {
@@ -198,7 +198,7 @@ export default function ProductDetailScreen() {
     if (isLoading || !currentProduct) {
         return (
             <View style={styles.center}>
-                <ActivityIndicator size="large" color="#EAB308" />
+                <ActivityIndicator size="large" color={colors.primary} />
             </View>
         );
     }
