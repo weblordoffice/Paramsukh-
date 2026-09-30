@@ -43,8 +43,8 @@ const makeStyles = (colors: any) => StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: colors.text,
-    opacity: 0.92,
+    backgroundColor: colors.background,
+    opacity: 0.85,
   },
   heroContent: {
     padding: 28,
