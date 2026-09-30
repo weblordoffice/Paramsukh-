@@ -7,7 +7,8 @@ import {
   ActivityIndicator,
   Alert,
   Clipboard,
-  Share
+  Share,
+  StyleSheet
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -27,37 +28,29 @@ export default function ReferralScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [referralCode, setReferralCode] = useState('');
-  const [referrerRewardText, setReferrerRewardText] = useState('Get 15 days of Premium Gurukul Access!');
-  const [refereeRewardText, setRefereeRewardText] = useState('Start your scientific wellness journey!');
   const [referrals, setReferrals] = useState<ReferredFriend[]>([]);
-  const isMountedRef = useRef(true);
-
-  const fetchReferralDetails = async () => {
-    try {
-      const response = await apiClient.get('/user/profile/referrals');
-      
-      if (!isMountedRef.current) return;
-      
-      if (response.data.success) {
-        setReferralCode(response.data.referralCode);
-        setReferrerRewardText(response.data.referrerRewardText);
-        setRefereeRewardText(response.data.refereeRewardText);
-        setReferrals(response.data.referrals || []);
-      }
-    } catch (error) {
-      console.error('❌ Failed to fetch referral details:', error);
-    } finally {
-      if (isMountedRef.current) setLoading(false);
-    }
-  };
+  const referrerRewardText = 'Get 7 days FREE Premium';
+  const refereeRewardText = 'Get 3 days FREE Premium';
 
   useEffect(() => {
-    isMountedRef.current = true;
-    fetchReferralDetails();
-    return () => {
-      isMountedRef.current = false;
-    };
+    loadReferralData();
   }, []);
+
+  const loadReferralData = async () => {
+    try {
+      const res = await apiClient.get('/user/referral');
+      if (res.data?.referralCode) {
+        setReferralCode(res.data.referralCode);
+      }
+      if (res.data?.referrals) {
+        setReferrals(res.data.referrals);
+      }
+    } catch (err) {
+      console.warn('Failed to load referral data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCopyCode = () => {
     Clipboard.setString(referralCode);
@@ -74,128 +67,157 @@ export default function ReferralScreen() {
     }
   };
 
+  const s = StyleSheet.create({
+    root: { flex: 1, backgroundColor: colors.background },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: colors.surface },
+    headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
+    scrollContent: { padding: 20 },
+    promoBanner: { backgroundColor: colors.primary, borderRadius: 16, padding: 24 },
+    promoInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    promoTextContainer: { flex: 1, paddingRight: 12 },
+    promoLabel: { fontSize: 12, fontWeight: '700', color: '#FFFFFF', opacity: 0.9, letterSpacing: 1, textTransform: 'uppercase' },
+    promoReward: { fontSize: 20, fontWeight: '800', color: '#FFFFFF', marginTop: 4 },
+    promoSub: { fontSize: 14, color: '#FFFFFF', opacity: 0.85, marginTop: 8 },
+    shareCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, alignItems: 'center', marginBottom: 24, borderWidth: 1, borderColor: colors.border },
+    shareLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, letterSpacing: 1, marginBottom: 12 },
+    codeBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.surfaceSecondary, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, marginBottom: 16, width: '100%', justifyContent: 'space-between', borderWidth: 1, borderColor: colors.border },
+    codeText: { fontSize: 20, fontWeight: '700', color: colors.primary, letterSpacing: 2 },
+    copyBtn: { backgroundColor: colors.primary + '20', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+    copyBtnText: { fontSize: 12, fontWeight: '700', color: colors.primary },
+    shareBtn: { backgroundColor: colors.primary, width: '100%', paddingVertical: 16, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 4 },
+    shareBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    howCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 20, marginBottom: 24, borderWidth: 1, borderColor: colors.border },
+    howTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 16 },
+    stepRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 20 },
+    stepNum: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary + '15', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+    stepNumText: { fontSize: 14, fontWeight: '700', color: colors.primary },
+    stepContent: { flex: 1 },
+    stepTitle: { fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 2 },
+    stepDesc: { fontSize: 12, color: colors.textSecondary, lineHeight: 18 },
+    referredTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 12 },
+    emptyState: { backgroundColor: colors.surface, borderRadius: 16, padding: 24, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, marginBottom: 24 },
+    emptyText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginTop: 8 },
+    friendCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1, borderColor: colors.border },
+    friendInfo: { flex: 1, paddingRight: 12 },
+    friendName: { fontSize: 15, fontWeight: '600', color: colors.text, marginBottom: 2 },
+    friendJoined: { fontSize: 12, color: colors.textSecondary },
+    statusCompleted: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, backgroundColor: '#10B98115', borderWidth: 1, borderColor: '#10B98130' },
+    statusJoined: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, backgroundColor: '#F59E0B15', borderWidth: 1, borderColor: '#F59E0B30' },
+    statusTextCompleted: { fontSize: 12, fontWeight: '700', color: '#10B981' },
+    statusTextJoined: { fontSize: 12, fontWeight: '700', color: '#F59E0B' },
+    loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 },
+  });
+
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
-        <TouchableOpacity 
-          className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" 
-          onPress={() => router.push('/(home)/menu')}
-        >
+    <SafeAreaView style={s.root}>
+      <View style={s.header}>
+        <TouchableOpacity style={s.headerBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text className="text-xl font-bold text-gray-900">Invite & Earn</Text>
-        <View className="w-10" />
+        <Text style={s.headerTitle}>Invite & Earn</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView className="flex-1" contentContainerClassName="p-5">
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scrollContent}>
         {loading ? (
-          <View className="flex-1 items-center justify-center py-20">
-            <ActivityIndicator size="large" color="#3B82F6" />
+          <View style={s.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
         ) : (
           <>
-            {/* Visual Promo Banner */}
-            <View className="bg-gradient-to-br from-indigo-500 to-purple-600 bg-indigo-600 p-6 rounded-2xl shadow-sm mb-6">
-              <View className="flex-row items-center justify-between">
-                <View className="flex-1 pr-3">
-                  <Text className="text-white text-xs font-bold uppercase tracking-wider opacity-90">Referral Reward</Text>
-                  <Text className="text-white text-xl font-extrabold mt-1">{referrerRewardText}</Text>
-                  <Text className="text-white text-sm mt-2 opacity-85">Plus, unlock the exclusive &quot;Wellness Guide&quot; badge on your profile!</Text>
+            <View style={s.promoBanner}>
+              <View style={s.promoInner}>
+                <View style={s.promoTextContainer}>
+                  <Text style={s.promoLabel}>Referral Reward</Text>
+                  <Text style={s.promoReward}>{referrerRewardText}</Text>
+                  <Text style={s.promoSub}>Plus, unlock the exclusive "Wellness Guide" badge on your profile!</Text>
                 </View>
-                <Ionicons name="gift" size={56} color={colors.surface} style={{ opacity: 0.85 }} />
+                <Ionicons name="gift" size={56} color="#FFFFFF" style={{ opacity: 0.85 }} />
               </View>
             </View>
 
-            {/* Sharing Code Card */}
-            <View className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm items-center mb-6">
-              <Text className="text-gray-500 text-sm font-semibold mb-3">YOUR REFERRAL CODE</Text>
-              
-              <View className="flex-row items-center bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 mb-4 w-full justify-between">
-                <Text className="text-xl font-bold text-purple-600 tracking-widest">{referralCode}</Text>
-                <TouchableOpacity onPress={handleCopyCode} className="bg-purple-100 px-3 py-1.5 rounded-lg">
-                  <Text className="text-xs font-bold text-purple-600">COPY</Text>
+            <View style={s.shareCard}>
+              <Text style={s.shareLabel}>YOUR REFERRAL CODE</Text>
+
+              <View style={s.codeBox}>
+                <Text style={s.codeText}>{referralCode}</Text>
+                <TouchableOpacity onPress={handleCopyCode} style={s.copyBtn}>
+                  <Text style={s.copyBtnText}>COPY</Text>
                 </TouchableOpacity>
               </View>
 
-              <TouchableOpacity 
-                onPress={handleShare}
-                className="bg-blue-500 w-full py-4 rounded-xl flex-row items-center justify-center shadow-md"
-              >
-                <Ionicons name="share-social" size={20} color={colors.surface} style={{ marginRight: 8 }} />
-                <Text className="text-white font-bold text-base">Invite Friends</Text>
+              <TouchableOpacity onPress={handleShare} style={s.shareBtn}>
+                <Ionicons name="share-social" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={s.shareBtnText}>Invite Friends</Text>
               </TouchableOpacity>
             </View>
 
-            {/* Instructions Steps */}
-            <View className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm mb-6">
-              <Text className="text-lg font-bold text-gray-900 mb-4">How it works</Text>
-              
-              <View className="gap-5">
-                <View className="flex-row items-start">
-                  <View className="w-8 h-8 rounded-full bg-purple-100 items-center justify-center mr-3 mt-0.5">
-                    <Text className="text-purple-600 font-bold">1</Text>
+            <View style={s.howCard}>
+              <Text style={s.howTitle}>How it works</Text>
+
+              <View>
+                <View style={s.stepRow}>
+                  <View style={s.stepNum}>
+                    <Text style={s.stepNumText}>1</Text>
                   </View>
-                  <View className="flex-1">
-                    <Text className="font-bold text-gray-800 text-sm">Share your unique code</Text>
-                    <Text className="text-gray-500 text-xs mt-1">Send the referral link or code to your friends.</Text>
+                  <View style={s.stepContent}>
+                    <Text style={s.stepTitle}>Share your unique code</Text>
+                    <Text style={s.stepDesc}>Send the referral link or code to your friends.</Text>
                   </View>
                 </View>
 
-                <View className="flex-row items-start">
-                  <View className="w-8 h-8 rounded-full bg-purple-100 items-center justify-center mr-3 mt-0.5">
-                    <Text className="text-purple-600 font-bold">2</Text>
+                <View style={s.stepRow}>
+                  <View style={s.stepNum}>
+                    <Text style={s.stepNumText}>2</Text>
                   </View>
-                  <View className="flex-1">
-                    <Text className="font-bold text-gray-800 text-sm">They join the Gurukul</Text>
-                    <Text className="text-gray-500 text-xs mt-1">Ensure they enter your referral code when creating their account.</Text>
+                  <View style={s.stepContent}>
+                    <Text style={s.stepTitle}>They join the Gurukul</Text>
+                    <Text style={s.stepDesc}>Ensure they enter your referral code when creating their account.</Text>
                   </View>
                 </View>
 
-                <View className="flex-row items-start">
-                  <View className="w-8 h-8 rounded-full bg-purple-100 items-center justify-center mr-3 mt-0.5">
-                    <Text className="text-purple-600 font-bold">3</Text>
+                <View style={s.stepRow}>
+                  <View style={s.stepNum}>
+                    <Text style={s.stepNumText}>3</Text>
                   </View>
-                  <View className="flex-1">
-                    <Text className="font-bold text-gray-800 text-sm">Claim your rewards</Text>
-                    <Text className="text-gray-500 text-xs mt-1">Get free premium extension days the moment they complete their first Gurukul course!</Text>
+                  <View style={s.stepContent}>
+                    <Text style={s.stepTitle}>Claim your rewards</Text>
+                    <Text style={s.stepDesc}>Get free premium extension days the moment they complete their first Gurukul course!</Text>
                   </View>
                 </View>
               </View>
             </View>
 
-            {/* Referred Friends Tracker */}
-            <View className="mb-6">
-              <Text className="text-lg font-bold text-gray-900 mb-3">Referred Friends ({referrals.length})</Text>
-              
+            <View style={{ marginBottom: 24 }}>
+              <Text style={s.referredTitle}>Referred Friends ({referrals.length})</Text>
+
               {referrals.length === 0 ? (
-                <View className="bg-white p-6 rounded-2xl border border-dashed border-gray-300 items-center justify-center">
+                <View style={s.emptyState}>
                   <Ionicons name="people-outline" size={32} color={colors.textSecondary} />
-                  <Text className="text-sm text-gray-500 text-center mt-2 font-medium">No friends referred yet. Be the first to invite!</Text>
+                  <Text style={s.emptyText}>No friends referred yet. Be the first to invite!</Text>
                 </View>
               ) : (
-                <View className="gap-3">
-                  {referrals.map((friend) => (
-                    <View key={friend._id} className="flex-row items-center justify-between bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                      <View className="flex-1 pr-3">
-                        <Text className="text-[15px] font-bold text-gray-800 mb-1">{friend.displayName}</Text>
-                        <Text className="text-xs text-gray-500">Joined: {new Date(friend.joinedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
-                      </View>
-                      
-                      {friend.status === 'completed' ? (
-                        <View className="flex-row items-center bg-green-50 border border-green-200 px-3 py-1 rounded-full">
-                          <Ionicons name="checkmark-circle" size={14} color="#10B981" style={{ marginRight: 4 }} />
-                          <Text className="text-xs font-bold text-green-600">Completed</Text>
-                        </View>
-                      ) : (
-                        <View className="flex-row items-center bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
-                          <Ionicons name="time" size={14} color="#F59E0B" style={{ marginRight: 4 }} />
-                          <Text className="text-xs font-bold text-amber-600">Joined</Text>
-                        </View>
-                      )}
+                referrals.map((friend) => (
+                  <View key={friend._id} style={s.friendCard}>
+                    <View style={s.friendInfo}>
+                      <Text style={s.friendName}>{friend.displayName}</Text>
+                      <Text style={s.friendJoined}>Joined: {new Date(friend.joinedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
                     </View>
-                  ))}
-                </View>
+
+                    {friend.status === 'completed' ? (
+                      <View style={s.statusCompleted}>
+                        <Ionicons name="checkmark-circle" size={14} color="#10B981" style={{ marginRight: 4 }} />
+                        <Text style={s.statusTextCompleted}>Completed</Text>
+                      </View>
+                    ) : (
+                      <View style={s.statusJoined}>
+                        <Ionicons name="time" size={14} color="#F59E0B" style={{ marginRight: 4 }} />
+                        <Text style={s.statusTextJoined}>Joined</Text>
+                      </View>
+                    )}
+                  </View>
+                ))
               )}
             </View>
           </>

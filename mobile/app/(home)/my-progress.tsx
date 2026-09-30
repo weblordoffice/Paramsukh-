@@ -25,7 +25,7 @@ export default function MyProgressScreen() {
     height: 64,
     borderRadius: 32,
     borderWidth: 4,
-    borderColor: '#EFF6FF',
+    borderColor: colors.border,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -157,14 +157,14 @@ export default function MyProgressScreen() {
     : 'Recently';
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
-        <TouchableOpacity className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" onPress={() => router.push('/(home)/menu')}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: colors.surface }}>
+        <TouchableOpacity style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' }} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text className="text-xl font-bold text-gray-900">My Progress</Text>
-        <View className="w-10" />
+        <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text }}>My Progress</Text>
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView className="flex-1" contentContainerClassName="p-5">

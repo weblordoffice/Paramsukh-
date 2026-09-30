@@ -4,12 +4,13 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
+  Linking,
+  StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Constants from 'expo-constants';
-import { Linking } from 'react-native';
 import { useTheme } from '../../hooks/useTheme';
 
 export default function TermsPrivacyScreen() {
@@ -17,139 +18,94 @@ export default function TermsPrivacyScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'terms' | 'privacy'>('terms');
 
+  const s = StyleSheet.create({
+    root: { flex: 1, backgroundColor: colors.background },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: colors.surface },
+    headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
+    headerTitle: { fontSize: 20, fontWeight: '700', color: colors.text },
+    tabBar: { flexDirection: 'row', backgroundColor: colors.surface, paddingHorizontal: 20, paddingTop: 8, borderBottomWidth: 1, borderBottomColor: colors.border },
+    tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderBottomWidth: 2 },
+    tabActive: { borderBottomColor: colors.primary },
+    tabInactive: { borderBottomColor: 'transparent' },
+    tabText: { fontSize: 15, fontWeight: '600' },
+    tabTextActive: { color: colors.primary },
+    tabTextInactive: { color: colors.textSecondary },
+    scrollContent: { padding: 20 },
+    pageTitle: { fontSize: 24, fontWeight: '700', color: colors.text, marginBottom: 8 },
+    lastUpdated: { fontSize: 13, color: colors.textSecondary, marginBottom: 24 },
+    sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 24, marginBottom: 12 },
+    bodyText: { fontSize: 15, color: colors.text, lineHeight: 24, marginBottom: 16 },
+    ctaButton: { marginTop: 32, backgroundColor: colors.primary + '12', borderRadius: 12, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primary + '30' },
+    ctaText: { fontSize: 15, fontWeight: '600', color: colors.primary, marginLeft: 8 },
+  });
+
+  const content = {
+    terms: [
+      { title: '1. Acceptance of Terms', body: 'By accessing and using ParamSukh, you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to these terms, please do not use our services.' },
+      { title: '2. Use License', body: 'Permission is granted to temporarily access the materials (information or software) on ParamSukh for personal, non-commercial transitory viewing only. This is the grant of a license, not a transfer of title.' },
+      { title: '3. User Accounts', body: 'You are responsible for maintaining the confidentiality of your account and password. You agree to accept responsibility for all activities that occur under your account.' },
+      { title: '4. Content Guidelines', body: 'Users must not post content that is illegal, offensive, or violates the rights of others. We reserve the right to remove any content that violates these guidelines.' },
+      { title: '5. Disclaimer', body: "The materials on ParamSukh are provided on an 'as is' basis. ParamSukh makes no warranties, expressed or implied, and hereby disclaims and negates all other warranties." },
+    ],
+    privacy: [
+      { title: '1. Information We Collect', body: 'We collect information you provide directly to us, such as when you create an account, participate in interactive features, or communicate with us. This may include your name, email address, phone number, and profile information.' },
+      { title: '2. How We Use Your Information', body: 'We use the information we collect to provide, maintain, and improve our services, to communicate with you, to monitor and analyze trends and usage, and to personalize your experience.' },
+      { title: '3. Information Sharing', body: 'We do not share your personal information with third parties except as described in this policy. We may share information with service providers who perform services on our behalf.' },
+      { title: '4. Data Security', body: 'We take reasonable measures to help protect information about you from loss, theft, misuse, unauthorized access, disclosure, alteration, and destruction.' },
+      { title: '5. Your Rights', body: 'You have the right to access, update, or delete your personal information at any time. You can do this through your account settings or by contacting us directly.' },
+      { title: '6. Cookies and Tracking', body: 'We use cookies and similar tracking technologies to track activity on our service and hold certain information. You can instruct your browser to refuse all cookies or to indicate when a cookie is being sent.' },
+    ],
+  };
+
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      {/* Header */}
-      <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
-        <TouchableOpacity className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" onPress={() => router.push('/(home)/menu')}>
+    <SafeAreaView style={s.root}>
+      <View style={s.header}>
+        <TouchableOpacity style={s.headerBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text className="text-xl font-bold text-gray-900">Terms & Privacy</Text>
-        <View className="w-10" />
+        <Text style={s.headerTitle}>Terms & Privacy</Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      {/* Tabs */}
-      <View className="flex-row bg-white px-5 pt-2 border-b border-gray-200">
+      <View style={s.tabBar}>
         <TouchableOpacity
-          className={`flex-1 py-3 items-center border-b-2 ${
-            activeTab === 'terms' ? 'border-blue-500' : 'border-transparent'
-          }`}
+          style={[s.tab, activeTab === 'terms' ? s.tabActive : s.tabInactive]}
           onPress={() => setActiveTab('terms')}
         >
-          <Text className={`text-[15px] font-semibold ${
-            activeTab === 'terms' ? 'text-blue-500' : 'text-gray-500'
-          }`}>
+          <Text style={[s.tabText, activeTab === 'terms' ? s.tabTextActive : s.tabTextInactive]}>
             Terms of Service
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          className={`flex-1 py-3 items-center border-b-2 ${
-            activeTab === 'privacy' ? 'border-blue-500' : 'border-transparent'
-          }`}
+          style={[s.tab, activeTab === 'privacy' ? s.tabActive : s.tabInactive]}
           onPress={() => setActiveTab('privacy')}
         >
-          <Text className={`text-[15px] font-semibold ${
-            activeTab === 'privacy' ? 'text-blue-500' : 'text-gray-500'
-          }`}>
+          <Text style={[s.tabText, activeTab === 'privacy' ? s.tabTextActive : s.tabTextInactive]}>
             Privacy Policy
           </Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView className="flex-1" contentContainerClassName="p-5">
-        {activeTab === 'terms' ? (
-          <View>
-            <Text className="text-2xl font-bold text-gray-900 mb-2">Terms of Service</Text>
-            <Text className="text-[13px] text-gray-500 mb-6">Last updated: November 8, 2025</Text>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scrollContent}>
+        <Text style={s.pageTitle}>{activeTab === 'terms' ? 'Terms of Service' : 'Privacy Policy'}</Text>
+        <Text style={s.lastUpdated}>Last updated: November 8, 2025</Text>
 
-            <Text className="text-lg font-bold text-gray-900 mt-6 mb-3">1. Acceptance of Terms</Text>
-            <Text className="text-[15px] text-gray-700 leading-6 mb-4">
-              By accessing and using ParamSukh, you accept and agree to be bound by the terms and
-              provision of this agreement. If you do not agree to these terms, please do not use our
-              services.
-            </Text>
-
-            <Text className="text-lg font-bold text-gray-900 mt-6 mb-3">2. Use License</Text>
-            <Text className="text-[15px] text-gray-700 leading-6 mb-4">
-              Permission is granted to temporarily access the materials (information or software) on
-              ParamSukh for personal, non-commercial transitory viewing only. This is the grant of a
-              license, not a transfer of title.
-            </Text>
-
-            <Text className="text-lg font-bold text-gray-900 mt-6 mb-3">3. User Accounts</Text>
-            <Text className="text-[15px] text-gray-700 leading-6 mb-4">
-              You are responsible for maintaining the confidentiality of your account and password.
-              You agree to accept responsibility for all activities that occur under your account.
-            </Text>
-
-            <Text className="text-lg font-bold text-gray-900 mt-6 mb-3">4. Content Guidelines</Text>
-            <Text className="text-[15px] text-gray-700 leading-6 mb-4">
-              Users must not post content that is illegal, offensive, or violates the rights of
-              others. We reserve the right to remove any content that violates these guidelines.
-            </Text>
-
-            <Text className="text-lg font-bold text-gray-900 mt-6 mb-3">5. Disclaimer</Text>
-            <Text className="text-[15px] text-gray-700 leading-6 mb-4">
-              The materials on ParamSukh are provided on an &apos;as is&apos; basis. ParamSukh makes no
-              warranties, expressed or implied, and hereby disclaims and negates all other warranties.
-            </Text>
+        {(activeTab === 'terms' ? content.terms : content.privacy).map((item, i) => (
+          <View key={i}>
+            <Text style={s.sectionTitle}>{item.title}</Text>
+            <Text style={s.bodyText}>{item.body}</Text>
           </View>
-        ) : (
-          <View>
-            <Text className="text-2xl font-bold text-gray-900 mb-2">Privacy Policy</Text>
-            <Text className="text-[13px] text-gray-500 mb-6">Last updated: November 8, 2025</Text>
-
-            <Text className="text-lg font-bold text-gray-900 mt-6 mb-3">1. Information We Collect</Text>
-            <Text className="text-[15px] text-gray-700 leading-6 mb-4">
-              We collect information you provide directly to us, such as when you create an account,
-              participate in interactive features, or communicate with us. This may include your name,
-              email address, phone number, and profile information.
-            </Text>
-
-            <Text className="text-lg font-bold text-gray-900 mt-6 mb-3">2. How We Use Your Information</Text>
-            <Text className="text-[15px] text-gray-700 leading-6 mb-4">
-              We use the information we collect to provide, maintain, and improve our services, to
-              communicate with you, to monitor and analyze trends and usage, and to personalize your
-              experience.
-            </Text>
-
-            <Text className="text-lg font-bold text-gray-900 mt-6 mb-3">3. Information Sharing</Text>
-            <Text className="text-[15px] text-gray-700 leading-6 mb-4">
-              We do not share your personal information with third parties except as described in this
-              policy. We may share information with service providers who perform services on our
-              behalf.
-            </Text>
-
-            <Text className="text-lg font-bold text-gray-900 mt-6 mb-3">4. Data Security</Text>
-            <Text className="text-[15px] text-gray-700 leading-6 mb-4">
-              We take reasonable measures to help protect information about you from loss, theft,
-              misuse, unauthorized access, disclosure, alteration, and destruction.
-            </Text>
-
-            <Text className="text-lg font-bold text-gray-900 mt-6 mb-3">5. Your Rights</Text>
-            <Text className="text-[15px] text-gray-700 leading-6 mb-4">
-              You have the right to access, update, or delete your personal information at any time.
-              You can do this through your account settings or by contacting us directly.
-            </Text>
-
-            <Text className="text-lg font-bold text-gray-900 mt-6 mb-3">6. Cookies and Tracking</Text>
-            <Text className="text-[15px] text-gray-700 leading-6 mb-4">
-              We use cookies and similar tracking technologies to track activity on our service and
-              hold certain information. You can instruct your browser to refuse all cookies or to
-              indicate when a cookie is being sent.
-            </Text>
-          </View>
-        )}
+        ))}
 
         <TouchableOpacity
-          className="mt-8 bg-blue-50 border border-blue-200 rounded-xl p-4 flex-row items-center justify-center"
+          style={s.ctaButton}
           onPress={() => {
             const url = Constants.expoConfig?.extra?.privacyPolicyUrl;
             if (url) Linking.openURL(url).catch(() => {});
           }}
         >
-          <Ionicons name="open-outline" size={18} color="#2563EB" />
-          <Text className="text-blue-600 font-semibold text-[15px] ml-2">
+          <Ionicons name="open-outline" size={18} color={colors.primary} />
+          <Text style={s.ctaText}>
             View Full {activeTab === 'terms' ? 'Terms of Service' : 'Privacy Policy'} Online
           </Text>
         </TouchableOpacity>
