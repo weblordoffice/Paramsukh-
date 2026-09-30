@@ -132,6 +132,36 @@ const bookingSchema = new mongoose.Schema({
     type: String,
     enum: ['user', 'counselor', 'admin']
   },
+  // Pending reschedule request (two-way: user→admin or admin→user)
+  rescheduleRequest: {
+    status: {
+      type: String,
+      enum: ['none', 'pending', 'approved', 'denied'],
+      default: 'none'
+    },
+    requestedBy: {
+      type: String,
+      enum: ['user', 'admin', 'none'],
+      default: 'none'
+    },
+    requestedNewDate: {
+      type: Date
+    },
+    requestedNewTime: {
+      type: String
+    },
+    reason: {
+      type: String,
+      trim: true
+    },
+    respondedAt: {
+      type: Date
+    },
+    responseNote: {
+      type: String,
+      trim: true
+    }
+  },
   // Cancellation
   cancelledAt: {
     type: Date

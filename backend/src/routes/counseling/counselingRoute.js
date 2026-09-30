@@ -16,7 +16,9 @@ import {
   getAllServicesAdmin,
   createService,
   updateService,
-  deleteService
+  deleteService,
+  requestReschedule,
+  respondToReschedule
 } from '../../controller/counseling/counseling.controller.js';
 import {
   getAllBookings,
@@ -26,7 +28,8 @@ import {
   deleteBookingAdmin,
   triggerCleanupExpired,
   triggerAutoComplete,
-  rescheduleBookingAdmin,
+  requestRescheduleAdmin,
+  respondRescheduleAdmin,
   wipeCounselingData
 } from '../../controller/counseling/admin.counseling.controller.js';
 import {
@@ -70,7 +73,8 @@ router.get('/all', adminAuth, getAllBookings);
 router.get('/admin/:id', adminAuth, getBookingDetailsAdmin);
 router.patch('/admin/:id/status', adminAuth, updateBookingStatusAdmin);
 router.patch('/admin/:id/meeting', adminAuth, updateBookingMeetingAdmin);
-router.patch('/admin/:id/reschedule', adminAuth, rescheduleBookingAdmin);
+router.post('/admin/:id/reschedule-request', adminAuth, requestRescheduleAdmin);
+router.post('/admin/:id/reschedule-respond', adminAuth, respondRescheduleAdmin);
 router.delete('/admin/:id', adminAuth, deleteBookingAdmin);
 
 // ========================================
@@ -92,6 +96,12 @@ router.patch('/:bookingId/cancel', cancelBooking);
 
 // Reschedule a booking
 router.patch('/:bookingId/reschedule', rescheduleBooking);
+
+// User requests reschedule → admin approval
+router.post('/:bookingId/reschedule-request', requestReschedule);
+
+// User responds to admin-initiated reschedule request
+router.post('/:bookingId/reschedule-respond', respondToReschedule);
 
 // Update payment status
 router.post('/:bookingId/payment', updatePaymentStatus);

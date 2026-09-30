@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Alert, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Linking, Alert, TextInput, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Calendar } from 'react-native-calendars';
 import { useCounselingStore } from '../store/counselingStore';
 import { useTheme } from '../hooks/useTheme';
 
@@ -51,16 +52,51 @@ export default function CounselingDetailScreen() {
     ratingRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginVertical: 12 },
     starButton: { padding: 4 },
     feedbackInput: { backgroundColor: colors.background, borderRadius: 12, padding: 12, fontSize: 14, color: colors.text, minHeight: 80, textAlignVertical: 'top', borderWidth: 1, borderColor: colors.surfaceSecondary },
-});
+    feedbackInputContainer: { marginBottom: 8 },
+    pendingBanner: { backgroundColor: '#FEF9C3', borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#FDE047' },
+    pendingBannerTitle: { fontSize: 14, fontWeight: '700', color: '#713F12', marginBottom: 4 },
+    pendingBannerText: { fontSize: 13, color: '#92400E', marginBottom: 6 },
+    pendingBannerAdmin: { backgroundColor: '#EDE9FE', borderColor: '#C4B5FD' },
+    pendingBannerAdminTitle: { color: '#5B21B6' },
+    pendingBannerAdminText: { color: '#6D28D9' },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+    modalContent: { backgroundColor: colors.surface, borderRadius: 20, padding: 20, width: '100%', maxWidth: 400 },
+    modalTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 16, textAlign: 'center' },
+    calendarContainer: { borderRadius: 12, overflow: 'hidden', marginBottom: 16 },
+    slotChipSelected: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, marginRight: 8, backgroundColor: '#F1842D', borderWidth: 1, borderColor: '#F1842D' },
+    slotChipInactive: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, marginRight: 8, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
+    slotChipTextSelected: { fontSize: 14, fontWeight: '600', color: '#fff' },
+    slotChipTextInactive: { fontSize: 14, fontWeight: '600', color: colors.text },
+    reasonInput: { backgroundColor: colors.background, borderRadius: 12, padding: 12, fontSize: 14, color: colors.text, borderWidth: 1, borderColor: colors.surfaceSecondary, minHeight: 60, textAlignVertical: 'top', marginBottom: 16 },
+    approveButton: { backgroundColor: '#16A34A', borderRadius: 12, paddingVertical: 14, alignItems: 'center', marginBottom: 10 },
+    approveButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+    denyButton: { backgroundColor: '#FEE2E2', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+    denyButtonText: { color: '#DC2626', fontSize: 16, fontWeight: '700' },
+    pendingTag: { backgroundColor: '#FEF3C7', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+    pendingTagText: { fontSize: 10, fontWeight: '700', color: '#92400E' },
+  });
     const router = useRouter();
     const { bookingId } = useLocalSearchParams();
-    const { fetchBookingDetails, cancelBooking, rescheduleBooking, submitFeedback, isLoading } = useCounselingStore();
+    const { fetchBookingDetails, cancelBooking, rescheduleBooking, requestReschedule, respondToReschedule, submitFeedback, isLoading } = useCounselingStore();
 
     const [booking, setBooking] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [showFeedback, setShowFeedback] = useState(false);
     const [feedbackRating, setFeedbackRating] = useState(0);
     const [feedbackComment, setFeedbackComment] = useState('');
+    const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+    const [rescheduleDate, setRescheduleDate] = useState<string | null>(null);
+    const [rescheduleTime, setRescheduleTime] = useState<string | null>(null);
+    const [rescheduleSlots, setRescheduleSlots] = useState<string[]>([]);
+    const [rescheduleReason, setRescheduleReason] = useState('');
+    const [fetchingSlots, setFetchingSlots] = useState(false);
+    const today = new Date().toISOString().split('T')[0];
+
+    const refreshBooking = async () => {
+        if (!bookingId) return;
+        const data = await fetchBookingDetails(bookingId as string);
+        setBooking(data);
+    };
 
     useEffect(() => {
         if (!bookingId) return;
@@ -72,11 +108,8 @@ export default function CounselingDetailScreen() {
         })();
     }, [bookingId, fetchBookingDetails]);
 
-    // Auto-refresh booking details if meeting link is not yet available
     useEffect(() => {
         if (!bookingId || !booking) return;
-
-        // If booking is confirmed but no meeting link, poll for updates every 30 seconds
         if (booking.status === 'confirmed' && !booking.meetingLink) {
             const interval = setInterval(async () => {
                 const updated = await fetchBookingDetails(bookingId as string);
@@ -84,10 +117,25 @@ export default function CounselingDetailScreen() {
                     setBooking(updated);
                 }
             }, 30000);
-
             return () => clearInterval(interval);
         }
     }, [bookingId, booking, fetchBookingDetails]);
+
+    useEffect(() => {
+        if (!rescheduleDate || !booking?.counselorType) return;
+        (async () => {
+            setFetchingSlots(true);
+            try {
+                const { checkAvailability } = useCounselingStore.getState();
+                const slots = await checkAvailability(rescheduleDate, booking.counselorType);
+                setRescheduleSlots(slots);
+            } catch {
+                setRescheduleSlots([]);
+            } finally {
+                setFetchingSlots(false);
+            }
+        })();
+    }, [rescheduleDate, booking?.counselorType]);
 
     const openMeeting = () => {
         if (!booking?.meetingLink) return;
@@ -98,10 +146,9 @@ export default function CounselingDetailScreen() {
 
     const canCancelOrReschedule = () => {
         if (!booking) return false;
-        const now = new Date();
-        const bookingDate = new Date(booking.bookingDate);
-        const hoursUntil = (bookingDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-        return booking.status !== 'cancelled' && booking.status !== 'completed' && hoursUntil > 24;
+        if (booking.status === 'cancelled' || booking.status === 'completed') return false;
+        if (booking.rescheduleRequest?.status === 'pending') return false;
+        return true;
     };
 
     const handleCancel = () => {
@@ -128,19 +175,57 @@ export default function CounselingDetailScreen() {
         );
     };
 
-    const handleReschedule = () => {
-        Alert.alert('Reschedule', 'You will be redirected to select a new time slot.', [
+    const handleReschedule = () => setShowRescheduleModal(true);
+
+    const handleSubmitReschedule = async () => {
+        if (!rescheduleDate || !rescheduleTime) {
+            Alert.alert('Required', 'Please select a date and time');
+            return;
+        }
+        const result = await requestReschedule(booking._id || bookingId as string, rescheduleDate, rescheduleTime, rescheduleReason);
+        if (result.success) {
+            setShowRescheduleModal(false);
+            setRescheduleDate(null);
+            setRescheduleTime(null);
+            setRescheduleReason('');
+            await refreshBooking();
+            Alert.alert('Request Sent', result.message);
+        } else {
+            Alert.alert('Error', result.message || 'Failed to submit reschedule request');
+        }
+    };
+
+    const handleApproveReschedule = async () => {
+        Alert.alert('Approve Reschedule', 'Accept the new time slot?', [
             { text: 'Cancel', style: 'cancel' },
             {
-                text: 'Continue',
-                onPress: () => {
-                    router.push({
-                        pathname: '/book-counseling',
-                        params: {
-                            rescheduleId: booking._id || bookingId,
-                            counselorType: booking.counselorType
-                        }
-                    });
+                text: 'Approve',
+                onPress: async () => {
+                    const result = await respondToReschedule(booking._id || bookingId as string, 'approve');
+                    if (result.success) {
+                        await refreshBooking();
+                        Alert.alert('Approved', 'Your session has been rescheduled.');
+                    } else {
+                        Alert.alert('Error', result.message);
+                    }
+                }
+            }
+        ]);
+    };
+
+    const handleDenyReschedule = async () => {
+        Alert.alert('Decline Reschedule', 'Keep your original booking time?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Decline',
+                style: 'destructive',
+                onPress: async () => {
+                    const result = await respondToReschedule(booking._id || bookingId as string, 'deny');
+                    if (result.success) {
+                        await refreshBooking();
+                    } else {
+                        Alert.alert('Error', result.message);
+                    }
                 }
             }
         ]);
@@ -376,11 +461,111 @@ export default function CounselingDetailScreen() {
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.rescheduleButton} onPress={handleReschedule} disabled={isLoading}>
                             <Ionicons name="calendar-outline" size={18} color="#D97706" />
-                            <Text style={styles.rescheduleButtonText}>Reschedule</Text>
+                            <Text style={styles.rescheduleButtonText}>Request Reschedule</Text>
                         </TouchableOpacity>
                     </View>
                 )}
+
+                {/* Pending Reschedule Request — Admin initiated, needs user approval */}
+                {booking.rescheduleRequest?.status === 'pending' && booking.rescheduleRequest?.requestedBy === 'admin' && (
+                    <View style={[styles.pendingBanner, styles.pendingBannerAdmin]}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                            <Ionicons name="calendar" size={18} color="#7C3AED" />
+                            <Text style={[styles.pendingBannerTitle, styles.pendingBannerAdminTitle]}>Admin proposes new time</Text>
+                        </View>
+                        <Text style={[styles.pendingBannerText, styles.pendingBannerAdminText]}>
+                            New: {new Date(booking.rescheduleRequest.requestedNewDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} at {booking.rescheduleRequest.requestedNewTime}
+                            {booking.rescheduleRequest.reason ? `\nReason: ${booking.rescheduleRequest.reason}` : ''}
+                        </Text>
+                        <View style={styles.actionRow}>
+                            <TouchableOpacity style={styles.denyButton} onPress={handleDenyReschedule}>
+                                <Text style={styles.denyButtonText}>Keep Original</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.approveButton} onPress={handleApproveReschedule}>
+                                <Text style={styles.approveButtonText}>Accept New Time</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
+
+                {/* Pending Reschedule Request — User initiated, awaiting admin */}
+                {booking.rescheduleRequest?.status === 'pending' && booking.rescheduleRequest?.requestedBy === 'user' && (
+                    <View style={styles.pendingBanner}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <Ionicons name="time-outline" size={18} color="#92400E" />
+                            <Text style={styles.pendingBannerTitle}>Reschedule Pending</Text>
+                            <View style={styles.pendingTag}><Text style={styles.pendingTagText}>Awaiting Admin</Text></View>
+                        </View>
+                        <Text style={styles.pendingBannerText}>
+                            Requested: {new Date(booking.rescheduleRequest.requestedNewDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} at {booking.rescheduleRequest.requestedNewTime}
+                        </Text>
+                    </View>
+                )}
             </ScrollView>
+
+            {/* Reschedule Request Modal */}
+            <Modal visible={showRescheduleModal} transparent animationType="slide" onRequestClose={() => setShowRescheduleModal(false)}>
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                            <Text style={styles.modalTitle}>Request Reschedule</Text>
+                            <TouchableOpacity onPress={() => setShowRescheduleModal(false)}>
+                                <Ionicons name="close-circle" size={28} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Select New Date</Text>
+                        <View style={styles.calendarContainer}>
+                            <Calendar
+                                current={today}
+                                minDate={today}
+                                onDayPress={(day: any) => { setRescheduleDate(day.dateString); setRescheduleTime(null); }}
+                                markedDates={rescheduleDate ? { [rescheduleDate]: { selected: true, selectedColor: '#F1842D' } } : {}}
+                                theme={{
+                                    calendarBackground: '#ffffff',
+                                    selectedDayBackgroundColor: '#F1842D',
+                                    todayTextColor: '#F1842D',
+                                    dayTextColor: '#2C2420',
+                                    arrowColor: '#F1842D',
+                                    monthTextColor: '#2C2420',
+                                }}
+                            />
+                        </View>
+                        {rescheduleDate && (
+                            <>
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Select New Time</Text>
+                                {fetchingSlots ? (
+                                    <ActivityIndicator size="small" color="#F1842D" style={{ marginVertical: 12 }} />
+                                ) : rescheduleSlots.length === 0 ? (
+                                    <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>No slots available on this date.</Text>
+                                ) : (
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                                        {rescheduleSlots.map((time) => (
+                                            <TouchableOpacity key={time} style={rescheduleTime === time ? styles.slotChipSelected : styles.slotChipInactive} onPress={() => setRescheduleTime(time)}>
+                                                <Text style={rescheduleTime === time ? styles.slotChipTextSelected : styles.slotChipTextInactive}>{time}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
+                            </>
+                        )}
+                        <TextInput
+                            style={styles.reasonInput}
+                            placeholder="Reason (optional)"
+                            placeholderTextColor={colors.textSecondary}
+                            value={rescheduleReason}
+                            onChangeText={setRescheduleReason}
+                            multiline
+                        />
+                        <TouchableOpacity
+                            style={[styles.rescheduleButton, { marginTop: 0 }]}
+                            onPress={handleSubmitReschedule}
+                            disabled={!rescheduleDate || !rescheduleTime || isLoading}
+                        >
+                            <Text style={styles.rescheduleButtonText}>{isLoading ? 'Submitting...' : 'Submit Request'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }

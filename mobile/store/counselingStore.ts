@@ -50,6 +50,8 @@ interface CounselingState {
     fetchBookingDetails: (bookingId: string) => Promise<UserBooking | null>;
     cancelBooking: (bookingId: string, reason?: string) => Promise<{ success: boolean; message?: string }>;
     rescheduleBooking: (bookingId: string, newDate: string, newTime: string, reason?: string) => Promise<{ success: boolean; message?: string }>;
+    requestReschedule: (bookingId: string, newDate: string, newTime: string, reason?: string) => Promise<{ success: boolean; message?: string }>;
+    respondToReschedule: (bookingId: string, action: 'approve' | 'deny', responseNote?: string) => Promise<{ success: boolean; message?: string }>;
     submitFeedback: (bookingId: string, feedback: { rating: number; comment?: string }) => Promise<{ success: boolean; message?: string }>;
     abortBookingsRequest: () => void;
 }
@@ -263,6 +265,43 @@ export const useCounselingStore = create<CounselingState>((set) => ({
         } catch (error: any) {
             set({ isLoading: false, error: error.response?.data?.message || 'Reschedule failed' });
             return { success: false, message: error.response?.data?.message || 'Reschedule failed' };
+        }
+    },
+
+    requestReschedule: async (bookingId: string, newDate: string, newTime: string, reason?: string) => {
+        set({ isLoading: true, error: null });
+        try {
+            const response = await apiClient.post(`${API_URL}/counseling/${bookingId}/reschedule-request`, {
+                newDate,
+                newTime,
+                reason
+            });
+            set({ isLoading: false });
+            if (response.data?.success) {
+                return { success: true, message: response.data?.message };
+            }
+            return { success: false, message: response.data?.message || 'Failed to submit reschedule request' };
+        } catch (error: any) {
+            set({ isLoading: false, error: error.response?.data?.message || 'Failed to submit reschedule request' });
+            return { success: false, message: error.response?.data?.message || 'Failed to submit reschedule request' };
+        }
+    },
+
+    respondToReschedule: async (bookingId: string, action: 'approve' | 'deny', responseNote?: string) => {
+        set({ isLoading: true, error: null });
+        try {
+            const response = await apiClient.post(`${API_URL}/counseling/${bookingId}/reschedule-respond`, {
+                action,
+                responseNote
+            });
+            set({ isLoading: false });
+            if (response.data?.success) {
+                return { success: true, message: response.data?.message };
+            }
+            return { success: false, message: response.data?.message || 'Failed to respond to reschedule request' };
+        } catch (error: any) {
+            set({ isLoading: false, error: error.response?.data?.message || 'Failed to respond to reschedule request' });
+            return { success: false, message: error.response?.data?.message || 'Failed to respond to reschedule request' };
         }
     },
 

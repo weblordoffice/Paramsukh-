@@ -661,7 +661,190 @@ export const cancelBooking = async (req, res) => {
   }
 };
 
-// @desc    Reschedule a booking
+// @desc    Request reschedule (user → admin approval required)
+// @route   POST /api/counseling/:bookingId/reschedule-request
+// @access  Private
+export const requestReschedule = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { bookingId } = req.params;
+    const { newDate, newTime, reason } = req.body;
+
+    if (!newDate || !newTime) {
+      return res.status(400).json({ success: false, message: 'New date and time are required' });
+    }
+
+    const booking = await Booking.findOne({ _id: bookingId, user: userId });
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    if (['cancelled', 'completed', 'no_show'].includes(booking.status)) {
+      return res.status(400).json({ success: false, message: `Cannot reschedule a ${booking.status} booking` });
+    }
+
+    if (booking.rescheduleRequest?.status === 'pending') {
+      return res.status(400).json({ success: false, message: 'A reschedule request is already pending for this booking' });
+    }
+
+    if (!booking.isFree && booking.paymentStatus === 'pending') {
+      return res.status(400).json({ success: false, message: 'Please complete payment before requesting a reschedule' });
+    }
+
+    const user = await User.findById(userId);
+
+    // Check if new slot is available
+    const conflict = await Booking.findOne({
+      _id: { $ne: bookingId },
+      counselorType: booking.counselorType,
+      bookingDate: new Date(newDate),
+      bookingTime: newTime,
+      status: { $in: ['pending', 'confirmed'] }
+    });
+
+    if (conflict) {
+      return res.status(409).json({ success: false, message: 'The requested time slot is already booked' });
+    }
+
+    booking.rescheduleRequest = {
+      status: 'pending',
+      requestedBy: 'user',
+      requestedNewDate: new Date(newDate),
+      requestedNewTime: newTime,
+      reason: reason || 'User requested reschedule',
+      respondedAt: null,
+      responseNote: null
+    };
+    await booking.save();
+
+    // Notify all admins
+    try {
+      const admins = await User.find({ role: 'admin' }).select('_id');
+      for (const admin of admins) {
+        await sendNotification(admin._id, {
+          type: 'reschedule_request',
+          title: 'Reschedule Request',
+          message: `User ${user?.displayName || 'A user'} requested to reschedule "${booking.bookingTitle}" from ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime} to ${new Date(newDate).toLocaleDateString()} ${newTime}`,
+          icon: '📅',
+          priority: 'high',
+          relatedId: booking._id,
+          relatedType: 'booking',
+          actionUrl: `/counseling/admin/${booking._id}`
+        });
+      }
+    } catch (notifErr) {
+      console.error('Failed to notify admins:', notifErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Reschedule request submitted. You will be notified once admin reviews it.',
+      data: { booking }
+    });
+  } catch (error) {
+    console.error('Request Reschedule Error:', error);
+    res.status(500).json({ success: false, message: 'Failed to submit reschedule request', error: error.message });
+  }
+};
+
+// @desc    User responds to admin-initiated reschedule request
+// @route   POST /api/counseling/:bookingId/reschedule-respond
+// @access  Private
+export const respondToReschedule = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { bookingId } = req.params;
+    const { action, responseNote } = req.body;
+
+    if (!['approve', 'deny'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'Action must be "approve" or "deny"' });
+    }
+
+    const booking = await Booking.findOne({ _id: bookingId, user: userId });
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    if (!booking.rescheduleRequest || booking.rescheduleRequest.status !== 'pending') {
+      return res.status(400).json({ success: false, message: 'No pending reschedule request for this booking' });
+    }
+
+    if (booking.rescheduleRequest.requestedBy !== 'admin') {
+      return res.status(400).json({ success: false, message: 'This reschedule request is not from admin' });
+    }
+
+    booking.rescheduleRequest.respondedAt = new Date();
+    booking.rescheduleRequest.responseNote = responseNote || null;
+
+    if (action === 'approve') {
+      const oldDate = booking.bookingDate;
+      const oldTime = booking.bookingTime;
+      booking.rescheduledFrom = oldDate;
+      booking.bookingDate = booking.rescheduleRequest.requestedNewDate;
+      booking.bookingTime = booking.rescheduleRequest.requestedNewTime;
+      booking.rescheduledReason = responseNote || 'Admin proposed reschedule accepted by user';
+      booking.rescheduledBy = 'admin';
+      booking.rescheduleRequest.status = 'approved';
+      booking.status = 'confirmed';
+
+      await booking.save();
+
+      // Notify admins
+      await sendNotificationToAdmins({
+        type: 'reschedule_approved',
+        title: 'Reschedule Approved',
+        message: `User accepted the reschedule for "${booking.bookingTitle}". New time: ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime}`,
+        icon: '✅',
+        priority: 'high',
+        relatedId: booking._id,
+        relatedType: 'booking'
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Reschedule approved. Your session has been moved.',
+        data: { booking }
+      });
+    } else {
+      booking.rescheduleRequest.status = 'denied';
+      await booking.save();
+
+      // Notify admins
+      await sendNotificationToAdmins({
+        type: 'reschedule_denied',
+        title: 'Reschedule Declined',
+        message: `User declined the reschedule for "${booking.bookingTitle}". Original time remains: ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime}`,
+        icon: '❌',
+        priority: 'medium',
+        relatedId: booking._id,
+        relatedType: 'booking'
+      });
+
+      res.status(200).json({
+        success: true,
+        message: 'Reschedule declined. Your original booking time is unchanged.',
+        data: { booking }
+      });
+    }
+  } catch (error) {
+    console.error('Respond to Reschedule Error:', error);
+    res.status(500).json({ success: false, message: 'Failed to respond to reschedule', error: error.message });
+  }
+};
+
+// Helper to notify all admins
+async function sendNotificationToAdmins(payload) {
+  try {
+    const admins = await User.find({ role: 'admin' }).select('_id');
+    for (const admin of admins) {
+      await sendNotification(admin._id, payload);
+    }
+  } catch (e) {
+    console.error('Admin notification error:', e.message);
+  }
+}
+
+// @desc    Reschedule a booking (direct — 48hr restriction)
 // @route   PATCH /api/counseling/:bookingId/reschedule
 // @access  Private
 export const rescheduleBooking = async (req, res) => {
