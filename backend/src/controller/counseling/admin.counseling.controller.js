@@ -445,31 +445,39 @@ export const respondRescheduleAdmin = async (req, res) => {
 
             await booking.save();
 
-            await sendNotification(booking.user, {
-                type: 'reschedule_approved',
-                title: 'Reschedule Approved',
-                message: `Your reschedule request for "${booking.bookingTitle}" has been approved. New time: ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime}`,
-                icon: '✅',
-                priority: 'high',
-                relatedId: booking._id,
-                relatedType: 'booking',
-                actionUrl: `/counseling-detail?bookingId=${booking._id}`
-            });
+            try {
+                await sendNotification(booking.user, {
+                    type: 'reschedule_approved',
+                    title: 'Reschedule Approved',
+                    message: `Your reschedule request for "${booking.bookingTitle}" has been approved. New time: ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime}`,
+                    icon: '✅',
+                    priority: 'high',
+                    relatedId: booking._id,
+                    relatedType: 'booking',
+                    actionUrl: `/counseling-detail?bookingId=${booking._id}`
+                });
+            } catch (notifErr) {
+                console.error('Failed to send reschedule approved notification:', notifErr?.message || notifErr);
+            }
 
             res.status(200).json({ success: true, message: 'Reschedule approved. User has been notified.', data: { booking } });
         } else {
             booking.rescheduleRequest.status = 'denied';
             await booking.save();
 
-            await sendNotification(booking.user, {
-                type: 'reschedule_denied',
-                title: 'Reschedule Declined',
-                message: `Your reschedule request for "${booking.bookingTitle}" was declined. Your original booking time remains: ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime}`,
-                icon: '❌',
-                priority: 'medium',
-                relatedId: booking._id,
-                relatedType: 'booking'
-            });
+            try {
+                await sendNotification(booking.user, {
+                    type: 'reschedule_denied',
+                    title: 'Reschedule Declined',
+                    message: `Your reschedule request for "${booking.bookingTitle}" was declined. Your original booking time remains: ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime}`,
+                    icon: '❌',
+                    priority: 'medium',
+                    relatedId: booking._id,
+                    relatedType: 'booking'
+                });
+            } catch (notifErr) {
+                console.error('Failed to send reschedule denied notification:', notifErr?.message || notifErr);
+            }
 
             res.status(200).json({ success: true, message: 'Reschedule denied. User has been notified.', data: { booking } });
         }
