@@ -67,7 +67,7 @@ export default function Header({ useSafeArea = false }: HeaderProps) {
   const badgeCount = unreadCount > 99 ? '99+' : String(unreadCount);
 
   return (
-    <View style={[styles.container, { borderBottomColor: colors.border, paddingTop: Platform.OS === 'ios' ? (useSafeArea ? 10 : 50) : (useSafeArea ? 16 : 40) }]}>
+    <View style={[styles.container, { paddingTop: Platform.OS === 'ios' ? (useSafeArea ? 10 : 50) : (useSafeArea ? 16 : 40) }]}>
       <View style={styles.content}>
         <View>
           <Text style={[styles.title, { color: colors.text }]}>{getTabTitle()}</Text>
@@ -107,7 +107,6 @@ export default function Header({ useSafeArea = false }: HeaderProps) {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: 'transparent',
-    borderBottomWidth: 1,
     paddingHorizontal: 20,
     paddingBottom: 16,
   },
