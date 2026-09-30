@@ -649,6 +649,10 @@ export default function HomeTab() {
   const { blogs, fetchBlogs } = useBlogStore();
   const { recommendations, loading: loadingRecs, fetchRecommendations } = useRecommendationStore();
 
+  useEffect(() => {
+    void fetchBlogs();
+  }, [fetchBlogs]);
+
   const scrollY = useRef(new Animated.Value(0)).current;
   const bottomTabHeight = useBottomTabBarHeight();
   const heroScale = scrollY.interpolate({
