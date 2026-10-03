@@ -71,7 +71,7 @@ const eventSchema = new mongoose.Schema({
   },
   locationType: {
     type: String,
-    enum: ['physical', 'online', 'hybrid'],
+    enum: ['physical', 'online'],
     default: 'physical'
   },
   address: {

@@ -130,7 +130,7 @@ Expected:
 2. Filter by status/category and test search.
 3. Create event with:
    - Date/time
-   - Location type (`physical`, `online`, `hybrid`)
+   - Location type (`physical`, `online`)
    - Category/tags
    - Paid toggle and price
 4. Edit event and verify update.

@@ -48,16 +48,16 @@ export const createEvent = async (req, res) => {
     // organizerId must come from the authenticated admin, not the request body
     const organizerId = req.admin?._id || null;
 
-    const resolvedLocationType = ['physical', 'online', 'hybrid'].includes(locationType)
+    const resolvedLocationType = ['physical', 'online'].includes(locationType)
       ? locationType
       : 'physical';
     const trimmedMeetingLink = onlineMeetingLink ? String(onlineMeetingLink).trim() : '';
-    const meetingLinkRequired = resolvedLocationType === 'online' || resolvedLocationType === 'hybrid';
+    const meetingLinkRequired = resolvedLocationType === 'online';
 
     if (meetingLinkRequired && !trimmedMeetingLink) {
       return res.status(400).json({
         success: false,
-        message: "Online meeting link is required for online/hybrid events"
+        message: "Online meeting link is required for online events"
       });
     }
     if (meetingLinkRequired && !/^https?:\/\//i.test(trimmedMeetingLink)) {
@@ -430,7 +430,7 @@ export const updateEvent = async (req, res) => {
 
     // Keep the meeting link consistent with the (possibly updated) location type.
     const effectiveLocationType = updateData.locationType ?? event.locationType;
-    const meetingLinkRequired = effectiveLocationType === 'online' || effectiveLocationType === 'hybrid';
+    const meetingLinkRequired = effectiveLocationType === 'online';
 
     if (meetingLinkRequired) {
       const link = updateData.onlineMeetingLink !== undefined
@@ -440,7 +440,7 @@ export const updateEvent = async (req, res) => {
       if (!link) {
         return res.status(400).json({
           success: false,
-          message: "Online meeting link is required for online/hybrid events"
+          message: "Online meeting link is required for online events"
         });
       }
       if (!/^https?:\/\//i.test(link)) {

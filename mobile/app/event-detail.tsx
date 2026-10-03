@@ -98,6 +98,25 @@ export default function EventDetailScreen() {
   const registrationClosed = event?.registrationDeadline ? new Date(event.registrationDeadline) < new Date() : false;
   const canRegister = currentEventMeta?.canRegister ?? (!isFull && !registrationClosed && event?.status !== 'cancelled' && event?.status !== 'past');
   const isRegistered = !!event?.isRegistered;
+  const isPaymentPending = isRegistered && event?.paymentStatus === 'pending';
+  const isOpenEvent = event?.registrationRequired === false;
+
+  const currencySymbol = (currency?: string) => (currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹');
+
+  const addressText = useMemo(() => {
+    if (!event?.address) return '';
+    return [event.address.street, event.address.city, event.address.state, event.address.zipCode, event.address.country]
+      .filter(Boolean)
+      .join(', ');
+  }, [event?.address]);
+
+  const directionsQuery = addressText || event?.location || '';
+
+  const openDirections = () => {
+    if (!directionsQuery) return;
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(directionsQuery)}`;
+    Linking.openURL(url).catch(() => {});
+  };
 
   const formattedDate = useMemo(() => {
     if (!event?.eventDate) return '';
@@ -157,7 +176,7 @@ export default function EventDetailScreen() {
       if (result.paymentRequired) {
         Alert.alert(
           'Registration Created',
-          `Please complete payment of Rs. ${result.paymentAmount ?? priceValue}.`
+          `Please complete payment of ${currencySymbol(event?.currency)}${result.paymentAmount ?? priceValue}.`
         );
       } else {
         Alert.alert('Registered Successfully', 'You are now registered for this event.');
@@ -408,6 +427,28 @@ export default function EventDetailScreen() {
             </View>
           </View>
 
+          {/* Venue & Directions (in-person only) */}
+          {event.locationType === 'physical' && (
+            <View style={{ marginTop: 12, backgroundColor: colors.background, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: colors.surfaceSecondary }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="location" size={18} color={eventColor} />
+                <Text style={{ fontSize: 12, color: colors.textSecondary, fontWeight: '600' }}>VENUE</Text>
+              </View>
+              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text, marginTop: 6 }}>
+                {event.location}
+              </Text>
+              {addressText ? (
+                <Text style={{ fontSize: 14, color: colors.textSecondary, marginTop: 2 }}>{addressText}</Text>
+              ) : null}
+              {directionsQuery ? (
+                <TouchableOpacity onPress={openDirections} style={{ flexDirection: 'row', alignItems: 'center', marginTop: 12 }}>
+                  <Ionicons name="navigate" size={16} color={eventColor} />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: eventColor, marginLeft: 6 }}>Get Directions</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          )}
+
           {/* Description Section */}
           <View style={{ marginTop: 32 }}>
             <Text style={{ fontSize: 18, fontWeight: '800', color: colors.text, marginBottom: 12 }}>About the Event</Text>
@@ -455,7 +496,7 @@ export default function EventDetailScreen() {
           ) : null}
 
           {/* Online Link — only for registered attendees (or open events) */}
-          {(event.locationType === 'online' || event.locationType === 'hybrid') && event.onlineMeetingLink && (
+          {event.locationType === 'online' && event.onlineMeetingLink && (
             event.isRegistered || event.registrationRequired === false ? (
               <TouchableOpacity 
                 style={{ 
@@ -547,7 +588,7 @@ export default function EventDetailScreen() {
         <View>
           <Text style={{ fontSize: 14, color: colors.textSecondary, fontWeight: '600' }}>PRICING</Text>
           <Text style={{ fontSize: 24, fontWeight: '800', color: colors.text }}>
-            {event.isPaid ? `Rs. ${priceValue}` : 'Free'}
+            {event.isPaid ? `${currencySymbol(event.currency)}${priceValue}` : 'Free'}
           </Text>
         </View>
 
@@ -567,6 +608,28 @@ export default function EventDetailScreen() {
           }}>
             <Ionicons name="star" size={20} color={colors.surface} style={{ marginRight: 8 }} />
             <Text style={{ color: colors.surface, fontSize: 16, fontWeight: '700' }}>Attended</Text>
+          </View>
+        ) : isPaymentPending ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <TouchableOpacity
+              style={{ backgroundColor: '#F59E0B', paddingHorizontal: 20, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' }}
+              onPress={() => setShowRegisterForm(true)}
+              disabled={processing}
+            >
+              <Ionicons name="card" size={20} color={colors.surface} style={{ marginRight: 8 }} />
+              <Text style={{ color: colors.surface, fontSize: 16, fontWeight: '700' }}>Complete Payment</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' }}
+              onPress={handleCancel}
+              disabled={processing}
+            >
+              {processing ? (
+                <ActivityIndicator color={colors.textSecondary} />
+              ) : (
+                <Ionicons name="close" size={22} color={colors.textSecondary} />
+              )}
+            </TouchableOpacity>
           </View>
         ) : isRegistered ? (
           <TouchableOpacity
@@ -591,6 +654,11 @@ export default function EventDetailScreen() {
               </>
             )}
           </TouchableOpacity>
+        ) : isOpenEvent ? (
+          <View style={{ backgroundColor: colors.surfaceSecondary, paddingHorizontal: 24, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', flexDirection: 'row' }}>
+            <Ionicons name="people" size={20} color={colors.textSecondary} style={{ marginRight: 8 }} />
+            <Text style={{ color: colors.textSecondary, fontSize: 16, fontWeight: '700' }}>Open to all</Text>
+          </View>
         ) : (
           <TouchableOpacity
             style={{ 
@@ -685,7 +753,7 @@ export default function EventDetailScreen() {
                     onPress={handlePaidEventPayment}
                   >
                     <Text style={{ color: colors.surface, fontSize: 18, fontWeight: '800' }}>
-                      {processing ? 'Processing...' : `Pay Rs. ${priceValue}`}
+                      {processing ? 'Processing...' : `Pay ${currencySymbol(event.currency)}${priceValue}`}
                     </Text>
                   </TouchableOpacity>
                 </>

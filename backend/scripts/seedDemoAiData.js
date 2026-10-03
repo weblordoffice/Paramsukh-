@@ -426,8 +426,8 @@ const eventCatalog = [
   {
     title: 'Scripture Reflection Evening',
     category: 'Discourse',
-    locationType: 'hybrid',
-    location: 'ParamSukh Hall, Delhi + Live Stream',
+    locationType: 'physical',
+    location: 'ParamSukh Hall, Delhi',
     daysFromNow: 21,
     startHour: 18,
     durationHours: 2,
@@ -437,7 +437,7 @@ const eventCatalog = [
     shortDescription: 'A reflective discourse connecting timeless teachings to modern challenges.',
     description:
       'Explore selected teachings, group contemplation, and practical application for daily inner steadiness.',
-    tags: ['scripture', 'reflection', 'hybrid'],
+    tags: ['scripture', 'reflection'],
     color: '#C7671E',
     icon: 'book',
     emoji: '📖',
@@ -552,7 +552,7 @@ const buildEventPayload = (event) => {
     location: event.location,
     locationType: event.locationType,
     address:
-      event.locationType === 'physical' || event.locationType === 'hybrid'
+      event.locationType === 'physical'
         ? {
             street: 'Wellness Avenue',
             city: 'Delhi',
@@ -562,7 +562,7 @@ const buildEventPayload = (event) => {
           }
         : undefined,
     onlineMeetingLink:
-      event.locationType === 'online' || event.locationType === 'hybrid'
+      event.locationType === 'online'
         ? `https://meet.paramsukh.test/${buildSlug(event.title)}`
         : null,
     category: event.category,

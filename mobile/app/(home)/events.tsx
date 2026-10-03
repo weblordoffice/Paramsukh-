@@ -465,6 +465,15 @@ export default function EventsScreen() {
     }
   };
 
+  const currencySymbol = (currency?: string) => (currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹');
+
+  const getEffectivePrice = (event: any) => {
+    const early = event?.earlyBirdPrice;
+    const end = event?.earlyBirdEndDate;
+    if (early && end && new Date(end) > new Date()) return early;
+    return event?.price ?? 0;
+  };
+
   const showTicket = (event: any) => {
     setTicketModal({ visible: true, event });
   };
@@ -480,6 +489,12 @@ export default function EventsScreen() {
     const isPast = activeTab === 'past';
     const isRegistered = !!event.isRegistered;
     const hasAttended = !!event.hasAttended;
+    const isPending = isRegistered && event.paymentStatus === 'pending';
+    const isOpenEvent = event.registrationRequired === false;
+    const isFull = event.maxAttendees != null && (event.currentAttendees || 0) >= event.maxAttendees;
+    const deadlinePassed = event.registrationDeadline ? new Date(event.registrationDeadline) < new Date() : false;
+    const isClosed = !isRegistered && !isPast && !isOpenEvent && (isFull || deadlinePassed);
+    const effectivePrice = getEffectivePrice(event);
     const cardColor = event.color || '#8B5CF6';
 
     const handlePress = () => {
@@ -498,6 +513,8 @@ export default function EventsScreen() {
         } else {
           viewEventDetails(event._id);
         }
+      } else if (isPending) {
+        viewEventDetails(event._id);
       } else {
         if (isRegistered) {
           showTicket(event);
@@ -535,16 +552,16 @@ export default function EventsScreen() {
                 <Text style={[styles.categoryText, { color: cardColor }]}>{event.category}</Text>
               </View>
               {isRegistered && (
-                <View style={[styles.registeredBadge, hasAttended && { backgroundColor: '#3B82F6' }]}>
-                  <Ionicons name={hasAttended ? "star" : "checkmark-circle"} size={14} color={colors.surface} />
-                  <Text style={styles.registeredBadgeText}>{hasAttended ? 'Attended' : 'Registered'}</Text>
+                <View style={[styles.registeredBadge, hasAttended && { backgroundColor: '#3B82F6' }, isPending && { backgroundColor: '#F59E0B' }]}>
+                  <Ionicons name={hasAttended ? "star" : isPending ? "time" : "checkmark-circle"} size={14} color={colors.surface} />
+                  <Text style={styles.registeredBadgeText}>{hasAttended ? 'Attended' : isPending ? 'Payment Due' : 'Registered'}</Text>
                 </View>
               )}
             </View>
 
-            {event.isPaid && !isRegistered && (
+            {event.isPaid && (!isRegistered || isPending) && (
               <View style={styles.priceTag}>
-                <Text style={styles.priceText}>₹{event.price}</Text>
+                <Text style={styles.priceText}>{currencySymbol(event.currency)}{effectivePrice}</Text>
               </View>
             )}
           </View>
@@ -588,16 +605,22 @@ export default function EventsScreen() {
               </View>
 
               <TouchableOpacity 
-                style={[styles.cardActionBtn, { backgroundColor: isRegistered ? (hasAttended ? '#3B82F6' : '#10B981') : cardColor }]}
+                style={[styles.cardActionBtn, { backgroundColor: isRegistered ? (hasAttended ? '#3B82F6' : isPending ? '#F59E0B' : '#10B981') : isClosed ? colors.textSecondary : cardColor }]}
                 onPress={() => {
                   handlePress();
                 }}
+                disabled={isClosed}
               >
                 <Text style={styles.cardActionBtnText}>
-                  {isRegistered ? (hasAttended ? 'View Pass' : 'View Ticket') : isPast ? 'Details' : 'Register'}
+                  {isPending ? 'Pay Now'
+                    : isRegistered ? (hasAttended ? 'View Pass' : 'View Ticket')
+                    : isPast ? 'Details'
+                    : isClosed ? 'Closed'
+                    : isOpenEvent ? 'View'
+                    : 'Register'}
                 </Text>
                 <Ionicons 
-                  name={isRegistered ? "qr-code" : isPast ? "chevron-forward" : "arrow-forward"} 
+                  name={isPending ? 'card' : isRegistered ? 'qr-code' : isPast ? 'chevron-forward' : 'arrow-forward'} 
                   size={14} 
                   color={colors.surface} 
                 />
@@ -730,12 +753,12 @@ export default function EventsScreen() {
                    </View>
                    <View style={styles.ticketGridItem}>
                       <Text style={styles.ticketLabel}>STATUS</Text>
-                      <View style={styles.statusBadge}>
-                         <View style={[styles.statusDot, ticketModal.event?.hasAttended && { backgroundColor: '#3B82F6' }]} />
-                         <Text style={[styles.statusText, ticketModal.event?.hasAttended && { color: '#3B82F6' }]}>
-                            {ticketModal.event?.hasAttended ? 'ATTENDED' : 'CONFIRMED'}
-                         </Text>
-                      </View>
+                       <View style={styles.statusBadge}>
+                          <View style={[styles.statusDot, ticketModal.event?.hasAttended && { backgroundColor: '#3B82F6' }, ticketModal.event?.paymentStatus === 'pending' && { backgroundColor: '#F59E0B' }]} />
+                          <Text style={[styles.statusText, ticketModal.event?.hasAttended && { color: '#3B82F6' }, ticketModal.event?.paymentStatus === 'pending' && { color: '#F59E0B' }]}>
+                             {ticketModal.event?.paymentStatus === 'pending' ? 'PENDING' : ticketModal.event?.hasAttended ? 'ATTENDED' : 'CONFIRMED'}
+                          </Text>
+                       </View>
                    </View>
                 </View>
 

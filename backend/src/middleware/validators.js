@@ -97,6 +97,7 @@ export const validateCreateEvent = [
     .isLength({ min: 3, max: 200 })
     .withMessage('Event title must be between 3 and 200 characters'),
   body('description')
+    .optional({ checkFalsy: true })
     .trim()
     .isLength({ min: 10 })
     .withMessage('Event description must be at least 10 characters'),

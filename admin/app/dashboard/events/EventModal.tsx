@@ -24,7 +24,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
         endTime: '',
         timezone: 'Asia/Kolkata',
         location: '',
-        locationType: 'physical' as 'physical' | 'online' | 'hybrid',
+        locationType: 'physical' as 'physical' | 'online',
         address: {
             street: '',
             city: '',
@@ -50,6 +50,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
     });
     const [submitting, setSubmitting] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [showAdvanced, setShowAdvanced] = useState(false);
     const [tagInput, setTagInput] = useState('');
     const [requirementInput, setRequirementInput] = useState('');
     const [bringInput, setBringInput] = useState('');
@@ -210,7 +211,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
         }
     };
 
-    const handleLocationTypeChange = (next: 'physical' | 'online' | 'hybrid') => {
+    const handleLocationTypeChange = (next: 'physical' | 'online') => {
         setFormData((prev) => {
             let location = prev.location;
             if (next === 'online' && (!location.trim() || location.trim().toLowerCase() === 'online')) {
@@ -231,11 +232,11 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        const meetingLinkRequired = formData.locationType === 'online' || formData.locationType === 'hybrid';
+        const meetingLinkRequired = formData.locationType === 'online';
         const trimmedLink = formData.onlineMeetingLink.trim();
 
         if (meetingLinkRequired && !trimmedLink) {
-            toast.error('Please add the online meeting link for online/hybrid events');
+            toast.error('Please add the meeting link for online events');
             return;
         }
         if (meetingLinkRequired && !/^https?:\/\//i.test(trimmedLink)) {
@@ -265,7 +266,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
             return;
         }
         if (formData.locationType !== 'online' && !formData.location.trim()) {
-            toast.error('Location is required for physical/hybrid events');
+            toast.error('Please add the venue for in-person events');
             return;
         }
 
@@ -295,7 +296,14 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
             onSuccess();
             onClose();
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to save event');
+            const data = error.response?.data;
+            const fieldErrors = Array.isArray(data?.errors)
+                ? data.errors.map((e: any) => e?.msg || e?.message).filter(Boolean)
+                : [];
+            const message = fieldErrors.length > 0
+                ? fieldErrors.join(' • ')
+                : data?.message || 'Failed to save event';
+            toast.error(message);
             console.error(error);
         } finally {
             setSubmitting(false);
@@ -323,11 +331,11 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                     <div className="space-y-6">
                         {/* Basic Information */}
                         <div>
-                            <h4 className="text-md font-semibold text-gray-900 mb-3">Basic Information</h4>
+                            <h4 className="text-md font-semibold text-gray-900 mb-3">Event details</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Event Title *
+                                        Event name *
                                     </label>
                                     <input
                                         type="text"
@@ -341,33 +349,33 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
 
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Short Description
+                                        Short summary
                                     </label>
                                     <input
                                         type="text"
                                         value={formData.shortDescription}
                                         onChange={(e) => setFormData({ ...formData, shortDescription: e.target.value })}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                                        placeholder="Brief one-line description"
+                                        placeholder="One line about the event"
                                     />
                                 </div>
 
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Full Description
+                                        Description
                                     </label>
                                     <textarea
                                         value={formData.description}
                                         onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                                         rows={4}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                                        placeholder="Detailed event description..."
+                                        placeholder="Tell people what this event is about..."
                                     />
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Thumbnail URL
+                                        Event image
                                     </label>
                                     <div className="flex gap-2">
                                         <input
@@ -399,7 +407,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Banner URL
+                                        Banner image
                                     </label>
                                     <div className="flex gap-2">
                                         <input
@@ -433,7 +441,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
 
                         {/* Date & Time */}
                         <div>
-                            <h4 className="text-md font-semibold text-gray-900 mb-3">Date & Time</h4>
+                            <h4 className="text-md font-semibold text-gray-900 mb-3">When is it?</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -475,7 +483,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Timezone
+                                        Time zone
                                     </label>
                                     <select
                                         value={formData.timezone}
@@ -499,24 +507,23 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Location Type *
+                                        How will people attend? *
                                     </label>
                                     <select
                                         required
                                         value={formData.locationType}
-                                        onChange={(e) => handleLocationTypeChange(e.target.value as 'physical' | 'online' | 'hybrid')}
+                                        onChange={(e) => handleLocationTypeChange(e.target.value as 'physical' | 'online')}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                     >
-                                        <option value="physical">Physical (in-person)</option>
+                                        <option value="physical">In person (at a venue)</option>
                                         <option value="online">Online</option>
-                                        <option value="hybrid">Hybrid</option>
                                     </select>
                                 </div>
 
                                 {formData.locationType !== 'online' && (
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            {formData.locationType === 'hybrid' ? 'Venue (physical location)' : 'Location / Venue *'}
+                                            Venue name *
                                         </label>
                                         <input
                                             type="text"
@@ -524,15 +531,15 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                             value={formData.location}
                                             onChange={(e) => setFormData({ ...formData, location: e.target.value })}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                                            placeholder="Venue name and address"
+                                            placeholder="e.g. Community Hall, Delhi"
                                         />
                                     </div>
                                 )}
 
-                                {(formData.locationType === 'online' || formData.locationType === 'hybrid') && (
+                                {formData.locationType === 'online' && (
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                                            Online Meeting Link *
+                                            Meeting link *
                                         </label>
                                         <input
                                             type="url"
@@ -543,12 +550,12 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                             placeholder="https://meet.google.com/... or https://zoom.us/j/..."
                                         />
                                         <p className="text-xs text-gray-500 mt-1">
-                                            Shown to registered attendees. Must be a full https:// link.
+                                            Attendees who register will see this link.
                                         </p>
                                     </div>
                                 )}
 
-                                {(formData.locationType === 'physical' || formData.locationType === 'hybrid') && (
+                                {formData.locationType === 'physical' && (
                                     <>
                                         <div className="md:col-span-2">
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
@@ -602,7 +609,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
 
                         {/* Category & Tags */}
                         <div>
-                            <h4 className="text-md font-semibold text-gray-900 mb-3">Category & Tags</h4>
+                            <h4 className="text-md font-semibold text-gray-900 mb-3">Category &amp; tags</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -669,7 +676,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
 
                         {/* Pricing */}
                         <div>
-                            <h4 className="text-md font-semibold text-gray-900 mb-3">Pricing</h4>
+                            <h4 className="text-md font-semibold text-gray-900 mb-3">Tickets &amp; pricing</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
                                     <label className="flex items-center gap-2">
@@ -679,7 +686,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                             onChange={(e) => setFormData({ ...formData, isPaid: e.target.checked })}
                                             className="w-4 h-4 text-blue-600 rounded"
                                         />
-                                        <span className="text-sm font-medium text-gray-700">This is a paid event</span>
+                                        <span className="text-sm font-medium text-gray-700">Charge for tickets</span>
                                     </label>
                                 </div>
 
@@ -713,7 +720,7 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                         </div>
                                         <div className="md:col-span-2">
                                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                                Early Bird Price
+                                                Early bird price
                                             </label>
                                             <input
                                                 type="number"
@@ -731,11 +738,11 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
 
                         {/* Capacity & Registration */}
                         <div>
-                            <h4 className="text-md font-semibold text-gray-900 mb-3">Capacity & Registration</h4>
+                            <h4 className="text-md font-semibold text-gray-900 mb-3">Capacity &amp; sign-up</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Max Attendees (leave empty for unlimited)
+                                        Maximum attendees (leave empty for unlimited)
                                     </label>
                                     <input
                                         type="number"
@@ -755,13 +762,13 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                             onChange={(e) => setFormData({ ...formData, registrationRequired: e.target.checked })}
                                             className="w-4 h-4 text-blue-600 rounded"
                                         />
-                                        <span className="text-sm font-medium text-gray-700">Registration required</span>
+                                        <span className="text-sm font-medium text-gray-700">Sign-up required</span>
                                     </label>
                                 </div>
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Organizer Name
+                                        Organizer
                                     </label>
                                     <input
                                         type="text"
@@ -774,9 +781,20 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                             </div>
                         </div>
 
+                        <button
+                            type="button"
+                            onClick={() => setShowAdvanced((v) => !v)}
+                            className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100"
+                        >
+                            <span>{showAdvanced ? 'Hide extra options' : 'Add extra options (requirements, search listing, notes)'}</span>
+                            <span className="text-lg leading-none">{showAdvanced ? '−' : '+'}</span>
+                        </button>
+
+                        {showAdvanced && (
+                        <>
                         {/* Requirements & What to Bring */}
                         <div>
-                            <h4 className="text-md font-semibold text-gray-900 mb-3">Requirements &amp; What to Bring</h4>
+                            <h4 className="text-md font-semibold text-gray-900 mb-3">Requirements &amp; what to bring</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Requirements</label>
@@ -836,26 +854,26 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
 
                         {/* SEO */}
                         <div>
-                            <h4 className="text-md font-semibold text-gray-900 mb-3">SEO</h4>
+                            <h4 className="text-md font-semibold text-gray-900 mb-3">Search listing</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Meta Title</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Search title</label>
                                     <input
                                         type="text"
                                         value={formData.metaTitle}
                                         onChange={(e) => setFormData({ ...formData, metaTitle: e.target.value })}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                                        placeholder="Page title for search engines"
+                                        placeholder="Title shown in search results"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Meta Description</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Search description</label>
                                     <input
                                         type="text"
                                         value={formData.metaDescription}
                                         onChange={(e) => setFormData({ ...formData, metaDescription: e.target.value })}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
-                                        placeholder="Short description for search results"
+                                        placeholder="Short text shown in search results"
                                     />
                                 </div>
                             </div>
@@ -863,11 +881,11 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
 
                         {/* Additional Info */}
                         <div>
-                            <h4 className="text-md font-semibold text-gray-900 mb-3">Additional Information</h4>
+                            <h4 className="text-md font-semibold text-gray-900 mb-3">More information</h4>
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Additional Info
+                                        Extra notes
                                     </label>
                                     <textarea
                                         value={formData.additionalInfo}
@@ -879,6 +897,8 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                 </div>
                             </div>
                         </div>
+                        </>
+                        )}
                     </div>
 
                     <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200">

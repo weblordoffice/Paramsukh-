@@ -20,7 +20,7 @@ interface Event {
     startTime: string;
     endTime?: string;
     location: string;
-    locationType: 'physical' | 'online' | 'hybrid';
+    locationType: 'physical' | 'online';
     category: string;
     tags: string[];
     isPaid: boolean;
@@ -112,7 +112,6 @@ export default function EventsPage() {
         switch (type) {
             case 'physical': return 'bg-purple-100 text-purple-800';
             case 'online': return 'bg-cyan-100 text-cyan-800';
-            case 'hybrid': return 'bg-orange-100 text-orange-800';
             default: return 'bg-gray-100 text-gray-800';
         }
     };

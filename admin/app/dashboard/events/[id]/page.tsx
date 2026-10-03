@@ -155,7 +155,7 @@ export default function EventDetailsPage() {
                                 <span className="text-gray-500">
                                     📍 {event.location}
                                 </span>
-                                {(event.locationType === 'online' || event.locationType === 'hybrid') && (
+                                {event.locationType === 'online' && (
                                     event.onlineMeetingLink ? (
                                         <a
                                             href={event.onlineMeetingLink}
