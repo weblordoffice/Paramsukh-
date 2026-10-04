@@ -942,22 +942,62 @@ export default function AIChatPanel({
           return;
         }
 
-        // NOTE: event_payment intentionally stays on the payment-link browser flow —
-        // the AI backend pre-creates the registration + link, and creating a
-        // native order here would duplicate the registration. The standalone
-        // event-detail screen uses the native SDK (order + verify) instead.
-        await WebBrowser.openBrowserAsync(paymentUrl, {
-          presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-          enableBarCollapsing: true,
-          showTitle: true,
-        });
+        // Preferred: native Razorpay SDK checkout (no WebView/browser).
+        // The AI backend pre-creates a *pending* registration, and the order
+        // endpoint reuses it (it only reserves a new seat for brand-new
+        // registrations), so this does not duplicate the registration.
+        // Falls back to the payment-link browser flow below when unavailable.
+        let nativeEventResult: { success: boolean; message?: string } | null = null;
+        if (isRazorpayNativeAvailable()) {
+          try {
+            const orderRes = await apiClient.post(`/events/${eventId}/register/order`, {});
+            const rzp = orderRes.data?.data?.razorpay;
+            if (orderRes.data?.success && rzp?.orderId && rzp?.keyId) {
+              const payResult = await payWithRazorpayNative(
+                { keyId: rzp.keyId, orderId: rzp.orderId, amount: rzp.amount, currency: rzp.currency || 'INR' },
+                {
+                  description: 'Event registration',
+                  prefill: buildPrefill(useAuthStore.getState().user),
+                  notes: { type: 'event', eventId },
+                }
+              );
+              if (payResult.status === 'success') {
+                const verifyRes = await apiClient.post(`/events/${eventId}/register/confirm`, {
+                  razorpay_payment_id: payResult.paymentId,
+                  razorpay_order_id: payResult.orderId,
+                  razorpay_signature: payResult.signature,
+                });
+                nativeEventResult = {
+                  success: !!verifyRes.data?.success,
+                  message: verifyRes.data?.message,
+                };
+              } else if (payResult.status === 'cancelled') {
+                await appendMessage('assistant', 'Payment was cancelled. Your event registration is still pending.');
+                return;
+              }
+              // Native checkout error → fall through to browser flow
+            }
+          } catch {
+            // Fall through to browser flow
+          }
+        }
 
-        const pollResult = await pollPaymentConfirmation(async () => {
-          const confirmRes = await apiClient.post(`/events/${eventId}/register/confirm-link`, {
-            paymentLinkId,
+        if (!nativeEventResult) {
+          await WebBrowser.openBrowserAsync(paymentUrl, {
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+            enableBarCollapsing: true,
+            showTitle: true,
           });
-          return { success: !!confirmRes.data?.success, message: confirmRes.data?.message };
-        });
+        }
+
+        const pollResult = nativeEventResult
+          ? { success: nativeEventResult.success, result: nativeEventResult }
+          : await pollPaymentConfirmation(async () => {
+              const confirmRes = await apiClient.post(`/events/${eventId}/register/confirm-link`, {
+                paymentLinkId,
+              });
+              return { success: !!confirmRes.data?.success, message: confirmRes.data?.message };
+            });
 
         await appendMessage(
           'assistant',

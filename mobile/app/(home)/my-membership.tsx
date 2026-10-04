@@ -218,7 +218,7 @@ export default function MyMembershipScreen() {
     planEmoji: { fontSize: 30 },
     planTitleBlock: { flex: 1, paddingRight: 6 },
     planName: { fontSize: 20, fontWeight: '800', color: colors.text, letterSpacing: 0.1 },
-    planTagline: { fontSize: 12.5, color: colors.textSecondary, marginTop: 4, lineHeight: 17, fontWeight: '500' },
+    planTagline: { fontSize: 13.5, color: colors.textSecondary, marginTop: 4, lineHeight: 19, fontWeight: '500' },
     planPriceBlock: { alignItems: 'flex-end' },
     planPrice: { fontSize: 24, fontWeight: '900', color: colors.text, letterSpacing: -0.3 },
     planPriceCaption: { fontSize: 11, color: colors.textSecondary, fontWeight: '600', marginTop: 2 },
@@ -973,14 +973,8 @@ export default function MyMembershipScreen() {
                         return (purchasePlan === planId || purchasePlan === plan.parentSlug || purchasePlan === plan.rawId) && p.status === 'completed';
                     });
                     const isSelectionPlan = !!plan.courseSelection?.enabled;
-                    const maxSelectable = plan.courseSelection?.maxSelectableCourses || 0;
                     const isBusy = purchasingPlanId !== null;
-                    const visibleFeatures = plan.features.slice(0, 4);
-                    const hiddenFeatureCount = plan.features.length - visibleFeatures.length;
-                    const courseCount = plan.courseCount || 0;
-                    const valueText = isSelectionPlan
-                        ? `Choose any ${maxSelectable} of ${courseCount} course${courseCount === 1 ? '' : 's'}`
-                        : `${courseCount} course${courseCount === 1 ? '' : 's'} included`;
+                    const hasPreview = !!(plan.previewVideos && plan.previewVideos.length > 0);
 
                     return (
                         <View
@@ -995,36 +989,15 @@ export default function MyMembershipScreen() {
                                 </View>
                             )}
 
-                            {/* Plan header: name + price */}
-                            <View style={[styles.planHeaderRow, isOwnedPlan && { marginTop: 16 }]}>
-                                <Text style={styles.planEmoji}>{plan.emoji}</Text>
-                                <View style={styles.planTitleBlock}>
-                                    <Text style={styles.planName}>{plan.name}</Text>
-                                    {!!plan.tagline && <Text style={styles.planTagline}>{plan.tagline}</Text>}
-                                </View>
-                                <View style={styles.planPriceBlock}>
-                                    <Text style={styles.planPrice}>₹{plan.price.toLocaleString('en-IN')}</Text>
-                                    <Text style={styles.planPriceCaption}>one-time</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.planDivider} />
-
-                            {/* What you get */}
-                            <View style={styles.valueRow}>
-                                <Ionicons name={isSelectionPlan ? 'albums-outline' : 'library-outline'} size={16} color={ACCENT} />
-                                <Text style={styles.valueText}>{valueText}</Text>
-                            </View>
-
                             {/* Free preview videos */}
-                            {plan.previewVideos && plan.previewVideos.length > 0 && (
+                            {hasPreview && (
                                 <ScrollView
                                     horizontal
                                     showsHorizontalScrollIndicator={false}
-                                    style={styles.previewStrip}
+                                    style={[styles.previewStrip, isOwnedPlan && { marginTop: 16 }]}
                                     contentContainerStyle={styles.previewStripContent}
                                 >
-                                    {plan.previewVideos.map((video, idx) => (
+                                    {plan.previewVideos!.map((video, idx) => (
                                         <TouchableOpacity
                                             key={`${plan.id}-preview-${idx}`}
                                             style={styles.previewVideoCard}
@@ -1056,29 +1029,17 @@ export default function MyMembershipScreen() {
                                 </ScrollView>
                             )}
 
-                            {/* Features */}
-                            {visibleFeatures.map((f, i) => (
-                                <View key={i} style={styles.planFeatureRow}>
-                                    <View
-                                        style={[
-                                            styles.checkCircle,
-                                            { backgroundColor: f.included ? colors.surfaceSecondary : colors.surfaceSecondary },
-                                        ]}
-                                    >
-                                        <Ionicons
-                                            name={f.included ? 'checkmark' : 'close'}
-                                            size={11}
-                                            color={f.included ? ACCENT : colors.textSecondary}
-                                        />
-                                    </View>
-                                    <Text style={[styles.planFeatureText, !f.included && styles.planFeatureTextMuted]}>
-                                        {f.text}
-                                    </Text>
+                            {/* Plan header: name + description + price */}
+                            <View style={[styles.planHeaderRow, isOwnedPlan && !hasPreview && { marginTop: 16 }]}>
+                                <View style={styles.planTitleBlock}>
+                                    <Text style={styles.planName}>{plan.name}</Text>
+                                    {!!plan.tagline && <Text style={styles.planTagline}>{plan.tagline}</Text>}
                                 </View>
-                            ))}
-                            {hiddenFeatureCount > 0 && (
-                                <Text style={styles.featureMore}>+{hiddenFeatureCount} more</Text>
-                            )}
+                                <View style={styles.planPriceBlock}>
+                                    <Text style={styles.planPrice}>₹{plan.price.toLocaleString('en-IN')}</Text>
+                                    <Text style={styles.planPriceCaption}>one-time</Text>
+                                </View>
+                            </View>
 
                             {/* One primary action per card */}
                             {isOwnedPlan ? (
@@ -1120,29 +1081,6 @@ export default function MyMembershipScreen() {
                                             </>
                                         )}
                                     </TouchableOpacity>
-
-                                    <View style={styles.ctaLinksRow}>
-                                        {isSelectionPlan ? (
-                                            <TouchableOpacity
-                                                style={styles.ctaLink}
-                                                onPress={() => handlePurchase(plan)}
-                                                activeOpacity={0.7}
-                                                disabled={isBusy}
-                                            >
-                                                <Text style={styles.ctaLinkText}>Pay first, choose later</Text>
-                                            </TouchableOpacity>
-                                        ) : (
-                                            <TouchableOpacity
-                                                style={styles.ctaLink}
-                                                onPress={() => openCoursesSheet(plan)}
-                                                activeOpacity={0.7}
-                                                disabled={isBusy}
-                                            >
-                                                <Ionicons name="eye-outline" size={14} color={colors.textSecondary} />
-                                                <Text style={styles.ctaLinkText}>See included courses</Text>
-                                            </TouchableOpacity>
-                                        )}
-                                    </View>
                                 </>
                             )}
                         </View>

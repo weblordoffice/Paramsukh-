@@ -28,6 +28,10 @@ export const getUserEntitlementContext = async (userId) => {
 
   if (activeMemberships.length > 0) {
     const allPlanSlugs = [];
+    const allPlanIds = [];
+    const entitlementPlanSlugs = [];
+    const selectionPlanSlugs = [];
+    const selectedCourseIdSet = new Set();
     let communityAccess = false;
     let isPaid = false;
     let courseSelectionEnabled = false;
@@ -36,11 +40,19 @@ export const getUserEntitlementContext = async (userId) => {
     for (const mem of activeMemberships) {
       if (!mem.planId) continue;
       const plan = mem.planId;
-      allPlanSlugs.push(normalize(plan.slug));
+      const slug = normalize(plan.slug);
+      allPlanSlugs.push(slug);
+      allPlanIds.push(String(plan._id));
       allMembershipIds.push(String(mem._id));
       if (plan.access?.communityAccess) communityAccess = true;
-      if (normalize(plan.slug) !== 'free') isPaid = true;
-      if (plan.access?.courseSelection?.enabled) courseSelectionEnabled = true;
+      if (slug !== 'free') isPaid = true;
+      if (plan.access?.courseSelection?.enabled) {
+        courseSelectionEnabled = true;
+        selectionPlanSlugs.push(slug);
+      } else {
+        entitlementPlanSlugs.push(slug);
+      }
+      (mem.selectedCourseIds || []).forEach((id) => selectedCourseIdSet.add(String(id)));
     }
 
     const primary = activeMemberships[0];
@@ -52,6 +64,13 @@ export const getUserEntitlementContext = async (userId) => {
       planId: String(primaryPlan._id),
       planSlug: normalize(primaryPlan.slug),
       planSlugs: [...new Set(allPlanSlugs)],
+      planIds: [...new Set(allPlanIds)],
+      // Plans that grant courses directly (no credit selection required)
+      entitlementPlanSlugs: [...new Set(entitlementPlanSlugs)],
+      // Plans that require the user to spend credits to unlock courses
+      selectionPlanSlugs: [...new Set(selectionPlanSlugs)],
+      // Union of every course unlocked with credits across all active memberships
+      selectedCourseIds: [...selectedCourseIdSet],
       accessMode: primaryPlan.access?.accessMode || 'entitlement_only',
       communityAccess,
       isPaid,
@@ -86,6 +105,10 @@ export const getUserEntitlementContext = async (userId) => {
           planId: null,
           planSlug: userPlanSlug,
           planSlugs,
+          planIds: [],
+          entitlementPlanSlugs: planSlugs,
+          selectionPlanSlugs: [],
+          selectedCourseIds: [],
           accessMode: 'entitlement_only',
           communityAccess,
           isPaid: true,
@@ -102,6 +125,10 @@ export const getUserEntitlementContext = async (userId) => {
     user,
     planSlug: 'free',
     planSlugs: ['free'],
+    planIds: [],
+    entitlementPlanSlugs: [],
+    selectionPlanSlugs: [],
+    selectedCourseIds: [],
     accessMode: 'entitlement_only',
     communityAccess: false,
     isPaid: false,
@@ -142,27 +169,36 @@ export const evaluateCourseEnrollmentAccess = async ({
 
   // course.includedInPlans may contain slugs (new) or ObjectIds (legacy from old admin UI)
   const isObjectId = (v) => /^[a-f\d]{24}$/i.test(String(v));
-  const matchesPlanTag = isCourseFree || (course.includedInPlans || []).some((tag) => {
+  const includedTags = course.includedInPlans || [];
+
+  const matchSlugs = (slugs) => includedTags.some((tag) => {
     const t = normalize(tag);
-    if (isObjectId(t)) {
-      return entitlement.planId && t === entitlement.planId.toLowerCase();
-    }
-    return (entitlement.planSlugs || [entitlement.planSlug]).map(normalize).includes(t);
+    if (isObjectId(t)) return false;
+    return (slugs || []).map(normalize).includes(t);
   });
 
-  if (entitlement.courseSelectionEnabled && !isCourseFree) {
-    const selectedCourseIds = (entitlement.membership?.selectedCourseIds || []).map(String);
-    if (!selectedCourseIds.includes(String(course._id))) {
-      return {
-        allowed: false,
-        reason: 'requires_selection',
-        message: 'Use your membership credits to select this course.',
-        statusCode: 403,
-        needsCourseSelection: true,
-        membershipId: entitlement.membershipId,
-        remainingCredits: entitlement.membership?.selectedCourseCredits || 0,
-      };
-    }
+  const matchLegacyPlanIds = () => {
+    const planIds = (entitlement.planIds || []).map((id) => String(id).toLowerCase());
+    return includedTags.some((tag) => {
+      const t = normalize(tag);
+      return isObjectId(t) && planIds.includes(t);
+    });
+  };
+
+  // 1. Directly granted by an entitlement (non-selection) plan the user holds.
+  //    A course is unlocked as soon as ANY held plan includes it this way.
+  const entitlementSlugs = entitlement.entitlementPlanSlugs || [];
+  if (isCourseFree || matchSlugs(entitlementSlugs) || matchLegacyPlanIds()) {
+    return {
+      allowed: true,
+      reason: 'allowed',
+      entitlement,
+    };
+  }
+
+  // 2. Unlocked with credits in ANY of the user's active memberships.
+  const selectedCourseIds = (entitlement.selectedCourseIds || []).map(String);
+  if (selectedCourseIds.includes(String(course._id))) {
     return {
       allowed: true,
       reason: 'selected_via_credits',
@@ -170,20 +206,33 @@ export const evaluateCourseEnrollmentAccess = async ({
     };
   }
 
-  if (!matchesPlanTag) {
+  // 3. Part of a credit-selection plan the user holds → needs a credit.
+  const selectionSlugs = (entitlement.selectionPlanSlugs || []).map(normalize);
+  if (entitlement.courseSelectionEnabled && matchSlugs(selectionSlugs)) {
+    const candidate = (entitlement.allMemberships || []).find((m) => {
+      const slug = normalize(m.planId?.slug);
+      return m.planId?.access?.courseSelection?.enabled
+        && selectionSlugs.includes(slug)
+        && (m.selectedCourseCredits || 0) > 0;
+    }) || entitlement.membership;
+
     return {
       allowed: false,
-      reason: 'course_not_included',
-      message: `Your ${entitlement.planSlug} plan does not include this course.`,
+      reason: 'requires_selection',
+      message: 'Use your membership credits to select this course.',
       statusCode: 403,
-      upgradeRequired: true,
+      needsCourseSelection: true,
+      membershipId: candidate ? String(candidate._id) : entitlement.membershipId,
+      remainingCredits: candidate?.selectedCourseCredits || 0,
     };
   }
 
   return {
-    allowed: true,
-    reason: 'allowed',
-    entitlement,
+    allowed: false,
+    reason: 'course_not_included',
+    message: `Your ${entitlement.planSlug} plan does not include this course.`,
+    statusCode: 403,
+    upgradeRequired: true,
   };
 };
 

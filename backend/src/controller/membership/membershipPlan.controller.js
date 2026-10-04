@@ -38,7 +38,7 @@ const normalizeStringList = (values = []) => {
 };
 
 const ALLOWED_PLAN_FIELDS = [
-  'title', 'slug', 'shortDescription', 'longDescription',
+  'title', 'slug', 'description',
   'status', 'displayOrder', 'validityDays', 'isLifetime',
   'pricing', 'access', 'benefits', 'previewVideos', 'metadata'
 ];
@@ -70,12 +70,8 @@ const sanitizePlanPayload = (body = {}) => {
     payload.access.inheritedPlanIds = [...new Set(payload.access.inheritedPlanIds.filter(Boolean).map(String))];
   }
 
-  if (payload.shortDescription !== undefined) {
-    payload.shortDescription = String(payload.shortDescription || '').trim();
-  }
-
-  if (payload.longDescription !== undefined) {
-    payload.longDescription = String(payload.longDescription || '').trim();
+  if (payload.description !== undefined) {
+    payload.description = String(payload.description || '').trim();
   }
 
   if (payload.benefits && Array.isArray(payload.benefits)) {

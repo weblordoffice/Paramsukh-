@@ -348,50 +348,22 @@ export default function MembershipScreen() {
                   style={{ backgroundColor: plan.gradient[0] }}
                 >
                   <View className="flex-row justify-between items-center mb-4">
-                    <View className="flex-row items-center gap-3">
-                      <Text className="text-4xl">{plan.emoji}</Text>
-                      <View>
-                        <Text className="text-[22px] font-extrabold text-gray-900">{plan.name}</Text>
-                        <Text className="text-xs text-gray-500 mt-0.5">{plan.tagline}</Text>
-                      </View>
+                    <View className="flex-1 pr-3">
+                      <Text className="text-[22px] font-extrabold text-gray-900">{plan.name}</Text>
+                      {!!plan.tagline && (
+                        <Text className="text-sm text-gray-600 mt-1">{plan.tagline}</Text>
+                      )}
                     </View>
                     {isExpanded && (
                       <Ionicons name="chevron-up" size={22} color={colors.textSecondary} />
                     )}
                     {!isExpanded && hasCourseSelection && (
-                      <View className="flex-row items-center gap-1">
-                        <Text className="text-xs text-gray-500">Pick courses</Text>
-                        <Ionicons name="chevron-down" size={22} color={colors.textSecondary} />
-                      </View>
+                      <Ionicons name="chevron-down" size={22} color={colors.textSecondary} />
                     )}
                   </View>
 
-                  <View className="mb-3">
+                  <View className="mb-4">
                     <Text className="text-3xl font-black" style={{ color: plan.color }}>{displayPrice}</Text>
-                    {hasCourseSelection && (
-                      <Text className="text-sm text-gray-600 mt-1">
-                        Select up to {maxSelectable} course{maxSelectable > 1 ? 's' : ''}
-                      </Text>
-                    )}
-                  </View>
-
-                  <View className="gap-2.5 mb-3">
-                    {plan.features.slice(0, 4).map((feature, idx) => (
-                      <View key={idx} className="flex-row items-center gap-2.5">
-                        <View
-                          className="w-5 h-5 rounded-full items-center justify-center"
-                          style={{ backgroundColor: feature.included ? plan.color : colors.border }}
-                        >
-                          <Ionicons
-                            name={feature.included ? "checkmark" : "close"}
-                            size={12} color="#FFF"
-                          />
-                        </View>
-                        <Text className={`text-sm flex-1 ${!feature.included ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                          {feature.text}
-                        </Text>
-                      </View>
-                    ))}
                   </View>
 
                   {/* Purchase Button (outside expanded area) */}

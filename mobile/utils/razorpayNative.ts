@@ -1,4 +1,4 @@
-import { NativeModules, Platform } from 'react-native';
+import { NativeModules, Platform, TurboModuleRegistry } from 'react-native';
 
 /**
  * Shared wrapper around the `react-native-razorpay` native SDK.
@@ -31,12 +31,41 @@ try {
   RazorpayCheckout = null;
 }
 
+const hasNativeRazorpayModule = (): boolean => {
+  // Old architecture / bridged: the module is registered on NativeModules.
+  if ((NativeModules as any)?.RNRazorpayCheckout != null) return true;
+  // New architecture (TurboModules, default on Expo SDK 54 / RN 0.81): the
+  // module is NOT always exposed through NativeModules, so query the
+  // TurboModule registry directly.
+  try {
+    return (TurboModuleRegistry as any)?.get?.('RNRazorpayCheckout') != null;
+  } catch {
+    return false;
+  }
+};
+
 export const isRazorpayNativeAvailable = (): boolean => {
   if (Platform.OS === 'web') return false;
   if (RazorpayCheckout === null) return false;
   // The JS layer loads even when the native side isn't linked (e.g. Expo Go),
   // so verify the actual native module is present before offering native checkout.
-  return (NativeModules as any)?.RNRazorpayCheckout != null;
+  const available = hasNativeRazorpayModule();
+  if (__DEV__ && !available) {
+    // eslint-disable-next-line no-console
+    console.warn('[razorpayNative] native checkout unavailable', {
+      platform: Platform.OS,
+      wrapperLoaded: RazorpayCheckout !== null,
+      nativeModules: (NativeModules as any)?.RNRazorpayCheckout != null,
+      turboModule: (() => {
+        try {
+          return (TurboModuleRegistry as any)?.get?.('RNRazorpayCheckout') != null;
+        } catch {
+          return false;
+        }
+      })(),
+    });
+  }
+  return available;
 };
 
 export interface NativeCheckoutOrder {

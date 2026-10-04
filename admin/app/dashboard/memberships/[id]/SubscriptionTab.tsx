@@ -23,7 +23,7 @@ interface SubscriptionTabProps {
 interface PlanInfo {
   slug: string;
   title: string;
-  shortDescription?: string;
+  description?: string;
   validityDays?: number;
   pricing?: {
     oneTime?: {
@@ -50,7 +50,7 @@ const REFERENCE_NOW = Date.now();
 export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps) {
   const [showModal, setShowModal] = useState(false);
   const [planLookup, setPlanLookup] = useState<Record<string, PlanInfo>>({
-    free: { slug: 'free', title: 'Free', shortDescription: 'No paid courses' },
+    free: { slug: 'free', title: 'Free', description: 'No paid courses' },
   });
 
   useEffect(() => {
@@ -59,7 +59,7 @@ export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps
         const response = await apiClient.get('/api/membership-plans');
         const plans = Array.isArray(response.data?.data) ? response.data.data : [];
         const lookup: Record<string, PlanInfo> = {
-          free: { slug: 'free', title: 'Free', shortDescription: 'No paid courses' },
+          free: { slug: 'free', title: 'Free', description: 'No paid courses' },
         };
 
         plans
@@ -70,7 +70,7 @@ export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps
             lookup[slug] = {
               slug,
               title: String(plan.title || plan.slug || '').trim(),
-              shortDescription: plan.shortDescription,
+              description: plan.description,
               validityDays: Number(plan.validityDays || 365),
               pricing: plan.pricing,
               access: plan.access,
@@ -80,7 +80,7 @@ export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps
         setPlanLookup(lookup);
       } catch {
         setPlanLookup({
-          free: { slug: 'free', title: 'Free', shortDescription: 'No paid courses' },
+          free: { slug: 'free', title: 'Free', description: 'No paid courses' },
         });
       }
     };
@@ -114,8 +114,8 @@ export default function SubscriptionTab({ user, onUpdate }: SubscriptionTabProps
 
     const features: string[] = [];
 
-    if (selectedPlan.shortDescription) {
-      features.push(selectedPlan.shortDescription);
+    if (selectedPlan.description) {
+      features.push(selectedPlan.description);
     }
     if (selectedPlan.access?.communityAccess) {
       features.push('Community access enabled');

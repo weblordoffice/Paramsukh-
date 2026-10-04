@@ -9,6 +9,7 @@ import { getPendingPaymentLinks, isPendingPaymentExpired, clearPendingPaymentLin
 import AIAssistantWidget from '../components/AIAssistantWidget';
 import { ClerkProvider, useUser, useAuth } from '@clerk/clerk-expo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -277,18 +278,20 @@ export default function RootLayout() {
     '';
 
   return (
-    <SafeAreaProvider>
-      <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
-        <AuthGuard>
-          <View style={{ flex: 1, backgroundColor: colors.background }}>
-            <StatusBar style={colors.statusBarStyle} />
-            <ErrorBoundary>
-              <RootNavigator />
-            </ErrorBoundary>
-            <AIAssistantWidget />
-          </View>
-        </AuthGuard>
-      </ClerkProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+          <AuthGuard>
+            <View style={{ flex: 1, backgroundColor: colors.background }}>
+              <StatusBar style={colors.statusBarStyle} />
+              <ErrorBoundary>
+                <RootNavigator />
+              </ErrorBoundary>
+              <AIAssistantWidget />
+            </View>
+          </AuthGuard>
+        </ClerkProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

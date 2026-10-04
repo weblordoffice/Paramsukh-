@@ -1,41 +1,103 @@
 import { getEligibleCourses, getSelectionStatus, selectCourse, undoCourseSelection } from '../../services/courseSelection.service.js';
 import { UserMembership } from '../../models/userMembership.models.js';
 
+const normalize = (value) => String(value || '').trim().toLowerCase();
+
 export const fetchActiveMembership = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    const membership = await UserMembership.findOne({
+    // A user may hold several active memberships at once (e.g. gold + silver + test-1).
+    // Course access must consider ALL of them — never just the newest — otherwise buying
+    // a new plan locks courses from the plans the user already owns.
+    const memberships = await UserMembership.find({
       userId,
       status: 'active',
-      endDate: { $gte: new Date() },
+      $or: [
+        { endDate: { $gte: new Date() } },
+        { endDate: null },
+        { endDate: { $exists: false } },
+      ],
     })
       .populate('planId', 'title slug access.courseSelection')
       .sort({ endDate: -1 })
       .lean();
 
-    if (!membership) {
+    if (!memberships.length) {
       return res.status(200).json({
         success: true,
         hasActiveMembership: false,
       });
     }
 
-    const plan = membership.planId;
-    const cs = plan?.access?.courseSelection;
+    const selectedCourseIdSet = new Set();
+    const entitlementPlanSlugs = new Set();
+    const selectionPlanSlugs = new Set();
+    const normalizedMemberships = [];
+
+    for (const membership of memberships) {
+      const plan = membership.planId;
+      const selectionEnabled = plan?.access?.courseSelection?.enabled === true;
+      const planSlug = normalize(plan?.slug);
+
+      if (planSlug) {
+        if (selectionEnabled) selectionPlanSlugs.add(planSlug);
+        else entitlementPlanSlugs.add(planSlug);
+      }
+
+      const selectedCourseIds = (membership.selectedCourseIds || []).map(String);
+      selectedCourseIds.forEach((id) => selectedCourseIdSet.add(id));
+
+      const maxSelectable = plan?.access?.courseSelection?.maxSelectableCourses || 0;
+      const remaining = membership.selectedCourseCredits || 0;
+
+      const entry = {
+        membershipId: String(membership._id),
+        planSlug: plan?.slug || null,
+        planTitle: plan?.title || null,
+        courseSelectionEnabled: selectionEnabled,
+        maxSelectable,
+        remaining,
+        used: selectedCourseIds.length,
+        selectedCourseIds,
+        eligibleCourseIds: [],
+      };
+
+      // Only credit-selection plans expose an eligible pool to unlock from.
+      if (selectionEnabled) {
+        try {
+          const eligible = await getEligibleCourses(userId, String(membership._id));
+          const list = Array.isArray(eligible) ? eligible : (eligible?.eligible || []);
+          entry.eligibleCourseIds = list.map((c) => String(c._id));
+        } catch {
+          entry.eligibleCourseIds = [];
+        }
+      }
+
+      normalizedMemberships.push(entry);
+    }
+
+    const primary = normalizedMemberships[0];
+    const primaryPlan = memberships[0].planId;
 
     return res.status(200).json({
       success: true,
       hasActiveMembership: true,
-      membershipId: membership._id,
-      planTitle: plan?.title,
-      planSlug: plan?.slug,
+      // Backward-compatible "primary" (newest) fields
+      membershipId: primary.membershipId,
+      planTitle: primaryPlan?.title,
+      planSlug: primaryPlan?.slug,
       courseSelection: {
-        enabled: cs?.enabled || false,
-        maxSelectable: cs?.maxSelectableCourses || 0,
-        remaining: membership.selectedCourseCredits || 0,
-        used: (membership.selectedCourseIds || []).length,
+        enabled: primary.courseSelectionEnabled,
+        maxSelectable: primary.maxSelectable,
+        remaining: primary.remaining,
+        used: primary.used,
       },
+      // Cumulative view across every active membership
+      memberships: normalizedMemberships,
+      selectedCourseIds: Array.from(selectedCourseIdSet),
+      entitlementPlanSlugs: Array.from(entitlementPlanSlugs),
+      selectionPlanSlugs: Array.from(selectionPlanSlugs),
     });
   } catch (error) {
     console.error('❌ Error fetching active membership:', error);

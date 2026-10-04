@@ -93,7 +93,7 @@ const mapParentPlan = (plan: any): UIMembershipPlan => {
     price: Number(plan?.pricing?.oneTime?.amount || 0),
     color,
     gradient: defaultVisual.gradient,
-    tagline: plan?.shortDescription || (plan?.isLifetime ? 'Lifetime access' : `${Number(plan?.validityDays || 365)} days validity`),
+    tagline: plan?.description || plan?.shortDescription || (plan?.isLifetime ? 'Lifetime access' : `${Number(plan?.validityDays || 365)} days validity`),
     features: buildPlanFeatures(plan),
     courseSelection: plan?.access?.courseSelection?.enabled
       ? {

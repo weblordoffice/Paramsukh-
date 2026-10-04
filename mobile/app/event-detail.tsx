@@ -200,6 +200,16 @@ export default function EventDetailScreen() {
           phone: form.phone.trim()
         });
         const rzpOrder = orderResult.data?.razorpay;
+        if (__DEV__) {
+          // eslint-disable-next-line no-console
+          console.warn('[event-detail] event order result', {
+            success: orderResult.success,
+            message: orderResult.message,
+            hasRazorpay: !!rzpOrder,
+            orderId: rzpOrder?.orderId,
+            keyId: (rzpOrder as any)?.keyId,
+          });
+        }
         if (orderResult.success && rzpOrder?.orderId && (rzpOrder as any)?.keyId) {
           const payResult = await payWithRazorpayNative(
             {
@@ -218,6 +228,11 @@ export default function EventDetailScreen() {
               notes: { type: 'event', eventId },
             }
           );
+
+          if (__DEV__) {
+            // eslint-disable-next-line no-console
+            console.warn('[event-detail] native pay result', payResult);
+          }
 
           if (payResult.status === 'success') {
             const verify = await confirmEventPayment(eventId, {
@@ -243,6 +258,13 @@ export default function EventDetailScreen() {
           }
           // Native checkout errored — fall through to the browser-based payment-link flow below
         }
+      }
+
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.warn('[event-detail] falling back to browser payment link', {
+          nativeAvailable: isRazorpayNativeAvailable(),
+        });
       }
 
       const linkResult = await createEventPaymentLink(eventId, {

@@ -43,6 +43,18 @@ const DEFAULT_PLAN_COLOR = '#64748B';
 
 type EnrichedCourse = Course & { dynamicPlanBadges: PlanVisual[] };
 
+type MembershipAccess = {
+  membershipId: string;
+  planSlug: string | null;
+  planTitle: string | null;
+  courseSelectionEnabled: boolean;
+  maxSelectable: number;
+  remaining: number;
+  used: number;
+  selectedCourseIds: string[];
+  eligibleCourseIds: string[];
+};
+
 const normalize = (value?: string | null) => String(value || '').trim().toLowerCase();
 
 const canonicalizePlanTag = (value: string, planAliases: Record<string, string>) => {
@@ -86,30 +98,6 @@ function getCategoryConfig(category?: string) {
   if (!category) return null;
   const key = category.toLowerCase().trim();
   return CATEGORY_CONFIG[key] || { color: '#FFFFFF', bg: '#4F46E5', icon: 'layers', label: category };
-}
-
-/**
- * A course is LOCKED if:
- *  - It has at least one plan restriction (includedInPlans is not empty)
- *  - AND the user's current active plan is NOT in that list
- */
-function isCourseAccessible(
-  includedInPlans: string[] | undefined,
-  userPlans: string[] | undefined,
-  isActive: boolean,
-  planAliases: Record<string, string>,
-): boolean {
-  // No plan restriction → free/open to all
-  if (!includedInPlans || includedInPlans.length === 0) return true;
-  // User has no active plan → locked
-  if (!userPlans || userPlans.length === 0 || !isActive) return false;
-  // Check if user's plan is in the required list
-  const normalizedUserPlans = userPlans.map((plan) => canonicalizePlanTag(plan, planAliases));
-  const normalizedCoursePlans = includedInPlans.map((plan) => canonicalizePlanTag(plan, planAliases));
-
-  const accessible = normalizedCoursePlans.some((plan) => normalizedUserPlans.includes(plan));
-
-  return accessible;
 }
 
 /* ─── Screen ─────────────────────────────────────────────────────────── */
@@ -367,7 +355,7 @@ export default function CoursesScreen() {
 });
   const router = useRouter();
   const { courses, fetchCourses, isLoading } = useCourseStore();
-  const { currentSubscription, fetchCurrentSubscription } = useMembershipStore();
+  const { fetchCurrentSubscription } = useMembershipStore();
   const [planLookup, setPlanLookup] = useState<Record<string, PlanVisual>>({});
   const [planAliases, setPlanAliases] = useState<Record<string, string>>({});
   const [refreshing, setRefreshing] = useState(false);
@@ -380,41 +368,46 @@ export default function CoursesScreen() {
     maxSelectable: number;
     enabled: boolean;
   } | null>(null);
-  const [eligibleCourseIds, setEligibleCourseIds] = useState<Set<string>>(new Set());
+  const [memberships, setMemberships] = useState<MembershipAccess[]>([]);
+  const [entitlementPlanSlugs, setEntitlementPlanSlugs] = useState<Set<string>>(new Set());
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
 
   const fetchMembershipCredits = useCallback(async () => {
     setCreditsLoading(true);
     try {
       const { data } = await apiClient.get('/membership/active');
-      if (data?.success && data?.hasActiveMembership && data?.courseSelection?.enabled) {
-        setMembershipCredits({
-          membershipId: data.membershipId,
-          remaining: data.courseSelection.remaining || 0,
-          maxSelectable: data.courseSelection.maxSelectable || 0,
+      if (data?.success && data?.hasActiveMembership) {
+        const list: MembershipAccess[] = Array.isArray(data.memberships) ? data.memberships : [];
+        setMemberships(list);
+
+        setSelectedCourseIds(
+          new Set((data.selectedCourseIds || []).map((id: any) => String(id))),
+        );
+        setEntitlementPlanSlugs(
+          new Set((data.entitlementPlanSlugs || []).map((slug: string) => normalize(slug))),
+        );
+
+        // Banner reflects the first credit-selection membership, preferring one with credits left.
+        const primary = list.find((m) => m.courseSelectionEnabled && (m.remaining || 0) > 0)
+          || list.find((m) => m.courseSelectionEnabled)
+          || null;
+        setMembershipCredits(primary ? {
+          membershipId: primary.membershipId,
+          remaining: primary.remaining || 0,
+          maxSelectable: primary.maxSelectable || 0,
           enabled: true,
-        });
-        const eligibleRes = await apiClient.get(`/membership/${data.membershipId}/eligible-courses`);
-        if (eligibleRes.data?.success && eligibleRes.data?.courses) {
-          setEligibleCourseIds(new Set(
-            eligibleRes.data.courses.map((c: any) => String(c._id))
-          ));
-        }
-        const selRes = await apiClient.get(`/membership/${data.membershipId}/selection-status`);
-        if (selRes.data?.success && selRes.data?.selectedCourseIds) {
-          setSelectedCourseIds(new Set(
-            selRes.data.selectedCourseIds.map((id: any) => String(id))
-          ));
-        }
+        } : null);
       } else {
+        setMemberships([]);
         setMembershipCredits(null);
-        setEligibleCourseIds(new Set());
         setSelectedCourseIds(new Set());
+        setEntitlementPlanSlugs(new Set());
       }
     } catch {
+      setMemberships([]);
       setMembershipCredits(null);
-      setEligibleCourseIds(new Set());
       setSelectedCourseIds(new Set());
+      setEntitlementPlanSlugs(new Set());
     } finally {
       setCreditsLoading(false);
     }
@@ -486,26 +479,24 @@ export default function CoursesScreen() {
     }, [fetchCurrentSubscription, fetchMembershipCredits])
   );
 
-  const userPlan = currentSubscription?.plan;
-  const isActive = currentSubscription?.status === 'active';
-  const effectivePlans = useMemo(() => {
-    const plans = [
-      ...(currentSubscription?.effectivePlans || []),
-      ...(userPlan ? [userPlan] : []),
-    ]
-      .map((plan) => normalize(plan))
-      .filter(Boolean);
-
-    return Array.from(new Set(plans));
-  }, [currentSubscription?.effectivePlans, userPlan]);
+  // Find any active credit-selection membership that can unlock this course.
+  const findUnlockMembershipForCourse = useCallback(
+    (courseId: string) => memberships.find((m) =>
+      m.courseSelectionEnabled
+      && (m.remaining || 0) > 0
+      && (m.eligibleCourseIds || []).some((id) => String(id) === courseId),
+    ) || null,
+    [memberships],
+  );
 
   const handleCardPress = (module: Course, locked: boolean) => {
     if (locked) {
       const courseIdStr = String(module._id);
-      const isEligible = membershipCredits?.enabled && eligibleCourseIds.has(courseIdStr);
-      const hasCredits = membershipCredits?.enabled && (membershipCredits?.remaining || 0) > 0;
+      // Any active credit-selection membership that still has credits and includes
+      // this course can unlock it — not just the newest membership.
+      const unlockMembership = findUnlockMembershipForCourse(courseIdStr);
 
-      if (isEligible && hasCredits) {
+      if (unlockMembership) {
         Alert.alert(
           'Unlock Course',
           `Would you like to use 1 credit to unlock "${module.title}"?`,
@@ -515,14 +506,21 @@ export default function CoursesScreen() {
               text: 'Unlock',
               onPress: async () => {
                 try {
-                  const res = await apiClient.post(`/membership/${membershipCredits!.membershipId}/select-course`, {
+                  const res = await apiClient.post(`/membership/${unlockMembership.membershipId}/select-course`, {
                     courseId: courseIdStr,
                   });
                   if (res.data?.success) {
                     setSelectedCourseIds((prev) => new Set(prev).add(courseIdStr));
+                    setMemberships((prev) => prev.map((m) => m.membershipId === unlockMembership.membershipId
+                      ? {
+                        ...m,
+                        remaining: Math.max(0, (m.remaining || 0) - 1),
+                        selectedCourseIds: [...(m.selectedCourseIds || []), courseIdStr],
+                      }
+                      : m));
                     setMembershipCredits((prev) => prev ? {
                       ...prev,
-                      remaining: prev.remaining - 1,
+                      remaining: Math.max(0, prev.remaining - 1),
                     } : null);
                     Alert.alert('Success', `"${module.title}" is now unlocked!`);
                   } else if (res.data?.reason === 'already_enrolled') {
@@ -566,6 +564,20 @@ export default function CoursesScreen() {
     [courses, planLookup, planAliases]
   );
 
+  // Whether a course is already accessible (free, entitlement-covered, or unlocked
+  // with credits). Used to float purchased/unlocked courses to the top of each section.
+  const isCourseAccessible = useCallback(
+    (course: EnrichedCourse) => {
+      const includedPlans = course.includedInPlans || [];
+      if (includedPlans.length === 0) return true;
+      const isEntitlementCovered = includedPlans.some((tag) =>
+        entitlementPlanSlugs.has(canonicalizePlanTag(tag, planAliases)),
+      );
+      return isEntitlementCovered || selectedCourseIds.has(String(course._id));
+    },
+    [entitlementPlanSlugs, selectedCourseIds, planAliases],
+  );
+
   const { freeCourses, paidCourses } = useMemo(() => {
     const free: typeof enrichedCourses = [];
     const paid: typeof enrichedCourses = [];
@@ -576,8 +588,13 @@ export default function CoursesScreen() {
         paid.push(course);
       }
     });
-    return { freeCourses: free, paidCourses: paid };
-  }, [enrichedCourses]);
+    // Purchased/unlocked courses first, locked courses last (stable order otherwise).
+    const accessibleFirst = (list: typeof enrichedCourses) =>
+      [...list].sort(
+        (a, b) => Number(isCourseAccessible(b)) - Number(isCourseAccessible(a)),
+      );
+    return { freeCourses: accessibleFirst(free), paidCourses: accessibleFirst(paid) };
+  }, [enrichedCourses, isCourseAccessible]);
 
   // Group paid courses into sections — one per membership plan, plus an "Other" catch-all.
   const paidSections = useMemo(() => {
@@ -639,18 +656,18 @@ export default function CoursesScreen() {
       );
     }
 
-    const accessible = isCourseAccessible(
-      course.includedInPlans,
-      effectivePlans,
-      isActive,
-      planAliases
+    const includedPlans = course.includedInPlans || [];
+    const isPaidCourse = includedPlans.length > 0;
+    // A course is unlocked when it is free, directly granted by an entitlement
+    // (non-selection) plan the user holds, or unlocked with credits in ANY of the
+    // user's active memberships. Previously this used only the newest membership,
+    // which locked courses from earlier plans.
+    const isEntitlementCovered = includedPlans.some((tag) =>
+      entitlementPlanSlugs.has(canonicalizePlanTag(tag, planAliases)),
     );
-    const isPaidCourse = !!(course.includedInPlans && course.includedInPlans.length > 0);
-    const needsCreditSelection = !!(membershipCredits?.enabled && isPaidCourse);
-    const isCreditUnlocked = needsCreditSelection
-      ? selectedCourseIds.has(String(course._id))
-      : true;
-    const locked = !accessible || (needsCreditSelection && !isCreditUnlocked);
+    const isCreditUnlocked = selectedCourseIds.has(String(course._id));
+    const accessible = !isPaidCourse || isEntitlementCovered || isCreditUnlocked;
+    const locked = !accessible;
     const categoryConfig = getCategoryConfig(course.category);
 
     return (
@@ -687,11 +704,10 @@ export default function CoursesScreen() {
           {/* Lock / Unlock Overlay */}
           {(() => {
             const courseIdStr = String(course._id);
-            const isAlreadyUnlocked = membershipCredits?.enabled && selectedCourseIds.has(courseIdStr);
-            const isEligible = membershipCredits?.enabled && eligibleCourseIds.has(courseIdStr);
-            const hasCredits = membershipCredits?.enabled && (membershipCredits?.remaining || 0) > 0;
+            const isAlreadyUnlocked = selectedCourseIds.has(courseIdStr);
+            const canUnlock = !!findUnlockMembershipForCourse(courseIdStr);
 
-            if (locked && isEligible && hasCredits) {
+            if (locked && canUnlock) {
               return (
                 <View style={styles.unlockOverlay}>
                   <Ionicons name="lock-open-outline" size={20} color={colors.surface} />

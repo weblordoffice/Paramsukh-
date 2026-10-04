@@ -163,12 +163,7 @@ const membershipPlanSchema = new mongoose.Schema({
     trim: true,
     index: true,
   },
-  shortDescription: {
-    type: String,
-    default: '',
-    trim: true,
-  },
-  longDescription: {
+  description: {
     type: String,
     default: '',
     trim: true,

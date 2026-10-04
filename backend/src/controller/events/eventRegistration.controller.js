@@ -610,7 +610,7 @@ export const createEventRegistrationOrder = async (req, res) => {
     const order = await createRazorpayOrder({
       amount: currentPrice,
       currency: (event.currency || 'INR').toUpperCase(),
-      receipt: `event_${eventId}_${registration._id}_${Date.now()}`,
+      receipt: `event_${String(registration._id).slice(-6)}_${Date.now().toString(36)}`,
       notes: {
         type: 'event',
         eventId: eventId.toString(),

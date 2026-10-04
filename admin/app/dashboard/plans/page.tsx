@@ -35,8 +35,7 @@ interface MembershipPlan {
   _id: string;
   title: string;
   slug: string;
-  shortDescription?: string;
-  longDescription?: string;
+  description?: string;
   status: PlanStatus;
   displayOrder: number;
   validityDays: number;
@@ -57,8 +56,7 @@ interface MembershipPlan {
 interface PlanFormState {
   title: string;
   slug: string;
-  shortDescription: string;
-  longDescription: string;
+  description: string;
   status: PlanStatus;
   displayOrder: number;
   validityDays: number;
@@ -85,8 +83,7 @@ type FormErrors = Partial<Record<
 const DEFAULT_FORM: PlanFormState = {
   title: "",
   slug: "",
-  shortDescription: "",
-  longDescription: "",
+  description: "",
   status: "draft",
   displayOrder: 0,
   validityDays: 365,
@@ -152,7 +149,7 @@ export default function MembershipPlansPage() {
       (plan) =>
         plan.title.toLowerCase().includes(query) ||
         plan.slug.toLowerCase().includes(query) ||
-        (plan.shortDescription || "").toLowerCase().includes(query)
+        (plan.description || "").toLowerCase().includes(query)
     );
   }, [plans, searchTerm]);
 
@@ -214,8 +211,7 @@ export default function MembershipPlansPage() {
     setForm({
       title: selectedPlan.title || "",
       slug: selectedPlan.slug || "",
-      shortDescription: selectedPlan.shortDescription || "",
-      longDescription: selectedPlan.longDescription || "",
+      description: selectedPlan.description || "",
       status: selectedPlan.status || "draft",
       displayOrder: selectedPlan.displayOrder ?? 0,
       validityDays: selectedPlan.validityDays ?? 365,
@@ -335,8 +331,7 @@ export default function MembershipPlansPage() {
     return {
       title: form.title.trim(),
       slug,
-      shortDescription: form.shortDescription.trim(),
-      longDescription: form.longDescription.trim(),
+      description: form.description.trim(),
       status: form.status,
       displayOrder: Number(form.displayOrder || 0),
       validityDays: Number(form.validityDays || 365),
@@ -704,20 +699,12 @@ export default function MembershipPlansPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Short Description</label>
-            <input
-              value={form.shortDescription}
-              onChange={(event) => setForm((prev) => ({ ...prev, shortDescription: event.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Long Description</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
             <textarea
-              value={form.longDescription}
-              onChange={(event) => setForm((prev) => ({ ...prev, longDescription: event.target.value }))}
+              value={form.description}
+              onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
               rows={3}
+              placeholder="Shown on the plan card in the app"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg"
             />
           </div>
@@ -985,7 +972,7 @@ export default function MembershipPlansPage() {
                   {form.status}
                 </span>
               </div>
-              <p className="text-sm text-gray-600 mt-2">{form.shortDescription || "No short description yet."}</p>
+              <p className="text-sm text-gray-600 mt-2">{form.description || "No description yet."}</p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 <span className="px-2 py-1 rounded bg-blue-50 text-blue-700">INR {Number(form.amount || 0).toLocaleString("en-IN")}</span>
                 <span className="px-2 py-1 rounded bg-indigo-50 text-indigo-700">

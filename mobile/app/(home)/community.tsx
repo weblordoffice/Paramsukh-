@@ -25,6 +25,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import AssessmentModal from '@/components/AssessmentModal';
 import CommentsModal from '@/components/CommentsModal';
+import ImageViewerModal from '@/components/ImageViewerModal';
 import * as ImagePicker from 'expo-image-picker';
 import { useCommunityStore, Group, PlanGroup, Post } from '@/store/communityStore';
 import { useBottomTabBarHeight } from '@/hooks/useBottomTabBarHeight';
@@ -107,7 +108,9 @@ export default function CommunityScreen() {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255, 254, 249, 0.8)',
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -371,7 +374,7 @@ export default function CommunityScreen() {
     alignItems: 'center',
     padding: 18,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 254, 249, 0.8)',
+    backgroundColor: colors.surfaceSecondary,
     marginBottom: 12,
     borderWidth: 1,
     borderColor: 'rgba(92, 74, 66, 0.08)',
@@ -550,7 +553,7 @@ export default function CommunityScreen() {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 254, 249, 0.8)',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -577,7 +580,7 @@ export default function CommunityScreen() {
     fontWeight: '500',
   },
   postMedia: {
-    backgroundColor: 'rgba(255, 254, 249, 0.8)',
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 16,
     height: 200,
     alignItems: 'center',
@@ -585,6 +588,24 @@ export default function CommunityScreen() {
     marginBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(92, 74, 66, 0.08)',
+    position: 'relative',
+  },
+  mediaCountBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  mediaCountText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   groupCard: {
     backgroundColor: colors.surface,
@@ -673,14 +694,14 @@ export default function CommunityScreen() {
   },
   postInput: {
     borderWidth: 1,
-    borderColor: 'rgba(92, 74, 66, 0.12)',
+    borderColor: colors.border,
     borderRadius: 16,
     padding: 16,
     fontSize: 15,
     color: colors.text,
     minHeight: 110,
     textAlignVertical: 'top',
-    backgroundColor: 'rgba(255, 254, 249, 0.5)',
+    backgroundColor: colors.surfaceSecondary,
   },
   selectedMediaContainer: {
     position: 'relative',
@@ -698,7 +719,9 @@ export default function CommunityScreen() {
     position: 'absolute',
     top: 10,
     right: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: 15,
   },
   selectedMediaPreview: {
@@ -825,7 +848,7 @@ export default function CommunityScreen() {
     alignItems: 'center',
     padding: 18,
     borderRadius: 16,
-    backgroundColor: 'rgba(255, 254, 249, 0.8)',
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
     borderColor: 'rgba(92, 74, 66, 0.08)',
     gap: 12,
@@ -879,6 +902,11 @@ export default function CommunityScreen() {
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<{ visible: boolean; images: string[]; index: number }>({
+    visible: false,
+    images: [],
+    index: 0,
+  });
   const [createPostTags, setCreatePostTags] = useState<string[]>([]);
   const [expandedPlanGroups, setExpandedPlanGroups] = useState<Set<string>>(new Set());
   const sidebarAnimation = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
@@ -1621,9 +1649,20 @@ export default function CommunityScreen() {
 
                 {/* Post Image/Video */}
                 {post.images && post.images.length > 0 && (
-                  <View style={styles.postMedia}>
-                    <Image source={{ uri: post.images[0] }} style={{ width: '100%', height: 200, borderRadius: 8 }} resizeMode="cover" />
-                  </View>
+                  <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => setViewer({ visible: true, images: post.images || [], index: 0 })}
+                  >
+                    <View style={styles.postMedia}>
+                      <Image source={{ uri: post.images[0] }} style={{ width: '100%', height: 200, borderRadius: 8 }} resizeMode="cover" />
+                      {post.images.length > 1 && (
+                        <View style={styles.mediaCountBadge}>
+                          <Ionicons name="images-outline" size={12} color="#FFFFFF" />
+                          <Text style={styles.mediaCountText}>{post.images.length}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
                 )}
 
                 {/* Post Actions */}
@@ -2228,6 +2267,13 @@ export default function CommunityScreen() {
         visible={showCommentsModal}
         postId={activePostId}
         onClose={() => setShowCommentsModal(false)}
+      />
+
+      <ImageViewerModal
+        visible={viewer.visible}
+        images={viewer.images}
+        initialIndex={viewer.index}
+        onClose={() => setViewer((v) => ({ ...v, visible: false }))}
       />
     </View>
   );

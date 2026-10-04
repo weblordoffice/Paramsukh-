@@ -15,8 +15,6 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { LinearGradient } from 'expo-linear-gradient';
-import AmbientGlow from '../components/AmbientGlow';
 import { useCourseStore, Video, Assignment, Pdf } from '../store/courseStore';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../hooks/useTheme';
@@ -62,7 +60,7 @@ export default function CourseDetailScreen() {
   const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: colors.background,
   },
 
   /* ── Back btn ── */
@@ -74,15 +72,16 @@ export default function CourseDetailScreen() {
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 2,
   },
 
   /* ── Loading ── */
@@ -110,13 +109,14 @@ export default function CourseDetailScreen() {
     width: 140,
     height: 140,
     borderRadius: 24,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 1,
+    borderColor: colors.border,
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.12,
     shadowRadius: 12,
+    elevation: 4,
   },
   categoryBadge: {
     flexDirection: 'row',
@@ -137,7 +137,7 @@ export default function CourseDetailScreen() {
   courseTitleHeader: {
     fontSize: 26,
     fontWeight: '800',
-    color: '#F8FAFC',
+    color: colors.text,
     textAlign: 'center',
     lineHeight: 32,
     marginBottom: 12,
@@ -162,18 +162,18 @@ export default function CourseDetailScreen() {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: colors.border,
   },
 
   /* ── Progress card ── */
   progressCard: {
     marginHorizontal: 16,
     marginTop: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: colors.surface,
     borderRadius: 20,
     padding: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: colors.border,
   },
   progressHeader: {
     flexDirection: 'row',
@@ -183,7 +183,7 @@ export default function CourseDetailScreen() {
   progressLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: colors.border,
+    color: colors.textSecondary,
     letterSpacing: 0.2,
   },
   progressPct: {
@@ -192,7 +192,7 @@ export default function CourseDetailScreen() {
   },
   progressTrack: {
     height: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 4,
     overflow: 'hidden',
     marginBottom: 10,
@@ -215,18 +215,18 @@ export default function CourseDetailScreen() {
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#F8FAFC',
+    color: colors.text,
     marginBottom: 16,
     letterSpacing: 0.2,
   },
   sectionCount: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#64748B',
+    color: colors.textSecondary,
   },
   previewNote: {
     fontSize: 12.5,
-    color: '#94A3B8',
+    color: colors.textSecondary,
     marginTop: -8,
     marginBottom: 16,
   },
@@ -238,7 +238,7 @@ export default function CourseDetailScreen() {
     borderRadius: 6,
     backgroundColor: 'rgba(16,185,129,0.15)',
   },
-  freeTagText: { fontSize: 10, fontWeight: '800', color: '#10B981', letterSpacing: 0.5 },
+  freeTagText: { fontSize: 10, fontWeight: '800', color: colors.success, letterSpacing: 0.5 },
   descText: {
     fontSize: 14,
     color: colors.textSecondary,
@@ -252,7 +252,7 @@ export default function CourseDetailScreen() {
     gap: 12,
   },
   emptyText: {
-    color: '#64748B',
+    color: colors.textSecondary,
     fontSize: 14,
   },
 
@@ -260,12 +260,12 @@ export default function CourseDetailScreen() {
   videoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    backgroundColor: colors.surface,
     borderRadius: 16,
     marginBottom: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+    borderColor: colors.border,
     padding: 12,
     gap: 14,
   },
@@ -283,24 +283,26 @@ export default function CourseDetailScreen() {
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
+    backgroundColor: colors.surfaceSecondary,
   },
   videoThumbNum: {
     fontSize: 15,
     fontWeight: '800',
     letterSpacing: 0.5,
+    color: colors.textSecondary,
   },
   durationPill: {
     position: 'absolute',
     bottom: 4,
     right: 4,
-    backgroundColor: 'rgba(8, 12, 22, 0.8)',
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   durationText: {
     fontSize: 10,
-    color: '#F8FAFC',
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   videoInfo: {
@@ -309,7 +311,7 @@ export default function CourseDetailScreen() {
   videoIndex: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#64748B',
+    color: colors.textSecondary,
     marginBottom: 4,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -317,12 +319,12 @@ export default function CourseDetailScreen() {
   videoTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#E2E8F0',
+    color: colors.text,
     lineHeight: 19,
   },
   videoDesc: {
     fontSize: 12,
-    color: '#64748B',
+    color: colors.textSecondary,
     marginTop: 4,
   },
   completedBadge: {
@@ -424,12 +426,12 @@ export default function CourseDetailScreen() {
   };
 
   return (
-    <AmbientGlow style={styles.root}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+    <View style={styles.root}>
+      <StatusBar barStyle={colors.statusBarStyle === 'dark' ? 'dark-content' : 'light-content'} backgroundColor="transparent" translucent />
 
       {/* ── Back button ── */}
       <TouchableOpacity style={styles.backBtn} onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(home)/courses'); }}>
-        <Ionicons name="chevron-back" size={22} color="#F8FAFC" />
+        <Ionicons name="chevron-back" size={22} color={colors.text} />
       </TouchableOpacity>
 
       {isLoading ? (
@@ -439,7 +441,7 @@ export default function CourseDetailScreen() {
         </View>
       ) : error || !currentCourse ? (
         <View style={styles.loadingBox}>
-          <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+          <Ionicons name="alert-circle-outline" size={48} color={colors.danger} />
           <Text style={styles.loadingText}>{error || 'Failed to load course'}</Text>
           <TouchableOpacity onPress={() => courseId && fetchCourseById(courseId)} style={{ marginTop: 12, padding: 10 }}>
             <Text style={{ color: courseColor, fontWeight: '600' }}>Tap to Retry</Text>
@@ -527,7 +529,7 @@ export default function CourseDetailScreen() {
 
             {videos.length === 0 ? (
               <View style={styles.emptyBox}>
-                <Ionicons name="videocam-off-outline" size={40} color="#475569" />
+                <Ionicons name="videocam-off-outline" size={40} color={colors.textSecondary} />
                 <Text style={styles.emptyText}>No videos yet</Text>
               </View>
             ) : (
@@ -556,15 +558,15 @@ export default function CourseDetailScreen() {
                   >
                     {/* Thumb placeholder — numbered play icon or lock */}
                     <View style={styles.videoThumbWrap}>
-                      <View style={[styles.videoThumbPlaceholder, { backgroundColor: isLocked ? 'rgba(51, 65, 85, 0.3)' : courseColor + '22' }]}>
+                      <View style={styles.videoThumbPlaceholder}>
                         {isLocked ? (
-                          <Ionicons name="lock-closed" size={20} color="#64748B" />
+                          <Ionicons name="lock-closed" size={20} color={colors.textSecondary} />
                         ) : (
                           <>
-                            <Text style={[styles.videoThumbNum, { color: courseColor }]}>
+                            <Text style={styles.videoThumbNum}>
                               {String(idx + 1).padStart(2, '0')}
                             </Text>
-                            <Ionicons name="play-circle" size={20} color={courseColor} style={{ marginTop: 2 }} />
+                            <Ionicons name="play-circle" size={20} color={colors.textSecondary} style={{ marginTop: 2 }} />
                           </>
                         )}
                       </View>
@@ -596,13 +598,13 @@ export default function CourseDetailScreen() {
 
                     {/* Completed checkmark or lock */}
                     {isCompleted ? (
-                      <View style={[styles.completedBadge, { backgroundColor: '#10B981' }]}>
+                      <View style={[styles.completedBadge, { backgroundColor: colors.success }]}>
                         <Ionicons name="checkmark" size={14} color="#FFF" />
                       </View>
                     ) : isLocked ? (
-                      <Ionicons name="lock-closed-outline" size={18} color="#475569" />
+                      <Ionicons name="lock-closed-outline" size={18} color={colors.textSecondary} />
                     ) : (
-                      <Ionicons name="chevron-forward" size={18} color="#475569" />
+                      <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
                     )}
                   </LessonCard>
                 );
@@ -625,8 +627,8 @@ export default function CourseDetailScreen() {
                   onPress={() => handleAssignmentPress(assignment)}
                 >
                   <View style={styles.videoThumbWrap}>
-                    <View style={[styles.videoThumbPlaceholder, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>
-                      <Ionicons name="help-circle-outline" size={24} color="#8B5CF6" />
+                    <View style={styles.videoThumbPlaceholder}>
+                      <Ionicons name="help-circle-outline" size={24} color={colors.textSecondary} />
                     </View>
                   </View>
 
@@ -640,7 +642,7 @@ export default function CourseDetailScreen() {
                     </Text>
                   </View>
 
-                  <Ionicons name="chevron-forward" size={18} color="#475569" />
+                  <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
                 </LessonCard>
               ))}
             </View>
@@ -666,14 +668,14 @@ export default function CourseDetailScreen() {
                       {pdf.thumbnailUrl ? (
                         <Image source={{ uri: pdf.thumbnailUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
                       ) : (
-                        <View style={[styles.videoThumbPlaceholder, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                          <Ionicons name="document-text-outline" size={24} color="#10B981" />
+                        <View style={styles.videoThumbPlaceholder}>
+                          <Ionicons name="document-text-outline" size={24} color={colors.textSecondary} />
                         </View>
                       )}
                     </View>
 
                     <View style={styles.videoInfo}>
-                      <Text style={[styles.videoIndex, { color: '#10B981' }]}>Document {idx + 1}</Text>
+                      <Text style={styles.videoIndex}>Document {idx + 1}</Text>
                       <Text style={styles.videoTitle} numberOfLines={2}>
                         {pdf.title}
                       </Text>
@@ -683,11 +685,11 @@ export default function CourseDetailScreen() {
                     </View>
 
                     {isCompleted ? (
-                      <View style={[styles.completedBadge, { backgroundColor: '#10B981' }]}>
+                      <View style={[styles.completedBadge, { backgroundColor: colors.success }]}>
                         <Ionicons name="checkmark" size={14} color="#FFF" />
                       </View>
                     ) : (
-                      <Ionicons name="chevron-forward" size={18} color="#475569" />
+                      <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
                     )}
                   </LessonCard>
                 );
@@ -698,7 +700,7 @@ export default function CourseDetailScreen() {
           <View style={{ height: 60 }} />
         </ScrollView>
       )}
-    </AmbientGlow>
+    </View>
   );
 }
 

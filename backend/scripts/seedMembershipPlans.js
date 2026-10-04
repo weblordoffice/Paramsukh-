@@ -11,8 +11,7 @@ const DEFAULT_PLANS = [
   {
     title: 'Bronze',
     slug: 'bronze',
-    shortDescription: 'Begin your journey with foundational wellness content.',
-    longDescription: 'Bronze gives starter access with focused category coverage and guided support.',
+    description: 'Begin your journey with foundational wellness content — starter access with focused category coverage and guided support.',
     status: 'published',
     displayOrder: 1,
     pricing: {
@@ -43,8 +42,7 @@ const DEFAULT_PLANS = [
   {
     title: 'Copper',
     slug: 'copper',
-    shortDescription: 'Expand your access across multiple categories.',
-    longDescription: 'Copper unlocks broader foundational coverage across key categories.',
+    description: 'Expand your access across multiple categories — broader foundational coverage across key wellness areas.',
     status: 'published',
     displayOrder: 2,
     pricing: {
@@ -75,8 +73,7 @@ const DEFAULT_PLANS = [
   {
     title: 'Silver',
     slug: 'silver',
-    shortDescription: 'Most popular plan with broad foundational access.',
-    longDescription: 'Silver includes all core categories and premium support features.',
+    description: 'Most popular plan with broad foundational access — all core categories plus premium support features.',
     status: 'published',
     displayOrder: 3,
     pricing: {

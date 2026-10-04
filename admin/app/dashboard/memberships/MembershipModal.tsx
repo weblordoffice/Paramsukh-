@@ -71,7 +71,7 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
           .map((plan: any) => ({
             value: String(plan.slug || '').toLowerCase(),
             label: String(plan.title || plan.slug || '').trim(),
-            description: plan.shortDescription || `${plan.validityDays || 365} days validity`,
+            description: plan.description || `${plan.validityDays || 365} days validity`,
             validityDays: Number(plan.validityDays || 365),
             amount: Number(plan?.pricing?.oneTime?.amount || 0),
             status: String(plan?.status || 'draft'),

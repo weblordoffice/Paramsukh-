@@ -25,6 +25,8 @@ if (!TEST_MODE) {
  */
 export const createRazorpayOrder = async ({ amount, currency = 'INR', receipt, notes = {} }) => {
   try {
+    // Razorpay rejects receipts longer than 56 characters.
+    const safeReceipt = receipt ? String(receipt).slice(0, 56) : receipt;
     // Test mode - return mock order
     if (TEST_MODE) {
       console.log('🧪 TEST MODE: Creating mock Razorpay order');
@@ -35,7 +37,7 @@ export const createRazorpayOrder = async ({ amount, currency = 'INR', receipt, n
         amount_paid: 0,
         amount_due: amount * 100,
         currency,
-        receipt,
+        receipt: safeReceipt,
         status: 'created',
         attempts: 0,
         notes,
@@ -48,7 +50,7 @@ export const createRazorpayOrder = async ({ amount, currency = 'INR', receipt, n
     const options = {
       amount: amount * 100, // Convert to paise (1 INR = 100 paise)
       currency,
-      receipt,
+      receipt: safeReceipt,
       notes
     };
 
