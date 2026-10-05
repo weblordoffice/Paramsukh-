@@ -70,6 +70,21 @@ interface AnalyticsData {
 
 type CardType = 'users' | 'courses' | 'revenue' | 'events';
 
+interface DetailStat {
+  label: string;
+  value: string;
+  icon: typeof Users;
+  color: string;
+  sublabel?: string;
+}
+
+interface DetailStatGroup {
+  title: string;
+  icon: typeof Users;
+  color: string;
+  stats: DetailStat[];
+}
+
 interface DetailModalProps {
   card: CardType | null;
   data: AnalyticsData;
@@ -79,7 +94,7 @@ interface DetailModalProps {
 function DetailModal({ card, data, onClose }: DetailModalProps) {
   if (!card) return null;
 
-  const content = {
+  const content: Record<CardType, DetailStatGroup> = {
     users: {
       title: 'User Health Details',
       icon: Users,

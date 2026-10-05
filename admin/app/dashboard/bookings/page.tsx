@@ -324,7 +324,7 @@ export default function BookingsPage() {
                                         <div>
                                             <p className="text-gray-500">Requested New</p>
                                             <p className="font-medium text-primary">
-                                                {new Date(selectedBooking.rescheduleRequest.requestedNewDate).toLocaleDateString()} at {selectedBooking.rescheduleRequest.requestedNewTime}
+                                                {selectedBooking.rescheduleRequest.requestedNewDate ? new Date(selectedBooking.rescheduleRequest.requestedNewDate).toLocaleDateString() : '—'} at {selectedBooking.rescheduleRequest.requestedNewTime || '—'}
                                             </p>
                                         </div>
                                     </div>
