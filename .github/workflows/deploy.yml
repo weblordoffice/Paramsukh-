@@ -191,11 +191,18 @@ jobs:
             # Apply host nginx configs (upload body size limits, proxy timeouts) and
             # reload nginx. Best-effort: if passwordless sudo is unavailable we skip
             # with a warning instead of failing the whole deployment.
+            NGINX_BIN=""
             if command -v nginx >/dev/null 2>&1; then
+              NGINX_BIN="$(command -v nginx)"
+            elif [ -x /usr/sbin/nginx ]; then
+              NGINX_BIN=/usr/sbin/nginx
+            fi
+
+            if [ -n "$NGINX_BIN" ]; then
               if sudo -n true 2>/dev/null; then
                 sudo -n cp infra/vps/nginx/api.paramsukhonlinegurukul.com.conf /etc/nginx/sites-available/api.paramsukhonlinegurukul.com
                 sudo -n cp infra/vps/nginx/admin.paramsukhonlinegurukul.com.conf /etc/nginx/sites-available/admin.paramsukhonlinegurukul.com
-                sudo -n nginx -t
+                sudo -n "$NGINX_BIN" -t
                 sudo -n systemctl reload nginx
                 echo "Applied nginx configs and reloaded nginx"
               else
