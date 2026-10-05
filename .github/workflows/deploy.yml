@@ -165,6 +165,8 @@ jobs:
 
       - name: Deploy stack over SSH
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          VPS_SUDO_PASS: ${{ secrets.VPS_PASSWORD }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -175,6 +177,7 @@ jobs:
           timeout: 180s
           debug: true
           script_stop: true
+          envs: VPS_SUDO_PASS
           script: |
             set -euo pipefail
 
@@ -189,8 +192,8 @@ jobs:
             git reset --hard FETCH_HEAD
 
             # Apply host nginx configs (upload body size limits, proxy timeouts) and
-            # reload nginx. Best-effort: if passwordless sudo is unavailable we skip
-            # with a warning instead of failing the whole deployment.
+            # reload nginx. Best-effort: if sudo is unavailable we skip with a warning
+            # instead of failing the whole deployment.
             NGINX_BIN=""
             if command -v nginx >/dev/null 2>&1; then
               NGINX_BIN="$(command -v nginx)"
@@ -199,15 +202,28 @@ jobs:
             fi
 
             if [ -n "$NGINX_BIN" ]; then
+              NGINX_APPLY_OK=0
+
               if sudo -n true 2>/dev/null; then
-                sudo -n cp infra/vps/nginx/api.paramsukhonlinegurukul.com.conf /etc/nginx/sites-available/api.paramsukhonlinegurukul.com
-                sudo -n cp infra/vps/nginx/admin.paramsukhonlinegurukul.com.conf /etc/nginx/sites-available/admin.paramsukhonlinegurukul.com
-                sudo -n "$NGINX_BIN" -t
-                sudo -n systemctl reload nginx
-                echo "Applied nginx configs and reloaded nginx"
+                run_sudo() { sudo -n "$@"; }
+                NGINX_APPLY_OK=1
+              elif [ -n "${VPS_SUDO_PASS:-}" ] && printf '%s\n' "$VPS_SUDO_PASS" | sudo -S -p '' true 2>/dev/null; then
+                run_sudo() { printf '%s\n' "$VPS_SUDO_PASS" | sudo -S -p '' "$@"; }
+                NGINX_APPLY_OK=1
               else
-                echo "WARN: passwordless sudo unavailable; skipping nginx config apply."
+                echo "WARN: no passwordless sudo and no usable sudo password; skipping nginx config apply."
                 echo "WARN: run manually: sudo cp infra/vps/nginx/*.conf /etc/nginx/sites-available/ && sudo nginx -t && sudo systemctl reload nginx"
+              fi
+
+              if [ "$NGINX_APPLY_OK" = "1" ]; then
+                if run_sudo cp infra/vps/nginx/api.paramsukhonlinegurukul.com.conf /etc/nginx/sites-available/api.paramsukhonlinegurukul.com \
+                  && run_sudo cp infra/vps/nginx/admin.paramsukhonlinegurukul.com.conf /etc/nginx/sites-available/admin.paramsukhonlinegurukul.com \
+                  && run_sudo "$NGINX_BIN" -t \
+                  && run_sudo systemctl reload nginx; then
+                  echo "Applied nginx configs and reloaded nginx"
+                else
+                  echo "WARN: failed to apply nginx configs; continuing deployment"
+                fi
               fi
             else
               echo "WARN: nginx not found on host; skipping nginx config apply"
