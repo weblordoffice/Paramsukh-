@@ -188,6 +188,24 @@ jobs:
             git fetch "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" master
             git reset --hard FETCH_HEAD
 
+            # Apply host nginx configs (upload body size limits, proxy timeouts) and
+            # reload nginx. Best-effort: if passwordless sudo is unavailable we skip
+            # with a warning instead of failing the whole deployment.
+            if command -v nginx >/dev/null 2>&1; then
+              if sudo -n true 2>/dev/null; then
+                sudo -n cp infra/vps/nginx/api.paramsukhonlinegurukul.com.conf /etc/nginx/sites-available/api.paramsukhonlinegurukul.com
+                sudo -n cp infra/vps/nginx/admin.paramsukhonlinegurukul.com.conf /etc/nginx/sites-available/admin.paramsukhonlinegurukul.com
+                sudo -n nginx -t
+                sudo -n systemctl reload nginx
+                echo "Applied nginx configs and reloaded nginx"
+              else
+                echo "WARN: passwordless sudo unavailable; skipping nginx config apply."
+                echo "WARN: run manually: sudo cp infra/vps/nginx/*.conf /etc/nginx/sites-available/ && sudo nginx -t && sudo systemctl reload nginx"
+              fi
+            else
+              echo "WARN: nginx not found on host; skipping nginx config apply"
+            fi
+
             # Validate critical backend env values before attempting restart
             for key in MONGO_URI JWT_SECRET ADMIN_API_KEY; do
               if ! grep -Eq "^${key}=.+" backend/.env; then
