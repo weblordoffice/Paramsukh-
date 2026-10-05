@@ -447,7 +447,7 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
                                             />
                                         </div>
                                     )}
-                                    <p className="text-xs text-gray-500 mt-1">Upload mp4, mov, avi (max 1GB)</p>
+                                    <p className="text-xs text-gray-500 mt-1">Upload mp4, mov, avi (max 2GB)</p>
                                 </div>
 
                                 <div>

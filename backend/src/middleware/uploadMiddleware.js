@@ -5,7 +5,7 @@ import path from 'path';
 // Configure multer for memory storage (we'll upload to Cloudinary from memory)
 const storage = multer.memoryStorage();
 
-// For large videos, store on disk temporarily to avoid buffering 1GB in RAM
+// For large videos, store on disk temporarily to avoid buffering up to 2GB in RAM
 const videoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     try {
