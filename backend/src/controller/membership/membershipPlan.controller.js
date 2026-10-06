@@ -1,7 +1,10 @@
 import { MembershipPlan } from '../../models/membershipPlan.models.js';
 import { User } from '../../models/user.models.js';
 import { UserMembership } from '../../models/userMembership.models.js';
+import { MembershipSelectionLog } from '../../models/membershipSelectionLog.models.js';
+import { AdminPaymentLink } from '../../models/adminPaymentLink.models.js';
 import { CoursePlan } from '../../models/coursePlan.models.js';
+import { Group, GroupMember, Post, Comment } from '../../models/community.models.js';
 import { getPlanCourses, resolvePlanCourseIds } from '../../services/planCourses.service.js';
 
 const normalizeSlug = (value) => {
@@ -182,12 +185,26 @@ export const listMembershipPlansAdmin = async (req, res) => {
       ];
     }
 
-    const plans = await MembershipPlan.find(query).sort({ displayOrder: 1, createdAt: -1 });
+    const plans = await MembershipPlan.find(query)
+      .sort({ displayOrder: 1, createdAt: -1 })
+      .lean();
+
+    const plansWithCounts = await Promise.all(
+      plans.map(async (plan) => {
+        try {
+          const courseIds = await resolvePlanCourseIds(plan);
+          return { ...plan, courseCount: courseIds.length };
+        } catch (countError) {
+          console.error(`Failed to count courses for plan ${plan.slug}:`, countError.message);
+          return { ...plan, courseCount: 0 };
+        }
+      })
+    );
 
     return res.status(200).json({
       success: true,
-      data: plans,
-      total: plans.length,
+      data: plansWithCounts,
+      total: plansWithCounts.length,
     });
   } catch (error) {
     console.error('Error listing membership plans:', error);
@@ -298,6 +315,51 @@ export const updateMembershipPlanStatus = async (req, res) => {
   }
 };
 
+/**
+ * Delete the community groups that belong to a plan (plan-level parent and its
+ * category subgroups) along with their members, posts and comments.
+ * The General (public) group is never removed.
+ */
+const deletePlanCommunityGroups = async (planSlug) => {
+  const slug = normalizeSlug(planSlug);
+  if (!slug || slug === 'general') {
+    return { groups: 0, members: 0, posts: 0, comments: 0 };
+  }
+
+  const planGroups = await Group.find({
+    $or: [
+      { groupType: 'plan', planSlug: slug },
+      { groupType: 'category', planSlug: slug },
+    ],
+  })
+    .select('_id')
+    .lean();
+
+  const groupIds = planGroups.map((group) => group._id);
+  if (groupIds.length === 0) {
+    return { groups: 0, members: 0, posts: 0, comments: 0 };
+  }
+
+  const posts = await Post.find({ groupId: { $in: groupIds } }).select('_id').lean();
+  const postIds = posts.map((post) => post._id);
+
+  const [groupResult, memberResult, postResult, commentResult] = await Promise.all([
+    Group.deleteMany({ _id: { $in: groupIds } }),
+    GroupMember.deleteMany({ groupId: { $in: groupIds } }),
+    Post.deleteMany({ groupId: { $in: groupIds } }),
+    postIds.length > 0
+      ? Comment.deleteMany({ postId: { $in: postIds } })
+      : Promise.resolve({ deletedCount: 0 }),
+  ]);
+
+  return {
+    groups: groupResult.deletedCount || 0,
+    members: memberResult.deletedCount || 0,
+    posts: postResult.deletedCount || 0,
+    comments: commentResult.deletedCount || 0,
+  };
+};
+
 export const deleteMembershipPlan = async (req, res) => {
   try {
     const { id } = req.params;
@@ -308,30 +370,69 @@ export const deleteMembershipPlan = async (req, res) => {
     }
 
     const slug = normalizeSlug(plan.slug);
+    const force = toBoolean(req.body?.force ?? req.query?.force, false);
 
-    // Prevent deleting plans currently assigned to users.
-    const assignedUsers = await User.countDocuments({ subscriptionPlan: slug });
-    if (assignedUsers > 0) {
-      return res.status(400).json({
+    // Gather everything related to this plan so we can warn before the
+    // destructive cascade. User accounts themselves are never deleted.
+    const [associatedCourseIds, membershipCount, assignedUserCount, groupCount] = await Promise.all([
+      resolvePlanCourseIds(plan),
+      UserMembership.countDocuments({ planId: plan._id }),
+      User.countDocuments({ subscriptionPlan: slug }),
+      Group.countDocuments({
+        $or: [
+          { groupType: 'plan', planSlug: slug },
+          { groupType: 'category', planSlug: slug },
+        ],
+      }),
+    ]);
+
+    const hasRelatedRecords =
+      associatedCourseIds.length > 0 || membershipCount > 0 || assignedUserCount > 0 || groupCount > 0;
+
+    // Deleting the plan cascades to every related record, so require an explicit
+    // confirmation (force) when anything is still attached.
+    if (hasRelatedRecords && !force) {
+      return res.status(409).json({
         success: false,
-        message: `Cannot delete "${plan.title}" because ${assignedUsers} user(s) are currently assigned to it. Archive it instead.`,
+        requiresConfirmation: true,
+        code: 'PLAN_HAS_RELATED_RECORDS',
+        impact: {
+          courses: associatedCourseIds.length,
+          memberships: membershipCount,
+          assignedUsers: assignedUserCount,
+          communityGroups: groupCount,
+        },
+        message:
+          `Deleting "${plan.title}" will permanently remove ${associatedCourseIds.length} course mapping(s), ` +
+          `${membershipCount} membership record(s), ${assignedUserCount} user subscription assignment(s) ` +
+          `(users are kept and reset to the free plan) and ${groupCount} community group(s).`,
       });
     }
 
-    // Prevent deleting plans with active membership grants.
-    const activeMemberships = await UserMembership.countDocuments({
-      planId: plan._id,
-      status: 'active',
-      endDate: { $gte: new Date() },
-    });
-    if (activeMemberships > 0) {
-      return res.status(400).json({
-        success: false,
-        message: `Cannot delete "${plan.title}" because it has ${activeMemberships} active membership record(s).`,
-      });
+    // 1. Delete memberships and their course-selection logs.
+    const memberships = await UserMembership.find({ planId: plan._id }).select('_id').lean();
+    const membershipIds = memberships.map((membership) => membership._id);
+    if (membershipIds.length > 0) {
+      await MembershipSelectionLog.deleteMany({ membershipId: { $in: membershipIds } });
     }
+    await UserMembership.deleteMany({ planId: plan._id });
 
-    // Remove this plan from inheritance chains and course-plan mappings.
+    // 2. Keep user accounts, but drop references to the deleted plan.
+    if (assignedUserCount > 0) {
+      await User.updateMany(
+        { subscriptionPlan: slug },
+        { $set: { subscriptionPlan: 'free', subscriptionStatus: 'inactive' } }
+      );
+    }
+    await User.updateMany(
+      { 'pendingMembershipPaymentLink.plan': slug },
+      { $unset: { pendingMembershipPaymentLink: '' } }
+    );
+
+    // 3. Delete admin payment links created for this plan.
+    await AdminPaymentLink.deleteMany({ planSlug: slug });
+
+    // 4. Remove this plan from inheritance chains and course-plan mappings.
     await Promise.all([
       MembershipPlan.updateMany(
         { 'access.inheritedPlanIds': plan._id },
@@ -340,11 +441,19 @@ export const deleteMembershipPlan = async (req, res) => {
       CoursePlan.deleteMany({ planId: plan._id }),
     ]);
 
+    // 5. Delete the plan's community groups (plan + category subgroups) and content.
+    const communityCleanup = await deletePlanCommunityGroups(slug);
+
     await MembershipPlan.findByIdAndDelete(plan._id);
 
     return res.status(200).json({
       success: true,
-      message: 'Membership plan deleted successfully',
+      message: 'Membership plan and all related records deleted. User accounts were preserved.',
+      data: {
+        communityGroupsDeleted: communityCleanup.groups,
+        membershipsDeleted: membershipIds.length,
+        usersReset: assignedUserCount,
+      },
     });
   } catch (error) {
     console.error('Error deleting membership plan:', error);

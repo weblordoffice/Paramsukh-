@@ -51,6 +51,7 @@ interface MembershipPlan {
     communityAccess?: boolean;
   };
   previewVideos?: PreviewVideo[];
+  courseCount?: number;
 }
 
 interface PlanFormState {
@@ -440,14 +441,11 @@ export default function MembershipPlansPage() {
   };
 
   const handleDeletePlan = async (plan: MembershipPlan) => {
-    const usageCount = planUsage[plan.slug] || 0;
-    if (usageCount > 0) {
-      toast.error(`Cannot delete ${plan.title}. ${usageCount} user(s) are currently assigned.`);
-      return;
-    }
-
     const confirmed = window.confirm(
-      `Delete "${plan.title}" permanently?\n\nThis removes plan mappings and cannot be undone.`
+      `Delete "${plan.title}" permanently?\n\n` +
+        `This removes all related records (course mappings, memberships and community groups) ` +
+        `and resets affected users to the free plan. User accounts are kept.\n\n` +
+        `This cannot be undone.`
     );
     if (!confirmed) {
       return;
@@ -455,8 +453,25 @@ export default function MembershipPlansPage() {
 
     try {
       setDeletingPlanId(plan._id);
-      await apiClient.delete(`/api/membership-plans/${plan._id}`);
-      toast.success("Plan deleted");
+
+      try {
+        await apiClient.delete(`/api/membership-plans/${plan._id}`);
+      } catch (error: any) {
+        const data = error.response?.data;
+        if (error.response?.status === 409 && data?.requiresConfirmation) {
+          const proceed = window.confirm(`${data.message}\n\nDelete the plan and all related records now?`);
+          if (!proceed) {
+            return;
+          }
+          await apiClient.delete(`/api/membership-plans/${plan._id}`, {
+            data: { force: true },
+          });
+        } else {
+          throw error;
+        }
+      }
+
+      toast.success("Plan deleted. User accounts were preserved.");
 
       if (selectedPlanId === plan._id) {
         setSelectedPlanId(null);
