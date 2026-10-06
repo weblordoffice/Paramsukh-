@@ -87,10 +87,15 @@ const generateKey = (folder, filename) => {
 };
 
 const buildPublicUrl = (key) => {
-  if (R2_PUBLIC_URL) {
-    return `${R2_PUBLIC_URL.replace(/\/$/, '')}/${key}`;
+  if (!R2_PUBLIC_URL) {
+    // The old fallback used `pub-${R2_ACCOUNT_ID}.r2.dev`, which is NOT a valid
+    // r2.dev host (the real one uses a bucket-specific hash) and returns 401.
+    // Refuse to generate a broken URL instead of silently storing one.
+    throw new Error(
+      'R2_PUBLIC_URL is not configured. Set it to the bucket public URL (e.g. https://pub-<hash>.r2.dev) before uploading videos.'
+    );
   }
-  return `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev/${key}`;
+  return `${R2_PUBLIC_URL.replace(/\/$/, '')}/${key}`;
 };
 
 /**

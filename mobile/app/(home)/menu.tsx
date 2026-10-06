@@ -465,16 +465,33 @@ type NativeVideoPlayerProps = {
 const NativeVideoPlayer = ({ videoUrl }: NativeVideoPlayerProps) => {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
-  const player = useVideoPlayer(videoUrl, (p) => {
+  // Keep the initial source stable: recreating the player when `videoUrl`
+  // changes causes expo-video to hand a released player to SurfaceVideoView
+  // ("Cannot use shared object that was already released"). Instead, swap the
+  // source on the existing player via replaceAsync.
+  const initialUrl = useRef(videoUrl).current;
+  const player = useVideoPlayer(initialUrl, (p) => {
     p.loop = false;
     p.play();
   });
+
+  useEffect(() => {
+    if (player && videoUrl && videoUrl !== initialUrl) {
+      // replaceAsync resets playback, so resume after swapping the source.
+      player
+        .replaceAsync(videoUrl)
+        .then(() => player.play())
+        .catch(() => {});
+    }
+  }, [player, videoUrl, initialUrl]);
 
   return (
     <View style={styles.videoPlayerWrapper}>
       <VideoView
         player={player}
         style={styles.nativePlayer}
+        nativeControls
+        requiresLinearPlayback={false}
         allowsFullscreen
         allowsPictureInPicture
       />

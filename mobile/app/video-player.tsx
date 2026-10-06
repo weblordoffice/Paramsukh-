@@ -16,7 +16,11 @@ import * as WebBrowser from 'expo-web-browser';
 import { WebView } from 'react-native-webview';
 import { useCourseStore, Assignment } from '../store/courseStore';
 import { useAuthStore } from '../store/authStore';
-import { useOfflineVideoStore } from '../store/offlineVideoStore';
+import {
+  useOfflineVideoStore,
+  isDownloadableVideoUrl,
+  isPlayableVideoFile,
+} from '../store/offlineVideoStore';
 import { hasActiveMembership } from '../utils/membership';
 import { useTheme } from '../hooks/useTheme';
 
@@ -342,12 +346,13 @@ export default function VideoPlayerScreen() {
   const localDownload = getDownload(videoId);
   const effectiveVideoUrl = localDownload?.localUri || videoUrl;
   const isOfflinePlayback = !!localDownload?.localUri && effectiveVideoUrl === localDownload.localUri;
-  const canDownloadOffline = !!videoId && !!courseId && !!videoUrl && isDirectVideoUrl(videoUrl);
+  const canDownloadOffline = !!videoId && !!courseId && !!videoUrl && isDownloadableVideoUrl(videoUrl);
   const isPremiumMember = hasActiveMembership(user);
   const downloadProgress = progressByVideoId[videoId] || 0;
   const downloadInProgress = !!activeDownloads[videoId];
 
   const isMountedRef = useRef(true);
+  const hasAutoPlayedRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [marked, setMarked] = useState(false);
@@ -365,13 +370,44 @@ export default function VideoPlayerScreen() {
   }, [enrollmentProgress, videoId]);
 
   // expo-video player (only created when needed)
-  const player = useVideoPlayer(
-    useNativePlayer ? { uri: effectiveVideoUrl } : null,
-    (p) => {
-      p.loop = false;
-      p.play();
-    }
+  // IMPORTANT: the source passed to useVideoPlayer must stay stable for the
+  // lifetime of the screen. Changing it makes expo-video release and recreate
+  // the native player mid-render, which crashes SurfaceVideoView with
+  // "Cannot use shared object that was already released" and the video never plays.
+  // We initialize from the remote URL and switch to the offline file via replaceAsync.
+  const initialSource = React.useMemo(
+    () => (useNativePlayer ? { uri: videoUrl } : null),
+    [useNativePlayer, videoUrl]
   );
+  const player = useVideoPlayer(initialSource, (p) => {
+    p.loop = false;
+    p.play();
+  });
+
+  // Switch to the downloaded (offline) file without recreating the native player.
+  // Only do so if the file is a valid, playable video — otherwise a corrupt/partial
+  // download (e.g. an HLS manifest or an error page) crashes playback.
+  useEffect(() => {
+    if (!player || !useNativePlayer) return;
+    const localUri = localDownload?.localUri;
+    if (!localUri || localUri === videoUrl) return;
+
+    let cancelled = false;
+    (async () => {
+      const playable = await isPlayableVideoFile(localUri);
+      if (cancelled || !playable) return;
+      // Replacing the source resets playback, so re-arm autoplay and resume.
+      hasAutoPlayedRef.current = false;
+      player
+        .replaceAsync({ uri: localUri })
+        .then(() => player.play())
+        .catch(() => {});
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [player, useNativePlayer, localDownload?.localUri, videoUrl]);
 
   React.useEffect(() => {
     isMountedRef.current = true;
@@ -413,18 +449,36 @@ export default function VideoPlayerScreen() {
       } catch (err) {}
     }, 1000);
 
-    const sub = player.addListener('statusChange', (status: any) => {
-      if (status === 'readyToPlay') setLoading(false);
-      if (status === 'ended') {
-        setWatchProgressRatio(1);
-        setHasReached99(true);
-        markComplete();
+    // expo-video v3 emits `statusChange` with a payload object { status, oldStatus, error }.
+    const onStatusChange = (payload: any) => {
+      const status = payload?.status ?? payload;
+      if (status === 'readyToPlay') {
+        setLoading(false);
+        // Autoplay can be ignored when play() is issued before the player is
+        // prepared/attached (Android). Start playback once the source is ready.
+        if (!hasAutoPlayedRef.current) {
+          hasAutoPlayedRef.current = true;
+          player.play();
+        }
+      } else if (status === 'error') {
+        setLoading(false);
+        setError(payload?.error?.message || 'Unable to play this video.');
       }
-    });
+    };
+
+    const onPlayToEnd = () => {
+      setWatchProgressRatio(1);
+      setHasReached99(true);
+      markComplete();
+    };
+
+    const sub = player.addListener('statusChange', onStatusChange);
+    const endSub = player.addListener('playToEnd', onPlayToEnd);
 
     return () => {
       clearInterval(interval);
       sub?.remove?.();
+      endSub?.remove?.();
     };
   }, [player, useNativePlayer, markComplete]);
 
@@ -622,6 +676,8 @@ export default function VideoPlayerScreen() {
             <VideoView
               player={player}
               style={styles.videoView}
+              nativeControls
+              requiresLinearPlayback={false}
               allowsFullscreen
               allowsPictureInPicture
               onLayout={() => {
