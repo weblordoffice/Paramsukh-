@@ -15,6 +15,7 @@ import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { assertSafeDestructiveTarget } from '../utils/dbSafety.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +30,7 @@ if (!MONGO_URI) {
 }
 
 async function backfill() {
+  await assertSafeDestructiveTarget({ scriptName: 'backfill_parent_groups', action: 'backfill parent group data' });
   console.log('🔌 Connecting to MongoDB...');
   await mongoose.connect(MONGO_URI);
   console.log('✅ Connected');

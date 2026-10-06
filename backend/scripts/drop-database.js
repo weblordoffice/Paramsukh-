@@ -5,6 +5,7 @@
  */
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import { assertSafeDestructiveTarget } from '../src/utils/dbSafety.js';
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ const dbName = uri.split('/').pop()?.split('?').shift() || 'paramsukh-dev';
 
 async function run() {
   try {
+    await assertSafeDestructiveTarget({ scriptName: 'drop-database', action: 'drop the database' });
     await mongoose.connect(uri);
     await mongoose.connection.db.dropDatabase();
     console.log(`Dropped database: ${dbName}`);

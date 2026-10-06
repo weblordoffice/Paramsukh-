@@ -1,11 +1,13 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import { assertSafeDestructiveTarget } from '../src/utils/dbSafety.js';
 dotenv.config();
 
 const KEEP_COLLECTIONS = ['users', 'admins'];
 
 (async () => {
   try {
+    await assertSafeDestructiveTarget({ scriptName: 'wipe-database', action: 'drop all non-user collections' });
     await mongoose.connect(process.env.MONGO_URI);
     console.log('Connected to MongoDB');
 

@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
 import { MembershipPlan } from '../src/models/membershipPlan.models.js';
+import { assertSafeDestructiveTarget } from '../src/utils/dbSafety.js';
 
 dotenv.config({ path: '.env' });
 
@@ -12,6 +13,7 @@ const run = async () => {
       throw new Error('MONGO_URI is undefined');
     }
 
+    await assertSafeDestructiveTarget({ scriptName: 'clear_plan_categories', action: 'clear plan categories' });
     await mongoose.connect(MONGO_URI);
     console.log('Connected to MongoDB');
 

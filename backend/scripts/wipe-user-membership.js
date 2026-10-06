@@ -6,6 +6,7 @@ import mongoose from 'mongoose';
 import path from 'path';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import { assertSafeDestructiveTarget } from '../src/utils/dbSafety.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
@@ -19,6 +20,7 @@ async function run() {
     process.exit(1);
   }
 
+  await assertSafeDestructiveTarget({ scriptName: 'wipe-user-membership', action: 'wipe a user\'s membership data' });
   await mongoose.connect(MONGO_URI);
   console.log('Connected to MongoDB');
 

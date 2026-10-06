@@ -2,6 +2,21 @@
 // Run with: mongosh <connection-string> --file scripts/wipe-all-except-users.mongodb.js
 // Or: mongosh use("your-db-name") then load("scripts/wipe-all-except-users.mongodb.js")
 
+// ============== SAFETY GUARD ==============
+// Refuse to run against the production database unless explicitly overridden.
+const PROD_DB = (typeof process !== "undefined" && process.env && process.env.PROD_MONGO_DB) || "psog";
+const ALLOW_PROD =
+  typeof process !== "undefined" && process.env && process.env.ALLOW_PROD_DESTRUCTIVE === "1";
+const currentDbName = db.getName();
+
+print(`Target database: ${currentDbName}`);
+if (currentDbName === PROD_DB && !ALLOW_PROD) {
+  print(
+    `ABORTED: refusing to wipe the production database "${currentDbName}". Set ALLOW_PROD_DESTRUCTIVE=1 to override.`
+  );
+  quit(1);
+}
+
 // ============== KEEP THESE ==============
 const keep = ["users", "admins"];
 

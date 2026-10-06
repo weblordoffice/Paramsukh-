@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { User } from '../src/models/user.models.js';
 import { MembershipPlan } from '../src/models/membershipPlan.models.js';
 import { UserMembership } from '../src/models/userMembership.models.js';
+import { assertSafeDestructiveTarget } from '../src/utils/dbSafety.js';
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ const run = async () => {
       throw new Error('MONGO_URI is undefined');
     }
 
+    await assertSafeDestructiveTarget({ scriptName: 'reconcile_orphan_user_plans', action: 'reconcile orphan user plans' });
     await mongoose.connect(MONGO_URI);
     console.log('Connected to MongoDB');
 
