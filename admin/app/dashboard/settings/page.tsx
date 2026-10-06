@@ -56,8 +56,8 @@ export default function SettingsPage() {
                 toast.error(response.data?.message || 'Failed to upload video', { id: toastId });
             }
         } catch (error: unknown) {
-            const err = error as { response?: { data?: { message?: string } } };
-            toast.error(err.response?.data?.message || 'Upload failed', { id: toastId });
+            const err = error as { response?: { data?: { message?: string; error?: string } } };
+            toast.error(err.response?.data?.error || err.response?.data?.message || 'Upload failed', { id: toastId });
         } finally {
             setUploading(false);
         }

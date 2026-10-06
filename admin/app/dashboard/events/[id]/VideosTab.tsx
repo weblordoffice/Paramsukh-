@@ -96,7 +96,7 @@ export default function VideosTab({ eventId, videos, onUpdate }: VideosTabProps)
             resetForm();
             onUpdate();
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to add video');
+            toast.error(error.response?.data?.error || error.response?.data?.message || 'Failed to add video');
             console.error(error);
         } finally {
             setSubmitting(false);

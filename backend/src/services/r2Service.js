@@ -35,6 +35,13 @@ if (isConfigured) {
   console.warn(' Cloudflare R2 not configured — video uploads will use local storage fallback');
 }
 
+if (isConfigured && !R2_PUBLIC_URL) {
+  console.error(
+    '❌ R2_PUBLIC_URL is not set — video uploads will fail with a 500. ' +
+    'Set it to the bucket public URL (e.g. https://pub-<hash>.r2.dev) in the backend environment.'
+  );
+}
+
 const MIME_BY_EXT = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
   webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml',
@@ -128,6 +135,10 @@ export const uploadVideo = async (fileInput, folder = 'videos', filename = 'vide
   const ct = contentType || guessContentType(filename, 'video/mp4');
   const cc = cacheControl || 'public, max-age=31536000, immutable';
 
+  // Resolve the public URL before streaming the file. If R2_PUBLIC_URL is
+  // missing this throws immediately instead of after uploading a multi-GB video.
+  const publicUrl = buildPublicUrl(key);
+
   return withRetry(async () => {
     let body;
     let bytes = 0;
@@ -153,7 +164,7 @@ export const uploadVideo = async (fileInput, folder = 'videos', filename = 'vide
 
         await upload.done();
         console.log(` Video uploaded to R2 (multipart): ${key}`);
-        return { success: true, url: buildPublicUrl(key), key, bytes };
+        return { success: true, url: publicUrl, key, bytes };
       }
 
       body = fs.createReadStream(fileInput);
@@ -178,7 +189,7 @@ export const uploadVideo = async (fileInput, folder = 'videos', filename = 'vide
     }));
 
     console.log(` Video uploaded to R2: ${key}`);
-    return { success: true, url: buildPublicUrl(key), key, bytes };
+    return { success: true, url: publicUrl, key, bytes };
   });
 };
 

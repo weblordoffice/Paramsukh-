@@ -200,7 +200,7 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
             }
         } catch (error: any) {
             console.error('Upload error:', error);
-            toast.error(error.response?.data?.message || 'Upload failed');
+            toast.error(error.response?.data?.error || error.response?.data?.message || 'Upload failed');
         } finally {
             setUploading(false);
             setUploadProgress(0);

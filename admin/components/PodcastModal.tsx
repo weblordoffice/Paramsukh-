@@ -155,7 +155,8 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
                 }
             } catch (error) {
                 console.error('Video upload error:', error);
-                toast.error('Failed to upload video');
+                const axiosError = error as { response?: { data?: { message?: string; error?: string } } };
+                toast.error(axiosError.response?.data?.error || axiosError.response?.data?.message || 'Failed to upload video');
             } finally {
                 setUploadingVideo(false);
             }

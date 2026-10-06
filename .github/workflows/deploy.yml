@@ -251,6 +251,19 @@ jobs:
               exit 1
             fi
 
+            # Cloudflare R2 (video storage): if any R2 credential is present, all
+            # are required. A partial config makes /api/upload/video return HTTP 500.
+            if grep -Eq '^R2_(ACCOUNT_ID|ACCESS_KEY_ID|SECRET_ACCESS_KEY|BUCKET_NAME)=' backend/.env; then
+              for key in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET_NAME R2_PUBLIC_URL; do
+                if ! grep -Eq "^${key}=.+" backend/.env; then
+                  echo "FATAL: ${key} missing in backend/.env while other R2 vars are set; video uploads would fail"
+                  exit 1
+                fi
+              done
+            else
+              echo "WARN: Cloudflare R2 not configured in backend/.env — video uploads will use local storage fallback"
+            fi
+
             NEXT_PUBLIC_ADMIN_API_KEY_VALUE="$(grep -E '^NEXT_PUBLIC_ADMIN_API_KEY=' .env 2>/dev/null | tail -n1 | cut -d= -f2- | tr -d '\r' || true)"
             if [ -z "${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" ]; then
               echo "WARN: NEXT_PUBLIC_ADMIN_API_KEY missing in .env; using backend/.env ADMIN_API_KEY for admin build"
