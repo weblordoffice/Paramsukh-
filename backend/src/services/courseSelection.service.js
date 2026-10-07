@@ -5,8 +5,7 @@ import { Course } from '../models/course.models.js';
 import { CoursePlan } from '../models/coursePlan.models.js';
 import { Enrollment } from '../models/enrollment.models.js';
 import { MembershipSelectionLog } from '../models/membershipSelectionLog.models.js';
-
-const normalize = (value) => String(value || '').trim().toLowerCase();
+import { resolvePlanCourseIds } from './planCourses.service.js';
 
 let sessionProvider = null;
 export const setCourseSelectionSessionProvider = (provider) => {
@@ -32,21 +31,7 @@ export const getEligibleCourses = async (userId, membershipId) => {
     return { eligible: [], reason: 'selection_not_enabled' };
   }
 
-  const selectionConfig = plan.access.courseSelection;
-  const mode = selectionConfig.eligibleCoursesMode || 'all_published';
-  const eligibleCategories = (selectionConfig.eligibleCategories || []).map(normalize);
-  const eligibleCourseIds = (selectionConfig.eligibleCourseIds || []).map((id) => String(id));
-
-  const baseFilter = {
-    status: 'published',
-    includedInPlans: plan.slug,
-  };
-
-  if (mode === 'specific' && eligibleCourseIds.length > 0) {
-    baseFilter._id = { $in: eligibleCourseIds };
-  } else if (mode === 'categories' && eligibleCategories.length > 0) {
-    baseFilter.category = { $in: eligibleCategories };
-  }
+  const eligibleIds = await resolvePlanCourseIds(plan);
 
   const selectedIds = membership.selectedCourseIds || [];
   const enrolledIds = await Enrollment.find({ userId })
@@ -54,7 +39,7 @@ export const getEligibleCourses = async (userId, membershipId) => {
     .lean()
     .then((enrollments) => enrollments.map((e) => String(e.courseId)));
 
-  const courses = await Course.find(baseFilter)
+  const courses = await Course.find({ _id: { $in: eligibleIds }, status: 'published' })
     .select('title description shortDescription thumbnailUrl bannerUrl icon color duration category tags totalVideos totalPdfs status')
     .sort({ title: 1 })
     .lean();
@@ -140,17 +125,9 @@ export const selectCourse = async ({ userId, membershipId, courseId, ip = null }
     return { success: false, reason: 'course_unavailable', message: 'Course not found or not published' };
   }
 
-  const selectionConfig = plan.access.courseSelection;
-  const mode = selectionConfig.eligibleCoursesMode || 'all_published';
-  const eligibleCategories = (selectionConfig.eligibleCategories || []).map(normalize);
-  const eligibleCourseIds = (selectionConfig.eligibleCourseIds || []).map(String);
-
-  if (mode === 'specific' && eligibleCourseIds.length > 0 && !eligibleCourseIds.includes(String(course._id))) {
+  const eligibleIds = await resolvePlanCourseIds(plan);
+  if (!eligibleIds.includes(String(course._id))) {
     return { success: false, reason: 'course_not_eligible', message: 'This course is not eligible for your plan' };
-  }
-
-  if (mode === 'categories' && eligibleCategories.length > 0 && !eligibleCategories.includes(normalize(course.category))) {
-    return { success: false, reason: 'course_not_eligible', message: 'This course category is not eligible for your plan' };
   }
 
   const alreadySelected = (membership.selectedCourseIds || []).some((id) => String(id) === String(courseId));

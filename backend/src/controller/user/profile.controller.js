@@ -10,7 +10,7 @@ import {
   isPlanCoveredByUser,
 } from '../../services/membershipPlan.service.js';
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
-import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
+import { getAutoEnrollCoursesForPlan, getInheritedCoursesForPlan } from '../../services/membershipAccess.service.js';
 import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
 import { verifyRazorpaySignature, fetchPaymentDetails } from '../../services/razorpayService.js';
 import { sendMembershipPurchaseEmail } from '../../services/emailService.js';
@@ -737,8 +737,10 @@ export const purchaseMembership = async (req, res) => {
     const courseSelectionEnabled = planConfig?.plan?.access?.courseSelection?.enabled || false;
     const maxSelectableCourses = planConfig?.plan?.access?.courseSelection?.maxSelectableCourses || 0;
 
+    // Cap only limits the purchased plan's own courses; the lower-hierarchy
+    // courses are granted in full regardless of their own selection limits.
     const courses = courseSelectionEnabled
-      ? []
+      ? await getInheritedCoursesForPlan(finalPlan)
       : await getAutoEnrollCoursesForPlan(finalPlan);
 
     if (courses.length === 0) {
@@ -772,7 +774,8 @@ export const purchaseMembership = async (req, res) => {
       },
     });
 
-    // Auto-enroll in courses (skip if already enrolled) — only for legacy plans without course selection
+    // Auto-enroll in courses: all closure courses for entitlement plans, or the
+    // inherited (lower-tier) courses for capped plans (the user picks the rest).
     let enrollments = [];
     let enrolledCount = 0;
     if (courses.length > 0) {

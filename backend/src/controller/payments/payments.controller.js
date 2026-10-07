@@ -25,7 +25,7 @@ import {
 } from '../../services/membershipPlan.service.js';
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
 import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
-import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
+import { getAutoEnrollCoursesForPlan, getInheritedCoursesForPlan, autoEnrollUserInCourses } from '../../services/membershipAccess.service.js';
 import { recordTransaction } from '../../services/transaction.service.js';
 import { AdminPaymentLink } from '../../models/adminPaymentLink.models.js';
 import { sendMembershipPurchaseEmail, sendCounselingBookingEmail, sendOrderConfirmationEmail, sendEventRegistrationEmail, sendPaymentFailedEmail, sendRefundProcessedEmail } from '../../services/emailService.js';
@@ -888,9 +888,14 @@ export const confirmMembershipPaymentLink = async (req, res) => {
     const parsedSelectedIds = parseSelectedCourseIds(notes);
     console.log(`[MembershipConfirm] plan=${finalPlan} hasCourseSelection=${hasCourseSelection} selectedIds=${JSON.stringify(parsedSelectedIds)} notes.selectedCourseIds=${JSON.stringify(notes?.selectedCourseIds)}`);
 
-    if (hasCourseSelection && parsedSelectedIds.length > 0) {
-      const enrolled = await enrollSelectedCourses(targetUserId, parsedSelectedIds, finalPlan);
-      console.log(`[MembershipConfirm] Enrolled in ${enrolled} selected course(s)`);
+    if (hasCourseSelection) {
+      if (parsedSelectedIds.length > 0) {
+        const enrolled = await enrollSelectedCourses(targetUserId, parsedSelectedIds, finalPlan);
+        console.log(`[MembershipConfirm] Enrolled in ${enrolled} selected course(s)`);
+      }
+      // Cap only limits this plan's own courses; lower-hierarchy courses are granted in full.
+      const inheritedEnrolled = await autoEnrollUserInCourses(targetUserId, await getInheritedCoursesForPlan(finalPlan));
+      console.log(`[MembershipConfirm] Auto-enrolled in ${inheritedEnrolled} inherited course(s)`);
     } else if (!hasCourseSelection) {
       const courses = await getAutoEnrollCoursesForPlan(finalPlan);
       for (const course of courses) {
@@ -906,8 +911,6 @@ export const confirmMembershipPaymentLink = async (req, res) => {
         }
       }
       console.log(`   Enrolled in ${courses.length} course(s) for plan ${finalPlan}`);
-    } else {
-      console.log(`   Skipped auto-enroll — plan ${finalPlan} uses credit-based courseSelection`);
     }
 
     // Sync plan-category groups after enrollments are created.
@@ -1056,8 +1059,12 @@ export const syncMembershipFromRazorpay = async (req, res) => {
       const hasCourseSelection = planDoc?.access?.courseSelection?.enabled === true;
       const parsedSelectedIds = parseSelectedCourseIds(notes);
 
-      if (hasCourseSelection && parsedSelectedIds.length > 0) {
-        await enrollSelectedCourses(userId, parsedSelectedIds, finalPlan);
+      if (hasCourseSelection) {
+        if (parsedSelectedIds.length > 0) {
+          await enrollSelectedCourses(userId, parsedSelectedIds, finalPlan);
+        }
+        // Cap only limits this plan's own courses; lower-hierarchy courses are granted in full.
+        await autoEnrollUserInCourses(userId, await getInheritedCoursesForPlan(finalPlan));
       } else if (!hasCourseSelection) {
         const courses = await getAutoEnrollCoursesForPlan(finalPlan);
         for (const course of courses) {
@@ -1223,8 +1230,12 @@ export const verifyMembershipPayment = async (req, res) => {
     // Enroll in selected courses if provided, otherwise auto-enroll (mirrors payment-link confirm)
     const verifyPlanDoc = await MembershipPlan.findOne({ slug: planConfig.slug }).select('access.courseSelection').lean();
     const verifyHasCourseSelection = verifyPlanDoc?.access?.courseSelection?.enabled === true;
-    if (verifyHasCourseSelection && verifiedCourseIds.length > 0) {
-      await enrollSelectedCourses(userId, verifiedCourseIds, planConfig.slug);
+    if (verifyHasCourseSelection) {
+      if (verifiedCourseIds.length > 0) {
+        await enrollSelectedCourses(userId, verifiedCourseIds, planConfig.slug);
+      }
+      // Cap only limits this plan's own courses; lower-hierarchy courses are granted in full.
+      await autoEnrollUserInCourses(userId, await getInheritedCoursesForPlan(planConfig.slug));
     } else if (!verifyHasCourseSelection) {
       const courses = await getAutoEnrollCoursesForPlan(planConfig.slug);
       for (const course of courses) {
@@ -1493,8 +1504,12 @@ export const handleWebhook = async (req, res) => {
             const hasCourseSelection = planDoc?.access?.courseSelection?.enabled === true;
             console.log(`[Webhook payment.captured] plan=${planConfig.slug} hasCourseSelection=${hasCourseSelection} selectedIds=${JSON.stringify(selectedIds)} raw=${JSON.stringify(pNotes?.selectedCourseIds)}`);
 
-            if (hasCourseSelection && selectedIds.length > 0) {
-              await enrollSelectedCourses(pNotes.userId, selectedIds, planConfig.slug);
+            if (hasCourseSelection) {
+              if (selectedIds.length > 0) {
+                await enrollSelectedCourses(pNotes.userId, selectedIds, planConfig.slug);
+              }
+              // Cap only limits this plan's own courses; lower-hierarchy courses are granted in full.
+              await autoEnrollUserInCourses(pNotes.userId, await getInheritedCoursesForPlan(planConfig.slug));
             } else if (!hasCourseSelection) {
               const courses = await getAutoEnrollCoursesForPlan(planConfig.slug);
               for (const course of courses) {
@@ -1506,8 +1521,6 @@ export const handleWebhook = async (req, res) => {
                 }
               }
               console.log(`   Enrolled in ${courses.length} course(s) for plan ${planConfig.slug}`);
-            } else {
-              console.log(`   Skipped auto-enroll — plan ${planConfig.slug} uses credit-based courseSelection`);
             }
 
             // Handle plan upgrade - enroll in new community groups
@@ -1809,8 +1822,12 @@ export const handleWebhook = async (req, res) => {
               const hasCourseSelection = planDoc?.access?.courseSelection?.enabled === true;
               console.log(`[Webhook payment_link.paid] plan=${planConfig.slug} hasCourseSelection=${hasCourseSelection} selectedIds=${JSON.stringify(selectedIds)} raw=${JSON.stringify(notes?.selectedCourseIds)}`);
 
-              if (hasCourseSelection && selectedIds.length > 0) {
-                await enrollSelectedCourses(plUserId, selectedIds, planConfig.slug);
+              if (hasCourseSelection) {
+                if (selectedIds.length > 0) {
+                  await enrollSelectedCourses(plUserId, selectedIds, planConfig.slug);
+                }
+                // Cap only limits this plan's own courses; lower-hierarchy courses are granted in full.
+                await autoEnrollUserInCourses(plUserId, await getInheritedCoursesForPlan(planConfig.slug));
               } else if (!hasCourseSelection) {
                 const courses = await getAutoEnrollCoursesForPlan(planConfig.slug);
                 for (const course of courses) {
@@ -1822,8 +1839,6 @@ export const handleWebhook = async (req, res) => {
                   }
                 }
                 console.log(`   Enrolled in ${courses.length} course(s) for plan ${planConfig.slug}`);
-              } else {
-                console.log(`   Skipped auto-enroll — plan ${planConfig.slug} uses credit-based courseSelection`);
               }
 
               // Handle plan upgrade - enroll in new community groups
