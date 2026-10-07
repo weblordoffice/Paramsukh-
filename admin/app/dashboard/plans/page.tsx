@@ -49,7 +49,10 @@ interface MembershipPlan {
   access?: {
     courseSelection?: CourseSelection;
     communityAccess?: boolean;
+    inheritedPlanIds?: string[];
   };
+  planKind?: "standalone" | "tiered";
+  tierLevel?: number;
   previewVideos?: PreviewVideo[];
   courseCount?: number;
 }
@@ -66,6 +69,9 @@ interface PlanFormState {
   currency: string;
   courseSelectionEnabled: boolean;
   communityAccess: boolean;
+  planKind: "standalone" | "tiered";
+  tierLevel: number;
+  inheritedPlanIds: string[];
   maxSelectableCourses: number;
   eligibleCoursesMode: EligibleCoursesMode;
   eligibleCourseIds: string[];
@@ -93,6 +99,9 @@ const DEFAULT_FORM: PlanFormState = {
   currency: "INR",
   courseSelectionEnabled: false,
   communityAccess: false,
+  planKind: "standalone",
+  tierLevel: 0,
+  inheritedPlanIds: [],
   maxSelectableCourses: 3,
   eligibleCoursesMode: "all_published",
   eligibleCourseIds: [],
@@ -138,6 +147,11 @@ export default function MembershipPlansPage() {
 
   const selectedPlan = useMemo(
     () => plans.find((plan) => plan._id === selectedPlanId) || null,
+    [plans, selectedPlanId]
+  );
+
+  const otherTieredPlans = useMemo(
+    () => plans.filter((plan) => plan.planKind === "tiered" && plan._id !== selectedPlanId),
     [plans, selectedPlanId]
   );
 
@@ -221,6 +235,9 @@ export default function MembershipPlansPage() {
       currency: selectedPlan.pricing?.oneTime?.currency || "INR",
       courseSelectionEnabled: !!selectedPlan.access?.courseSelection?.enabled,
       communityAccess: !!selectedPlan.access?.communityAccess,
+      planKind: selectedPlan.planKind === "tiered" ? "tiered" : "standalone",
+      tierLevel: selectedPlan.tierLevel ?? 0,
+      inheritedPlanIds: (selectedPlan.access?.inheritedPlanIds || []).map((id) => String(id)),
       maxSelectableCourses: selectedPlan.access?.courseSelection?.maxSelectableCourses ?? 3,
       eligibleCoursesMode: selectedPlan.access?.courseSelection?.eligibleCoursesMode || "all_published",
       eligibleCourseIds: (selectedPlan.access?.courseSelection?.eligibleCourseIds || []).map((id) => String(id)),
@@ -337,6 +354,8 @@ export default function MembershipPlansPage() {
       displayOrder: Number(form.displayOrder || 0),
       validityDays: Number(form.validityDays || 365),
       isLifetime: form.isLifetime,
+      planKind: form.planKind,
+      tierLevel: Number(form.tierLevel || 0),
       pricing: {
         oneTime: {
           amount: Number(form.amount || 0),
@@ -354,6 +373,7 @@ export default function MembershipPlansPage() {
         communityAccess: form.communityAccess,
         counselingAccess: false,
         eventAccess: false,
+        inheritedPlanIds: form.planKind === "tiered" ? form.inheritedPlanIds : [],
         courseSelection: {
           enabled: form.courseSelectionEnabled,
           maxSelectableCourses: Number(form.maxSelectableCourses || 3),
@@ -559,6 +579,16 @@ export default function MembershipPlansPage() {
                   </span>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">slug: {plan.slug}</p>
+                <p className="text-xs mt-1">
+                  {plan.planKind === "tiered" ? (
+                    <span className="text-indigo-600 font-medium">Tier {plan.tierLevel ?? 0}</span>
+                  ) : (
+                    <span className="text-gray-400">Standalone</span>
+                  )}
+                  {(plan.access?.inheritedPlanIds?.length || 0) > 0 && (
+                    <span className="text-gray-500"> · Includes {plan.access!.inheritedPlanIds!.length}</span>
+                  )}
+                </p>
                 <p className="text-sm text-gray-700 mt-2">₹{(plan.pricing?.oneTime?.amount || 0).toLocaleString("en-IN")}</p>
                 <p className="text-xs text-gray-500 mt-1">Users: {planUsage[plan.slug] || 0}</p>
                 {plan.access?.courseSelection?.enabled && (
@@ -970,6 +1000,90 @@ export default function MembershipPlansPage() {
             <p className="text-xs text-gray-500">
               Users on this plan get access to plan-based community groups and category subgroups.
             </p>
+          </div>
+
+          <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900">Plan relationships</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Standalone plans are buyable on their own. Tiered plans can include lower-tier plans so buyers of a
+                higher tier are not offered the included plans again.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-5">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="radio"
+                  name="planKind"
+                  checked={form.planKind === "standalone"}
+                  onChange={() => setForm((prev) => ({ ...prev, planKind: "standalone", inheritedPlanIds: [] }))}
+                />
+                Standalone
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="radio"
+                  name="planKind"
+                  checked={form.planKind === "tiered"}
+                  onChange={() => updateField("planKind", "tiered")}
+                />
+                Part of a hierarchy (tiered)
+              </label>
+            </div>
+
+            {form.planKind === "tiered" && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tier level</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={form.tierLevel}
+                    onChange={(event) => updateField("tierLevel", Number(event.target.value || 0))}
+                    className="w-32 px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Lower number = lower tier (e.g. Bronze 1, Copper 2, Silver 3).
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Includes plans</label>
+                  {otherTieredPlans.length === 0 ? (
+                    <p className="text-sm text-gray-500">
+                      No other tiered plans yet. Mark lower tiers as &ldquo;Part of a hierarchy&rdquo; first.
+                    </p>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 space-y-1.5">
+                      {otherTieredPlans.map((plan) => (
+                        <label
+                          key={plan._id}
+                          className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={form.inheritedPlanIds.includes(plan._id)}
+                            onChange={(event) => {
+                              const checked = event.target.checked;
+                              setForm((prev) => ({
+                                ...prev,
+                                inheritedPlanIds: checked
+                                  ? Array.from(new Set([...prev.inheritedPlanIds, plan._id]))
+                                  : prev.inheritedPlanIds.filter((id) => id !== plan._id),
+                              }));
+                            }}
+                          />
+                          <span className="truncate">{plan.title}</span>
+                          <span className="ml-auto text-xs text-gray-400">Tier {plan.tierLevel ?? 0}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">Selected: {form.inheritedPlanIds.length} plan(s)</p>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50">

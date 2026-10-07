@@ -24,6 +24,12 @@ export interface UIMembershipPlan {
   };
   courseCount?: number;
   previewVideos?: PreviewVideo[];
+  planKind?: 'standalone' | 'tiered';
+  tierLevel?: number;
+  isOwned?: boolean;
+  isCovered?: boolean;
+  coveredBy?: string[];
+  isUpgrade?: boolean;
 }
 
 export interface PreviewVideo {
@@ -113,6 +119,12 @@ const mapParentPlan = (plan: any): UIMembershipPlan => {
         duration: video?.duration || '',
       }))
       .filter((video: PreviewVideo) => !!video.videoUrl),
+    planKind: plan?.planKind === 'tiered' ? 'tiered' : 'standalone',
+    tierLevel: Number(plan?.tierLevel || 0),
+    isOwned: !!plan?.isOwned,
+    isCovered: !!plan?.isCovered,
+    coveredBy: Array.isArray(plan?.coveredBy) ? plan.coveredBy.map((s: any) => String(s)) : [],
+    isUpgrade: !!plan?.isUpgrade,
   };
 };
 
@@ -132,6 +144,24 @@ export const fetchPublicMembershipPlans = async (): Promise<UIMembershipPlan[]> 
     return mapped;
   } catch (error: any) {
     console.error('[MembershipPlans] Failed to fetch plans:', error?.message || error);
+    throw error;
+  }
+};
+
+export const fetchEligibleMembershipPlans = async (): Promise<UIMembershipPlan[]> => {
+  try {
+    const response = await apiClient.get('/membership-plans/eligible');
+    const plans = response.data?.data;
+
+    if (!Array.isArray(plans) || plans.length === 0) {
+      return [];
+    }
+
+    return plans
+      .map((plan: any) => mapParentPlan(plan))
+      .filter((plan) => !!plan.id);
+  } catch (error: any) {
+    console.error('[MembershipPlans] Failed to fetch eligible plans:', error?.message || error);
     throw error;
   }
 };

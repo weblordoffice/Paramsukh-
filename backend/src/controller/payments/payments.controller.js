@@ -21,6 +21,7 @@ import { MembershipPlan } from '../../models/membershipPlan.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import {
   resolveMembershipPlanChargeAmount,
+  isPlanCoveredByUser,
 } from '../../services/membershipPlan.service.js';
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
 import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
@@ -329,6 +330,17 @@ export const createMembershipOrder = async (req, res) => {
     }
 
     const finalPlan = planConfig.slug;
+
+    const coverage = await isPlanCoveredByUser(userId, finalPlan);
+    if (coverage.covered) {
+      return res.status(409).json({
+        success: false,
+        code: 'PLAN_ALREADY_INCLUDED',
+        coveredBy: coverage.coveredBy,
+        message: 'This plan is already included in your current membership.',
+      });
+    }
+
     const amount = Number(planConfig.amount || 0);
     const validityDays = Number(planConfig.validityDays || planConfig.plan?.validityDays || 365);
 
@@ -401,6 +413,16 @@ export const createMembershipPaymentLink = async (req, res) => {
 
     if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' });
+    }
+
+    const coverage = await isPlanCoveredByUser(userId, finalPlan);
+    if (coverage.covered) {
+      return res.status(409).json({
+        success: false,
+        code: 'PLAN_ALREADY_INCLUDED',
+        coveredBy: coverage.coveredBy,
+        message: 'This plan is already included in your current membership.',
+      });
     }
 
     const courseIds = Array.isArray(selectedCourseIds) ? selectedCourseIds.filter(Boolean) : [];

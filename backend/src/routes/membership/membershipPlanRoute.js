@@ -1,11 +1,13 @@
 import express from 'express';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import {
   createMembershipPlan,
   deleteMembershipPlan,
   getMembershipPlanById,
   listMembershipPlansAdmin,
   listMembershipPlansPublic,
+  listMembershipPlansEligible,
   updateMembershipPlan,
   updateMembershipPlanStatus,
   getPlanEligibleCourses,
@@ -21,6 +23,8 @@ const router = express.Router();
 
 // Public plans for app/web purchase screens
 router.get('/public', listMembershipPlansPublic);
+// Authenticated plans annotated with per-user coverage (owned/included/upgrade)
+router.get('/eligible', protectedRoutes, listMembershipPlansEligible);
 router.get('/:planSlug/eligible-courses', getPlanEligibleCourses);
 
 // Admin plan management

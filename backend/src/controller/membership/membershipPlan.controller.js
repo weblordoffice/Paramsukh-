@@ -6,6 +6,7 @@ import { AdminPaymentLink } from '../../models/adminPaymentLink.models.js';
 import { CoursePlan } from '../../models/coursePlan.models.js';
 import { Group, GroupMember, Post, Comment } from '../../models/community.models.js';
 import { getPlanCourses, resolvePlanCourseIds } from '../../services/planCourses.service.js';
+import { resolvePlanCoverage, validatePlanRelationships } from '../../services/membershipPlan.service.js';
 
 const normalizeSlug = (value) => {
   return String(value || '')
@@ -43,6 +44,7 @@ const normalizeStringList = (values = []) => {
 const ALLOWED_PLAN_FIELDS = [
   'title', 'slug', 'description',
   'status', 'displayOrder', 'validityDays', 'isLifetime',
+  'planKind', 'tierLevel',
   'pricing', 'access', 'benefits', 'previewVideos', 'metadata'
 ];
 
@@ -71,6 +73,18 @@ const sanitizePlanPayload = (body = {}) => {
 
   if (payload.access?.inheritedPlanIds && Array.isArray(payload.access.inheritedPlanIds)) {
     payload.access.inheritedPlanIds = [...new Set(payload.access.inheritedPlanIds.filter(Boolean).map(String))];
+  }
+
+  if (payload.planKind !== undefined) {
+    payload.planKind = payload.planKind === 'tiered' ? 'tiered' : 'standalone';
+  } else if (payload.access?.inheritedPlanIds?.length > 0) {
+    // Backward compatible: including plans implies a tiered plan.
+    payload.planKind = 'tiered';
+  }
+
+  if (payload.tierLevel !== undefined) {
+    const level = Number(payload.tierLevel);
+    payload.tierLevel = Number.isFinite(level) && level >= 0 ? Math.floor(level) : 0;
   }
 
   if (payload.description !== undefined) {
@@ -156,6 +170,16 @@ export const createMembershipPlan = async (req, res) => {
     if (existing) {
       return res.status(409).json({ success: false, message: 'Plan slug already exists' });
     }
+
+    const relationship = await validatePlanRelationships({
+      planKind: payload.planKind,
+      inheritedPlanIds: payload.access?.inheritedPlanIds || [],
+      planId: null,
+    });
+    if (!relationship.valid) {
+      return res.status(400).json({ success: false, message: relationship.message });
+    }
+    payload.access = { ...(payload.access || {}), inheritedPlanIds: relationship.inheritedPlanIds };
 
     const plan = await MembershipPlan.create(payload);
 
@@ -268,6 +292,29 @@ export const updateMembershipPlan = async (req, res) => {
     const validationError = validatePlanPayload(candidate);
     if (validationError) {
       return res.status(400).json({ success: false, message: validationError });
+    }
+
+    // Relationship (inheritance) validation. Only rewrite the includes list when
+    // the caller explicitly provided it or changed the plan kind, so unrelated
+    // updates don't silently clear existing inheritance.
+    const inheritedProvided = Object.prototype.hasOwnProperty.call(payload.access || {}, 'inheritedPlanIds');
+    const planKindProvided = payload.planKind !== undefined;
+
+    const effectivePlanKind = payload.planKind ?? existingPlan.planKind ?? 'standalone';
+    const effectiveInherited = inheritedProvided
+      ? (payload.access?.inheritedPlanIds || [])
+      : (existingPlan.access?.inheritedPlanIds || []).map(String);
+
+    const relationship = await validatePlanRelationships({
+      planKind: effectivePlanKind,
+      inheritedPlanIds: effectiveInherited,
+      planId: id,
+    });
+    if (!relationship.valid) {
+      return res.status(400).json({ success: false, message: relationship.message });
+    }
+    if (inheritedProvided || planKindProvided) {
+      mergedPayload.access = { ...(mergedPayload.access || {}), inheritedPlanIds: relationship.inheritedPlanIds };
     }
 
     // Save the validated candidate (not raw mergedPayload) using .set() for proper Mongoose validation
@@ -464,7 +511,7 @@ export const deleteMembershipPlan = async (req, res) => {
 export const listMembershipPlansPublic = async (req, res) => {
   try {
     const plans = await MembershipPlan.find({ status: 'published' })
-      .sort({ displayOrder: 1, createdAt: -1 })
+      .sort({ tierLevel: 1, displayOrder: 1, createdAt: -1 })
       .lean();
 
     const plansWithCounts = await Promise.all(
@@ -486,6 +533,60 @@ export const listMembershipPlansPublic = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching public membership plans:', error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch plans', error: error.message });
+  }
+};
+
+/**
+ * List published plans annotated with per-user coverage (owned / included / upgrade).
+ * GET /api/membership-plans/eligible
+ */
+export const listMembershipPlansEligible = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    const plans = await MembershipPlan.find({ status: 'published' })
+      .sort({ tierLevel: 1, displayOrder: 1, createdAt: -1 })
+      .lean();
+
+    const coverage = await resolvePlanCoverage(userId, plans);
+    const coverageBySlug = new Map(coverage.map((entry) => [entry.slug, entry]));
+
+    const plansWithCounts = await Promise.all(
+      plans.map(async (plan) => {
+        const slug = String(plan.slug || '').trim().toLowerCase();
+        const flags = coverageBySlug.get(slug) || {
+          isOwned: false,
+          isCovered: false,
+          isUpgrade: false,
+          coveredBy: [],
+        };
+
+        let courseCount = 0;
+        try {
+          const courseIds = await resolvePlanCourseIds(plan);
+          courseCount = courseIds.length;
+        } catch (countError) {
+          console.error(`Failed to count courses for plan ${plan.slug}:`, countError.message);
+        }
+
+        return {
+          ...plan,
+          planKind: plan.planKind || 'standalone',
+          tierLevel: Number(plan.tierLevel || 0),
+          courseCount,
+          ...flags,
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: plansWithCounts,
+      total: plansWithCounts.length,
+    });
+  } catch (error) {
+    console.error('Error fetching eligible membership plans:', error);
     return res.status(500).json({ success: false, message: 'Failed to fetch plans', error: error.message });
   }
 };

@@ -178,6 +178,23 @@ const membershipPlanSchema = new mongoose.Schema({
     default: 0,
     index: true,
   },
+  // Plan relationship model:
+  // - 'standalone': buyable on its own, never hidden by another plan.
+  // - 'tiered': part of a hierarchy; may include other tiered plans via
+  //   access.inheritedPlanIds.
+  planKind: {
+    type: String,
+    enum: ['standalone', 'tiered'],
+    default: 'standalone',
+    index: true,
+  },
+  // Ordering within the tier ladder (lower = lower tier). Used for sorting and
+  // for deciding upgrade direction. Ignored for standalone plans.
+  tierLevel: {
+    type: Number,
+    default: 0,
+    index: true,
+  },
   pricing: {
     type: pricingSchema,
     required: true,
@@ -209,5 +226,6 @@ const membershipPlanSchema = new mongoose.Schema({
 });
 
 membershipPlanSchema.index({ status: 1, displayOrder: 1, createdAt: -1 });
+membershipPlanSchema.index({ status: 1, planKind: 1, tierLevel: 1 });
 
 export const MembershipPlan = mongoose.model('MembershipPlan', membershipPlanSchema);

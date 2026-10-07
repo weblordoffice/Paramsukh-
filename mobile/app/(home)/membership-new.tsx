@@ -8,7 +8,7 @@ import Header from '../../components/Header';
 import { useMembershipStore } from '../../store/membershipStore';
 import { useAuthStore } from '../../store/authStore';
 import apiClient from '../../utils/apiClient';
-import { fetchPublicMembershipPlans, UIMembershipPlan, PENDING_MEMBERSHIP_LINK_KEY } from '../../utils/membershipPlans';
+import { fetchPublicMembershipPlans, fetchEligibleMembershipPlans, UIMembershipPlan, PENDING_MEMBERSHIP_LINK_KEY } from '../../utils/membershipPlans';
 import { useTheme } from '../../hooks/useTheme';
 
 const PENDING_LINK_KEY = PENDING_MEMBERSHIP_LINK_KEY;
@@ -42,13 +42,27 @@ export default function MembershipScreen() {
 
   const loadPublicPlans = useCallback(async () => {
     setPlansLoading(true);
-    const dynamicPlans = await fetchPublicMembershipPlans();
-    setPlans(dynamicPlans);
-    setPlansLoading(false);
-    if (dynamicPlans.length > 0 && !expandedPlanId) {
-      setExpandedPlanId(dynamicPlans[0].id);
+    try {
+      const dynamicPlans = token
+        ? await fetchEligibleMembershipPlans()
+        : await fetchPublicMembershipPlans();
+      setPlans(dynamicPlans);
+      if (dynamicPlans.length > 0) {
+        const firstBuyable = dynamicPlans.find((p) => !p.isCovered) || dynamicPlans[0];
+        setExpandedPlanId((prev) => prev ?? firstBuyable.id);
+      }
+    } catch {
+      // If the coverage-aware endpoint fails, fall back to the public list.
+      try {
+        const fallback = await fetchPublicMembershipPlans();
+        setPlans(fallback);
+      } catch {
+        setPlans([]);
+      }
+    } finally {
+      setPlansLoading(false);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     fetchCurrentSubscription();
@@ -276,6 +290,33 @@ export default function MembershipScreen() {
     return currentSelection === planId && currentSubscription?.status === 'active';
   };
 
+  const getPlanGroupKey = (plan: UIMembershipPlan) => {
+    const current = plan.isOwned || isPlanActive(plan.id);
+    if (current) return 'current';
+    if (plan.isCovered) return 'included';
+    if (plan.isUpgrade) return 'upgrade';
+    return 'other';
+  };
+
+  const GROUP_LABELS: Record<string, string> = {
+    current: 'Your current plan',
+    upgrade: 'Upgrade',
+    other: 'Plans & add-ons',
+    included: 'Included in your plan',
+  };
+
+  const orderedPlans = [
+    ...plans.filter((p) => getPlanGroupKey(p) === 'current'),
+    ...plans.filter((p) => getPlanGroupKey(p) === 'upgrade'),
+    ...plans.filter((p) => getPlanGroupKey(p) === 'other'),
+    ...plans.filter((p) => getPlanGroupKey(p) === 'included'),
+  ];
+
+  const planNameBySlug: Record<string, string> = {};
+  plans.forEach((p) => {
+    planNameBySlug[p.slug] = p.name;
+  });
+
   return (
     <View className="flex-1" style={{ backgroundColor: colors.background }}>
       <Header />
@@ -329,7 +370,7 @@ export default function MembershipScreen() {
             </View>
           )}
 
-          {plans.map((plan) => {
+          {orderedPlans.map((plan, index) => {
             const isExpanded = expandedPlanId === plan.id;
             const displayPrice = getDisplayPrice(plan);
             const maxSelectable = plan.courseSelection?.maxSelectableCourses || 0;
@@ -337,48 +378,87 @@ export default function MembershipScreen() {
             const courses = planCourses[plan.slug] || [];
             const selectedCount = getSelectedCount(plan.id);
             const isCoursesLoading = loadingCourses[plan.slug];
+            const isCurrent = plan.isOwned || isPlanActive(plan.id);
+            const isCovered = !!plan.isCovered && !isCurrent;
+            const groupKey = getPlanGroupKey(plan);
+            const prevGroupKey = index > 0 ? getPlanGroupKey(orderedPlans[index - 1]) : null;
+            const showGroupHeader = groupKey !== prevGroupKey;
+            const coveredByLabel = (plan.coveredBy || [])
+              .map((slug) => planNameBySlug[slug] || slug)
+              .join(', ');
 
             return (
               <View key={plan.id} className="mb-4">
+                {showGroupHeader && (
+                  <Text className="text-xs font-bold uppercase tracking-wider mb-2 mt-2 px-1" style={{ color: colors.textSecondary }}>
+                    {GROUP_LABELS[groupKey]}
+                  </Text>
+                )}
                 {/* Plan Header - Touchable for expand/collapse */}
                 <TouchableOpacity
-                  activeOpacity={0.9}
-                  onPress={() => togglePlan(plan.id, plan.slug)}
-                  className={`rounded-[20px] p-5 shadow-lg ${isExpanded ? 'rounded-b-none' : ''}`}
-                  style={{ backgroundColor: plan.gradient[0] }}
+                  activeOpacity={isCovered ? 1 : 0.9}
+                  onPress={() => { if (!isCovered) togglePlan(plan.id, plan.slug); }}
+                  className={`rounded-[20px] p-5 shadow-lg ${!isCovered && isExpanded ? 'rounded-b-none' : ''}`}
+                  style={{ backgroundColor: isCovered ? colors.surfaceSecondary : plan.gradient[0], opacity: isCovered ? 0.9 : 1 }}
                 >
                   <View className="flex-row justify-between items-center mb-4">
                     <View className="flex-1 pr-3">
-                      <Text className="text-[22px] font-extrabold text-gray-900">{plan.name}</Text>
+                      <View className="flex-row items-center flex-wrap gap-2">
+                        <Text className="text-[22px] font-extrabold text-gray-900">{plan.name}</Text>
+                        {isCurrent && (
+                          <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.success + '22' }}>
+                            <Text className="text-[11px] font-bold" style={{ color: colors.success }}>CURRENT</Text>
+                          </View>
+                        )}
+                        {isCovered && (
+                          <View className="px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.primary + '22' }}>
+                            <Text className="text-[11px] font-bold" style={{ color: colors.primary }}>INCLUDED</Text>
+                          </View>
+                        )}
+                      </View>
                       {!!plan.tagline && (
                         <Text className="text-sm text-gray-600 mt-1">{plan.tagline}</Text>
                       )}
+                      {isCovered && (
+                        <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                          Included in your {coveredByLabel || 'current'} membership
+                        </Text>
+                      )}
                     </View>
-                    {isExpanded && (
+                    {!isCovered && isExpanded && (
                       <Ionicons name="chevron-up" size={22} color={colors.textSecondary} />
                     )}
-                    {!isExpanded && hasCourseSelection && (
+                    {!isCovered && !isExpanded && hasCourseSelection && (
                       <Ionicons name="chevron-down" size={22} color={colors.textSecondary} />
                     )}
                   </View>
 
                   <View className="mb-4">
-                    <Text className="text-3xl font-black" style={{ color: plan.color }}>{displayPrice}</Text>
+                    {isCovered ? (
+                      <Text className="text-lg font-bold" style={{ color: colors.textSecondary }}>Included</Text>
+                    ) : (
+                      <Text className="text-3xl font-black" style={{ color: plan.color }}>{displayPrice}</Text>
+                    )}
                   </View>
 
                   {/* Purchase Button (outside expanded area) */}
-                  {!hasCourseSelection ? (
+                  {isCovered ? (
+                    <View className="flex-row items-center justify-center gap-2 py-4 rounded-xl" style={{ backgroundColor: colors.border }}>
+                      <Ionicons name="lock-closed" size={16} color={colors.textSecondary} />
+                      <Text className="text-base font-bold" style={{ color: colors.textSecondary }}>Included in your plan</Text>
+                    </View>
+                  ) : !hasCourseSelection ? (
                     <TouchableOpacity
-                      className={`flex-row items-center justify-center gap-2 py-4 rounded-xl ${isPlanActive(plan.id) ? 'bg-green-500' : ''}`}
-                      style={isPlanActive(plan.id) ? {} : { backgroundColor: plan.color }}
-                      onPress={() => isPlanActive(plan.id) ? null : handlePurchase(plan)}
-                      disabled={purchasingPlanId !== null || isPlanActive(plan.id)}
+                      className={`flex-row items-center justify-center gap-2 py-4 rounded-xl ${isCurrent ? 'bg-green-500' : ''}`}
+                      style={isCurrent ? {} : { backgroundColor: plan.color }}
+                      onPress={() => isCurrent ? null : handlePurchase(plan)}
+                      disabled={purchasingPlanId !== null || isCurrent}
                     >
                       {purchasingPlanId === plan.id ? (
                         <ActivityIndicator color={colors.surface} />
                       ) : (
                         <Text className="text-base font-bold text-white">
-                          {isPlanActive(plan.id) ? '✓ Active Plan' : 'Purchase Now'}
+                          {isCurrent ? '✓ Active Plan' : plan.isUpgrade ? 'Upgrade Now' : 'Purchase Now'}
                         </Text>
                       )}
                     </TouchableOpacity>
@@ -395,7 +475,7 @@ export default function MembershipScreen() {
                 </TouchableOpacity>
 
                 {/* Expanded Course Selection */}
-                {isExpanded && hasCourseSelection && (
+                {!isCovered && isExpanded && hasCourseSelection && (
                   <View className="rounded-b-[20px] border-t p-4 shadow-lg" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
                     {/* Selection counter */}
                     <View className="flex-row items-center justify-between mb-3 px-2">
@@ -473,11 +553,11 @@ export default function MembershipScreen() {
                     {/* Purchase Button */}
                     <TouchableOpacity
                       className={`flex-row items-center justify-center gap-2 py-4 rounded-xl mt-4 ${
-                        isPlanActive(plan.id) ? 'bg-green-500' : ''
+                        isCurrent ? 'bg-green-500' : ''
                       } ${selectedCount === 0 ? 'opacity-40' : ''}`}
-                      style={isPlanActive(plan.id) ? {} : { backgroundColor: plan.color }}
+                      style={isCurrent ? {} : { backgroundColor: plan.color }}
                       onPress={() => handlePurchase(plan)}
-                      disabled={purchasingPlanId !== null || isPlanActive(plan.id) || selectedCount === 0}
+                      disabled={purchasingPlanId !== null || isCurrent || selectedCount === 0}
                     >
                       {purchasingPlanId === plan.id ? (
                         <ActivityIndicator color={colors.surface} />
@@ -485,11 +565,11 @@ export default function MembershipScreen() {
                         <>
                           <Ionicons name="lock-open-outline" size={18} color="#FFF" />
                           <Text className="text-base font-bold text-white">
-                            {isPlanActive(plan.id)
+                            {isCurrent
                               ? '✓ Active Plan'
                               : selectedCount === 0
                                 ? 'Select courses to purchase'
-                                : `Purchase (${selectedCount} course${selectedCount > 1 ? 's' : ''}) — ${displayPrice}`}
+                                : `${plan.isUpgrade ? 'Upgrade' : 'Purchase'} (${selectedCount} course${selectedCount > 1 ? 's' : ''}) — ${displayPrice}`}
                           </Text>
                         </>
                       )}

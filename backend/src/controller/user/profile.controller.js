@@ -7,6 +7,7 @@ import {
   resolveMembershipPlanChargeAmount,
   resolveMembershipPlanInheritanceBySlug,
   normalizePlanSlug,
+  isPlanCoveredByUser,
 } from '../../services/membershipPlan.service.js';
 import { upsertActiveUserMembership } from '../../services/userMembership.service.js';
 import { getAutoEnrollCoursesForPlan } from '../../services/membershipAccess.service.js';
@@ -676,6 +677,16 @@ export const purchaseMembership = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Invalid membership plan'
+      });
+    }
+
+    const planCoverage = await isPlanCoveredByUser(userId, planConfig.slug);
+    if (planCoverage.covered) {
+      return res.status(409).json({
+        success: false,
+        code: 'PLAN_ALREADY_INCLUDED',
+        coveredBy: planCoverage.coveredBy,
+        message: 'This plan is already included in your current membership.'
       });
     }
 
