@@ -84,9 +84,11 @@ interface CommunityState {
     isLoading: boolean;
     error: string | null;
     communityAccessDenied: boolean;
+    postingBlocked: boolean;
 
     fetchMyGroups: () => Promise<void>;
     fetchGroupPosts: (groupId: string, page?: number) => Promise<void>;
+    fetchAllPosts: (page?: number) => Promise<void>;
     createPost: (groupId: string, content: string, images?: string[], tags?: string[]) => Promise<boolean>;
     togglePostLike: (postId: string) => Promise<void>;
     deletePost: (postId: string) => Promise<void>;
@@ -107,6 +109,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     isLoading: false,
     error: null,
     communityAccessDenied: false,
+    postingBlocked: false,
 
     fetchMyGroups: async () => {
         set({ isLoading: true, error: null });
@@ -120,6 +123,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                     generalGroup: response.data?.generalGroup || null,
                     isLoading: false,
                     communityAccessDenied: false,
+                    postingBlocked: response.data?.postingBlocked === true,
                     error: null
                 });
             } else {
@@ -146,6 +150,31 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         set({ isLoading: true, error: null });
         try {
             const response = await apiClient.get(`${API_URL}/community/groups/${groupId}/posts`, {
+                params: { page }
+            });
+            if (response.data?.success) {
+                const newPosts = response.data?.posts ?? [];
+                set(state => ({
+                    posts: page === 1 ? newPosts : [...state.posts, ...newPosts],
+                    isLoading: false
+                }));
+            } else {
+                set({ isLoading: false, error: 'Failed to load posts' });
+            }
+        } catch (error: any) {
+            let userMessage = 'Unable to load posts. Pull down to refresh.';
+            if (!error.response) {
+                userMessage = 'No internet connection. Posts will load when you\'re back online.';
+            }
+
+            set({ isLoading: false, error: userMessage });
+        }
+    },
+
+    fetchAllPosts: async (page = 1) => {
+        set({ isLoading: true, error: null });
+        try {
+            const response = await apiClient.get(`${API_URL}/community/feed`, {
                 params: { page }
             });
             if (response.data?.success) {
@@ -233,6 +262,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 userMessage = 'No internet connection. Please check your network.';
             } else if (error.response?.status === 401) {
                 userMessage = 'Session expired. Please sign in again.';
+            } else if (error.response?.status === 403 && error.response?.data?.code === 'POSTING_BLOCKED') {
+                userMessage = error.response?.data?.message || 'You have been blocked from posting in the community.';
+                set({ postingBlocked: true });
             }
 
             set({ isLoading: false, error: userMessage });

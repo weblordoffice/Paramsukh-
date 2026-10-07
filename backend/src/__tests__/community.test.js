@@ -132,6 +132,30 @@ describe('Community Module - /api/community', () => {
     });
   });
 
+  describe('GET /api/community/feed', () => {
+    it('should return posts from all of the user\'s groups', async () => {
+      await Post.create({
+        groupId: group._id,
+        userId: user._id,
+        content: 'A post that should appear in the combined feed.',
+      });
+
+      const res = await request(app)
+        .get('/api/community/feed')
+        .set(getAuthHeader(token));
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.posts)).toBe(true);
+      expect(res.body.posts.some(p => p.content === 'A post that should appear in the combined feed.')).toBe(true);
+    });
+
+    it('should require authentication', async () => {
+      const res = await request(app).get('/api/community/feed');
+      expect(res.status).toBe(401);
+    });
+  });
+
   describe('POST /api/community/groups/:id/posts', () => {
     it('should create a post with valid data', async () => {
       const res = await request(app)
@@ -227,6 +251,67 @@ describe('Community Module - /api/community', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+    });
+  });
+
+  describe('Community moderation', () => {
+    it('should reject posting from a blocked user', async () => {
+      user.communityPostingBlocked = true;
+      await user.save();
+
+      const res = await request(app)
+        .post(`/api/community/groups/${group._id}/posts`)
+        .set(getAuthHeader(token))
+        .send({ content: 'Should be rejected.' });
+
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe('POSTING_BLOCKED');
+    });
+
+    it('should let an admin block a user from posting', async () => {
+      const res = await request(app)
+        .post(`/api/community/admin/users/${user._id}/posting-block`)
+        .set(getAdminApiKeyHeader())
+        .send({ blocked: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.communityPostingBlocked).toBe(true);
+
+      const { User } = await import('../models/user.models.js');
+      const refreshed = await User.findById(user._id).lean();
+      expect(refreshed.communityPostingBlocked).toBe(true);
+    });
+
+    it('should hide a blocked post from the user feed', async () => {
+      const post = await Post.create({
+        groupId: group._id,
+        userId: user._id,
+        content: 'Blocked content.',
+        isBlocked: true,
+      });
+
+      const res = await request(app)
+        .get('/api/community/feed')
+        .set(getAuthHeader(token));
+
+      expect(res.status).toBe(200);
+      expect(res.body.posts.some(p => p._id === String(post._id))).toBe(false);
+    });
+
+    it('should let an admin block a post', async () => {
+      const post = await Post.create({
+        groupId: group._id,
+        userId: user._id,
+        content: 'To be hidden.',
+      });
+
+      const res = await request(app)
+        .patch(`/api/community/posts/${post._id}/block`)
+        .set(getAdminApiKeyHeader())
+        .send({ blocked: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.isBlocked).toBe(true);
     });
   });
 });

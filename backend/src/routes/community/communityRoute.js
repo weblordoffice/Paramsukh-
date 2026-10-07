@@ -8,6 +8,7 @@ import {
   checkCommunityAccess,
   getMyGroups,
   getGroupPosts,
+  getAllFeedPosts,
   createPost,
   togglePostLike,
   getPostComments,
@@ -16,7 +17,7 @@ import {
   deletePost,
   deleteComment
 } from '../../controller/community/community.controller.js';
-import { getAllPosts, deletePostAdmin, togglePinPost, createPostAdmin, getAdminGroups, getPostCommentsAdmin, deleteCommentAdmin, getGeneralGroup, updateGeneralGroup } from '../../controller/community/admin.community.controller.js';
+import { getAllPosts, deletePostAdmin, togglePinPost, toggleBlockPost, setUserPostingBlock, createPostAdmin, getAdminGroups, getPostCommentsAdmin, deleteCommentAdmin, getGeneralGroup, updateGeneralGroup } from '../../controller/community/admin.community.controller.js';
 import { runScheduledCleanup } from '../../controller/community/communityCleanup.controller.js';
 
 const router = express.Router();
@@ -25,6 +26,8 @@ const router = express.Router();
 router.get('/all', adminAuth, getAllPosts);
 router.delete('/posts/:postId/admin', adminAuth, deletePostAdmin);
 router.patch('/posts/:postId/pin', adminAuth, togglePinPost);
+router.patch('/posts/:postId/block', adminAuth, toggleBlockPost);
+router.post('/admin/users/:userId/posting-block', adminAuth, setUserPostingBlock);
 router.post('/admin/posts', adminAuth, communityPostLimiter, sanitizePostContent, validateCreatePost, createPostAdmin);
 router.get('/admin/groups', adminAuth, getAdminGroups);
 router.get('/admin/groups/general', adminAuth, getGeneralGroup);
@@ -45,6 +48,7 @@ router.get('/check-access', checkCommunityAccess);
 // Groups
 // ========================================
 router.get('/my-groups', getMyGroups);
+router.get('/feed', getAllFeedPosts);
 router.get('/groups/:groupId/posts', getGroupPosts);
 router.post('/groups/:groupId/posts', communityPostLimiter, sanitizePostContent, validateCreatePost, createPost);
 

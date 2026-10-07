@@ -880,10 +880,12 @@ export default function CommunityScreen() {
     isLoading: isStoreLoading,
     fetchMyGroups,
     fetchGroupPosts,
+    fetchAllPosts,
     createPost: storeCreatePost,
     togglePostLike: storeToggleLike,
     deletePost: storeDeletePost,
-    communityAccessDenied
+    communityAccessDenied,
+    postingBlocked
   } = useCommunityStore();
 
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
@@ -966,31 +968,27 @@ export default function CommunityScreen() {
     }, [token, fetchMyGroups, fetchUnreadCount])
   );
 
-  // When groups are loaded, auto-select first plan group (combined feed) or the General group
-  useEffect(() => {
-    if (!activeGroup) {
-      if (planGroups.length > 0) {
-        // Auto-select the first plan group (shows combined feed)
-        const firstPlan = planGroups[0];
-        setActiveGroup(firstPlan as any as Group);
-        // Auto-expand first plan group in sidebar
-        setExpandedPlanGroups(new Set([firstPlan._id]));
-      } else if (generalGroup) {
-        setActiveGroup(generalGroup);
-      } else if (groups.length > 0) {
-        setActiveGroup(groups[0]);
-      }
-    }
-  }, [planGroups, groups, generalGroup, activeGroup]);
+  // Default to the "All" view (no specific group selected). The user can pick
+  // a group from the chip bar or the sidebar.
 
-  // When active group changes, fetch its posts
+  // When the selected group changes, reset filters and fetch the matching feed
   useEffect(() => {
+    setSelectedPostFilter('all');
+    setSelectedTag(null);
+    setCurrentPage(1);
     if (activeGroup) {
-      setSelectedPostFilter('all');
-      setSelectedTag(null);
       fetchGroupPosts(activeGroup._id);
+    } else {
+      fetchAllPosts();
     }
-  }, [activeGroup, fetchGroupPosts]);
+  }, [activeGroup, fetchGroupPosts, fetchAllPosts]);
+
+  const loadFeedPage = useCallback((page = 1) => {
+    if (activeGroup) {
+      return fetchGroupPosts(activeGroup._id, page);
+    }
+    return fetchAllPosts(page);
+  }, [activeGroup, fetchGroupPosts, fetchAllPosts]);
 
   const toggleSidebar = useCallback(() => {
     setShowSidebar(!showSidebar);
@@ -1041,8 +1039,9 @@ export default function CommunityScreen() {
   };
 
   const publishPost = async () => {
-    if (!activeGroup) {
-      Alert.alert('Error', 'No active group selected to post to.');
+    const targetGroup = activeGroup || generalGroup;
+    if (!targetGroup) {
+      Alert.alert('Error', 'No group available to post to.');
       return;
     }
 
@@ -1064,7 +1063,7 @@ export default function CommunityScreen() {
       }
 
       const success = await storeCreatePost(
-        activeGroup._id,
+        targetGroup._id,
         postContent,
         uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined,
         createPostTags
@@ -1077,7 +1076,7 @@ export default function CommunityScreen() {
         setShowCreatePost(false);
         setIsLoading(false);
         // Re-fetch to get server-assigned data (author enrichment, timeAgo, etc.)
-        fetchGroupPosts(activeGroup._id);
+        loadFeedPage(1);
 
         Alert.alert('Success', 'Your post has been published!');
       } else {
@@ -1123,7 +1122,7 @@ export default function CommunityScreen() {
   const getViewTitle = () => {
     switch (currentView) {
       case 'feed':
-        return activeGroup ? activeGroup.name : 'Community Feed';
+        return activeGroup ? activeGroup.name : 'All Communities';
       case 'groups':
         return 'My Groups';
       case 'message':
@@ -1248,6 +1247,43 @@ export default function CommunityScreen() {
 
           <View style={styles.sidebarSection}>
             <Text style={styles.sidebarSectionTitle}>Communities</Text>
+
+            <TouchableOpacity
+              style={[
+                styles.planGroupHeader,
+                !activeGroup && styles.planGroupHeaderActive,
+              ]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                setActiveGroup(null);
+                setCurrentView('feed');
+                setShowSidebar(false);
+              }}
+              activeOpacity={0.8}
+            >
+              <View style={[
+                styles.planGroupIconContainer,
+                !activeGroup && styles.planGroupIconContainerActive,
+              ]}>
+                <Ionicons
+                  name="grid-outline"
+                  size={14}
+                  color={!activeGroup ? colors.surface : '#F1842D'}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                    styles.planGroupName,
+                    !activeGroup && styles.planGroupNameActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  All Communities
+                </Text>
+                <Text style={styles.planGroupMeta}>Every community you belong to</Text>
+              </View>
+            </TouchableOpacity>
 
             {generalGroup && (
               <TouchableOpacity
@@ -1481,13 +1517,13 @@ export default function CommunityScreen() {
             contentContainerStyle={{ paddingBottom: bottomTabHeight }}
             showsVerticalScrollIndicator={false}
             refreshing={isStoreLoading}
-            onRefresh={() => { setCurrentPage(1); activeGroup && fetchGroupPosts(activeGroup._id); }}
+            onRefresh={() => { setCurrentPage(1); loadFeedPage(1); }}
             onEndReachedThreshold={0.3}
             onEndReached={() => {
-              if (!loadingMore && activeGroup) {
+              if (!loadingMore) {
                 setLoadingMore(true);
                 const nextPage = currentPage + 1;
-                fetchGroupPosts(activeGroup._id, nextPage).then(() => {
+                loadFeedPage(nextPage).then(() => {
                   setCurrentPage(nextPage);
                   setLoadingMore(false);
                 }).catch(() => setLoadingMore(false));
@@ -1496,7 +1532,7 @@ export default function CommunityScreen() {
             ListHeaderComponent={
               <>
                 {/* Quick Group Switcher — horizontal scrollable chips */}
-                {(planGroups.length > 0 || generalGroup) && (
+                {(planGroups.length > 0 || generalGroup || groups.length > 0) && (
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
@@ -1504,11 +1540,11 @@ export default function CommunityScreen() {
                     style={{ backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}
                   >
                     <TouchableOpacity
-                      style={[styles.groupChip, !activeGroup?._id && styles.groupChipActive]}
+                      style={[styles.groupChip, !activeGroup && styles.groupChipActive]}
                       onPress={() => { setActiveGroup(null); setCurrentPage(1); }}
                     >
-                        <Ionicons name="grid-outline" size={14} color={!activeGroup?._id ? colors.text : colors.textSecondary} />
-                      <Text style={[styles.groupChipText, !activeGroup?._id && styles.groupChipTextActive]}>All</Text>
+                        <Ionicons name="grid-outline" size={14} color={!activeGroup ? colors.surface : colors.textSecondary} />
+                      <Text style={[styles.groupChipText, !activeGroup && styles.groupChipTextActive]}>All</Text>
                     </TouchableOpacity>
                     {generalGroup && (
                       <TouchableOpacity
@@ -1571,14 +1607,29 @@ export default function CommunityScreen() {
 
                 {/* Create Post Button */}
                 <TouchableOpacity
-                  style={styles.createPostButton}
-                  onPress={() => setShowCreatePost(true)}
+                  style={[styles.createPostButton, postingBlocked && { opacity: 0.6 }]}
+                  onPress={() => {
+                    if (postingBlocked) {
+                      Alert.alert(
+                        'Posting Blocked',
+                        'An administrator has blocked you from creating posts in the community.'
+                      );
+                      return;
+                    }
+                    setShowCreatePost(true);
+                  }}
                   activeOpacity={0.8}
                 >
                   <View style={styles.createPostContent}>
-                    <Ionicons name="add-circle" size={24} color="#F1842D" />
+                    <Ionicons
+                      name={postingBlocked ? 'ban' : 'add-circle'}
+                      size={24}
+                      color={postingBlocked ? colors.textSecondary : '#F1842D'}
+                    />
                     <Text style={styles.createPostText}>
-                      Share something with the community...
+                      {postingBlocked
+                        ? 'You are blocked from posting'
+                        : 'Share something with the community...'}
                     </Text>
                   </View>
                   <View style={styles.mediaIcons}>
@@ -1605,7 +1656,7 @@ export default function CommunityScreen() {
               ) : (
                 <View style={[styles.emptyState, { paddingTop: 40 }]}>
                   <Text style={styles.emptyStateText}>
-                    {activeGroup && generalGroup && activeGroup._id === generalGroup._id
+                    {!activeGroup || (generalGroup && activeGroup._id === generalGroup._id)
                       ? 'No posts yet — be the first to share.'
                       : 'No posts found'}
                   </Text>

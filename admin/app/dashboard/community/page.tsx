@@ -3,20 +3,21 @@
 import { useEffect, useState } from 'react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { Search, MessageSquare, Heart, MessageCircle, Trash2, Pin, Plus } from 'lucide-react';
+import { Search, MessageSquare, Heart, MessageCircle, Trash2, Pin, Plus, EyeOff, Eye, UserX, UserCheck } from 'lucide-react';
 import CreatePostModal from './CreatePostModal';
 import CommentsModal from './CommentsModal';
 import GeneralCommunityCard from './GeneralCommunityCard';
 
 interface Post {
     _id: string;
-    userId: { displayName: string } | null;
+    userId: { _id?: string; displayName: string; communityPostingBlocked?: boolean } | null;
     content: string;
     images?: string[];
     groupId: { name: string };
     likeCount: number;
     commentCount: number;
     isPinned: boolean;
+    isBlocked?: boolean;
     isAdminPost?: boolean;
     authorName?: string;
     createdAt: string;
@@ -93,6 +94,38 @@ export default function CommunityPage() {
         }
     };
 
+    const handleToggleBlockPost = async (postId: string, currentBlocked: boolean) => {
+        if (pendingActionId) return;
+        setPendingActionId(postId);
+        try {
+            const response = await apiClient.patch(`/api/community/posts/${postId}/block`, { blocked: !currentBlocked });
+            toast.success(response.data.message);
+            setPosts(prev => prev.map(p => p._id === postId ? { ...p, isBlocked: !currentBlocked } : p));
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to update block status');
+        } finally {
+            setPendingActionId(null);
+        }
+    };
+
+    const handleToggleBlockUser = async (userId: string, currentBlocked: boolean) => {
+        if (pendingActionId) return;
+        setPendingActionId(userId);
+        try {
+            const response = await apiClient.post(`/api/community/admin/users/${userId}/posting-block`, { blocked: !currentBlocked });
+            toast.success(response.data.message);
+            setPosts(prev => prev.map(p =>
+                (p.userId?._id === userId)
+                    ? { ...p, userId: { ...p.userId!, communityPostingBlocked: !currentBlocked } }
+                    : p
+            ));
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to update posting permission');
+        } finally {
+            setPendingActionId(null);
+        }
+    };
+
     const filteredPosts = posts.filter(post =>
         post.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         post.userId?.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -149,12 +182,24 @@ export default function CommunityPage() {
                             <div className="space-y-4">
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
-                                        <div className="flex items-center space-x-2">
+                                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                                             <h3 className="font-bold text-secondary">{post.authorName || post.userId?.displayName || 'Unknown User'}</h3>
                                             {post.isPinned && (
                                                 <span className="px-2 py-1 bg-primary/10 text-primary rounded text-xs font-medium flex items-center space-x-1">
                                                     <Pin className="w-3 h-3" />
                                                     <span>Pinned</span>
+                                                </span>
+                                            )}
+                                            {post.isBlocked && (
+                                                <span className="px-2 py-1 bg-red-50 text-red-600 rounded text-xs font-medium flex items-center space-x-1">
+                                                    <EyeOff className="w-3 h-3" />
+                                                    <span>Hidden</span>
+                                                </span>
+                                            )}
+                                            {post.userId?.communityPostingBlocked && (
+                                                <span className="px-2 py-1 bg-amber-50 text-amber-600 rounded text-xs font-medium flex items-center space-x-1">
+                                                    <UserX className="w-3 h-3" />
+                                                    <span>Posting blocked</span>
                                                 </span>
                                             )}
                                         </div>
@@ -180,6 +225,24 @@ export default function CommunityPage() {
                                         >
                                             <Pin className="w-4 h-4" />
                                         </button>
+                                        <button
+                                            onClick={() => handleToggleBlockPost(post._id, !!post.isBlocked)}
+                                            disabled={pendingActionId === post._id}
+                                            className={`p-2 rounded-lg transition ${pendingActionId === post._id ? 'opacity-50 cursor-not-allowed' : ''} ${post.isBlocked ? 'text-amber-600 bg-amber-50 hover:bg-amber-100' : 'text-gray-600 hover:bg-gray-100'}`}
+                                            title={post.isBlocked ? 'Unblock post (show to members)' : 'Block post (hide from members)'}
+                                        >
+                                            {post.isBlocked ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                                        </button>
+                                        {post.userId?._id && (
+                                            <button
+                                                onClick={() => handleToggleBlockUser(post.userId!._id!, !!post.userId?.communityPostingBlocked)}
+                                                disabled={pendingActionId === post.userId._id}
+                                                className={`p-2 rounded-lg transition ${pendingActionId === post.userId._id ? 'opacity-50 cursor-not-allowed' : ''} ${post.userId?.communityPostingBlocked ? 'text-amber-600 bg-amber-50 hover:bg-amber-100' : 'text-gray-600 hover:bg-gray-100'}`}
+                                                title={post.userId?.communityPostingBlocked ? 'Allow user to post again' : 'Block user from posting'}
+                                            >
+                                                {post.userId?.communityPostingBlocked ? <UserCheck className="w-4 h-4" /> : <UserX className="w-4 h-4" />}
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => handleDeletePost(post._id)}
                                             disabled={pendingActionId === post._id}

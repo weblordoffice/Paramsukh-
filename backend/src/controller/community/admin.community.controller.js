@@ -1,4 +1,5 @@
 import { Post, Comment, Group } from '../../models/community.models.js';
+import { User } from '../../models/user.models.js';
 import { ensureGeneralGroup } from '../../services/community.service.js';
 
 // @desc    Get all community posts (Admin only)
@@ -19,7 +20,7 @@ export const getAllPosts = async (req, res) => {
         }
 
         const posts = await Post.find(query)
-            .populate('userId', 'displayName email photoURL')
+            .populate('userId', 'displayName email photoURL communityPostingBlocked')
             .populate('groupId', 'name')
             .sort({ createdAt: -1 })
             .limit(limitNum)
@@ -117,6 +118,85 @@ export const togglePinPost = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to toggle pin status',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Block / unblock a post (hide from members) (Admin only)
+// @route   PATCH /api/community/posts/:postId/block
+// @access  Admin
+export const toggleBlockPost = async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const { blocked } = req.body;
+
+        const post = await Post.findById(postId);
+        if (!post) {
+            return res.status(404).json({
+                success: false,
+                message: 'Post not found'
+            });
+        }
+
+        post.isBlocked = typeof blocked === 'boolean' ? blocked : !post.isBlocked;
+        await post.save();
+
+        console.log(`🚫 Admin ${post.isBlocked ? 'blocked' : 'unblocked'} post ${postId}`);
+
+        res.status(200).json({
+            success: true,
+            message: `Post ${post.isBlocked ? 'blocked' : 'unblocked'} successfully`,
+            data: { isBlocked: post.isBlocked }
+        });
+    } catch (error) {
+        console.error('Toggle Block Post Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update block status',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Block / unblock a user from creating community posts (Admin only)
+// @route   POST /api/community/admin/users/:userId/posting-block
+// @access  Admin
+export const setUserPostingBlock = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { blocked } = req.body;
+
+        const user = await User.findById(userId).select('displayName email communityPostingBlocked');
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        user.communityPostingBlocked = typeof blocked === 'boolean' ? blocked : !user.communityPostingBlocked;
+        await user.save();
+
+        console.log(`🚫 Admin ${user.communityPostingBlocked ? 'blocked' : 'unblocked'} posting for user ${userId}`);
+
+        res.status(200).json({
+            success: true,
+            message: user.communityPostingBlocked
+                ? 'User blocked from posting'
+                : 'User can post again',
+            data: {
+                userId: user._id,
+                displayName: user.displayName,
+                email: user.email,
+                communityPostingBlocked: user.communityPostingBlocked
+            }
+        });
+    } catch (error) {
+        console.error('Set User Posting Block Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update user posting permission',
             error: error.message
         });
     }

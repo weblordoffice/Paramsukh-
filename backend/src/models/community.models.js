@@ -147,6 +147,10 @@ const postSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isBlocked: {
+    type: Boolean,
+    default: false
+  },
   isActive: {
     type: Boolean,
     default: true

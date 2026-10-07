@@ -279,8 +279,11 @@ app.get('/', (req, res) => {
       community: {
         checkAccess: 'GET /api/community/check-access',
         myGroups: 'GET /api/community/my-groups',
+        feed: 'GET /api/community/feed',
         groupPosts: 'GET /api/community/groups/:groupId/posts',
         createPost: 'POST /api/community/groups/:groupId/posts',
+        blockPost: 'PATCH /api/community/posts/:postId/block',
+        blockUserPosting: 'POST /api/community/admin/users/:userId/posting-block',
         likePost: 'POST /api/community/posts/:postId/like',
         deletePost: 'DELETE /api/community/posts/:postId',
         comments: 'GET/POST /api/community/posts/:postId/comments',

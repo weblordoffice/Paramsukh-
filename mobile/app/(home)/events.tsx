@@ -467,6 +467,12 @@ export default function EventsScreen() {
 
   const currencySymbol = (currency?: string) => (currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹');
 
+  const formatEventAddress = (event: any): string => {
+    const a = event?.address;
+    if (!a) return '';
+    return [a.street, a.city, a.state, a.zipCode, a.country].filter(Boolean).join(', ');
+  };
+
   const getEffectivePrice = (event: any) => {
     const early = event?.earlyBirdPrice;
     const end = event?.earlyBirdEndDate;
@@ -761,6 +767,14 @@ export default function EventsScreen() {
                        </View>
                    </View>
                 </View>
+
+                {formatEventAddress(ticketModal.event) ? (
+                  <View style={{ marginTop: 16 }}>
+                    <Text style={styles.ticketLabel}>ADDRESS</Text>
+                    <Text style={styles.ticketValue}>{formatEventAddress(ticketModal.event)}</Text>
+                  </View>
+                ) : null}
+
 
                 <View style={styles.ticketSeparator}>
                    <View style={styles.separatorDotLeft} />

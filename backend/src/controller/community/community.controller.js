@@ -2,7 +2,7 @@ import { Group, GroupMember, Post, Comment } from '../../models/community.models
 import { evaluateCommunityAccess } from '../../services/entitlement.service.js';
 import { syncUserCommunityMembershipsByPlan } from '../../services/planUpgrade.service.js';
 import { UserMembership } from '../../models/userMembership.models.js';
-import { ensureGeneralGroup, enrollUserInGroup, isPublicGroup } from '../../services/community.service.js';
+import { ensureGeneralGroup, enrollUserInGroup, isPublicGroup, getPublicGroupIds } from '../../services/community.service.js';
 
 const normalizeCategory = (value) => String(value || '').trim().toLowerCase();
 
@@ -57,6 +57,34 @@ const formatCategoryLabel = (category) => {
   return labels[normalized] || (normalized ? normalized.charAt(0).toUpperCase() + normalized.slice(1) : 'General');
 };
 
+const formatPostForUser = (post, userId) => {
+  const userLiked = post.likes.some(like => like.userId.toString() === userId.toString());
+  return {
+    _id: post._id,
+    content: post.content,
+    images: post.images,
+    likeCount: post.likeCount,
+    commentCount: post.commentCount,
+    isPinned: post.isPinned,
+    userLiked,
+    author: post.userId ? {
+      _id: post.userId._id,
+      displayName: post.userId.displayName,
+      photoURL: post.userId.photoURL,
+      subscriptionPlan: post.userId.subscriptionPlan
+    } : {
+      _id: null,
+      displayName: post.authorName || 'ParamSukh Admin',
+      photoURL: null,
+      subscriptionPlan: 'admin'
+    },
+    tags: post.tags,
+    groupId: post.groupId,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt
+  };
+};
+
 /**
  * Get user's groups - returns hierarchical plan -> subgroup tree for paid users,
  * or General group for free users.
@@ -65,6 +93,8 @@ const formatCategoryLabel = (category) => {
 export const getMyGroups = async (req, res) => {
   try {
     const userId = req.user._id;
+
+    const postingBlocked = req.user?.communityPostingBlocked === true;
 
     const access = await evaluateCommunityAccess(userId);
 
@@ -104,6 +134,7 @@ export const getMyGroups = async (req, res) => {
         planGroups: [],
         groups: baseGroups,
         otherGroups: [],
+        postingBlocked,
         totalGroups: baseGroups.length,
       });
     }
@@ -128,6 +159,7 @@ export const getMyGroups = async (req, res) => {
         planGroups: [],
         groups: baseGroups,
         otherGroups: [],
+        postingBlocked,
         totalGroups: baseGroups.length,
       });
     }
@@ -211,6 +243,7 @@ export const getMyGroups = async (req, res) => {
       planGroups: allPlanGroups,
       groups: [...baseGroups, ...flatPlanGroups],
       otherGroups: [],
+      postingBlocked,
       totalGroups: baseGroups.length + allPlanGroups.length + allPlanGroups.reduce((sum, pg) => sum + (pg.subgroups?.length || 0), 0),
     });
 
@@ -283,7 +316,7 @@ export const getGroupPosts = async (req, res) => {
     }
 
     // Build post query - use $in for combined feeds
-    const postQuery = { groupId: { $in: queryGroupIds }, isActive: true };
+    const postQuery = { groupId: { $in: queryGroupIds }, isActive: true, isBlocked: { $ne: true } };
 
     // Get posts
     const posts = await Post.find(postQuery)
@@ -295,33 +328,7 @@ export const getGroupPosts = async (req, res) => {
     const totalPosts = await Post.countDocuments(postQuery);
 
     // Check if current user liked each post
-    const postsWithUserLike = posts.map(post => {
-      const userLiked = post.likes.some(like => like.userId.toString() === userId.toString());
-      return {
-        _id: post._id,
-        content: post.content,
-        images: post.images,
-        likeCount: post.likeCount,
-        commentCount: post.commentCount,
-        isPinned: post.isPinned,
-        userLiked,
-        author: post.userId ? {
-          _id: post.userId._id,
-          displayName: post.userId.displayName,
-          photoURL: post.userId.photoURL,
-          subscriptionPlan: post.userId.subscriptionPlan
-        } : {
-          _id: null,
-          displayName: post.authorName || 'ParamSukh Admin',
-          photoURL: null,
-          subscriptionPlan: 'admin'
-        },
-        tags: post.tags,
-        groupId: post.groupId, // Include so client knows which subgroup the post belongs to
-        createdAt: post.createdAt,
-        updatedAt: post.updatedAt
-      };
-    });
+    const postsWithUserLike = posts.map(post => formatPostForUser(post, userId));
 
     return res.status(200).json({
       success: true,
@@ -346,6 +353,74 @@ export const getGroupPosts = async (req, res) => {
 };
 
 /**
+ * Get posts across every group the user can access ("All" view).
+ * GET /api/community/feed
+ */
+export const getAllFeedPosts = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const memberships = await GroupMember.find({ userId, isActive: true })
+      .select('groupId')
+      .lean();
+    const memberGroupIds = memberships.map((m) => String(m.groupId));
+
+    const publicGroupIds = (await getPublicGroupIds()).map((id) => String(id));
+
+    const queryGroupIds = [...new Set([...memberGroupIds, ...publicGroupIds])];
+
+    if (!queryGroupIds.length) {
+      return res.status(200).json({
+        success: true,
+        posts: [],
+        isCombinedFeed: true,
+        pagination: {
+          currentPage: page,
+          totalPages: 0,
+          totalPosts: 0,
+          hasMore: false
+        }
+      });
+    }
+
+    const postQuery = { groupId: { $in: queryGroupIds }, isActive: true, isBlocked: { $ne: true } };
+
+    const posts = await Post.find(postQuery)
+      .populate('userId', 'displayName photoURL subscriptionPlan')
+      .sort({ isPinned: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const totalPosts = await Post.countDocuments(postQuery);
+
+    const postsWithUserLike = posts.map(post => formatPostForUser(post, userId));
+
+    return res.status(200).json({
+      success: true,
+      posts: postsWithUserLike,
+      isCombinedFeed: queryGroupIds.length > 1,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalPosts / limit),
+        totalPosts,
+        hasMore: skip + posts.length < totalPosts
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ Error fetching all feed posts:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+/**
  * Create a new post in a group
  * POST /api/community/groups/:groupId/posts
  */
@@ -354,6 +429,14 @@ export const createPost = async (req, res) => {
     const userId = req.user._id;
     const { groupId } = req.params;
     const { content, images, tags } = req.body;
+
+    if (req.user?.communityPostingBlocked) {
+      return res.status(403).json({
+        success: false,
+        code: 'POSTING_BLOCKED',
+        message: "You have been blocked from posting in the community by an administrator."
+      });
+    }
 
     if (!content || content.trim().length === 0) {
       return res.status(400).json({

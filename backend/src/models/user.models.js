@@ -168,6 +168,12 @@ const userSchema = new mongoose.Schema({
     default: true
   },
 
+  // Community moderation: when true, the user cannot create community posts
+  communityPostingBlocked: {
+    type: Boolean,
+    default: false
+  },
+
   // Analytics
   lastLoginAt: {
     type: Date,
