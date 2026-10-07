@@ -16,6 +16,7 @@ import {
   uploadImages,
   uploadProfilePhoto,
   uploadVideoFile,
+  getVideoPresignedUrl,
   uploadPdfFile,
   uploadProductImages,
   uploadCourseMedia,
@@ -109,6 +110,15 @@ router.post('/course-media',
 // ========================================
 // Video Upload Routes (Protected or Admin)
 // ========================================
+
+// Create a presigned URL for direct-to-R2 upload (avoids proxying large files)
+// POST /api/upload/video/presign
+// @body filename, contentType
+// @query folder: optional folder name
+router.post('/video/presign',
+  adminOrUserAuth,
+  getVideoPresignedUrl
+);
 
 // Upload video
 // POST /api/upload/video

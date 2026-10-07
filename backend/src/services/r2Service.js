@@ -5,6 +5,7 @@ import {
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import fs from 'fs';
 import path from 'path';
 
@@ -103,6 +104,38 @@ const buildPublicUrl = (key) => {
     );
   }
   return `${R2_PUBLIC_URL.replace(/\/$/, '')}/${key}`;
+};
+
+/**
+ * Generate a presigned PUT URL so the client can upload a video DIRECTLY to R2,
+ * bypassing the backend/nginx/Cloudflare body-size limits. S3/R2 single PUT
+ * supports objects up to 5GB.
+ */
+export const getPresignedUploadUrl = async ({
+  filename = 'video.mp4',
+  contentType,
+  folder = 'videos',
+  expiresIn = 3600,
+} = {}) => {
+  if (!isConfigured || !s3Client) {
+    const error = new Error('Cloudflare R2 is not configured');
+    error.code = 'R2_NOT_CONFIGURED';
+    throw error;
+  }
+
+  const key = generateKey(folder, filename);
+  const ct = contentType || guessContentType(filename, 'video/mp4');
+
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET,
+    Key: key,
+    ContentType: ct,
+  });
+
+  const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn });
+  const publicUrl = buildPublicUrl(key);
+
+  return { uploadUrl, publicUrl, key, contentType: ct, expiresIn };
 };
 
 /**
@@ -249,6 +282,7 @@ export const getVideoUrl = (key) => {
 
 export default {
   uploadVideo,
+  getPresignedUploadUrl,
   deleteVideo,
   videoExists,
   extractKeyFromUrl,

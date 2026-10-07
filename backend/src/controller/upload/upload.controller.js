@@ -5,8 +5,16 @@ import {
   deleteFile,
   isTestMode 
 } from '../../services/cloudinaryService.js';
-import { uploadVideo, deleteVideo, extractKeyFromUrl } from '../../services/r2Service.js';
+import { uploadVideo, deleteVideo, extractKeyFromUrl, getPresignedUploadUrl } from '../../services/r2Service.js';
 import fs from 'fs/promises';
+
+const ALLOWED_VIDEO_MIME = [
+  'video/mp4',
+  'video/mpeg',
+  'video/quicktime',
+  'video/x-msvideo',
+  'video/webm',
+];
 
 /**
  * Upload single image
@@ -402,11 +410,57 @@ export const getUploadStatus = async (req, res) => {
   }
 };
 
+/**
+ * Create a presigned R2 PUT URL so the client uploads the video directly to R2.
+ * POST /api/upload/video/presign
+ * @body filename, contentType
+ * @query folder: optional folder name
+ */
+export const getVideoPresignedUrl = async (req, res) => {
+  try {
+    const { filename, contentType } = req.body || {};
+
+    if (!filename || typeof filename !== 'string') {
+      return res.status(400).json({ success: false, message: 'filename is required' });
+    }
+
+    const ct = String(contentType || '').trim();
+    if (ct && !ALLOWED_VIDEO_MIME.includes(ct)) {
+      return res.status(400).json({ success: false, message: 'Unsupported video type' });
+    }
+
+    const folder = req.query.folder || 'videos';
+
+    const result = await getPresignedUploadUrl({
+      filename,
+      contentType: ct || undefined,
+      folder,
+    });
+
+    return res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    if (error.code === 'R2_NOT_CONFIGURED') {
+      return res.status(503).json({
+        success: false,
+        code: 'R2_NOT_CONFIGURED',
+        message: 'Direct upload is not available',
+      });
+    }
+    console.error('❌ Presign video error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to create upload URL',
+      error: error.message,
+    });
+  }
+};
+
 export default {
   uploadSingleImage,
   uploadImages,
   uploadProfilePhoto,
   uploadVideoFile,
+  getVideoPresignedUrl,
   uploadProductImages,
   uploadCourseMedia,
   deleteUploadedFile,

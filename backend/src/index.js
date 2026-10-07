@@ -461,7 +461,13 @@ process.on('uncaughtException', (err) => {
 
 // Bind to all interfaces inside the container so Docker's virtual network can reach it.
 // The host firewall / Docker port mapping controls external access, not loopback.
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server is running on http://0.0.0.0:${PORT}`);
   console.log(`   → Health check: http://127.0.0.1:${PORT}/health`);
 });
+
+// Large video uploads are received by the server, so Node's default 5-minute
+// requestTimeout would abort multi-GB bodies. Give the request body ample time.
+server.requestTimeout = 30 * 60 * 1000; // 30 minutes to receive the full body
+server.headersTimeout = 65 * 1000;
+server.keepAliveTimeout = 60 * 1000;

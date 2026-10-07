@@ -145,6 +145,43 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
         });
     };
 
+    // Upload a video straight to R2 using a presigned URL (bypasses server/proxy
+    // body-size and timeout limits). Falls back to the server upload on failure.
+    const uploadVideoDirectToR2 = (file: File): Promise<string> =>
+        new Promise(async (resolve, reject) => {
+            try {
+                const presignRes = await apiClient.post('/api/upload/video/presign', {
+                    filename: file.name,
+                    contentType: file.type || 'video/mp4',
+                });
+
+                if (!presignRes.data?.success || !presignRes.data?.data?.uploadUrl) {
+                    reject(new Error(presignRes.data?.message || 'Could not create upload URL'));
+                    return;
+                }
+
+                const { uploadUrl, publicUrl, contentType } = presignRes.data.data;
+                const xhr = new XMLHttpRequest();
+                xhr.open('PUT', uploadUrl, true);
+                xhr.setRequestHeader('Content-Type', contentType || file.type || 'video/mp4');
+
+                xhr.upload.onprogress = (event) => {
+                    if (event.lengthComputable) {
+                        setUploadProgress(Math.round((event.loaded * 100) / event.total));
+                    }
+                };
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) resolve(publicUrl);
+                    else reject(new Error(`Upload failed (${xhr.status})`));
+                };
+                xhr.onerror = () => reject(new Error('Network error during direct upload'));
+                xhr.onabort = () => reject(new Error('Upload aborted'));
+                xhr.send(file);
+            } catch (err) {
+                reject(err);
+            }
+        });
+
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'video' | 'image') => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -156,51 +193,56 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
             }
         }
 
-        // Create form data
-        const formData = new FormData();
-        const fieldName = type === 'video' ? 'video' : 'image';
-        formData.append(fieldName, file);
-
-
         setUploading(true);
         setUploadProgress(0);
 
         try {
-            // Determine endpoint
-            const endpoint = type === 'video' ? '/api/upload/video' : '/api/upload/image';
+            if (type === 'video') {
+                let url: string | null = null;
 
-            // Track upload progress
-            const response = await apiClient.post(endpoint, formData, {
-                timeout: 30 * 60 * 1000, // 30 min for large video uploads
-                onUploadProgress: (progressEvent) => {
-                    if (progressEvent.total) {
-                        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-                        setUploadProgress(percentCompleted);
+                try {
+                    // Preferred: upload directly to R2 (no server/proxy size limits).
+                    url = await uploadVideoDirectToR2(file);
+                } catch (directError) {
+                    console.warn('Direct R2 upload unavailable; falling back to server upload:', directError);
+                    const formData = new FormData();
+                    formData.append('video', file);
+                    const response = await apiClient.post('/api/upload/video', formData, {
+                        timeout: 30 * 60 * 1000,
+                        onUploadProgress: (progressEvent) => {
+                            if (progressEvent.total) {
+                                setUploadProgress(Math.round((progressEvent.loaded * 100) / progressEvent.total));
+                            }
+                        },
+                    });
+                    if (response.data?.success) {
+                        url = response.data?.data?.url ?? null;
                     }
                 }
-            });
 
-            if (response.data.success) {
-                if (type === 'video') {
-                    const data = response.data?.data;
-                    setFormData(prev => ({
-                        ...prev,
-                        url: data?.url ?? prev.url ?? '',
-                        duration: data?.duration != null
-                            ? (Math.round((Number(data.duration) / 60) * 10) / 10)
-                            : (prev.duration ?? 0)
-                    }));
+                if (url) {
+                    setFormData((prev) => ({ ...prev, url }));
+                    toast.success('Video uploaded successfully!');
                 } else {
-                    setFormData(prev => ({
-                        ...prev,
-                        thumbnailUrl: response.data?.data?.url ?? prev.thumbnailUrl ?? ''
-                    }));
+                    toast.error('Video upload failed');
                 }
-                toast.success(`${type} uploaded successfully!`);
+            } else {
+                const formData = new FormData();
+                formData.append('image', file);
+                const response = await apiClient.post('/api/upload/image', formData, {
+                    timeout: 30 * 60 * 1000,
+                });
+                if (response.data?.success) {
+                    setFormData((prev) => ({
+                        ...prev,
+                        thumbnailUrl: response.data?.data?.url ?? prev.thumbnailUrl ?? '',
+                    }));
+                    toast.success('Image uploaded successfully!');
+                }
             }
         } catch (error: any) {
             console.error('Upload error:', error);
-            toast.error(error.response?.data?.error || error.response?.data?.message || 'Upload failed');
+            toast.error(error.response?.data?.error || error.response?.data?.message || error.message || 'Upload failed');
         } finally {
             setUploading(false);
             setUploadProgress(0);
@@ -447,7 +489,7 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
                                             />
                                         </div>
                                     )}
-                                    <p className="text-xs text-gray-500 mt-1">Upload mp4, mov, avi (max 2GB)</p>
+                                    <p className="text-xs text-gray-500 mt-1">Upload mp4, mov, avi (max 3GB)</p>
                                 </div>
 
                                 <div>
