@@ -2,10 +2,13 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 
+// Maximum size for a single video upload (3GB)
+const MAX_VIDEO_BYTES = 3 * 1024 * 1024 * 1024;
+
 // Configure multer for memory storage (we'll upload to Cloudinary from memory)
 const storage = multer.memoryStorage();
 
-// For large videos, store on disk temporarily to avoid buffering up to 2GB in RAM
+// For large videos, store on disk temporarily to avoid buffering up to 3GB in RAM
 const videoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     try {
@@ -110,12 +113,12 @@ export const uploadMultipleImages = multer({
   }
 }).array('images', 10);
 
-// Single video upload (max 2GB)
+// Single video upload (max 3GB)
 export const uploadSingleVideo = multer({
   storage: videoStorage,
   fileFilter: videoFilter,
   limits: {
-    fileSize: 2 * 1024 * 1024 * 1024 // 2GB
+    fileSize: MAX_VIDEO_BYTES // 3GB
   }
 }).single('video');
 
@@ -151,7 +154,7 @@ export const uploadMixedMedia = multer({
   storage: storage,
   fileFilter: mediaFilter,
   limits: {
-    fileSize: 2 * 1024 * 1024 * 1024, // 2GB
+    fileSize: MAX_VIDEO_BYTES, // 3GB
     files: 10
   }
 }).array('media', 10);

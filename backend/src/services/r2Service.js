@@ -107,7 +107,7 @@ const buildPublicUrl = (key) => {
 
 /**
  * Upload video to Cloudflare R2
- * Supports files up to 2GB via multipart upload
+ * Supports files up to 3GB via multipart upload
  */
 export const uploadVideo = async (fileInput, folder = 'videos', filename = 'video.mp4', opts = {}) => {
   const { contentType, cacheControl, contentDisposition } = opts;
