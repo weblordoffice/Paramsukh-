@@ -20,6 +20,27 @@ import { useTheme } from '../../hooks/useTheme';
 export default function EditProfileScreen() {
   const { colors } = useTheme();
   const router = useRouter();
+  const themedInputStyle = {
+    backgroundColor: colors.surfaceSecondary,
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colors.text,
+  };
+  const themedOtpInputStyle = {
+    ...themedInputStyle,
+    width: 44,
+    height: 52,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    textAlign: 'center' as const,
+    fontSize: 20,
+    fontWeight: '700' as const,
+  };
+  const themedCardStyle = { backgroundColor: colors.surface, borderColor: colors.border };
   const { user, fetchCurrentUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -272,71 +293,74 @@ export default function EditProfileScreen() {
     : '';
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1" style={{ backgroundColor: colors.background }}>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
+      <View className="flex-row items-center justify-between px-5 py-4 border-b" style={{ backgroundColor: colors.surface, borderBottomColor: colors.border }}>
         <TouchableOpacity
-          className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center"
-          onPress={() => router.push('/(home)/menu')}
+          className="w-10 h-10 rounded-full items-center justify-center"
+          style={{ backgroundColor: colors.surfaceSecondary }}
+          onPress={() => { if (router.canGoBack()) router.back(); else router.push('/(home)/menu'); }}
         >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text className="text-xl font-bold text-gray-900">Edit Profile</Text>
+        <Text className="text-xl font-bold" style={{ color: colors.text }}>Edit Profile</Text>
         <View className="w-10" />
       </View>
 
       <ScrollView className="flex-1" contentContainerClassName="p-5">
         {isLoading ? (
           <View className="flex-1 items-center justify-center py-20">
-            <ActivityIndicator size="large" color="#3B82F6" />
+            <ActivityIndicator size="large" color={colors.primary} />
           </View>
         ) : (
           <>
             {/* Profile Image */}
             <View className="items-center mb-8">
               <View className="relative mb-3">
-                <View className="w-[100px] h-[100px] rounded-full bg-blue-100 items-center justify-center">
-                  <Ionicons name="person" size={50} color="#3B82F6" />
+                <View className="w-[100px] h-[100px] rounded-full items-center justify-center" style={{ backgroundColor: colors.surfaceSecondary }}>
+                  <Ionicons name="person" size={50} color={colors.primary} />
                 </View>
               </View>
-              <Text className="text-lg font-bold text-gray-800">
+              <Text className="text-lg font-bold" style={{ color: colors.text }}>
                 {formData.displayName || 'Gurukul Learner'}
               </Text>
             </View>
 
             {/* Contact Info Section */}
-            <View className="bg-white rounded-2xl border border-gray-200 p-4 mb-6 gap-3">
-              <Text className="text-base font-bold text-gray-900 mb-1">Contact Information</Text>
+            <View className="rounded-2xl border p-4 mb-6 gap-3" style={themedCardStyle}>
+              <Text className="text-base font-bold mb-1" style={{ color: colors.text }}>Contact Information</Text>
 
               {/* Email */}
-              <View className="flex-row items-center justify-between py-2 border-b border-gray-100">
+              <View className="flex-row items-center justify-between py-2 border-b" style={{ borderBottomColor: colors.border }}>
                 <View className="flex-1">
-                  <Text className="text-xs text-gray-500 font-medium">Email</Text>
-                  <Text className="text-sm text-gray-900 mt-0.5">
+                  <Text className="text-xs font-medium" style={{ color: colors.textSecondary }}>Email</Text>
+                  <Text className="text-sm mt-0.5" style={{ color: colors.text }}>
                     {currentEmail || 'Not set'}
                   </Text>
                 </View>
                 <TouchableOpacity
                   onPress={() => openContactModal('email', currentEmail)}
-                  className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200"
+                  className="px-3 py-1.5 rounded-lg"
+                  style={{ backgroundColor: colors.primary + '15', borderWidth: 1, borderColor: colors.primary + '40' }}
                 >
-                  <Text className="text-xs font-bold text-blue-600">Change</Text>
+                  <Text className="text-xs font-bold" style={{ color: colors.primary }}>Change</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Phone */}
               <View className="flex-row items-center justify-between py-2">
                 <View className="flex-1">
-                  <Text className="text-xs text-gray-500 font-medium">Phone</Text>
-                  <Text className="text-sm text-gray-900 mt-0.5">
+                  <Text className="text-xs font-medium" style={{ color: colors.textSecondary }}>Phone</Text>
+                  <Text className="text-sm mt-0.5" style={{ color: colors.text }}>
                     {currentPhone ? `+91 ${displayPhone}` : 'Not set'}
                   </Text>
                 </View>
                 <TouchableOpacity
                   onPress={() => openContactModal('phone', currentPhone.replace(/^\+91/, '').replace(/\D/g, ''))}
-                  className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200"
+                  className="px-3 py-1.5 rounded-lg"
+                  style={{ backgroundColor: colors.primary + '15', borderWidth: 1, borderColor: colors.primary + '40' }}
                 >
-                  <Text className="text-xs font-bold text-blue-600">Change</Text>
+                  <Text className="text-xs font-bold" style={{ color: colors.primary }}>Change</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -344,9 +368,9 @@ export default function EditProfileScreen() {
             {/* Form Fields */}
             <View className="gap-5">
               <View className="gap-2">
-                <Text className="text-sm font-semibold text-gray-700">Display Name</Text>
+                <Text className="text-sm font-semibold" style={{ color: colors.text }}>Display Name</Text>
                 <TextInput
-                  className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 shadow-sm"
+                  style={themedInputStyle}
                   value={formData.displayName}
                   onChangeText={(text) => setFormData({ ...formData, displayName: text })}
                   placeholder="Enter your name"
@@ -355,9 +379,9 @@ export default function EditProfileScreen() {
               </View>
 
               <View className="gap-2">
-                <Text className="text-sm font-semibold text-gray-700">Age</Text>
+                <Text className="text-sm font-semibold" style={{ color: colors.text }}>Age</Text>
                 <TextInput
-                  className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 shadow-sm"
+                  style={themedInputStyle}
                   value={formData.age}
                   keyboardType="numeric"
                   onChangeText={(text) => setFormData({ ...formData, age: text.replace(/[^0-9]/g, '') })}
@@ -367,9 +391,9 @@ export default function EditProfileScreen() {
               </View>
 
               <View className="gap-2">
-                <Text className="text-sm font-semibold text-gray-700">Occupation</Text>
+                <Text className="text-sm font-semibold" style={{ color: colors.text }}>Occupation</Text>
                 <TextInput
-                  className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 shadow-sm"
+                  style={themedInputStyle}
                   value={formData.occupation}
                   onChangeText={(text) => setFormData({ ...formData, occupation: text })}
                   placeholder="e.g. Professional, Entrepreneur"
@@ -378,9 +402,9 @@ export default function EditProfileScreen() {
               </View>
 
               <View className="gap-2">
-                <Text className="text-sm font-semibold text-gray-700">Location</Text>
+                <Text className="text-sm font-semibold" style={{ color: colors.text }}>Location</Text>
                 <TextInput
-                  className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 shadow-sm"
+                  style={themedInputStyle}
                   value={formData.location}
                   onChangeText={(text) => setFormData({ ...formData, location: text })}
                   placeholder="e.g. New Delhi, India"
@@ -390,8 +414,8 @@ export default function EditProfileScreen() {
 
               {/* Wellness Goals / Focus Areas */}
               <View className="gap-3 mt-2">
-                <Text className="text-base font-bold text-gray-900">Your Wellness Focus Areas</Text>
-                <Text className="text-xs text-gray-500 -mt-1">
+                <Text className="text-base font-bold" style={{ color: colors.text }}>Your Wellness Focus Areas</Text>
+                <Text className="text-xs -mt-1" style={{ color: colors.textSecondary }}>
                   Select focus areas to align your Gurukul experience
                 </Text>
 
@@ -402,20 +426,21 @@ export default function EditProfileScreen() {
                       <TouchableOpacity
                         key={area.key}
                         onPress={() => toggleFocus(area.key as any)}
-                        className={`flex-row items-center px-4 py-3 rounded-full border shadow-sm ${
-                          isActive ? 'bg-blue-500 border-blue-500' : 'bg-white border-gray-200'
-                        }`}
+                        className="flex-row items-center px-4 py-3 rounded-full border shadow-sm"
+                        style={{
+                          backgroundColor: isActive ? colors.primary : colors.surfaceSecondary,
+                          borderColor: isActive ? colors.primary : colors.border,
+                        }}
                       >
                         <Ionicons
                           name={area.icon as any}
                           size={16}
-                          color={isActive ? colors.surface : '#4B5563'}
+                          color={isActive ? colors.surface : colors.textSecondary}
                           style={{ marginRight: 6 }}
                         />
                         <Text
-                          className={`text-sm font-semibold ${
-                            isActive ? 'text-white' : 'text-gray-700'
-                          }`}
+                          className="text-sm font-semibold"
+                          style={{ color: isActive ? colors.surface : colors.text }}
                         >
                           {area.label}
                         </Text>
@@ -428,7 +453,8 @@ export default function EditProfileScreen() {
 
             {/* Save Button */}
             <TouchableOpacity
-              className="bg-blue-500 py-4 rounded-xl items-center mt-10 shadow-md"
+              className="py-4 rounded-xl items-center mt-10 shadow-md"
+              style={{ backgroundColor: colors.primary }}
               onPress={handleSave}
               disabled={isSaving}
             >
@@ -450,10 +476,10 @@ export default function EditProfileScreen() {
         onRequestClose={closeContactModal}
       >
         <View className="flex-1 bg-black/50 justify-center items-center p-5">
-          <View className="bg-white rounded-2xl w-full max-w-sm p-6">
+          <View className="rounded-2xl w-full max-w-sm p-6" style={themedCardStyle}>
             {/* Modal Header */}
             <View className="flex-row items-center justify-between mb-5">
-              <Text className="text-lg font-bold text-gray-900">
+              <Text className="text-lg font-bold" style={{ color: colors.text }}>
                 {contactModal.step === 'input' ? (
                   <>Change {contactModal.field === 'email' ? 'Email' : 'Phone'}</>
                 ) : (
@@ -461,19 +487,19 @@ export default function EditProfileScreen() {
                 )}
               </Text>
               <TouchableOpacity onPress={closeContactModal} className="w-8 h-8 items-center justify-center">
-                <Ionicons name="close" size={20} color="#6B7280" />
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             {contactModal.step === 'input' ? (
               <>
-                <Text className="text-sm text-gray-500 mb-3">
+                <Text className="text-sm mb-3" style={{ color: colors.textSecondary }}>
                   Enter your new{' '}
                   {contactModal.field === 'email' ? 'email address' : 'phone number'}
                   . A verification OTP will be sent.
                 </Text>
                 <TextInput
-                  className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-900 mb-1"
+                  style={[themedInputStyle, { marginBottom: 4 }]}
                   value={contactModal.value}
                   onChangeText={(text) =>
                     setContactModal((prev) => ({
@@ -488,7 +514,7 @@ export default function EditProfileScreen() {
                   placeholder={
                     contactModal.field === 'email' ? 'email@example.com' : '10-digit number'
                   }
-                  placeholderTextColor="#9CA3AF"
+                  placeholderTextColor={colors.textSecondary}
                   keyboardType={contactModal.field === 'phone' ? 'phone-pad' : 'email-address'}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -501,7 +527,8 @@ export default function EditProfileScreen() {
                 <TouchableOpacity
                   onPress={sendContactOtp}
                   disabled={contactModal.loading}
-                  className="py-3 rounded-xl items-center bg-[#F1842D]"
+                  className="py-3 rounded-xl items-center"
+                  style={{ backgroundColor: colors.primary }}
                 >
                   {contactModal.loading ? (
                     <ActivityIndicator size="small" color="#fff" />
@@ -512,9 +539,9 @@ export default function EditProfileScreen() {
               </>
             ) : (
               <>
-                <Text className="text-sm text-gray-500 mb-4 text-center">
+                <Text className="text-sm mb-4 text-center" style={{ color: colors.textSecondary }}>
                   Enter the 6-digit OTP sent to{' '}
-                  <Text className="font-semibold text-gray-700">
+                  <Text className="font-semibold" style={{ color: colors.text }}>
                     {contactModal.field === 'email'
                       ? contactModal.value
                       : `+91 ${contactModal.value}`}
@@ -527,7 +554,7 @@ export default function EditProfileScreen() {
                     <TextInput
                       key={index}
                       ref={(el: any) => { otpInputRefs[index] = el; }}
-                      className="w-11 h-13 text-center text-xl font-bold text-gray-900 bg-gray-50 border border-gray-200 rounded-xl"
+                      style={themedOtpInputStyle}
                       value={digit}
                       onChangeText={(text) => onOtpDigitChange(index, text)}
                       onKeyPress={(e) => onOtpKeyPress(index, e)}
@@ -548,7 +575,8 @@ export default function EditProfileScreen() {
                 <TouchableOpacity
                   onPress={verifyContactOtp}
                   disabled={contactModal.loading}
-                  className="py-3 rounded-xl items-center bg-[#F1842D] mb-3"
+                  className="py-3 rounded-xl items-center mb-3"
+                  style={{ backgroundColor: colors.primary }}
                 >
                   {contactModal.loading ? (
                     <ActivityIndicator size="small" color="#fff" />
@@ -563,7 +591,7 @@ export default function EditProfileScreen() {
                   }
                   className="py-2 items-center"
                 >
-                  <Text className="text-sm text-blue-600 font-medium">Change {contactModal.field === 'email' ? 'email' : 'number'}</Text>
+                  <Text className="text-sm font-medium" style={{ color: colors.primary }}>Change {contactModal.field === 'email' ? 'email' : 'number'}</Text>
                 </TouchableOpacity>
               </>
             )}
