@@ -175,16 +175,16 @@ export default function MyProgressScreen() {
         ) : (
           <>
             {/* Overview Visual Card */}
-            <View className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex-row items-center justify-between mb-6">
+            <View className="p-5 rounded-2xl border shadow-sm flex-row items-center justify-between mb-6" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
               <View className="flex-1 pr-4">
-                <Text className="text-xs text-gray-400 font-bold uppercase tracking-wider">Gurukul Disciple Since</Text>
-                <Text className="text-lg font-bold text-gray-800 mt-1">{joinDate}</Text>
-                <Text className="text-sm text-gray-500 mt-1">Logged in {stats.loginCount} times to study</Text>
+                <Text className="text-xs font-bold uppercase tracking-wider" style={{ color: colors.textSecondary }}>Gurukul Disciple Since</Text>
+                <Text className="text-lg font-bold mt-1" style={{ color: colors.text }}>{joinDate}</Text>
+                <Text className="text-sm mt-1" style={{ color: colors.textSecondary }}>Logged in {stats.loginCount} times to study</Text>
               </View>
               <View style={styles.circularContainer}>
                 <View style={styles.circularInner}>
-                  <Text className="text-xl font-extrabold text-blue-500">{completionRate}%</Text>
-                  <Text className="text-[10px] text-gray-400 font-bold">Done</Text>
+                  <Text className="text-xl font-extrabold" style={{ color: colors.primary }}>{completionRate}%</Text>
+                  <Text className="text-[10px] font-bold" style={{ color: colors.textSecondary }}>Done</Text>
                 </View>
               </View>
             </View>
@@ -194,31 +194,31 @@ export default function MyProgressScreen() {
               {displayStats.map((stat, index) => (
                 <View 
                   key={index} 
-                  className="flex-1 min-w-[45%] bg-white p-4 rounded-xl border-l-4 items-center shadow-sm"
-                  style={{ borderLeftColor: stat.color }}
+                  className="flex-1 min-w-[45%] p-4 rounded-xl border-l-4 items-center shadow-sm"
+                  style={{ borderLeftColor: stat.color, backgroundColor: colors.surface }}
                 >
                   <Ionicons name={stat.icon as any} size={28} color={stat.color} />
-                  <Text className="text-[28px] font-bold text-gray-900 mt-2">{stat.value}</Text>
-                  <Text className="text-xs text-gray-500 text-center mt-1">{stat.label}</Text>
+                  <Text className="text-[28px] font-bold mt-2" style={{ color: colors.text }}>{stat.value}</Text>
+                  <Text className="text-xs text-center mt-1" style={{ color: colors.textSecondary }}>{stat.label}</Text>
                 </View>
               ))}
             </View>
 
             {/* Verifiable Certificates Section */}
             <View className="mb-6">
-              <Text className="text-xl font-bold text-gray-900 mb-4">Verifiable Certificates</Text>
+              <Text className="text-xl font-bold mb-4" style={{ color: colors.text }}>Verifiable Certificates</Text>
               {certificates.length === 0 ? (
-                <View className="bg-white p-6 rounded-xl border border-dashed border-gray-300 items-center justify-center">
+                <View className="p-6 rounded-xl border border-dashed items-center justify-center" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
                   <Ionicons name="ribbon-outline" size={36} color={colors.textSecondary} />
-                  <Text className="text-sm text-gray-500 text-center mt-2 font-medium">Complete courses to 100% to earn certificates.</Text>
+                  <Text className="text-sm text-center mt-2 font-medium" style={{ color: colors.textSecondary }}>Complete courses to 100% to earn certificates.</Text>
                 </View>
               ) : (
                 <View className="gap-3">
                   {certificates.map((cert: any) => (
-                    <View key={cert._id} className="flex-row items-center justify-between bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                    <View key={cert._id} className="flex-row items-center justify-between p-4 rounded-xl border shadow-sm" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
                       <View className="flex-1 pr-3">
-                        <Text className="text-[15px] font-bold text-gray-900 mb-1">{cert.courseName}</Text>
-                        <Text className="text-xs text-gray-500">ID: {cert.certificateId}</Text>
+                        <Text className="text-[15px] font-bold mb-1" style={{ color: colors.text }}>{cert.courseName}</Text>
+                        <Text className="text-xs" style={{ color: colors.textSecondary }}>ID: {cert.certificateId}</Text>
                       </View>
                       <TouchableOpacity 
                         onPress={() => handleViewCert(cert)}
@@ -235,7 +235,7 @@ export default function MyProgressScreen() {
 
             {/* Achievements Section */}
             <View className="mb-6">
-              <Text className="text-xl font-bold text-gray-900 mb-4">Achievements</Text>
+              <Text className="text-xl font-bold mb-4" style={{ color: colors.text }}>Achievements</Text>
               <View className="flex-row flex-wrap gap-3">
                 {achievements.map((achievement, index) => {
                   const unlocked = isBadgeUnlocked(achievement.id);
@@ -244,13 +244,14 @@ export default function MyProgressScreen() {
                       key={index}
                       onPress={() => handleBadgePress(achievement)}
                       activeOpacity={0.7}
-                      className={`flex-1 min-w-[45%] bg-white p-4 rounded-xl items-center shadow-sm relative ${
-                        !unlocked ? 'opacity-40 bg-gray-100' : ''
+                      className={`flex-1 min-w-[45%] p-4 rounded-xl items-center shadow-sm relative ${
+                        !unlocked ? 'opacity-40' : ''
                       }`}
+                      style={{ backgroundColor: unlocked ? colors.surface : colors.surfaceSecondary }}
                     >
                       <Text className="text-4xl mb-2">{achievement.icon}</Text>
-                      <Text className="text-sm font-bold text-gray-900 text-center mb-1">{achievement.title}</Text>
-                      <Text className="text-[11px] text-gray-500 text-center">
+                      <Text className="text-sm font-bold text-center mb-1" style={{ color: colors.text }}>{achievement.title}</Text>
+                      <Text className="text-[11px] text-center" style={{ color: colors.textSecondary }}>
                         {achievement.description}     
                       </Text>
                       {unlocked && (

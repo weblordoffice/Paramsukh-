@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, StyleSheet, Image, RefreshControl, Animated, Platform, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, StyleSheet, Image, RefreshControl, Animated, Platform, Dimensions, Linking } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -774,6 +774,36 @@ export default function EventsScreen() {
                     <Text style={styles.ticketValue}>{formatEventAddress(ticketModal.event)}</Text>
                   </View>
                 ) : null}
+
+                {/* Online join link / physical directions */}
+                {ticketModal.event?.locationType === 'online' ? (
+                  ticketModal.event?.onlineMeetingLink ? (
+                    <TouchableOpacity
+                      style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: ticketModal.event?.color || '#F1842D' }}
+                      onPress={() => Linking.openURL(ticketModal.event.onlineMeetingLink).catch(() => {})}
+                    >
+                      <Ionicons name="videocam" size={18} color="#FFF" />
+                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Join Online Meeting</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border }}>
+                      <Ionicons name="videocam-off" size={18} color={colors.textSecondary} />
+                      <Text style={{ color: colors.textSecondary, fontWeight: '600', fontSize: 14 }}>Meeting link not available yet</Text>
+                    </View>
+                  )
+                ) : (
+                  <TouchableOpacity
+                    style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border }}
+                    onPress={() => {
+                      const query = formatEventAddress(ticketModal.event) || ticketModal.event?.location;
+                      if (!query) return;
+                      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`).catch(() => {});
+                    }}
+                  >
+                    <Ionicons name="navigate" size={18} color={colors.primary} />
+                    <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 15 }}>Get Directions</Text>
+                  </TouchableOpacity>
+                )}
 
 
                 <View style={styles.ticketSeparator}>

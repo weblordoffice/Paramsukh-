@@ -29,14 +29,15 @@ function BookingCard({ booking, onPress, onJoin }: { booking: UserBooking; onPre
     <TouchableOpacity
       activeOpacity={0.8}
       onPress={onPress}
-      className="bg-white rounded-2xl p-4 mb-3 shadow-sm border border-gray-100"
+      className="rounded-2xl p-4 mb-3 shadow-sm border"
+      style={{ backgroundColor: colors.surface, borderColor: colors.border }}
     >
       <View className="flex-row items-start justify-between mb-2">
         <View className="flex-1">
-          <Text className="text-sm font-bold text-[#2C2420]" numberOfLines={1}>
+          <Text className="text-sm font-bold" style={{ color: colors.text }} numberOfLines={1}>
             {booking.bookingTitle || 'Counseling Session'}
           </Text>
-          <Text className="text-xs text-[#8C7B73] mt-0.5">
+          <Text className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
             with {booking.counselorName || 'Expert Counselor'}
           </Text>
         </View>
@@ -54,14 +55,14 @@ function BookingCard({ booking, onPress, onJoin }: { booking: UserBooking; onPre
 
       <View className="flex-row items-center gap-4 mb-2">
         <View className="flex-row items-center gap-1">
-          <Ionicons name="calendar-outline" size={12} color="#8C7B73" />
-          <Text className="text-xs text-[#8C7B73]">
+          <Ionicons name="calendar-outline" size={12} color={colors.textSecondary} />
+          <Text className="text-xs" style={{ color: colors.textSecondary }}>
             {new Date(booking.bookingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
           </Text>
         </View>
         <View className="flex-row items-center gap-1">
-          <Ionicons name="time-outline" size={12} color="#8C7B73" />
-          <Text className="text-xs text-[#8C7B73]">{booking.bookingTime}</Text>
+          <Ionicons name="time-outline" size={12} color={colors.textSecondary} />
+          <Text className="text-xs" style={{ color: colors.textSecondary }}>{booking.bookingTime}</Text>
         </View>
         <View className={`px-2 py-0.5 rounded-full ${isFree ? 'bg-green-50' : 'bg-orange-50'}`}>
           <Text className={`text-[9px] font-bold ${isFree ? 'text-green-700' : 'text-orange-700'}`}>
@@ -162,11 +163,11 @@ export default function CounselingScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-5 py-4 bg-white shadow-sm z-10">
-        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} className="w-10 h-10 items-center justify-center bg-gray-50 rounded-full">
-          <Ionicons name="arrow-back" size={20} color="#2C2420" />
+      <View className="flex-row items-center justify-between px-5 py-4 shadow-sm z-10" style={{ backgroundColor: colors.surface }}>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} className="w-10 h-10 items-center justify-center rounded-full" style={{ backgroundColor: colors.surfaceSecondary }}>
+          <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
-        <Text className="text-lg font-bold text-[#2C2420]">Counseling Services</Text>
+        <Text className="text-lg font-bold" style={{ color: colors.text }}>Counseling Services</Text>
         <View className="w-10" />
       </View>
 
@@ -180,39 +181,39 @@ export default function CounselingScreen() {
         <View className="p-5">
 
           {/* Hero Section */}
-          <View className="bg-white rounded-3xl p-6 mb-6 shadow-sm border border-gray-100 items-center">
-            <View className="w-16 h-16 bg-[colors.background] rounded-full items-center justify-center mb-4">
+          <View className="rounded-3xl p-6 mb-6 shadow-sm border items-center" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+            <View className="w-16 h-16 rounded-full items-center justify-center mb-4" style={{ backgroundColor: colors.surfaceSecondary }}>
               <Text className="text-3xl">🙏</Text>
             </View>
-            <Text className="text-2xl font-extrabold text-[#2C2420] mb-2 text-center">
+            <Text className="text-2xl font-extrabold mb-2 text-center" style={{ color: colors.text }}>
               Find Your Peace
             </Text>
-            <Text className="text-[#5C4A42] text-center leading-5 px-2">
+            <Text className="text-center leading-5 px-2" style={{ color: colors.textSecondary }}>
               Connect with our expert counselors and Gurudev for spiritual and mental guidance.
             </Text>
           </View>
 
           {/* My Bookings Section */}
           <View className="mb-6">
-            <Text className="text-lg font-bold text-[#2C2420] mb-4 px-1">My Bookings</Text>
+            <Text className="text-lg font-bold mb-4 px-1" style={{ color: colors.text }}>My Bookings</Text>
 
             {isBookingsLoading ? (
-              <View className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 flex-row items-center justify-center gap-2">
+              <View className="rounded-2xl p-5 shadow-sm border flex-row items-center justify-center gap-2" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
                 <ActivityIndicator size="small" color="#F1842D" />
-                <Text className="text-[#5C4A42] font-medium">Loading your bookings...</Text>
+                <Text className="font-medium" style={{ color: colors.textSecondary }}>Loading your bookings...</Text>
               </View>
             ) : allBookings.length === 0 ? (
-              <View className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 items-center">
-                <Ionicons name="calendar-outline" size={32} color="#D1CBC4" />
-                <Text className="text-sm text-[#8C7B73] mt-2 text-center">No bookings yet</Text>
-                <Text className="text-xs text-[#B5AFA9] mt-1 text-center">Book a session below to get started</Text>
+              <View className="rounded-2xl p-6 shadow-sm border items-center" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
+                <Ionicons name="calendar-outline" size={32} color={colors.textSecondary} />
+                <Text className="text-sm mt-2 text-center" style={{ color: colors.textSecondary }}>No bookings yet</Text>
+                <Text className="text-xs mt-1 text-center" style={{ color: colors.textSecondary }}>Book a session below to get started</Text>
               </View>
             ) : (
               <>
                 {/* Upcoming */}
                 {upcomingBookings.length > 0 && (
                   <View className="mb-4">
-                    <Text className="text-xs font-bold text-[#8C7B73] uppercase tracking-wider mb-3 px-1">Upcoming</Text>
+                    <Text className="text-xs font-bold uppercase tracking-wider mb-3 px-1" style={{ color: colors.textSecondary }}>Upcoming</Text>
                     {upcomingBookings.map(booking => (
                       <BookingCard
                         key={booking._id}
@@ -227,7 +228,7 @@ export default function CounselingScreen() {
                 {/* Past */}
                 {pastBookings.length > 0 && (
                   <View>
-                    <Text className="text-xs font-bold text-[#8C7B73] uppercase tracking-wider mb-3 px-1">Past</Text>
+                    <Text className="text-xs font-bold uppercase tracking-wider mb-3 px-1" style={{ color: colors.textSecondary }}>Past</Text>
                     {pastBookings.map(booking => (
                       <BookingCard
                         key={booking._id}
@@ -246,11 +247,11 @@ export default function CounselingScreen() {
           {isLoading ? (
             <View className="py-10 items-center">
               <ActivityIndicator size="large" color="#F1842D" />
-              <Text className="text-gray-500 mt-4 font-medium">Loading services...</Text>
+              <Text className="mt-4 font-medium" style={{ color: colors.textSecondary }}>Loading services...</Text>
             </View>
           ) : (
             <>
-              <Text className="text-lg font-bold text-[#2C2420] mb-4 px-1">Available Services</Text>
+              <Text className="text-lg font-bold mb-4 px-1" style={{ color: colors.text }}>Available Services</Text>
               <View className="gap-4 mb-8">
                 {counselingTypes.map((type) => {
                   const isSelected = selectedType === type.id;
@@ -259,11 +260,12 @@ export default function CounselingScreen() {
                       key={type.id}
                       activeOpacity={0.8}
                       onPress={() => setSelectedType(type.id)}
-                      className={`rounded-3xl p-5 bg-white shadow-sm border ${
-                        isSelected ? 'border-2' : 'border border-gray-100'
+                      className={`rounded-3xl p-5 shadow-sm border ${
+                        isSelected ? 'border-2' : 'border'
                       }`}
                       style={{
-                        borderColor: isSelected ? (type.color || '#F1842D') : colors.surfaceSecondary,
+                        backgroundColor: colors.surface,
+                        borderColor: isSelected ? (type.color || '#F1842D') : colors.border,
                         shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2
                       }}
                     >
@@ -273,7 +275,7 @@ export default function CounselingScreen() {
                         </View>
                         <View className="flex-1">
                           <View className="flex-row items-center justify-between mb-1">
-                            <Text className="text-base font-bold text-[#2C2420]">{type.title}</Text>
+                            <Text className="text-base font-bold" style={{ color: colors.text }}>{type.title}</Text>
                             {isSelected && (
                               <View className="w-6 h-6 rounded-full items-center justify-center" style={{ backgroundColor: type.color || '#F1842D' }}>
                                 <Ionicons name="checkmark" size={14} color={colors.surface} />
@@ -291,15 +293,15 @@ export default function CounselingScreen() {
                               </View>
                             )}
                           </View>
-                          <Text className="text-sm text-[#5C4A42] leading-5 mb-3">{type.description}</Text>
+                          <Text className="text-sm leading-5 mb-3" style={{ color: colors.textSecondary }}>{type.description}</Text>
                           <View className="flex-row items-center gap-4">
                             <View className="flex-row items-center gap-1.5">
-                              <Ionicons name="time-outline" size={14} color="#8C7B73" />
-                              <Text className="text-xs text-[#8C7B73] font-medium">{type.duration}</Text>
+                              <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
+                              <Text className="text-xs font-medium" style={{ color: colors.textSecondary }}>{type.duration}</Text>
                             </View>
                             <View className="flex-row items-center gap-1.5">
-                              <Ionicons name="person-outline" size={14} color="#8C7B73" />
-                              <Text className="text-xs text-[#8C7B73] font-medium">{type.counselorName || 'Expert'}</Text>
+                              <Ionicons name="person-outline" size={14} color={colors.textSecondary} />
+                              <Text className="text-xs font-medium" style={{ color: colors.textSecondary }}>{type.counselorName || 'Expert'}</Text>
                             </View>
                           </View>
                         </View>
@@ -312,25 +314,25 @@ export default function CounselingScreen() {
           )}
 
           {/* Features Section */}
-          <Text className="text-lg font-bold text-[#2C2420] mb-4 px-1">What to Expect</Text>
-          <View className="bg-white rounded-3xl p-6 mb-8 shadow-sm border border-gray-100">
+          <Text className="text-lg font-bold mb-4 px-1" style={{ color: colors.text }}>What to Expect</Text>
+          <View className="rounded-3xl p-6 mb-8 shadow-sm border" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
             <View className="gap-6">
               <View className="flex-row items-center gap-4">
-                <View className="w-12 h-12 rounded-2xl bg-[colors.background] items-center justify-center">
+                <View className="w-12 h-12 rounded-2xl items-center justify-center" style={{ backgroundColor: colors.surfaceSecondary }}>
                   <Ionicons name="shield-checkmark" size={20} color="#F1842D" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-sm font-bold text-[#2C2420]">Complete Privacy</Text>
-                  <Text className="text-xs text-[#5C4A42] mt-1">Confidential & safe environment</Text>
+                  <Text className="text-sm font-bold" style={{ color: colors.text }}>Complete Privacy</Text>
+                  <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>Confidential & safe environment</Text>
                 </View>
               </View>
               <View className="flex-row items-center gap-4">
-                <View className="w-12 h-12 rounded-2xl bg-[#EFF6FF] items-center justify-center">
+                <View className="w-12 h-12 rounded-2xl items-center justify-center" style={{ backgroundColor: colors.surfaceSecondary }}>
                   <Ionicons name="videocam" size={20} color="#3B82F6" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-sm font-bold text-[#2C2420]">1-on-1 Video</Text>
-                  <Text className="text-xs text-[#5C4A42] mt-1">HD video sessions from anywhere</Text>
+                  <Text className="text-sm font-bold" style={{ color: colors.text }}>1-on-1 Video</Text>
+                  <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>HD video sessions from anywhere</Text>
                 </View>
               </View>
             </View>
@@ -340,7 +342,7 @@ export default function CounselingScreen() {
 
       {/* Fixed Bottom Button */}
       {selectedType && (
-        <View className="bg-white pt-4 pb-8 px-5 rounded-t-3xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] border-t border-gray-100">
+        <View className="pt-4 pb-8 px-5 rounded-t-3xl shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] border-t" style={{ backgroundColor: colors.surface, borderTopColor: colors.border }}>
           <TouchableOpacity
             onPress={handleContinue}
             activeOpacity={0.8}

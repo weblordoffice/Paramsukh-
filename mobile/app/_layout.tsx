@@ -15,6 +15,7 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { useThemeStore } from '../store/themeStore';
+import { usePreventScreenCapture } from 'expo-screen-capture';
 
 const tokenCache = {
   async getToken(key: string) {
@@ -263,6 +264,9 @@ export default function RootLayout() {
     });
     return () => subscription.remove();
   }, []);
+
+  // Prevent screenshots / screen recording app-wide (Android FLAG_SECURE).
+  usePreventScreenCapture();
 
   if (!isReady) {
     return (

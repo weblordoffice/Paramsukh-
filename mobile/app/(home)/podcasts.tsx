@@ -442,38 +442,40 @@ export default function PodcastsScreen() {
 
   if (loading && !refreshing) {
     return (
-      <View className="flex-1 justify-center items-center bg-gray-50">
+      <View className="flex-1 justify-center items-center" style={{ backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color="#3B82F6" />
       </View>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1" style={{ backgroundColor: colors.background }}>
       {/* Header */}
-      <View className="flex-row items-center justify-between px-5 py-4 bg-white border-b border-gray-200">
-        <TouchableOpacity className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" onPress={() => { if (router.canGoBack()) router.back(); }}>
+      <View className="flex-row items-center justify-between px-5 py-4 border-b" style={{ backgroundColor: colors.surface, borderBottomColor: colors.border }}>
+        <TouchableOpacity className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: colors.surfaceSecondary }} onPress={() => { if (router.canGoBack()) router.back(); }}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text className="text-xl font-bold text-gray-900">Podcasts</Text>
-        <TouchableOpacity className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center" onPress={fetchPodcasts}>
+        <Text className="text-xl font-bold" style={{ color: colors.text }}>Podcasts</Text>
+        <TouchableOpacity className="w-10 h-10 rounded-full items-center justify-center" style={{ backgroundColor: colors.surfaceSecondary }} onPress={fetchPodcasts}>
           <Ionicons name="refresh" size={24} color={colors.text} />
         </TouchableOpacity>
       </View>
 
       {/* Categories */}
-      <View className="bg-white border-b border-gray-200 py-3">
+      <View className="border-b py-3" style={{ backgroundColor: colors.surface, borderBottomColor: colors.border }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerClassName="px-5 gap-2">
           {user && (
             <TouchableOpacity
-              className={`px-4 py-2 rounded-[20px] border ${showMyPodcasts
-                ? 'bg-blue-500 border-blue-500'
-                : 'bg-gray-100 border-gray-200'
-                }`}
+              className="px-4 py-2 rounded-[20px] border"
+              style={{
+                backgroundColor: showMyPodcasts ? colors.primary : colors.surfaceSecondary,
+                borderColor: showMyPodcasts ? colors.primary : colors.border,
+              }}
               onPress={() => setShowMyPodcasts(!showMyPodcasts)}
             >
               <Text
-                className={`text-sm font-semibold ${showMyPodcasts ? 'text-white' : 'text-gray-500'}`}
+                className="text-sm font-semibold"
+                style={{ color: showMyPodcasts ? colors.surface : colors.textSecondary }}
               >
                 My Podcasts
               </Text>
@@ -482,15 +484,16 @@ export default function PodcastsScreen() {
           {categories.map((category) => (
             <TouchableOpacity
               key={category}
-              className={`px-4 py-2 rounded-[20px] border ${selectedCategory === category
-                ? 'bg-blue-500 border-blue-500'
-                : 'bg-gray-100 border-gray-200'
-                }`}
+              className="px-4 py-2 rounded-[20px] border"
+              style={{
+                backgroundColor: selectedCategory === category ? colors.primary : colors.surfaceSecondary,
+                borderColor: selectedCategory === category ? colors.primary : colors.border,
+              }}
               onPress={() => setSelectedCategory(category)}
             >
               <Text
-                className={`text-sm font-semibold ${selectedCategory === category ? 'text-white' : 'text-gray-500'
-                  }`}
+                className="text-sm font-semibold"
+                style={{ color: selectedCategory === category ? colors.surface : colors.textSecondary }}
               >
                 {category}
               </Text>
@@ -519,11 +522,13 @@ export default function PodcastsScreen() {
               key={podcast._id}
               activeOpacity={0.9}
               onPress={() => handlePlayPodcast(podcast)}
-              className="flex-row bg-white rounded-2xl p-4 mb-4 shadow-sm relative overflow-hidden"
+              className="flex-row rounded-2xl p-4 mb-4 shadow-sm relative overflow-hidden"
+              style={{ backgroundColor: colors.surface }}
             >
               {/* Thumbnail */}
               <TouchableOpacity
-                className="w-20 h-20 rounded-xl bg-gray-100 items-center justify-center mr-4 relative overflow-hidden"
+                className="w-20 h-20 rounded-xl items-center justify-center mr-4 relative overflow-hidden"
+                style={{ backgroundColor: colors.surfaceSecondary }}
                 onPress={() => handlePlayPodcast(podcast)}
               >
                 {podcast.thumbnailUrl && podcast.thumbnailUrl.startsWith('http') ? (
@@ -559,7 +564,7 @@ export default function PodcastsScreen() {
               {/* Content */}
               <View className="flex-1 mr-3">
                 <View className="flex-row items-center gap-2 mb-1">
-                  <Text className="text-base font-bold text-gray-900 flex-1" numberOfLines={1}>{podcast.title}</Text>
+                  <Text className="text-base font-bold flex-1" style={{ color: colors.text }} numberOfLines={1}>{podcast.title}</Text>
                   {podcast.accessType === 'membership' && (
                     <View className="px-2 py-0.5 rounded-md bg-blue-100">
                       <Text className="text-[10px] font-semibold text-blue-700">🔐 PREMIUM</Text>
@@ -572,13 +577,13 @@ export default function PodcastsScreen() {
                   )}
                 </View>
 
-                <Text className="text-sm text-gray-500 mb-1.5">{podcast.host}</Text>
-                <Text className="text-[13px] text-gray-400 mb-2" numberOfLines={1}>{podcast.description}</Text>
+                <Text className="text-sm mb-1.5" style={{ color: colors.textSecondary }}>{podcast.host}</Text>
+                <Text className="text-[13px] mb-2" style={{ color: colors.textSecondary }} numberOfLines={1}>{podcast.description}</Text>
 
                 <View className="flex-row items-center gap-3">
                   <View className="flex-row items-center gap-1">
                     <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-                    <Text className="text-xs text-gray-500">{podcast.duration || '00:00'}</Text>
+                    <Text className="text-xs" style={{ color: colors.textSecondary }}>{podcast.duration || '00:00'}</Text>
                   </View>
                   <View className="px-2 py-1 rounded-xl bg-blue-50">
                     <Text className="text-[11px] font-semibold text-blue-500">{podcast.category}</Text>
@@ -626,7 +631,8 @@ export default function PodcastsScreen() {
                 {/* Download Button */}
                 {podcast.source === 'local' && (podcast.accessType === 'free' || podcast.canAccess === true) && (
                   <TouchableOpacity
-                    className="w-10 h-10 rounded-full items-center justify-center bg-gray-100"
+                    className="w-10 h-10 rounded-full items-center justify-center"
+                    style={{ backgroundColor: colors.surfaceSecondary }}
                     onPress={() => handleDownloadPodcast(podcast)}
                     disabled={downloading}
                   >
@@ -658,8 +664,8 @@ export default function PodcastsScreen() {
         {filteredPodcasts.length === 0 && !loading && (
           <View className="items-center justify-center py-20">
             <Ionicons name="mic-off-outline" size={64} color={colors.textSecondary} />
-            <Text className="text-xl font-bold text-gray-900 mt-4 mb-2">No Podcasts Found</Text>
-            <Text className="text-sm text-gray-500 text-center">
+            <Text className="text-xl font-bold mt-4 mb-2" style={{ color: colors.text }}>No Podcasts Found</Text>
+            <Text className="text-sm text-center" style={{ color: colors.textSecondary }}>
               {!user ? 'Login to see all available podcasts' : 'No podcasts available in this category'}
             </Text>
           </View>
@@ -726,7 +732,7 @@ export default function PodcastsScreen() {
         onRequestClose={() => setShowPaymentFlow(false)}
       >
         <View className="flex-1 bg-black/50 items-center justify-center p-4">
-          <View className="bg-white rounded-3xl p-6 width-full max-w-xs w-full">
+          <View className="rounded-3xl p-6 width-full max-w-xs w-full" style={{ backgroundColor: colors.surface }}>
             <TouchableOpacity
               onPress={() => setShowPaymentFlow(false)}
               className="absolute top-4 right-4 w-8 h-8 items-center justify-center"
@@ -736,23 +742,23 @@ export default function PodcastsScreen() {
 
             {selectedPodcast && (
               <>
-                <Text className="text-2xl font-bold text-gray-900 mb-2 pr-6">
+                <Text className="text-2xl font-bold mb-2 pr-6" style={{ color: colors.text }}>
                   {selectedPodcast.title}
                 </Text>
-                <Text className="text-lg text-gray-600 mb-6">{selectedPodcast.host}</Text>
+                <Text className="text-lg mb-6" style={{ color: colors.textSecondary }}>{selectedPodcast.host}</Text>
 
-                <View className="bg-purple-50 rounded-2xl p-6 mb-6 border border-purple-200">
-                  <Text className="text-gray-600 text-sm mb-1">Price</Text>
+                <View className="rounded-2xl p-6 mb-6 border" style={{ backgroundColor: colors.surfaceSecondary, borderColor: colors.border }}>
+                  <Text className="text-sm mb-1" style={{ color: colors.textSecondary }}>Price</Text>
                   <Text className="text-3xl font-bold text-purple-600">
                     ₹{selectedPodcast.price}
                   </Text>
-                  <Text className="text-gray-500 text-xs mt-2">
+                  <Text className="text-xs mt-2" style={{ color: colors.textSecondary }}>
                     One-time purchase • Lifetime access
                   </Text>
                 </View>
 
                 <ScrollView className="max-h-32 mb-6">
-                  <Text className="text-gray-600 text-base">
+                  <Text className="text-base" style={{ color: colors.textSecondary }}>
                     {selectedPodcast.description}
                   </Text>
                 </ScrollView>
@@ -770,11 +776,12 @@ export default function PodcastsScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  className="w-full mt-3 py-3 rounded-xl items-center justify-center border border-gray-300"
+                  className="w-full mt-3 py-3 rounded-xl items-center justify-center border"
+                  style={{ borderColor: colors.border }}
                   onPress={() => setShowPaymentFlow(false)}
                   disabled={processingPayment}
                 >
-                  <Text className="text-gray-600 text-base font-semibold">Cancel</Text>
+                  <Text className="text-base font-semibold" style={{ color: colors.textSecondary }}>Cancel</Text>
                 </TouchableOpacity>
               </>
             )}
