@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiClient from '../../utils/apiClient';
 import { API_URL } from '../../config/api';
 import { useTheme } from '../../hooks/useTheme';
@@ -28,6 +28,7 @@ interface EligibleCourse {
   totalVideos?: number;
   totalPdfs?: number;
   alreadySelected: boolean;
+  alreadyIncluded?: boolean;
 }
 
 export default function ChooseCoursesScreen() {
@@ -63,7 +64,7 @@ export default function ChooseCoursesScreen() {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     backgroundColor: colors.surface,
@@ -96,6 +97,13 @@ export default function ChooseCoursesScreen() {
     backgroundColor: colors.surfaceSecondary,
     opacity: 0.8,
   },
+  cardIncluded: {
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceSecondary,
+    opacity: 0.7,
+  },
+  includedAction: { alignItems: 'center', gap: 2 },
+  includedText: { fontSize: 10, color: colors.textSecondary, fontWeight: '500' },
   cardMain: { flex: 1, flexDirection: 'row', alignItems: 'center' },
   cardInfo: { paddingHorizontal: 4, marginLeft: 4 },
   cardThumb: {
@@ -141,6 +149,7 @@ export default function ChooseCoursesScreen() {
   doneBtnText: { color: '#FFF', fontWeight: '600', fontSize: 14 },
 });
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ membershipId: string; maxSelectable: string }>();
   const membershipId = params.membershipId;
   const maxSelectable = parseInt(params.maxSelectable || '0', 10);
@@ -204,6 +213,11 @@ export default function ChooseCoursesScreen() {
 
     if (course.alreadySelected) {
       showToast('Already in your library', 'error');
+      return;
+    }
+
+    if (course.alreadyIncluded) {
+      showToast('Already included in your plan', 'error');
       return;
     }
 
@@ -275,22 +289,23 @@ export default function ChooseCoursesScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#8B5CF6" />
           <Text style={styles.loadingText}>Loading courses...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       {/* #3: Toast feedback */}
       {toast && (
         <Animated.View
           style={[
             styles.toast,
+            { top: insets.top + 8 },
             toast.type === 'success' ? styles.toastSuccess : styles.toastError,
             { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] },
           ]}
@@ -305,7 +320,7 @@ export default function ChooseCoursesScreen() {
           </Text>
         </Animated.View>
       )}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </TouchableOpacity>
@@ -343,12 +358,22 @@ export default function ChooseCoursesScreen() {
             return (
               <View
                 key={course._id}
-                style={[styles.card, course.alreadySelected && styles.cardSelected]}
+                style={[
+                  styles.card,
+                  course.alreadySelected && styles.cardSelected,
+                  course.alreadyIncluded && styles.cardIncluded,
+                ]}
               >
                 <TouchableOpacity
                   style={styles.cardMain}
-                  onPress={() => course.alreadySelected ? handleUndo(course) : handleSelect(course)}
-                  disabled={selecting === course._id || (!course.alreadySelected && remaining <= 0)}
+                  onPress={() =>
+                    course.alreadySelected
+                      ? handleUndo(course)
+                      : course.alreadyIncluded
+                        ? showToast('Already included in your plan', 'error')
+                        : handleSelect(course)
+                  }
+                  disabled={selecting === course._id || course.alreadyIncluded || (!course.alreadySelected && remaining <= 0)}
                   activeOpacity={0.7}
                 >
                   <View style={[styles.cardThumb, { backgroundColor: course.color || '#8B5CF6' }]}>
@@ -410,6 +435,11 @@ export default function ChooseCoursesScreen() {
                       <Ionicons name="close-circle" size={24} color={colors.danger} />
                       <Text style={styles.undoText}>Tap to remove</Text>
                     </View>
+                  ) : course.alreadyIncluded ? (
+                    <View style={styles.includedAction}>
+                      <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                      <Text style={styles.includedText}>Included</Text>
+                    </View>
                   ) : remaining <= 0 ? (
                     <Ionicons name="lock-closed" size={24} color={colors.textSecondary} />
                   ) : (
@@ -431,7 +461,7 @@ export default function ChooseCoursesScreen() {
       )}
 
       {remaining > 0 && selectedCount > 0 && (
-        <View style={styles.footer}>
+        <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
           <TouchableOpacity
             style={styles.footerBtn}
             onPress={() => router.replace('/(home)/courses')}
@@ -442,7 +472,7 @@ export default function ChooseCoursesScreen() {
           </TouchableOpacity>
         </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 

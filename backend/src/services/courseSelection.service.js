@@ -6,6 +6,9 @@ import { CoursePlan } from '../models/coursePlan.models.js';
 import { Enrollment } from '../models/enrollment.models.js';
 import { MembershipSelectionLog } from '../models/membershipSelectionLog.models.js';
 import { resolvePlanCourseIds } from './planCourses.service.js';
+import { getUserEntitlementContext } from './entitlement.service.js';
+
+const normalize = (value) => String(value || '').trim().toLowerCase();
 
 let sessionProvider = null;
 export const setCourseSelectionSessionProvider = (provider) => {
@@ -33,26 +36,30 @@ export const getEligibleCourses = async (userId, membershipId) => {
 
   const eligibleIds = await resolvePlanCourseIds(plan);
 
-  const selectedIds = membership.selectedCourseIds || [];
-  const enrolledIds = await Enrollment.find({ userId })
-    .select('courseId')
-    .lean()
-    .then((enrollments) => enrollments.map((e) => String(e.courseId)));
+  const selectedIds = new Set((membership.selectedCourseIds || []).map(String));
+  const entitlement = await getUserEntitlementContext(userId);
+  const entitlementSlugs = new Set((entitlement?.entitlementPlanSlugs || []).map(normalize));
 
   const courses = await Course.find({ _id: { $in: eligibleIds }, status: 'published' })
-    .select('title description shortDescription thumbnailUrl bannerUrl icon color duration category tags totalVideos totalPdfs status')
+    .select('title description shortDescription thumbnailUrl bannerUrl icon color duration category tags totalVideos totalPdfs status includedInPlans')
     .sort({ title: 1 })
     .lean();
 
-  const allSelectedOrEnrolled = new Set([
-    ...selectedIds.map(String),
-    ...enrolledIds,
-  ]);
-
-  return courses.map((course) => ({
-    ...course,
-    alreadySelected: allSelectedOrEnrolled.has(String(course._id)),
-  }));
+  return courses.map((course) => {
+    const id = String(course._id);
+    const alreadySelected = selectedIds.has(id);
+    const entitlementCovered = (course.includedInPlans || [])
+      .map((tag) => normalize(tag))
+      .some((tag) => entitlementSlugs.has(tag));
+    return {
+      ...course,
+      // Selected with a membership credit — removable via undo.
+      alreadySelected,
+      // Available WITHOUT spending a credit (granted by an entitlement/inherited
+      // plan). Must not be offered for selection/undo.
+      alreadyIncluded: !alreadySelected && entitlementCovered,
+    };
+  });
 };
 
 export const getSelectionStatus = async (userId, membershipId) => {
@@ -135,9 +142,16 @@ export const selectCourse = async ({ userId, membershipId, courseId, ip = null }
     return { success: false, reason: 'already_selected', message: 'Course already selected' };
   }
 
-  const alreadyEnrolled = await Enrollment.findOne({ userId, courseId: course._id }).lean();
-  if (alreadyEnrolled) {
-    return { success: false, reason: 'already_enrolled', message: 'Already enrolled in this course' };
+  // Block only when the course is already available without a credit (granted by
+  // an entitlement/inherited plan). A stale enrollment from a revoked plan must
+  // NOT prevent selecting the course with a credit.
+  const entitlement = await getUserEntitlementContext(userId);
+  const entitlementSlugs = new Set((entitlement?.entitlementPlanSlugs || []).map(normalize));
+  const entitlementCovered = (course.includedInPlans || [])
+    .map((tag) => normalize(tag))
+    .some((tag) => entitlementSlugs.has(tag));
+  if (entitlementCovered) {
+    return { success: false, reason: 'already_included', message: 'This course is already included in your plan' };
   }
 
   const session = await mongoose.startSession();
@@ -164,13 +178,16 @@ export const selectCourse = async ({ userId, membershipId, courseId, ip = null }
         throw new Error('CREDIT_CONSUME_FAILED');
       }
 
-      const enrollment = await Enrollment.create([{
-        userId,
-        courseId: course._id,
-        currentVideoId: course.videos?.[0]?._id || null,
-      }], { session });
-
-      await Course.findByIdAndUpdate(course._id, { $inc: { enrollmentCount: 1 } }, { session });
+      let enrollment = await Enrollment.findOne({ userId, courseId: course._id }).session(session);
+      if (!enrollment) {
+        const created = await Enrollment.create([{
+          userId,
+          courseId: course._id,
+          currentVideoId: course.videos?.[0]?._id || null,
+        }], { session });
+        enrollment = created[0];
+        await Course.findByIdAndUpdate(course._id, { $inc: { enrollmentCount: 1 } }, { session });
+      }
 
       await MembershipSelectionLog.create([{
         userId,
@@ -187,7 +204,7 @@ export const selectCourse = async ({ userId, membershipId, courseId, ip = null }
         reason: 'selected',
         course: { _id: course._id, title: course.title },
         remainingCredits: updated.selectedCourseCredits,
-        enrollment: enrollment[0],
+        enrollment: enrollment,
       };
     });
 
