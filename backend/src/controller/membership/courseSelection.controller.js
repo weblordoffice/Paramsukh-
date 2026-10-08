@@ -1,5 +1,6 @@
 import { getEligibleCourses, getSelectionStatus, selectCourse, undoCourseSelection } from '../../services/courseSelection.service.js';
 import { UserMembership } from '../../models/userMembership.models.js';
+import { resolveMembershipPlanInheritanceBySlug } from '../../services/membershipPlan.service.js';
 
 const normalize = (value) => String(value || '').trim().toLowerCase();
 
@@ -43,6 +44,20 @@ export const fetchActiveMembership = async (req, res) => {
       if (planSlug) {
         if (selectionEnabled) selectionPlanSlugs.add(planSlug);
         else entitlementPlanSlugs.add(planSlug);
+
+        // Inherited (lower-tier) plans are granted as entitlements: buying a
+        // higher plan unlocks all courses of the plans it includes. Their own
+        // selection caps do not apply.
+        try {
+          const inheritance = await resolveMembershipPlanInheritanceBySlug(planSlug);
+          for (const inherited of inheritance.plans || []) {
+            const inheritedSlug = normalize(inherited.slug);
+            if (!inheritedSlug || inheritedSlug === planSlug) continue;
+            entitlementPlanSlugs.add(inheritedSlug);
+          }
+        } catch {
+          // ignore inheritance resolution errors
+        }
       }
 
       const selectedCourseIds = (membership.selectedCourseIds || []).map(String);

@@ -53,6 +53,24 @@ export const getUserEntitlementContext = async (userId) => {
         entitlementPlanSlugs.push(slug);
       }
       (mem.selectedCourseIds || []).forEach((id) => selectedCourseIdSet.add(String(id)));
+
+      // Inherited (lower-tier) plans are granted as entitlements: buying a higher
+      // plan unlocks all courses of the plans it includes. The cap applies only
+      // to the bought plan's OWN courses, not to inherited ones.
+      try {
+        const inheritance = await resolveMembershipPlanInheritanceFromPlan(plan);
+        for (const inherited of inheritance.plans || []) {
+          if (String(inherited._id) === String(plan._id)) continue;
+          const inheritedSlug = normalize(inherited.slug);
+          if (!inheritedSlug || inheritedSlug === 'free') continue;
+          allPlanSlugs.push(inheritedSlug);
+          allPlanIds.push(String(inherited._id));
+          entitlementPlanSlugs.push(inheritedSlug);
+          if (inherited.access?.communityAccess) communityAccess = true;
+        }
+      } catch {
+        // ignore inheritance resolution errors
+      }
     }
 
     const primary = activeMemberships[0];
