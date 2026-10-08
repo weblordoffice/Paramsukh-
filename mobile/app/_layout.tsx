@@ -15,7 +15,6 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { useThemeStore } from '../store/themeStore';
-import { usePreventScreenCapture } from 'expo-screen-capture';
 
 const tokenCache = {
   async getToken(key: string) {
@@ -266,7 +265,30 @@ export default function RootLayout() {
   }, []);
 
   // Prevent screenshots / screen recording app-wide (Android FLAG_SECURE).
-  usePreventScreenCapture();
+  // Uses a dynamic import so older dev builds without the native module don't crash.
+  useEffect(() => {
+    let restore: (() => void) | undefined;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const ScreenCapture = await import('expo-screen-capture');
+        await ScreenCapture.preventScreenCaptureAsync();
+        if (!cancelled) {
+          restore = () => {
+            ScreenCapture.allowScreenCaptureAsync().catch(() => {});
+          };
+        }
+      } catch {
+        // Native module unavailable (e.g. an older dev build) — silently skip.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      restore?.();
+    };
+  }, []);
 
   if (!isReady) {
     return (
