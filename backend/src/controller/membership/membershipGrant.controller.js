@@ -2,6 +2,12 @@ import mongoose from 'mongoose';
 import { User } from '../../models/user.models.js';
 import { MembershipPlan } from '../../models/membershipPlan.models.js';
 import { UserMembership } from '../../models/userMembership.models.js';
+import {
+  getAutoEnrollCoursesForPlan,
+  getInheritedCoursesForPlan,
+  autoEnrollUserInCourses,
+} from '../../services/membershipAccess.service.js';
+import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
 
 const toDate = (value) => {
   if (!value) return null;
@@ -117,6 +123,11 @@ export const grantMembershipByAdmin = async (req, res) => {
       startDate: effectiveStartDate,
       endDate: effectiveEndDate,
       autoRenew: false,
+      courseSelectionEnabled: plan.access?.courseSelection?.enabled === true,
+      selectedCourseCredits: plan.access?.courseSelection?.enabled === true
+        ? Number(plan.access?.courseSelection?.maxSelectableCourses || 0)
+        : 0,
+      selectedCourseIds: [],
       payment: {
         provider: 'manual',
         orderId: null,
@@ -144,6 +155,25 @@ export const grantMembershipByAdmin = async (req, res) => {
         }
       }
     );
+
+    // Grant course access + community groups, mirroring the purchase flow.
+    // Capped (selection) plans: the granted plan's own courses are pickable (credits
+    // set above) and all inherited/lower-tier courses are auto-enrolled.
+    try {
+      const selectionEnabled = plan.access?.courseSelection?.enabled === true;
+      const courses = selectionEnabled
+        ? await getInheritedCoursesForPlan(plan.slug)
+        : await getAutoEnrollCoursesForPlan(plan.slug);
+      await autoEnrollUserInCourses(user._id, courses);
+    } catch (enrollError) {
+      console.error('⚠️ Complimentary grant course enrollment failed (non-critical):', enrollError.message);
+    }
+
+    try {
+      await handlePlanUpgrade(user._id, plan.slug);
+    } catch (communityError) {
+      console.error('⚠️ Complimentary grant community sync failed (non-critical):', communityError.message);
+    }
 
     return res.status(201).json({
       success: true,

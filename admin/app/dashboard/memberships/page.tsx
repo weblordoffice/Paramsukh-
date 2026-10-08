@@ -93,10 +93,11 @@ export default function MembershipsPage() {
   const [grantForm, setGrantForm] = useState({
     userId: '',
     planId: '',
-    durationDays: 90,
     reason: '',
     replaceActive: true,
   });
+  const [grantUserSearch, setGrantUserSearch] = useState('');
+  const [grantUserDropdownOpen, setGrantUserDropdownOpen] = useState(false);
   const statuses = ['active', 'inactive', 'cancelled'];
 
   const planLookup = useMemo(() => {
@@ -105,6 +106,24 @@ export default function MembershipsPage() {
       return acc;
     }, {});
   }, [availablePlans]);
+
+  const filteredGrantUsers = useMemo(() => {
+    const q = grantUserSearch.trim().toLowerCase();
+    const list = q
+      ? users.filter((u) =>
+          (u.displayName || '').toLowerCase().includes(q) ||
+          (u.email || '').toLowerCase().includes(q) ||
+          (u.phone || '').includes(q))
+      : users;
+    return list.slice(0, 50);
+  }, [users, grantUserSearch]);
+
+  const selectedGrantUser = useMemo(
+    () => users.find((u) => u._id === grantForm.userId) || null,
+    [users, grantForm.userId]
+  );
+
+  const grantUserLabel = (u: User) => `${u.displayName} (${u.phone || u.email || 'No contact'})`;
 
 
 
@@ -176,28 +195,19 @@ export default function MembershipsPage() {
       return;
     }
 
-    if (!grantForm.durationDays || Number(grantForm.durationDays) <= 0) {
-      toast.error('Duration must be greater than 0 days');
-      return;
-    }
-
     try {
       setGrantSubmitting(true);
       const response = await apiClient.post('/api/membership-plans/admin/grants', {
         userId: grantForm.userId,
         planId: grantForm.planId,
-        durationDays: Number(grantForm.durationDays),
         reason: grantForm.reason || 'Complimentary admin grant',
         replaceActive: grantForm.replaceActive,
       });
 
       if (response.data?.success) {
         toast.success('Complimentary membership granted');
-        setGrantForm((prev) => ({
-          ...prev,
-          durationDays: 90,
-          reason: '',
-        }));
+        setGrantForm((prev) => ({ ...prev, userId: '', reason: '' }));
+        setGrantUserSearch('');
         await Promise.all([fetchAdminGrants(), fetchUsers()]);
       }
     } catch (error: any) {
@@ -437,22 +447,50 @@ export default function MembershipsPage() {
           <h2 className="text-lg font-semibold text-gray-900">Grant Complimentary Membership</h2>
         </div>
 
-        <form onSubmit={handleGrantMembership} className="grid grid-cols-1 md:grid-cols-5 gap-3">
-          <div className="md:col-span-2">
+        <form onSubmit={handleGrantMembership} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="md:col-span-2 relative">
             <label className="block text-xs font-medium text-gray-600 mb-1">User</label>
-            <select
-              value={grantForm.userId}
-              onChange={(e) => setGrantForm((prev) => ({ ...prev, userId: e.target.value }))}
+            <input
+              type="text"
+              value={grantUserDropdownOpen ? grantUserSearch : (selectedGrantUser ? grantUserLabel(selectedGrantUser) : '')}
+              onChange={(e) => {
+                setGrantUserSearch(e.target.value);
+                setGrantUserDropdownOpen(true);
+                if (grantForm.userId) setGrantForm((prev) => ({ ...prev, userId: '' }));
+              }}
+              onFocus={() => {
+                setGrantUserDropdownOpen(true);
+                setGrantUserSearch('');
+              }}
+              onBlur={() => setTimeout(() => setGrantUserDropdownOpen(false), 150)}
+              placeholder="Search name, email or phone"
+              autoComplete="off"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-black"
-              required
-            >
-              <option value="">Select user</option>
-              {users.map((user) => (
-                <option key={user._id} value={user._id}>
-                  {user.displayName} ({user.phone || user.email || 'No contact'})
-                </option>
-              ))}
-            </select>
+            />
+            {grantUserDropdownOpen && (
+              <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
+                {filteredGrantUsers.length === 0 ? (
+                  <p className="px-3 py-2 text-sm text-gray-500">No users found</p>
+                ) : (
+                  filteredGrantUsers.map((u) => (
+                    <button
+                      key={u._id}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        setGrantForm((prev) => ({ ...prev, userId: u._id }));
+                        setGrantUserDropdownOpen(false);
+                        setGrantUserSearch('');
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-purple-50"
+                    >
+                      <span className="font-medium text-gray-900">{u.displayName}</span>
+                      <span className="text-gray-500"> ({u.phone || u.email || 'No contact'})</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           <div>
@@ -475,18 +513,6 @@ export default function MembershipsPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Duration (days)</label>
-            <input
-              type="number"
-              min={1}
-              value={grantForm.durationDays}
-              onChange={(e) => setGrantForm((prev) => ({ ...prev, durationDays: Number(e.target.value || 0) }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-black"
-              required
-            />
-          </div>
-
-          <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Action</label>
             <button
               type="submit"
@@ -497,7 +523,7 @@ export default function MembershipsPage() {
             </button>
           </div>
 
-          <div className="md:col-span-4">
+          <div className="md:col-span-3">
             <label className="block text-xs font-medium text-gray-600 mb-1">Reason (optional)</label>
             <input
               type="text"
