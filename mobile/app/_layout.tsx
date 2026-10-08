@@ -15,6 +15,8 @@ import * as SecureStore from 'expo-secure-store';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { useThemeStore } from '../store/themeStore';
+import { useNetworkStore } from '../store/networkStore';
+import OfflineBanner from '../components/OfflineBanner';
 
 const tokenCache = {
   async getToken(key: string) {
@@ -59,6 +61,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isSyncing, setIsSyncing] = useState(false);
+  const [clerkLoadTimedOut, setClerkLoadTimedOut] = useState(false);
   const isAuthRoute = useMemo(
     () => pathname === '/signin' || pathname === '/signup',
     [pathname]
@@ -74,6 +77,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setClerkSignOut(clerkSignOut);
   }, [clerkSignOut]);
+
+  // Don't let Clerk's load block the app forever when there's no network.
+  // After a short grace period, fall back to the locally cached session.
+  useEffect(() => {
+    if (isClerkLoaded) return;
+    const timer = setTimeout(() => setClerkLoadTimedOut(true), 4000);
+    return () => clearTimeout(timer);
+  }, [isClerkLoaded]);
+
+  const clerkResolved = isClerkLoaded || clerkLoadTimedOut;
 
   // Effect 1: Clerk -> Backend sync
   useEffect(() => {
@@ -199,7 +212,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [user, token, isAuthRoute, isOnboardingRoute, pathname, isClerkLoaded, isSyncing]);
 
-  if (!isClerkLoaded || isSyncing) {
+  if (!clerkResolved || isSyncing) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color="#F1842D" />
@@ -247,6 +260,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   const [isReady, setIsReady] = useState(false);
   const colors = useThemeStore((s) => s.colors);
+  const reconnectCount = useNetworkStore((s) => s.reconnectCount);
 
   useEffect(() => {
     async function initAuth() {
@@ -256,6 +270,38 @@ export default function RootLayout() {
     }
     initAuth();
   }, []);
+
+  // Track connectivity globally and drive the offline banner + reconnect refresh.
+  // Uses a dynamic import so builds without the native NetInfo module don't crash.
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    (async () => {
+      try {
+        const NetInfo = (await import('@react-native-community/netinfo')).default;
+        const apply = (state: any) => {
+          const online = state?.isConnected === true && state?.isInternetReachable !== false;
+          useNetworkStore.getState().setOnline(online);
+        };
+        unsubscribe = NetInfo.addEventListener(apply);
+        NetInfo.fetch().then(apply).catch(() => {});
+      } catch {
+        // Native module unavailable (older dev build) — offline detection disabled.
+      }
+    })();
+
+    return () => {
+      try {
+        unsubscribe?.();
+      } catch {}
+    };
+  }, []);
+
+  // When connectivity is restored, refresh the cached user/session so screens update.
+  useEffect(() => {
+    if (reconnectCount === 0) return;
+    useAuthStore.getState().fetchCurrentUser?.().catch(() => {});
+  }, [reconnectCount]);
 
   useEffect(() => {
     const subscription = Appearance.addChangeListener(({ colorScheme }) => {
@@ -310,6 +356,7 @@ export default function RootLayout() {
           <AuthGuard>
             <View style={{ flex: 1, backgroundColor: colors.background }}>
               <StatusBar style={colors.statusBarStyle} />
+              <OfflineBanner />
               <ErrorBoundary>
                 <RootNavigator />
               </ErrorBoundary>
