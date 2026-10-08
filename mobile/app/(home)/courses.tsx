@@ -597,30 +597,54 @@ export default function CoursesScreen() {
   }, [enrichedCourses, isCourseAccessible]);
 
   // Group paid courses into sections — one per membership plan, plus an "Other" catch-all.
+  // A course tagged with several plans is shown only ONCE, assigned to a plan the user
+  // has access to (else the highest tier that includes it).
   const paidSections = useMemo(() => {
-    const sections: { key: string; title: string; color: string; courses: EnrichedCourse[] }[] = [];
-    const claimed = new Set<string>();
+    const planOrder = Object.keys(planLookup);
+    const ownedSlugs = new Set<string>([
+      ...entitlementPlanSlugs,
+      ...memberships.map((m) => normalize(m.planSlug)),
+    ]);
 
-    Object.keys(planLookup).forEach((slug) => {
-      const visual = planLookup[slug];
-      const coursesForPlan = paidCourses.filter((course) =>
-        (course.includedInPlans || []).some(
-          (tag) => canonicalizePlanTag(tag, planAliases) === slug,
-        ),
+    const assignment = new Map<string, string>();
+    paidCourses.forEach((course) => {
+      const candidates = (course.includedInPlans || [])
+        .map((tag) => canonicalizePlanTag(tag, planAliases))
+        .filter((slug) => Boolean(planLookup[slug]));
+
+      if (candidates.length === 0) {
+        assignment.set(String(course._id), '__other__');
+        return;
+      }
+
+      const ownedCandidates = candidates.filter((slug) => ownedSlugs.has(slug));
+      const pool = ownedCandidates.length > 0 ? ownedCandidates : candidates;
+      const chosen = pool.reduce((best, slug) =>
+        planOrder.indexOf(slug) > planOrder.indexOf(best) ? slug : best,
       );
+      assignment.set(String(course._id), chosen);
+    });
 
+    const sections: { key: string; title: string; color: string; courses: EnrichedCourse[] }[] = [];
+
+    planOrder.forEach((slug) => {
+      const coursesForPlan = paidCourses.filter(
+        (course) => assignment.get(String(course._id)) === slug,
+      );
       if (coursesForPlan.length > 0) {
+        const visual = planLookup[slug];
         sections.push({
           key: slug,
           title: visual.label,
           color: visual.color,
           courses: coursesForPlan,
         });
-        coursesForPlan.forEach((course) => claimed.add(String(course._id)));
       }
     });
 
-    const otherCourses = paidCourses.filter((course) => !claimed.has(String(course._id)));
+    const otherCourses = paidCourses.filter(
+      (course) => assignment.get(String(course._id)) === '__other__',
+    );
     if (otherCourses.length > 0) {
       sections.push({
         key: '__other__',
@@ -631,7 +655,7 @@ export default function CoursesScreen() {
     }
 
     return sections;
-  }, [paidCourses, planLookup, planAliases]);
+  }, [paidCourses, planLookup, planAliases, entitlementPlanSlugs, memberships]);
 
   const renderSectionHeader = (label: string, count: number, color?: string) => (
     <View style={styles.planSectionHeader}>
