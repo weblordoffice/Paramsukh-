@@ -69,13 +69,13 @@ const counselingServiceSchema = new mongoose.Schema({
         default: 'Expert Counselor'
     },
     businessHours: {
-        monday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true } },
-        tuesday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true } },
-        wednesday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true } },
-        thursday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true } },
-        friday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true } },
-        saturday: { start: { type: String, default: "10:00" }, end: { type: String, default: "16:00" }, isActive: { type: Boolean, default: false } },
-        sunday: { start: { type: String, default: "10:00" }, end: { type: String, default: "16:00" }, isActive: { type: Boolean, default: false } }
+        monday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true }, breakStart: { type: String, default: null }, breakEnd: { type: String, default: null } },
+        tuesday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true }, breakStart: { type: String, default: null }, breakEnd: { type: String, default: null } },
+        wednesday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true }, breakStart: { type: String, default: null }, breakEnd: { type: String, default: null } },
+        thursday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true }, breakStart: { type: String, default: null }, breakEnd: { type: String, default: null } },
+        friday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true }, breakStart: { type: String, default: null }, breakEnd: { type: String, default: null } },
+        saturday: { start: { type: String, default: "10:00" }, end: { type: String, default: "16:00" }, isActive: { type: Boolean, default: false }, breakStart: { type: String, default: null }, breakEnd: { type: String, default: null } },
+        sunday: { start: { type: String, default: "10:00" }, end: { type: String, default: "16:00" }, isActive: { type: Boolean, default: false }, breakStart: { type: String, default: null }, breakEnd: { type: String, default: null } }
     },
     intervalMinutes: {
         type: Number,

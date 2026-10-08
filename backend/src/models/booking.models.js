@@ -355,6 +355,14 @@ bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
   const endMinutes = parseTimeToMinutes(hours.end);
   const interval = service.intervalMinutes || 60;
 
+  // Optional mid-day break splits the day into two shifts (e.g. 09:00-13:00 and 14:00-18:00).
+  const breakStartMinutes = hours.breakStart ? parseTimeToMinutes(hours.breakStart) : null;
+  const breakEndMinutes = hours.breakEnd ? parseTimeToMinutes(hours.breakEnd) : null;
+  const hasBreak =
+    breakStartMinutes != null && breakEndMinutes != null && breakEndMinutes > breakStartMinutes;
+  const overlapsBreak = (slotStart) =>
+    hasBreak && slotStart < breakEndMinutes && slotStart + interval > breakStartMinutes;
+
   const bookedSlots = bookings
     .filter(b => {
       const slotMinutes = parseTimeToMinutes(b.bookingTime);
@@ -377,6 +385,11 @@ bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
   const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
 
   for (let current = startMinutes; current + interval <= endMinutes; current += interval) {
+    // Skip slots that fall inside (or overlap) the break window.
+    if (overlapsBreak(current)) {
+      continue;
+    }
+
     // If it's today, only show future slots (add 30 min buffer)
     if (isToday && current < currentMinutes + 30) {
       continue;

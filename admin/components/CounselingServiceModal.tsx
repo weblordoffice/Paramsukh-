@@ -9,6 +9,8 @@ interface BusinessHour {
     start: string;
     end: string;
     isActive: boolean;
+    breakStart?: string | null;
+    breakEnd?: string | null;
 }
 
 interface BusinessHours {
@@ -139,7 +141,7 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
         });  
     };        
         
-    const updateTime = (day: keyof BusinessHours, field: 'start' | 'end', value: string) => {
+    const updateTime = (day: keyof BusinessHours, field: 'start' | 'end' | 'breakStart' | 'breakEnd', value: string) => {
         setFormData({
             ...formData,
             businessHours: {
@@ -147,6 +149,20 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
                 [day]: { ...formData.businessHours[day], [field]: value }
             }     
         });    
+    };
+
+    const setBreak = (day: keyof BusinessHours, enabled: boolean) => {
+        setFormData({
+            ...formData,
+            businessHours: {
+                ...formData.businessHours,
+                [day]: {
+                    ...formData.businessHours[day],
+                    breakStart: enabled ? (formData.businessHours[day].breakStart || '13:00') : null,
+                    breakEnd: enabled ? (formData.businessHours[day].breakEnd || '14:00') : null,
+                }
+            }
+        });
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -287,20 +303,47 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
                                         </div>
                                         
                                         {formData.businessHours[day].isActive ? (
-                                            <div className="flex items-center gap-3 flex-1">
-                                                <input
-                                                    type="time"
-                                                    value={formData.businessHours[day].start}
-                                                    onChange={(e) => updateTime(day, 'start', e.target.value)}
-                                                    className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white text-gray-900"
-                                                />
-                                                <span className="text-gray-400 text-sm">to</span>
-                                                <input
-                                                    type="time"
-                                                    value={formData.businessHours[day].end}
-                                                    onChange={(e) => updateTime(day, 'end', e.target.value)}
-                                                    className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white text-gray-900"
-                                                />
+                                            <div className="flex flex-col gap-2 flex-1">
+                                                <div className="flex items-center gap-3">
+                                                    <input
+                                                        type="time"
+                                                        value={formData.businessHours[day].start}
+                                                        onChange={(e) => updateTime(day, 'start', e.target.value)}
+                                                        className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white text-gray-900"
+                                                    />
+                                                    <span className="text-gray-400 text-sm">to</span>
+                                                    <input
+                                                        type="time"
+                                                        value={formData.businessHours[day].end}
+                                                        onChange={(e) => updateTime(day, 'end', e.target.value)}
+                                                        className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white text-gray-900"
+                                                    />
+                                                </div>
+                                                {(formData.businessHours[day].breakStart != null || formData.businessHours[day].breakEnd != null) ? (
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="text-xs text-gray-500 w-12">Break</span>
+                                                        <input
+                                                            type="time"
+                                                            value={formData.businessHours[day].breakStart || '13:00'}
+                                                            onChange={(e) => updateTime(day, 'breakStart', e.target.value)}
+                                                            className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white text-gray-900"
+                                                        />
+                                                        <span className="text-gray-400 text-sm">to</span>
+                                                        <input
+                                                            type="time"
+                                                            value={formData.businessHours[day].breakEnd || '14:00'}
+                                                            onChange={(e) => updateTime(day, 'breakEnd', e.target.value)}
+                                                            className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white text-gray-900"
+                                                        />
+                                                        <button type="button" onClick={() => setBreak(day, false)} className="text-xs text-red-500 hover:underline">
+                                                            Remove
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button type="button" onClick={() => setBreak(day, true)} className="text-xs text-blue-600 self-start hover:underline">
+                                                        + Add break (2nd shift)
+                                                    </button>
+                                                )}
                                             </div>
                                         ) : (
                                             <div className="flex-1 flex items-center">

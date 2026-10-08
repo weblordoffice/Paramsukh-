@@ -69,11 +69,11 @@ export const getAllServicesAdmin = async (req, res) => {
 
 export const createService = async (req, res) => {
   try {
-    const { title, description, counselorName, counselorImage, category, duration, price, currencyCode, isActive, onlineMeetingLink, meetingPlatform, meetingPassword, availableSlots } = req.body;
+    const { title, description, counselorName, counselorImage, category, duration, price, currencyCode, isActive, onlineMeetingLink, meetingPlatform, meetingPassword, availableSlots, businessHours, intervalMinutes } = req.body;
     const service = await CounselingService.create({
       title, description, counselorName, counselorImage, category, duration, price, currencyCode: currencyCode || 'INR',
       isActive: typeof isActive === 'boolean' ? isActive : true,
-      onlineMeetingLink, meetingPlatform, meetingPassword, availableSlots,
+      onlineMeetingLink, meetingPlatform, meetingPassword, availableSlots, businessHours, intervalMinutes,
     });
     res.status(201).json({
       success: true,
@@ -91,7 +91,7 @@ export const createService = async (req, res) => {
 
 export const updateService = async (req, res) => {
   try {
-    const allowed = ['title', 'description', 'counselorName', 'counselorImage', 'category', 'duration', 'price', 'currencyCode', 'isActive', 'onlineMeetingLink', 'meetingPlatform', 'meetingPassword', 'availableSlots'];
+    const allowed = ['title', 'description', 'counselorName', 'counselorImage', 'category', 'duration', 'price', 'currencyCode', 'isActive', 'onlineMeetingLink', 'meetingPlatform', 'meetingPassword', 'availableSlots', 'businessHours', 'intervalMinutes'];
     const update = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) update[key] = req.body[key];
