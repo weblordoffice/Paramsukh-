@@ -7,17 +7,16 @@ import {
   Platform,
   Pressable,
   StyleSheet,
+  Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useGlobalSearchParams, usePathname } from 'expo-router';
+import { usePathname } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import AIChatPanel from './AIChatPanel';
 import { useAIAssistantStore } from '../store/aiAssistantStore';
 import { useAuthStore } from '../store/authStore';
-import { buildAIScreenContext } from '../utils/aiScreenContext';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeColors } from '../theme/colors';
 
@@ -52,7 +51,6 @@ const clamp = (value: number, min: number, max: number) => Math.min(Math.max(val
 
 export default function AIAssistantWidget() {
   const pathname = usePathname();
-  const params = useGlobalSearchParams();
   const insets = useSafeAreaInsets();
   const { width: winWidth, height: winHeight } = Dimensions.get('window');
   const initialWidth = winWidth || 390;
@@ -63,7 +61,6 @@ export default function AIAssistantWidget() {
 
   const widgetPosition = useAIAssistantStore((state) => state.widgetPosition);
   const hydrated = useAIAssistantStore((state) => state.hydrated);
-  const hasActiveChat = useAIAssistantStore((state) => state.messages.length > 1);
   const hydrateAssistant = useAIAssistantStore((state) => state.hydrate);
   const setWidgetPosition = useAIAssistantStore((state) => state.setWidgetPosition);
 
@@ -89,11 +86,6 @@ export default function AIAssistantWidget() {
   const position = useRef(new Animated.ValueXY({ x: defaultInitX, y: defaultInitY })).current;
   const interactionScale = useRef(new Animated.Value(1)).current;
   const dragStateRef = useRef({ moved: false, releasedAt: 0 });
-
-  const screenContext = useMemo(
-    () => buildAIScreenContext(pathname, params),
-    [pathname, params]
-  );
 
   const getBounds = useCallback(() => {
     const minY = insets.top + TOP_SAFE_OFFSET;
@@ -269,17 +261,11 @@ export default function AIAssistantWidget() {
         onRequestClose={() => setIsOpen(false)}
       >
         <View style={styles.overlay}>
-          {!hasActiveChat ? (
-            <Pressable style={styles.overlayDismiss} onPress={() => setIsOpen(false)} />
-          ) : null}
+          <Pressable style={styles.overlayDismiss} onPress={() => setIsOpen(false)} />
           <View
             style={[
-              styles.sheet,
-              hasActiveChat && styles.sheetChat,
-              {
-                paddingTop: hasActiveChat ? insets.top : 0,
-                paddingBottom: Math.max(insets.bottom, 12),
-              },
+              styles.sheetComingSoon,
+              { paddingBottom: Math.max(insets.bottom, 16) + 8 },
             ]}
           >
             <LinearGradient
@@ -292,14 +278,35 @@ export default function AIAssistantWidget() {
               end={{ x: 1, y: 1 }}
               style={styles.sheetGlow}
             />
-            {!hasActiveChat ? <View style={styles.handle} /> : null}
-            <AIChatPanel
-              compact
-              title="Ask ParamSukh AI"
-              subtitle="Guidance that follows your journey in the app"
-              onClose={() => setIsOpen(false)}
-              context={screenContext}
-            />
+            <View style={styles.handle} />
+
+            <View style={styles.comingSoon}>
+              <LinearGradient
+                colors={['#FFB56F', '#F47A20', '#D9570B']}
+                locations={[0, 0.55, 1]}
+                start={{ x: 0.1, y: 0 }}
+                end={{ x: 0.9, y: 1 }}
+                style={styles.comingSoonIcon}
+              >
+                <Ionicons name="sparkles" size={34} color="#FFF8EF" />
+              </LinearGradient>
+
+              <Text style={styles.comingSoonTitle}>ParamSukh AI</Text>
+
+              <View style={styles.comingSoonBadge}>
+                <Ionicons name="time-outline" size={14} color={colors.primary} />
+                <Text style={styles.comingSoonBadgeText}>Coming Soon</Text>
+              </View>
+
+              <Text style={styles.comingSoonText}>
+                Our AI guide is on the way. Soon you&apos;ll be able to ask questions and get
+                guidance tailored to your journey right here.
+              </Text>
+
+              <Pressable style={styles.comingSoonButton} onPress={() => setIsOpen(false)}>
+                <Text style={styles.comingSoonButtonText}>Got it</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -443,5 +450,72 @@ const getStyles = (colors: ThemeColors) => StyleSheet.create({
     alignSelf: 'center',
     marginTop: 12,
     marginBottom: 0,
+  },
+  sheetComingSoon: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 14,
+  },
+  comingSoon: {
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  comingSoonIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  comingSoonTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.text,
+    letterSpacing: 0.3,
+    marginBottom: 10,
+  },
+  comingSoonBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 16,
+  },
+  comingSoonBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  comingSoonText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  comingSoonButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: colors.primary,
+  },
+  comingSoonButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.surface,
   },
 });
