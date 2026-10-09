@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar } from 'react-native-calendars';
 import { useCounselingStore } from '../store/counselingStore';
 import { useTheme } from '../hooks/useTheme';
+import { formatTime12h } from '../utils/dateTime';
 
 export default function CounselingDetailScreen() {
   const { colors } = useTheme();
@@ -324,7 +325,7 @@ export default function CounselingDetailScreen() {
                     </View>
                     <View style={styles.infoRow}>
                         <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-                        <Text style={styles.infoText}>{booking.bookingTime}{booking.duration ? ` · ${booking.duration} mins` : ''}</Text>
+                        <Text style={styles.infoText}>{formatTime12h(booking.bookingTime)}{booking.duration ? ` · ${booking.duration} mins` : ''}</Text>
                     </View>
                     {booking.amount > 0 && (
                         <View style={styles.infoRow}>
@@ -474,7 +475,7 @@ export default function CounselingDetailScreen() {
                             <Text style={[styles.pendingBannerTitle, styles.pendingBannerAdminTitle]}>Admin proposes new time</Text>
                         </View>
                         <Text style={[styles.pendingBannerText, styles.pendingBannerAdminText]}>
-                            New: {new Date(booking.rescheduleRequest.requestedNewDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} at {booking.rescheduleRequest.requestedNewTime}
+                            New: {new Date(booking.rescheduleRequest.requestedNewDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} at {formatTime12h(booking.rescheduleRequest.requestedNewTime)}
                             {booking.rescheduleRequest.reason ? `\nReason: ${booking.rescheduleRequest.reason}` : ''}
                         </Text>
                         <View style={styles.actionRow}>
@@ -497,7 +498,7 @@ export default function CounselingDetailScreen() {
                             <View style={styles.pendingTag}><Text style={styles.pendingTagText}>Awaiting Admin</Text></View>
                         </View>
                         <Text style={styles.pendingBannerText}>
-                            Requested: {new Date(booking.rescheduleRequest.requestedNewDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} at {booking.rescheduleRequest.requestedNewTime}
+                            Requested: {new Date(booking.rescheduleRequest.requestedNewDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} at {formatTime12h(booking.rescheduleRequest.requestedNewTime)}
                         </Text>
                     </View>
                 )}
@@ -544,7 +545,7 @@ export default function CounselingDetailScreen() {
                                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                                         {rescheduleSlots.map((time) => (
                                             <TouchableOpacity key={time} style={rescheduleTime === time ? styles.slotChipSelected : styles.slotChipInactive} onPress={() => setRescheduleTime(time)}>
-                                                <Text style={rescheduleTime === time ? styles.slotChipTextSelected : styles.slotChipTextInactive}>{time}</Text>
+                                                <Text style={rescheduleTime === time ? styles.slotChipTextSelected : styles.slotChipTextInactive}>{formatTime12h(time)}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>

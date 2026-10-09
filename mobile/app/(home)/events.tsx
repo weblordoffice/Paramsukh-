@@ -7,6 +7,7 @@ import Header from '../../components/Header';
 import { useEventStore } from '../../store/eventStore';
 import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
 import { useTheme } from '../../hooks/useTheme';
+import { formatTime12h } from '../../utils/dateTime';
 
 const { width } = Dimensions.get('window');
 
@@ -584,7 +585,7 @@ export default function EventsScreen() {
               <View style={styles.cardMetaDot} />
               <View style={styles.cardMetaItem}>
                 <Ionicons name="time-outline" size={14} color={colors.textSecondary} />
-                <Text style={styles.cardMetaText}>{event.eventTime}</Text>
+                <Text style={styles.cardMetaText}>{formatTime12h(event.eventTime)}</Text>
               </View>
             </View>
 
@@ -748,7 +749,7 @@ export default function EventsScreen() {
                    </View>
                    <View style={styles.ticketGridItem}>
                       <Text style={styles.ticketLabel}>TIME</Text>
-                      <Text style={styles.ticketValue}>{ticketModal.event?.eventTime}</Text>
+                      <Text style={styles.ticketValue}>{formatTime12h(ticketModal.event?.eventTime)}</Text>
                    </View>
                 </View>
 

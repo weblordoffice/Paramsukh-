@@ -9,6 +9,7 @@ import { useCounselingStore } from '../store/counselingStore';
 import { useAuthStore } from '../store/authStore';
 import { Calendar } from 'react-native-calendars';
 import { useTheme } from '../hooks/useTheme';
+import { formatTime12h } from '../utils/dateTime';
 
 export default function BookCounselingScreen() {
   const { colors } = useTheme();
@@ -106,7 +107,7 @@ export default function BookCounselingScreen() {
       if (free) {
         Alert.alert(
           'Booking Confirmed! 🎉',
-          `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${selectedTime} has been booked.`,
+          `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${formatTime12h(selectedTime)} has been booked.`,
           [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
         );
         return;
@@ -147,7 +148,7 @@ export default function BookCounselingScreen() {
             if (verify.success) {
               Alert.alert(
                 'Booking Confirmed! 🎉',
-                `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${selectedTime} has been booked. Payment received.`,
+                `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${formatTime12h(selectedTime)} has been booked. Payment received.`,
                 [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
               );
             } else {
@@ -191,7 +192,7 @@ export default function BookCounselingScreen() {
         setOptimisticSlot(null);
         Alert.alert(
           'Booking Confirmed! 🎉',
-          `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${selectedTime} has been booked. Payment received.`,
+          `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${formatTime12h(selectedTime)} has been booked. Payment received.`,
           [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
         );
       } else if (openResult.timedOut) {
@@ -321,7 +322,7 @@ export default function BookCounselingScreen() {
                         borderColor: isSelected ? displayColor : colors.surfaceSecondary
                       }}
                     >
-                      <Text style={{ fontSize: 14, fontWeight: '700', color: isSelected ? displayColor : colors.text }}>{time}</Text>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: isSelected ? displayColor : colors.text }}>{formatTime12h(time)}</Text>
                     </TouchableOpacity>
                   );
                 })}

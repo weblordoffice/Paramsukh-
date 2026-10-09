@@ -7,6 +7,7 @@ import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { Search, Plus, Edit, Trash2, Calendar as CalendarIcon, MapPin, Users, DollarSign, FolderOpen } from 'lucide-react';
 import EventModal from './EventModal';
+import { formatTime12h } from '@/lib/dateTime';
 
 interface Event {
     _id: string;
@@ -257,7 +258,7 @@ export default function EventsPage() {
                                 <div className="space-y-2 text-sm">
                                     <div className="flex items-center space-x-2 text-gray-900">
                                         <CalendarIcon className="w-4 h-4" />
-                                        <span>{formatDate(event.eventDate)} at {event.eventTime}</span>
+                                        <span>{formatDate(event.eventDate)} at {formatTime12h(event.eventTime)}</span>
                                     </div>
                                     <div className="flex items-center space-x-2 text-gray-900">
                                         <MapPin className="w-4 h-4" />

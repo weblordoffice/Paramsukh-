@@ -1,6 +1,7 @@
 import Booking from '../../models/booking.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { cleanupExpiredBookings, autoCompletePastBookings } from '../../services/bookingCleanup.service.js';
+import { formatTime12h } from '../../utils/dateTime.js';
 
 // @desc    Get all bookings (Admin only)
 // @route   GET /api/counseling/all
@@ -232,7 +233,7 @@ export const updateBookingMeetingAdmin = async (req, res) => {
             await sendNotification(booking.user, {
                 type: 'counseling_reminder',
                 title: 'Session meeting link added',
-                message: `Your counseling session on ${new Date(booking.bookingDate).toLocaleDateString()} at ${booking.bookingTime}: join link has been added. Check your booking details.`,
+                message: `Your counseling session on ${new Date(booking.bookingDate).toLocaleDateString()} at ${formatTime12h(booking.bookingTime)}: join link has been added. Check your booking details.`,
                 icon: '🔗',
                 priority: 'high',
                 relatedId: booking._id,
@@ -386,7 +387,7 @@ export const requestRescheduleAdmin = async (req, res) => {
         await sendNotification(booking.user, {
             type: 'reschedule_request',
             title: 'Reschedule Request',
-            message: `Admin has proposed rescheduling your session "${booking.bookingTitle}" from ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime} to ${new Date(newDate).toLocaleDateString()} ${newTime}. Please review and accept or decline.`,
+            message: `Admin has proposed rescheduling your session "${booking.bookingTitle}" from ${new Date(booking.bookingDate).toLocaleDateString()} ${formatTime12h(booking.bookingTime)} to ${new Date(newDate).toLocaleDateString()} ${formatTime12h(newTime)}. Please review and accept or decline.`,
             icon: '📅',
             priority: 'high',
             relatedId: booking._id,
@@ -449,7 +450,7 @@ export const respondRescheduleAdmin = async (req, res) => {
                 await sendNotification(booking.user, {
                     type: 'reschedule_approved',
                     title: 'Reschedule Approved',
-                    message: `Your reschedule request for "${booking.bookingTitle}" has been approved. New time: ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime}`,
+                    message: `Your reschedule request for "${booking.bookingTitle}" has been approved. New time: ${new Date(booking.bookingDate).toLocaleDateString()} ${formatTime12h(booking.bookingTime)}`,
                     icon: '✅',
                     priority: 'high',
                     relatedId: booking._id,
@@ -469,7 +470,7 @@ export const respondRescheduleAdmin = async (req, res) => {
                 await sendNotification(booking.user, {
                     type: 'reschedule_denied',
                     title: 'Reschedule Declined',
-                    message: `Your reschedule request for "${booking.bookingTitle}" was declined. Your original booking time remains: ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime}`,
+                    message: `Your reschedule request for "${booking.bookingTitle}" was declined. Your original booking time remains: ${new Date(booking.bookingDate).toLocaleDateString()} ${formatTime12h(booking.bookingTime)}`,
                     icon: '❌',
                     priority: 'medium',
                     relatedId: booking._id,

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { Search, Calendar, Clock, User, Phone, Mail, X, Trash2, Video, ExternalLink } from 'lucide-react';
+import { formatTime12h } from '@/lib/dateTime';
 
 interface Booking {
     _id: string;
@@ -248,7 +249,7 @@ export default function BookingsPage() {
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <Clock className="w-4 h-4 text-accent" />
-                                        <span>{booking.bookingTime}</span>
+                                        <span>{formatTime12h(booking.bookingTime)}</span>
                                     </div>
                                 </div>
                             </div>
@@ -285,7 +286,7 @@ export default function BookingsPage() {
                                     <div>
                                         <p className="text-gray-500">Date & Time</p>
                                         <p className="font-medium">
-                                            {new Date(selectedBooking.bookingDate).toLocaleDateString()} at {selectedBooking.bookingTime}
+                                            {new Date(selectedBooking.bookingDate).toLocaleDateString()} at {formatTime12h(selectedBooking.bookingTime)}
                                         </p>
                                     </div>
                                     <div>
@@ -318,13 +319,13 @@ export default function BookingsPage() {
                                         <div>
                                             <p className="text-gray-500">Current</p>
                                             <p className="font-medium">
-                                                {new Date(selectedBooking.bookingDate).toLocaleDateString()} at {selectedBooking.bookingTime}
+                                                {new Date(selectedBooking.bookingDate).toLocaleDateString()} at {formatTime12h(selectedBooking.bookingTime)}
                                             </p>
                                         </div>
                                         <div>
                                             <p className="text-gray-500">Requested New</p>
                                             <p className="font-medium text-primary">
-                                                {selectedBooking.rescheduleRequest.requestedNewDate ? new Date(selectedBooking.rescheduleRequest.requestedNewDate).toLocaleDateString() : '—'} at {selectedBooking.rescheduleRequest.requestedNewTime || '—'}
+                                                {selectedBooking.rescheduleRequest.requestedNewDate ? new Date(selectedBooking.rescheduleRequest.requestedNewDate).toLocaleDateString() : '—'} at {selectedBooking.rescheduleRequest.requestedNewTime ? formatTime12h(selectedBooking.rescheduleRequest.requestedNewTime) : '—'}
                                             </p>
                                         </div>
                                     </div>

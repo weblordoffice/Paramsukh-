@@ -436,7 +436,7 @@ export default function AIChatTab({ userId }: AIChatTabProps) {
                         {conv.title || "show me my community groups"}
                       </span>
                       <span className="text-[9.5px] text-slate-400 font-medium shrink-0">
-                        {new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(conv.lastMessageAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                       </span>
                     </div>
                     
@@ -468,7 +468,7 @@ export default function AIChatTab({ userId }: AIChatTabProps) {
                     <span>•</span>
                     <span>{activeConv?.messageCount || 0} turns</span>
                     <span>•</span>
-                    <span>Started {new Date(activeConv?.createdAt || "").toLocaleString()}</span>
+                    <span>Started {new Date(activeConv?.createdAt || "").toLocaleString(undefined, { hour12: true })}</span>
                   </div>
                 </div>
 
@@ -526,7 +526,7 @@ export default function AIChatTab({ userId }: AIChatTabProps) {
                               {isUser ? "User" : isTool ? "System Tool Call" : "AI Agent"}
                             </span>
                             <span className="text-[9.5px] text-slate-400 font-semibold">
-                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}
                             </span>
                           </div>
 

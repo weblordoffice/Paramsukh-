@@ -10,6 +10,7 @@ import PhotosTab from './PhotosTab';
 import VideosTab from './VideosTab';
 import RegistrationsTab from './RegistrationsTab';
 import EventModal from '../EventModal';
+import { formatTime12h } from '@/lib/dateTime';
 
 interface Event {
     _id: string;
@@ -150,7 +151,7 @@ export default function EventDetailsPage() {
                                     {event.locationType}
                                 </span>
                                 <span className="text-gray-500">
-                                    📅 {formatDate(event.eventDate)} at {event.eventTime}
+                                    📅 {formatDate(event.eventDate)} at {formatTime12h(event.eventTime)}
                                 </span>
                                 <span className="text-gray-500">
                                     📍 {event.location}

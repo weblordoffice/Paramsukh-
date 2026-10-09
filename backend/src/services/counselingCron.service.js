@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import Booking from '../models/booking.models.js';
 import { sendNotification } from '../controller/notifications/notifications.controller.js';
 import { cleanupExpiredBookings, autoCompletePastBookings } from '../services/bookingCleanup.service.js';
+import { formatTime12h } from '../utils/dateTime.js';
 
 // Configurable reminder thresholds (in hours before booking)
 const DEFAULT_REMINDER_THRESHOLDS = [24, 1];
@@ -39,7 +40,7 @@ const sendBookingReminders = async () => {
         await sendNotification(booking.user, {
           type: 'counseling_reminder',
           title: `Reminder: ${hours}h until your session`,
-          message: `Your ${booking.bookingTitle} session is in ${hours} hour(s) at ${booking.bookingTime}`,
+          message: `Your ${booking.bookingTitle} session is in ${hours} hour(s) at ${formatTime12h(booking.bookingTime)}`,
           icon: '⏰',
           priority: hours <= 1 ? 'high' : 'medium',
           relatedId: booking._id,

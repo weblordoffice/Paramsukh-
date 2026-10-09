@@ -64,7 +64,7 @@ export default function DonationsPage() {
             d.status,
             (d.message || '').replace(/"/g, '""'),
             d.isAnonymous ? 'Yes' : 'No',
-            new Date(d.createdAt).toLocaleString()
+            new Date(d.createdAt).toLocaleString(undefined, { hour12: true })
         ]);
         const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${c}"`).join(','))].join('\n');
         const blob = new Blob([csv], { type: 'text/csv' });

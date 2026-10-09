@@ -1,4 +1,5 @@
 import { Resend } from 'resend';
+import { formatTime12h } from '../utils/dateTime.js';
 
 // Lazy: src/index.js calls dotenv.config() AFTER static imports are evaluated,
 // so reading RESEND_FROM at module load would permanently lock in the fallback.
@@ -246,7 +247,7 @@ export const sendCounselingBookingEmail = (user, booking) => {
                     </tr>
                     <tr>
                         <td style="padding:4px 0;color:#6b7280">Time</td>
-                        <td style="padding:4px 0;text-align:right;font-weight:600;color:#111827">${booking?.bookingTime || '-'}</td>
+                        <td style="padding:4px 0;text-align:right;font-weight:600;color:#111827">${formatTime12h(booking?.bookingTime) || '-'}</td>
                     </tr>
                     ${booking?.amount ? `<tr>
                         <td style="padding:4px 0;color:#6b7280">Amount Paid</td>
@@ -321,7 +322,7 @@ export const sendBookingCancellationEmail = (user, booking) => {
         subject: `Booking Cancelled — ${booking.bookingTitle}`,
         html: baseTemplate('Booking Cancelled', `
             <p style="font-size:15px;color:#374151;line-height:1.6">Hi <strong>${user.displayName}</strong>,</p>
-            <p style="font-size:15px;color:#374151;line-height:1.6">Your session <strong>${booking.bookingTitle}</strong> scheduled for <strong>${bookingDate}</strong> at <strong>${booking.bookingTime}</strong> has been cancelled.</p>
+            <p style="font-size:15px;color:#374151;line-height:1.6">Your session <strong>${booking.bookingTitle}</strong> scheduled for <strong>${bookingDate}</strong> at <strong>${formatTime12h(booking.bookingTime)}</strong> has been cancelled.</p>
             ${!booking.isFree && booking.paymentStatus === 'paid' ? `<p style="font-size:15px;color:#374151;line-height:1.6">If you paid for this booking, a refund will be processed automatically within 5-7 business days.</p>` : ''}
             <p style="font-size:15px;color:#374151;line-height:1.6">We hope to see you again soon.</p>
         `),

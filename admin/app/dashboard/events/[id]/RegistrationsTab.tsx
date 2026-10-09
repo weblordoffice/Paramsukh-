@@ -85,8 +85,8 @@ export default function RegistrationsTab({ eventId }: RegistrationsTabProps) {
             reg.status,
             reg.paymentStatus || 'N/A',
             reg.checkedIn || reg.status === 'attended' ? 'Yes' : 'No',
-            new Date(reg.registeredAt).toLocaleString(),
-            reg.checkedInAt ? new Date(reg.checkedInAt).toLocaleString() : 'N/A'
+            new Date(reg.registeredAt).toLocaleString(undefined, { hour12: true }),
+            reg.checkedInAt ? new Date(reg.checkedInAt).toLocaleString(undefined, { hour12: true }) : 'N/A'
         ]);
 
         const csvContent = [

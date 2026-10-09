@@ -127,7 +127,7 @@ export default function DevicesScreen() {
       if (diffMins < 1) return 'Active now';
       if (diffMins < 60) return `Active ${diffMins}m ago`;
       if (diffHours < 24) return `Active ${diffHours}h ago`;
-      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
     } catch (e) {
       return 'Unknown';
     }

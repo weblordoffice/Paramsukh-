@@ -180,7 +180,7 @@ export default function OrdersPage() {
                                     Order #{selectedOrder.orderNumber || selectedOrder._id.slice(-8)}
                                 </h2>
                                 <p className="text-sm text-gray-500">
-                                    Placed on {new Date(selectedOrder.createdAt).toLocaleString()}
+                                    Placed on {new Date(selectedOrder.createdAt).toLocaleString(undefined, { hour12: true })}
                                 </p>
                             </div>
                             <button onClick={() => setSelectedOrder(null)} className="text-gray-400 hover:text-gray-600">

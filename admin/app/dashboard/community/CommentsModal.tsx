@@ -93,7 +93,7 @@ export default function CommentsModal({ isOpen, postId, onClose }: CommentsModal
                                             )}
                                         </div>
                                         <p className="text-sm text-accent mt-0.5">
-                                            {new Date(comment.createdAt).toLocaleString()}
+                                            {new Date(comment.createdAt).toLocaleString(undefined, { hour12: true })}
                                         </p>
                                         <p className="text-secondary mt-2">{comment.content}</p>
                                         <div className="flex items-center gap-4 mt-2 text-xs text-accent">

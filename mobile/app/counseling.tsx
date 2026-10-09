@@ -7,6 +7,7 @@ import { useFocusEffect } from '@react-navigation/native';
 
 import { useCounselingStore, UserBooking } from '../store/counselingStore';
 import { useTheme } from '../hooks/useTheme';
+import { formatTime12h } from '../utils/dateTime';
 
 const getStatusColor = (status: string) => {
   switch (status?.toLowerCase()) {
@@ -62,7 +63,7 @@ function BookingCard({ booking, onPress, onJoin }: { booking: UserBooking; onPre
         </View>
         <View className="flex-row items-center gap-1">
           <Ionicons name="time-outline" size={12} color={colors.textSecondary} />
-          <Text className="text-xs" style={{ color: colors.textSecondary }}>{booking.bookingTime}</Text>
+          <Text className="text-xs" style={{ color: colors.textSecondary }}>{formatTime12h(booking.bookingTime)}</Text>
         </View>
         <View className={`px-2 py-0.5 rounded-full ${isFree ? 'bg-green-50' : 'bg-orange-50'}`}>
           <Text className={`text-[9px] font-bold ${isFree ? 'text-green-700' : 'text-orange-700'}`}>

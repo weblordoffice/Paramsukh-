@@ -354,7 +354,7 @@ export default function SupportPage() {
                                         <p className="text-gray-900 whitespace-pre-wrap">{selectedMessage.adminReply.message}</p>
                                         <p className="text-sm text-gray-500 mt-2">
                                             Replied by {selectedMessage.adminReply.repliedBy?.name || 'Admin'} on{' '}
-                                            {new Date(selectedMessage.adminReply.repliedAt).toLocaleString()}
+                                            {new Date(selectedMessage.adminReply.repliedAt).toLocaleString(undefined, { hour12: true })}
                                         </p>
                                     </div>
                                 </div>

@@ -116,7 +116,7 @@ export default function HelpSupportScreen() {
   const [isLoadingTickets, setIsLoadingTickets] = useState(false);
   const [closingTicketId, setClosingTicketId] = useState<string | null>(null);
 
-  const formatDateTime = (value?: string) => !value ? '' : new Date(value).toLocaleString();
+  const formatDateTime = (value?: string) => !value ? '' : new Date(value).toLocaleString(undefined, { hour12: true });
 
   const loadMyTickets = useCallback(async () => {
     const token = useAuthStore.getState().token;

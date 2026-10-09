@@ -322,7 +322,7 @@ export default function MembershipPaymentLinkModal({ isOpen, onClose, user }: Me
                       {recentLinks.map((link) => (
                         <tr key={link.paymentLinkId} className="hover:bg-gray-50">
                           <td className="px-4 py-2 text-sm text-gray-700">
-                            {new Date(link.createdAt).toLocaleString()}
+                            {new Date(link.createdAt).toLocaleString(undefined, { hour12: true })}
                           </td>
                           <td className="px-4 py-2 text-sm text-gray-700 uppercase">{link.planSlug}</td>
                           <td className="px-4 py-2 text-sm text-gray-700">

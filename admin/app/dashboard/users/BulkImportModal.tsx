@@ -378,7 +378,7 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImpo
                     <div>
                       <p className="font-semibold">This exact file was imported before</p>
                       <p className="mt-0.5">
-                        Last committed {new Date(previewData.previouslyImportedAt).toLocaleString()}. Importing again
+                        Last committed {new Date(previewData.previouslyImportedAt).toLocaleString(undefined, { hour12: true })}. Importing again
                         will re-process the same users.
                       </p>
                     </div>

@@ -234,7 +234,7 @@ export default function PaymentsTab({ userId, userInfo }: PaymentsTabProps) {
   const exportPayments = () => {
     const headers = ['Date', 'Order ID', 'Payment ID', 'Plan', 'Amount', 'Status'];
     const rows = payments.map(payment => [
-      new Date(payment.date).toLocaleString(),
+      new Date(payment.date).toLocaleString(undefined, { hour12: true }),
       payment.orderId,
       payment.paymentId,
       payment.plan,
@@ -361,7 +361,7 @@ export default function PaymentsTab({ userId, userInfo }: PaymentsTabProps) {
                 {adminLinks.map((link) => (
                   <tr key={link.paymentLinkId} className="hover:bg-gray-50">
                     <td className="px-4 py-2 text-sm text-gray-700">
-                      {new Date(link.createdAt).toLocaleString()}
+                      {new Date(link.createdAt).toLocaleString(undefined, { hour12: true })}
                     </td>
                     <td className="px-4 py-2 text-sm text-gray-700 uppercase">{link.planSlug}</td>
                     <td className="px-4 py-2 text-sm text-gray-700">
@@ -486,7 +486,7 @@ export default function PaymentsTab({ userId, userInfo }: PaymentsTabProps) {
                       {new Date(payment.date).toLocaleDateString()}
                     </div>
                     <div className="text-sm text-gray-500">
-                      {new Date(payment.date).toLocaleTimeString()}
+                      {new Date(payment.date).toLocaleTimeString(undefined, { hour12: true })}
                     </div>
                   </td>
                   <td className="px-6 py-4">

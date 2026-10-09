@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEventStore } from '../store/eventStore';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../hooks/useTheme';
+import { formatTime12h } from '../utils/dateTime';
 
 export default function EventDetailScreen() {
   const { colors } = useTheme();
@@ -427,7 +428,7 @@ export default function EventDetailScreen() {
               <Ionicons name="time" size={20} color={eventColor} />
               <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 8, fontWeight: '600' }}>TIME</Text>
               <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text, marginTop: 2 }}>
-                {event.eventTime}
+                {formatTime12h(event.eventTime)}
               </Text>
             </View>
           </View>

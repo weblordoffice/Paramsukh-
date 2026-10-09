@@ -6,6 +6,7 @@ import { verifyRazorpaySignature, createRefund, fetchPaymentDetails, isRazorpayT
 import { recordTransaction } from '../../services/transaction.service.js';
 import { sendCounselingBookingEmail, sendBookingCancellationEmail } from '../../services/emailService.js';
 import { sanitizeNotes } from '../../utils/sanitizeUtils.js';
+import { formatTime12h } from '../../utils/dateTime.js';
 import mongoose from 'mongoose';
 
 const MAX_REFUND_STATUS_UPDATE_RETRIES = 3;
@@ -227,7 +228,7 @@ export const bookCounseling = async (req, res) => {
         if (slotTimeUTC < nowWithBuffer) {
           return res.status(400).json({
             success: false,
-            message: `Cannot book a slot that has already passed. Current time is ${now.toLocaleTimeString()}.`
+            message: `Cannot book a slot that has already passed. Current time is ${formatTime12h(now)}.`
           });
         }
       }
@@ -397,7 +398,7 @@ export const bookCounseling = async (req, res) => {
       type: 'counseling_booked',
       title: isFree ? 'Counseling Session Booked' : 'Booking Awaiting Payment',
       message: isFree
-        ? `Your ${bookingTitle} session is scheduled for ${new Date(bookingDate).toLocaleDateString()} at ${bookingTime}`
+        ? `Your ${bookingTitle} session is scheduled for ${new Date(bookingDate).toLocaleDateString()} at ${formatTime12h(bookingTime)}`
         : `Your ${bookingTitle} session is reserved. Complete payment to confirm your booking.`,
       icon: isFree ? '📅' : '💳',
       priority: 'high',
@@ -416,8 +417,8 @@ export const bookCounseling = async (req, res) => {
           type: 'counseling_booked',
           title: isFree ? 'New Booking Received' : 'New Booking Request (Payment Pending)',
           message: isFree
-            ? `${user.displayName} booked ${bookingTitle} on ${new Date(bookingDate).toLocaleDateString()} at ${bookingTime}`
-            : `${user.displayName} requested ${bookingTitle} on ${new Date(bookingDate).toLocaleDateString()} at ${bookingTime} — awaiting payment`,
+            ? `${user.displayName} booked ${bookingTitle} on ${new Date(bookingDate).toLocaleDateString()} at ${formatTime12h(bookingTime)}`
+            : `${user.displayName} requested ${bookingTitle} on ${new Date(bookingDate).toLocaleDateString()} at ${formatTime12h(bookingTime)} — awaiting payment`,
           icon: isFree ? '🔔' : '💳',
           priority: 'high',
           relatedId: booking._id,
@@ -628,7 +629,7 @@ export const cancelBooking = async (req, res) => {
       await sendNotification(nextWaitlisted.user, {
         type: 'counseling_waitlist',
         title: 'Slot Available! 🎉',
-        message: `A spot has opened up for ${booking.bookingTitle} on ${new Date(booking.bookingDate).toLocaleDateString()} at ${booking.bookingTime}. Complete your booking now!`,
+        message: `A spot has opened up for ${booking.bookingTitle} on ${new Date(booking.bookingDate).toLocaleDateString()} at ${formatTime12h(booking.bookingTime)}. Complete your booking now!`,
         icon: '📅',
         priority: 'high',
         relatedId: nextWaitlisted._id,
@@ -731,7 +732,7 @@ export const requestReschedule = async (req, res) => {
         await sendNotification(admin._id, {
           type: 'reschedule_request',
           title: 'Reschedule Request',
-          message: `User ${user?.displayName || 'A user'} requested to reschedule "${booking.bookingTitle}" from ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime} to ${new Date(newDate).toLocaleDateString()} ${newTime}`,
+          message: `User ${user?.displayName || 'A user'} requested to reschedule "${booking.bookingTitle}" from ${new Date(booking.bookingDate).toLocaleDateString()} ${formatTime12h(booking.bookingTime)} to ${new Date(newDate).toLocaleDateString()} ${formatTime12h(newTime)}`,
           icon: '📅',
           priority: 'high',
           relatedId: booking._id,
@@ -800,7 +801,7 @@ export const respondToReschedule = async (req, res) => {
       await sendNotificationToAdmins({
         type: 'reschedule_approved',
         title: 'Reschedule Approved',
-        message: `User accepted the reschedule for "${booking.bookingTitle}". New time: ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime}`,
+        message: `User accepted the reschedule for "${booking.bookingTitle}". New time: ${new Date(booking.bookingDate).toLocaleDateString()} ${formatTime12h(booking.bookingTime)}`,
         icon: '✅',
         priority: 'high',
         relatedId: booking._id,
@@ -820,7 +821,7 @@ export const respondToReschedule = async (req, res) => {
       await sendNotificationToAdmins({
         type: 'reschedule_denied',
         title: 'Reschedule Declined',
-        message: `User declined the reschedule for "${booking.bookingTitle}". Original time remains: ${new Date(booking.bookingDate).toLocaleDateString()} ${booking.bookingTime}`,
+        message: `User declined the reschedule for "${booking.bookingTitle}". Original time remains: ${new Date(booking.bookingDate).toLocaleDateString()} ${formatTime12h(booking.bookingTime)}`,
         icon: '❌',
         priority: 'medium',
         relatedId: booking._id,
@@ -933,7 +934,7 @@ export const rescheduleBooking = async (req, res) => {
     await sendNotification(userId, {
       type: 'system',
       title: 'Booking Rescheduled',
-      message: `Your counseling session has been rescheduled to ${new Date(newDate).toLocaleDateString()} at ${newTime}`,
+      message: `Your counseling session has been rescheduled to ${new Date(newDate).toLocaleDateString()} at ${formatTime12h(newTime)}`,
       icon: '📅',
       priority: 'high',
       relatedId: booking._id,
