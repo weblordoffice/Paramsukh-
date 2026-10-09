@@ -13,13 +13,18 @@ export const upsertActiveUserMembership = async ({
   payment = null,
   metadata = {},
   selectedCourseIds = [],
+  session = null,
 }) => {
   const slug = normalize(planSlug);
   if (!userId || !slug || slug === 'free') {
     return null;
   }
 
-  const plan = await MembershipPlan.findOne({ slug }).lean();
+  const planQuery = MembershipPlan.findOne({ slug });
+  if (session) {
+    planQuery.session(session);
+  }
+  const plan = await planQuery.lean();
   if (!plan) {
     return null;
   }
@@ -94,6 +99,7 @@ export const upsertActiveUserMembership = async ({
       new: true,
       setDefaultsOnInsert: true,
       runValidators: true,
+      ...(session ? { session } : {}),
     }
   );
 

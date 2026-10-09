@@ -5,7 +5,7 @@ import { User } from '../models/user.models.js';
 
 const MAX_IMPORT_ROWS = 2000;
 const REQUIRED_HEADERS = ['displayName', 'phone', 'email'];
-const ALLOWED_SUBSCRIPTION_STATUSES = new Set(['active', 'inactive', 'cancelled']);
+const ALLOWED_SUBSCRIPTION_STATUSES = new Set(['active', 'inactive', 'cancelled', 'trial']);
 const HEADER_ALIASES = {
   displayName: ['displayname', 'name', 'full name', 'full_name', 'fullname', 'user name', 'username'],
   phone: ['phone', 'phone number', 'phone_number', 'mobile', 'mobile number', 'contact', 'contact number'],
@@ -19,6 +19,17 @@ const HEADER_ALIASES = {
 const normalizeText = (value) => String(value || '').trim();
 const normalizeEmail = (value) => normalizeText(value).toLowerCase();
 const normalizePhone = (value) => normalizeText(value).replace(/[\s-]/g, '');
+// Digits-only key: ignores "+" and separators so the same number matches regardless of formatting.
+export const phoneKey = (value) => String(value || '').replace(/\D/g, '');
+// Matches stored phones that may contain spaces/dashes or a leading "+".
+export const buildPhoneSearchRegex = (value) => {
+  const digits = phoneKey(value);
+  if (digits.length < 6) {
+    return null;
+  }
+  const body = digits.split('').join('[\\s-]*');
+  return new RegExp(`^\\+?[\\s-]*${body}$`);
+};
 const normalizePlan = (value) => normalizeText(value).toLowerCase();
 const normalizeStatus = (value) => normalizeText(value).toLowerCase();
 
@@ -125,9 +136,14 @@ const buildNormalizedRow = (rawRow, rowNumber, headerMap) => {
   const parsedIsActive = parseBoolean(mapped.isActive, true);
   const subscriptionStatus = normalizeStatus(mapped.subscriptionStatus);
 
+  const planProvided = normalizeText(mapped.subscriptionPlan) !== '';
+  const statusProvided = normalizeText(mapped.subscriptionStatus) !== '';
+  const isActiveProvided = normalizeText(mapped.isActive) !== '' || typeof mapped.isActive === 'boolean';
+
   const row = {
     rowNumber,
     raw: rawRow,
+    flags: { planProvided, statusProvided, isActiveProvided },
     normalized: {
       displayName: normalizeText(mapped.displayName),
       phone: normalizePhone(mapped.phone),
@@ -192,6 +208,20 @@ const loadWorkbookRows = (buffer) => {
   const firstSheetName = workbook.SheetNames[0];
   if (!firstSheetName) {
     throw new Error('No worksheet found in uploaded file');
+  }
+
+  const extraDataSheet = workbook.SheetNames.slice(1).find((name) => {
+    const candidate = workbook.Sheets[name];
+    if (!candidate) {
+      return false;
+    }
+    const probe = XLSX.utils.sheet_to_json(candidate, { header: 1, blankrows: false, raw: false });
+    return probe.length > 0;
+  });
+  if (extraDataSheet) {
+    throw new Error(
+      `Only the first worksheet is imported. Sheet "${extraDataSheet}" also has data — remove extra sheets or merge their rows into the first one.`
+    );
   }
 
   const sheet = workbook.Sheets[firstSheetName];
@@ -296,11 +326,18 @@ const applyExistingUserChecks = async (previewRows) => {
   }
 
   const orConditions = [];
-  if (phones.length) {
-    orConditions.push({ phone: { $in: phones } });
-  }
+  phones.forEach((phone) => {
+    const regex = buildPhoneSearchRegex(phone);
+    if (regex) {
+      orConditions.push({ phone: regex });
+    }
+  });
   if (emails.length) {
     orConditions.push({ email: { $in: emails } });
+  }
+
+  if (!orConditions.length) {
+    return;
   }
 
   const existingUsers = await User.find({ $or: orConditions })
@@ -311,7 +348,7 @@ const applyExistingUserChecks = async (previewRows) => {
   const byEmail = new Map();
 
   existingUsers.forEach((user) => {
-    const phone = normalizePhone(user.phone);
+    const phone = phoneKey(user.phone);
     const email = normalizeEmail(user.email);
 
     if (phone && !byPhone.has(phone)) {
@@ -324,7 +361,7 @@ const applyExistingUserChecks = async (previewRows) => {
   });
 
   previewRows.forEach((row) => {
-    const phoneMatch = row.normalized.phone ? byPhone.get(row.normalized.phone) || null : null;
+    const phoneMatch = row.normalized.phone ? byPhone.get(phoneKey(row.normalized.phone)) || null : null;
     const emailMatch = row.normalized.email ? byEmail.get(row.normalized.email) || null : null;
 
     row.phoneMatchUserId = phoneMatch;
@@ -423,9 +460,21 @@ export const parseAndValidateImportFile = async ({ buffer, fileName }) => {
   };
 };
 
-export const buildImportTemplateCsv = () => {
-  const header = 'displayName,phone,subscriptionPlan,email,tags,isActive';
-  const exampleOne = 'Ravi Kumar,+919876543210,,ravi@example.com,"school-a,vip",true';
-  const exampleTwo = 'Anita Sharma,9988776655,silver,anita@example.com,"cohort-2",false';
-  return `${header}\n${exampleOne}\n${exampleTwo}\n`;
+export const buildImportTemplateWorkbook = () => {
+  const rows = [
+    ['displayName', 'phone', 'email', 'subscriptionPlan', 'subscriptionStatus', 'tags', 'isActive'],
+    ['Ravi Kumar', '+919876543210', 'ravi@example.com', 'gold', 'active', 'school-a, vip', true],
+    ['Anita Sharma', '9988776655', 'anita@example.com', 'free', 'inactive', 'cohort-2', false],
+    ['Existing User (keep plan)', '9000000001', 'existing@example.com', '', '', '', true],
+  ];
+
+  const sheet = XLSX.utils.aoa_to_sheet(rows);
+  sheet['!cols'] = [
+    { wch: 26 }, { wch: 16 }, { wch: 26 }, { wch: 18 }, { wch: 20 }, { wch: 18 }, { wch: 10 },
+  ];
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Users');
+
+  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 };

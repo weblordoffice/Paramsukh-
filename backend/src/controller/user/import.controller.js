@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { User } from '../../models/user.models.js';
 import { MembershipPlan } from '../../models/membershipPlan.models.js';
 import { UserMembership } from '../../models/userMembership.models.js';
@@ -7,12 +8,13 @@ import { syncUserCommunityMembershipsByPlan } from '../../services/planUpgrade.s
 import {
   parseAndValidateImportFile,
   normalizeImportMode,
-  buildImportTemplateCsv,
+  buildImportTemplateWorkbook,
+  phoneKey,
+  buildPhoneSearchRegex,
 } from '../../services/userImport.service.js';
 
 const normalizeText = (value) => String(value || '').trim();
 const normalizeEmail = (value) => normalizeText(value).toLowerCase();
-const normalizePhone = (value) => normalizeText(value).replace(/[\s-]/g, '');
 
 const getAdminIdentifier = (req) => {
   if (req.admin?._id) {
@@ -23,8 +25,9 @@ const getAdminIdentifier = (req) => {
 
 const resolveExistingUserId = async ({ phone, email }) => {
   const orConditions = [];
-  if (phone) {
-    orConditions.push({ phone });
+  const phoneRegex = phone ? buildPhoneSearchRegex(phone) : null;
+  if (phoneRegex) {
+    orConditions.push({ phone: phoneRegex });
   }
   if (email) {
     orConditions.push({ email });
@@ -39,7 +42,7 @@ const resolveExistingUserId = async ({ phone, email }) => {
     .lean();
 
   const phoneMatch = phone
-    ? users.find((user) => normalizePhone(user.phone) === phone)
+    ? users.find((user) => phoneKey(user.phone) === phoneKey(phone))
     : null;
 
   const emailMatch = email
@@ -54,6 +57,43 @@ const resolveExistingUserId = async ({ phone, email }) => {
     userId: phoneMatch ? String(phoneMatch._id) : (emailMatch ? String(emailMatch._id) : null),
     ambiguous: false,
   };
+};
+
+// Mongo transactions require a replica set / mongos. Detect once and cache.
+let transactionSupportPromise = null;
+const supportsTransactions = () => {
+  if (!transactionSupportPromise) {
+    transactionSupportPromise = (async () => {
+      try {
+        if (!mongoose.connection?.db) {
+          return false;
+        }
+        const hello = await mongoose.connection.db.admin().command({ hello: 1 });
+        return Boolean(hello?.setName) || hello?.msg === 'isdbgrid';
+      } catch {
+        return false;
+      }
+    })();
+  }
+  return transactionSupportPromise;
+};
+
+// Runs `work(session)` atomically when the deployment supports transactions,
+// otherwise falls back to running it without a session (sequential behavior).
+const runRowTransaction = async (work) => {
+  if (!(await supportsTransactions())) {
+    return work(null);
+  }
+  const session = await mongoose.startSession();
+  try {
+    let result;
+    await session.withTransaction(async () => {
+      result = await work(session);
+    });
+    return result;
+  } finally {
+    await session.endSession();
+  }
 };
 
 /**
@@ -77,6 +117,7 @@ export const previewUserImport = async (req, res) => {
     const rowsForSession = parsed.rows.map((row) => ({
       rowNumber: row.rowNumber,
       normalized: row.normalized,
+      flags: row.flags,
       errors: row.errors,
       warnings: row.warnings,
       existingUserId: row.existingUserId,
@@ -93,6 +134,14 @@ export const previewUserImport = async (req, res) => {
       summary: parsed.summary,
     });
 
+    const previousImport = await UserImportSession.findOne({
+      checksum: parsed.checksum,
+      status: 'committed',
+    })
+      .select('committedAt')
+      .sort({ committedAt: -1 })
+      .lean();
+
     return res.status(200).json({
       success: true,
       message: 'Import preview generated successfully',
@@ -103,6 +152,7 @@ export const previewUserImport = async (req, res) => {
         summary: parsed.summary,
         rows: rowsForSession,
         expiresAt: session.expiresAt,
+        previouslyImportedAt: previousImport?.committedAt || null,
       },
     });
   } catch (error) {
@@ -197,6 +247,7 @@ export const commitUserImport = async (req, res) => {
         userId: null,
         errorCode: null,
         errorMessage: null,
+        warning: null,
       };
 
       if (Array.isArray(row.errors) && row.errors.length > 0) {
@@ -218,6 +269,11 @@ export const commitUserImport = async (req, res) => {
         results.push(rowResult);
         continue;
       }
+
+      const flags = row.flags || {};
+      const planProvided = flags.planProvided !== false;
+      const statusProvided = flags.statusProvided === true;
+      const isActiveProvided = flags.isActiveProvided === true;
 
       try {
         const existingLookup = await resolveExistingUserId({
@@ -258,9 +314,129 @@ export const commitUserImport = async (req, res) => {
         }
 
         const shouldCreate = !existingUserId;
-        const user = shouldCreate ? new User() : await User.findById(existingUserId);
 
-        if (!user) {
+        const outcome = await runRowTransaction(async (session) => {
+          let user;
+          if (shouldCreate) {
+            user = new User();
+          } else {
+            const findQuery = User.findById(existingUserId);
+            if (session) {
+              findQuery.session(session);
+            }
+            user = await findQuery;
+          }
+
+          if (!user) {
+            return { missing: true };
+          }
+
+          user.displayName = normalized.displayName;
+          user.phone = normalized.phone;
+          user.email = normalized.email || undefined;
+          user.tags = Array.isArray(normalized.tags) ? normalized.tags : [];
+
+          // Only set authProvider on creation so we never flip a Google/Clerk user to phone auth.
+          if (shouldCreate) {
+            user.authProvider = 'phone';
+          }
+
+          // Never deactivate an existing user just because the isActive column was omitted.
+          if (isActiveProvided || shouldCreate) {
+            user.isActive = Boolean(normalized.isActive);
+          }
+
+          // A blank subscriptionPlan column must never downgrade an existing paid member.
+          const shouldApplySubscription = shouldCreate || planProvided;
+          const planChanged = !shouldCreate
+            && String(user.subscriptionPlan || 'free').toLowerCase() !== planSlug;
+          let membershipAction = 'unchanged';
+
+          if (shouldApplySubscription) {
+            const resolvedPlan = planSlug || 'free';
+            let status;
+            if (statusProvided) {
+              status = String(normalized.subscriptionStatus || '').toLowerCase();
+            } else if (resolvedPlan === 'free') {
+              status = 'inactive';
+            } else if (!shouldCreate && !planChanged) {
+              status = String(user.subscriptionStatus || '').toLowerCase() || 'active';
+            } else {
+              status = 'active';
+            }
+
+            user.subscriptionPlan = resolvedPlan;
+            user.subscriptionStatus = status;
+
+            if (resolvedPlan === 'free') {
+              user.subscriptionStartDate = null;
+              user.subscriptionEndDate = null;
+              user.trialEndsAt = null;
+              membershipAction = 'revoke';
+            } else if (status === 'active') {
+              // Only (re)start the window when the plan actually changed or none exists yet,
+              // so re-importing the same plan does not reset the membership period.
+              if (planChanged || !user.subscriptionEndDate) {
+                const validityDays = Number(planMap.get(resolvedPlan)?.validityDays || normalized.planValidityDays || 365);
+                user.subscriptionStartDate = new Date();
+                user.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
+              }
+              user.trialEndsAt = null;
+              membershipAction = 'grant';
+            } else {
+              user.subscriptionStartDate = null;
+              user.subscriptionEndDate = null;
+              user.trialEndsAt = null;
+              membershipAction = 'revoke';
+            }
+          }
+
+          await user.save({ session: session || undefined });
+
+          if (membershipAction === 'grant') {
+            await upsertActiveUserMembership({
+              userId: user._id,
+              planSlug: user.subscriptionPlan,
+              startDate: user.subscriptionStartDate || new Date(),
+              endDate: user.subscriptionEndDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+              source: 'admin_grant',
+              session,
+              metadata: {
+                sourceController: 'admin.commitUserImport',
+                importSessionId: String(importSession._id),
+                rowNumber: row.rowNumber,
+              },
+            });
+          } else if (membershipAction === 'revoke') {
+            await UserMembership.updateMany(
+              { userId: user._id, status: 'active', endDate: { $gte: new Date() } },
+              {
+                $set: {
+                  status: 'expired',
+                  endDate: new Date(),
+                  metadata: {
+                    sourceController: 'admin.commitUserImport',
+                    importSessionId: String(importSession._id),
+                    rowNumber: row.rowNumber,
+                    reason: 'membership_not_active',
+                  },
+                },
+              },
+              session ? { session } : undefined
+            );
+          }
+
+          return {
+            missing: false,
+            userId: String(user._id),
+            created: shouldCreate,
+            subscriptionChanged: shouldApplySubscription,
+            planSlug: String(user.subscriptionPlan || 'free').toLowerCase(),
+            membershipActive: String(user.subscriptionStatus || '') === 'active',
+          };
+        });
+
+        if (outcome.missing) {
           rowResult.status = 'failed';
           rowResult.errorCode = 'USER_NOT_FOUND';
           rowResult.errorMessage = 'user not found during update';
@@ -269,78 +445,26 @@ export const commitUserImport = async (req, res) => {
           continue;
         }
 
-        const resolvedPlan = planSlug || 'free';
-        const statusRaw = String(normalized.subscriptionStatus || (resolvedPlan === 'free' ? 'inactive' : 'active')).toLowerCase();
-        const status = statusRaw === 'trial' ? 'inactive' : statusRaw;
-
-        user.displayName = normalized.displayName;
-        user.phone = normalized.phone;
-        user.email = normalized.email || undefined;
-        user.tags = Array.isArray(normalized.tags) ? normalized.tags : [];
-        user.isActive = Boolean(normalized.isActive);
-        user.subscriptionPlan = resolvedPlan;
-        user.subscriptionStatus = status;
-        user.authProvider = 'phone';
-
-        if (resolvedPlan === 'free') {
-          user.subscriptionStartDate = null;
-          user.subscriptionEndDate = null;
-          user.trialEndsAt = null;
-        } else if (status === 'active') {
-          const validityDays = Number(planMap.get(resolvedPlan)?.validityDays || normalized.planValidityDays || 365);
-          user.subscriptionStartDate = new Date();
-          user.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
-          user.trialEndsAt = null;
-        } else {
-          user.subscriptionStartDate = null;
-          user.subscriptionEndDate = null;
-          user.trialEndsAt = null;
+        // Derived side-effect: run best-effort AFTER the atomic write so a community
+        // failure never reports an already-committed user as "failed".
+        if (outcome.subscriptionChanged) {
+          try {
+            await syncUserCommunityMembershipsByPlan({
+              userId: outcome.userId,
+              planSlug: outcome.planSlug,
+              membershipActive: outcome.membershipActive,
+            });
+          } catch (syncError) {
+            console.error(`⚠️ Community sync failed for import row ${row.rowNumber}:`, syncError);
+            rowResult.warning = 'community membership sync failed; user was imported';
+          }
         }
-
-        await user.save();
-
-        if (resolvedPlan !== 'free' && status === 'active') {
-          await upsertActiveUserMembership({
-            userId: user._id,
-            planSlug: resolvedPlan,
-            startDate: user.subscriptionStartDate || new Date(),
-            endDate: user.subscriptionEndDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-            source: 'admin_grant',
-            metadata: {
-              sourceController: 'admin.commitUserImport',
-              importSessionId: String(importSession._id),
-              rowNumber: row.rowNumber,
-            },
-          });
-        } else {
-          await UserMembership.updateMany(
-            { userId: user._id, status: 'active', endDate: { $gte: new Date() } },
-            {
-              $set: {
-                status: 'expired',
-                endDate: new Date(),
-                metadata: {
-                  sourceController: 'admin.commitUserImport',
-                  importSessionId: String(importSession._id),
-                  rowNumber: row.rowNumber,
-                  reason: 'membership_not_active',
-                },
-              },
-            }
-          );
-        }
-
-        await syncUserCommunityMembershipsByPlan({
-          userId: user._id,
-          planSlug: resolvedPlan,
-          membershipActive: status === 'active',
-        });
 
         rowResult.status = 'success';
-        rowResult.action = shouldCreate ? 'created' : 'updated';
-        rowResult.userId = String(user._id);
+        rowResult.action = outcome.created ? 'created' : 'updated';
+        rowResult.userId = outcome.userId;
 
-        if (shouldCreate) {
+        if (outcome.created) {
           counters.created += 1;
         } else {
           counters.updated += 1;
@@ -393,10 +517,10 @@ export const commitUserImport = async (req, res) => {
  */
 export const getUserImportTemplate = async (req, res) => {
   try {
-    const csv = buildImportTemplateCsv();
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="user-import-template.csv"');
-    return res.status(200).send(csv);
+    const workbookBuffer = buildImportTemplateWorkbook();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="user-import-template.xlsx"');
+    return res.status(200).send(workbookBuffer);
   } catch (error) {
     console.error('❌ Error building import template:', error);
     return res.status(500).json({

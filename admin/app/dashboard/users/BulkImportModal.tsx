@@ -26,6 +26,8 @@ interface PreviewRow {
   errors: Issue[];
   warnings: Issue[];
   existingUserId: string | null;
+  phoneMatchUserId: string | null;
+  emailMatchUserId: string | null;
   actionHint: 'create' | 'update' | null;
 }
 
@@ -44,6 +46,7 @@ interface PreviewData {
   summary: PreviewSummary;
   rows: PreviewRow[];
   expiresAt: string;
+  previouslyImportedAt?: string | null;
 }
 
 interface CommitSummary {
@@ -65,6 +68,7 @@ interface CommitRow {
   userId: string | null;
   errorCode: string | null;
   errorMessage: string | null;
+  warning: string | null;
 }
 
 interface CommitData {
@@ -166,7 +170,7 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImpo
       const response = await apiClient.get('/api/user/import/template', {
         responseType: 'blob',
       });
-      downloadBlob(response.data, 'user-import-template.csv');
+      downloadBlob(response.data, 'user-import-template.xlsx');
       toast.success('Template downloaded');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to download template');
@@ -301,8 +305,26 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImpo
           <div className="p-6 overflow-y-auto">
             {step === 'upload' && (
               <div className="space-y-5">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
-                  Required columns: <span className="font-semibold">displayName, phone, email</span>. Optional: subscriptionPlan, tags, isActive.
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900 space-y-2">
+                  <p className="font-semibold">How to import</p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>Download the template, fill in one user per row, then upload it (.xlsx, .xls or .csv).</li>
+                    <li><span className="font-semibold">Required columns:</span> displayName, phone, email</li>
+                    <li><span className="font-semibold">Optional columns:</span> subscriptionPlan, subscriptionStatus, tags, isActive</li>
+                    <li>Leave <span className="font-semibold">subscriptionPlan</span> blank to keep an existing user&apos;s current plan unchanged.</li>
+                    <li>Maximum 2000 rows. Only the first worksheet is read.</li>
+                  </ul>
+                  <details className="pt-1">
+                    <summary className="cursor-pointer font-semibold">Column formats</summary>
+                    <ul className="list-disc pl-5 space-y-1 mt-1">
+                      <li>phone — 10–15 digits, optional leading +</li>
+                      <li>email — valid email address</li>
+                      <li>subscriptionPlan — a published plan slug (e.g. gold); blank or free = free</li>
+                      <li>subscriptionStatus — active, inactive, cancelled or trial</li>
+                      <li>tags — comma-separated (e.g. &quot;school-a, vip&quot;)</li>
+                      <li>isActive — true/false (also yes/no, 1/0)</li>
+                    </ul>
+                  </details>
                 </div>
 
                 <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 bg-gray-50">
@@ -350,6 +372,18 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImpo
 
             {step === 'preview' && previewData && (
               <div className="space-y-5">
+                {previewData.previouslyImportedAt && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="font-semibold">This exact file was imported before</p>
+                      <p className="mt-0.5">
+                        Last committed {new Date(previewData.previouslyImportedAt).toLocaleString()}. Importing again
+                        will re-process the same users.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                   <div className="p-3 rounded-lg bg-gray-50 border">
                     <p className="text-xs text-gray-500">Total Rows</p>
@@ -499,6 +533,16 @@ export default function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImpo
                     <p className="text-sm font-bold text-gray-900 uppercase">{commitData.importMode}</p>
                   </div>
                 </div>
+
+                {commitData.rows.some((r) => r.status === 'success' && r.warning) && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                    <p>
+                      {commitData.rows.filter((r) => r.status === 'success' && r.warning).length} row(s) imported, but a
+                      follow-up step (community membership sync) failed. The users were saved successfully.
+                    </p>
+                  </div>
+                )}
 
                 {failedCommitRows.length > 0 ? (
                   <div className="border rounded-xl overflow-hidden">
