@@ -435,6 +435,70 @@ const makeStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     lineHeight: 16,
   },
+  // Live sessions
+  liveSection: {
+    marginBottom: 28,
+  },
+  liveScrollContent: {
+    paddingLeft: 20,
+    paddingRight: 8,
+    gap: 14,
+  },
+  liveCard: {
+    width: 240,
+    backgroundColor: colors.surface,
+    borderRadius: 20,
+    padding: 16,
+    marginRight: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    shadowColor: colors.border,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  liveTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  liveIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  livePill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  livePillText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  liveTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 6,
+    minHeight: 38,
+  },
+  liveCourse: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 8,
+  },
+  liveMeta: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+  },
 });
 
 // Helper functions for video URL parsing
@@ -578,6 +642,29 @@ interface QuickAccessItemProps {
   onPress: () => void;
 }
 
+interface UpcomingSession {
+  _id: string;
+  title: string;
+  scheduledAt: string;
+  durationInMinutes: number;
+  meetingLink: string;
+  courseId: string;
+  courseTitle?: string;
+  courseColor?: string;
+}
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatLiveDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  let h = d.getHours();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} · ${h}:${m} ${ampm}`;
+}
+
 function FeatureCard({ icon, title, description, color, bgColor, onPress }: FeatureCardProps) {
   const { colors } = useTheme();
   const styles = makeStyles(colors);
@@ -703,6 +790,23 @@ export default function HomeTab() {
     loadAndSyncVideo();
   }, []);
 
+  const [upcomingSessions, setUpcomingSessions] = useState<UpcomingSession[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .get('/livesessions/upcoming', { params: { limit: 10 } })
+      .then((res) => {
+        if (cancelled) return;
+        const list = res.data?.liveSessions;
+        setUpcomingSessions(Array.isArray(list) ? list : []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleWatchIntro = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsVideoModalVisible(true);
@@ -789,6 +893,68 @@ export default function HomeTab() {
             />
           </View>
         </View>
+
+        {/* Upcoming Live Sessions */}
+        {upcomingSessions.length > 0 && (
+          <View style={styles.liveSection}>
+            <Text style={[styles.sectionTitle, { marginHorizontal: 20, marginBottom: 14 }]}>
+              Upcoming Live Sessions
+            </Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.liveScrollContent}
+            >
+              {upcomingSessions.map((session) => {
+                const startMs = new Date(session.scheduledAt).getTime();
+                const nowMs = Date.now();
+                const isLive = nowMs >= startMs && nowMs <= startMs + (session.durationInMinutes || 60) * 60000;
+                const accent = session.courseColor || '#F1842D';
+                return (
+                  <TouchableOpacity
+                    key={session._id}
+                    style={styles.liveCard}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push({
+                        pathname: '/course-detail',
+                        params: {
+                          id: session.courseId,
+                          title: session.courseTitle || 'Course',
+                          color: accent,
+                        },
+                      });
+                    }}
+                  >
+                    <View style={styles.liveTopRow}>
+                      <View style={[styles.liveIcon, { backgroundColor: accent + '22' }]}>
+                        <Ionicons name="videocam" size={18} color={accent} />
+                      </View>
+                      <View
+                        style={[
+                          styles.livePill,
+                          { backgroundColor: isLive ? 'rgba(239,68,68,0.14)' : 'rgba(241,132,45,0.14)' },
+                        ]}
+                      >
+                        <Text style={[styles.livePillText, { color: isLive ? '#EF4444' : '#F1842D' }]}>
+                          {isLive ? 'LIVE NOW' : 'UPCOMING'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.liveTitle} numberOfLines={2}>{session.title}</Text>
+                    {session.courseTitle ? (
+                      <Text style={styles.liveCourse} numberOfLines={1}>{session.courseTitle}</Text>
+                    ) : null}
+                    <Text style={styles.liveMeta}>
+                      {formatLiveDate(session.scheduledAt)} · {session.durationInMinutes} mins
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Recommendations Section - AI-powered Carousel */}
         {!loadingRecs && recommendations.length > 0 && (

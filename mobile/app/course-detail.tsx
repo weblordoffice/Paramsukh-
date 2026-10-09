@@ -11,13 +11,39 @@ import {
   Platform,
   Alert,
   Animated,
+  Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useCourseStore, Video, Assignment, Pdf } from '../store/courseStore';
+import { useCourseStore, Video, Assignment, Pdf, LiveSession } from '../store/courseStore';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../hooks/useTheme';
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatSessionDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  let h = d.getHours();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()} · ${h}:${m} ${ampm}`;
+}
+
+type SessionPhase = 'live' | 'upcoming' | 'ended' | 'cancelled';
+
+function getSessionPhase(session: LiveSession): SessionPhase {
+  if (session.status === 'cancelled') return 'cancelled';
+  const start = new Date(session.scheduledAt).getTime();
+  if (isNaN(start)) return 'upcoming';
+  const end = start + (session.durationInMinutes || 60) * 60000;
+  const now = Date.now();
+  if (now >= start && now <= end) return 'live';
+  if (now < start) return 'upcoming';
+  return 'ended';
+}
 
 function LessonCard({ children, onPress, style, isLocked, ...props }: any) {
   const scale = React.useRef(new Animated.Value(1)).current;
@@ -335,6 +361,66 @@ export default function CourseDetailScreen() {
     justifyContent: 'center',
     flexShrink: 0,
   },
+
+  /* ── Live sessions ── */
+  sessionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 14,
+    marginBottom: 12,
+  },
+  sessionTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sessionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  sessionMeta: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    marginTop: 3,
+  },
+  sessionPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    flexShrink: 0,
+  },
+  sessionPillText: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  sessionDesc: {
+    fontSize: 12.5,
+    color: colors.textSecondary,
+    marginTop: 10,
+    lineHeight: 18,
+  },
+  sessionJoinBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 12,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  sessionJoinText: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+    fontSize: 13,
+  },
 });
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -361,6 +447,20 @@ export default function CourseDetailScreen() {
 
   const videos: Video[] = [...(currentCourse?.videos || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
   const totalPdfs = currentCourse?.pdfs?.length || 0;
+
+  const sessionRank = (s: LiveSession) => {
+    const phase = getSessionPhase(s);
+    return phase === 'live' ? 0 : phase === 'upcoming' ? 1 : 2;
+  };
+  const liveSessions: LiveSession[] = [...(currentCourse?.liveSessions || [])]
+    .filter((s) => s.status !== 'cancelled')
+    .sort((a, b) => {
+      const rank = sessionRank(a) - sessionRank(b);
+      if (rank !== 0) return rank;
+      const at = new Date(a.scheduledAt).getTime();
+      const bt = new Date(b.scheduledAt).getTime();
+      return getSessionPhase(a) === 'ended' ? bt - at : at - bt;
+    });
   const completedVideos = enrollmentProgress?.completedVideos?.length || 0;
   const completedPdfs = enrollmentProgress?.completedPdfs?.length || 0;
   
@@ -516,6 +616,77 @@ export default function CourseDetailScreen() {
               <Text style={styles.descText}>{currentCourse.description}</Text>
             </View>
           ) : null}
+
+          {/* ── Live Sessions ── */}
+          {liveSessions.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Live Sessions
+                <Text style={styles.sectionCount}>  {liveSessions.length}</Text>
+              </Text>
+
+              {liveSessions.map((session) => {
+                const phase = getSessionPhase(session);
+                const startMs = new Date(session.scheduledAt).getTime();
+                const joinable = phase === 'live' || (phase === 'upcoming' && startMs - Date.now() <= 10 * 60 * 1000);
+                const hasRecording = phase === 'ended' && !!session.recordingUrl;
+                const pill =
+                  phase === 'live'
+                    ? { bg: 'rgba(239,68,68,0.14)', fg: '#EF4444', label: 'LIVE NOW' }
+                    : phase === 'upcoming'
+                      ? { bg: 'rgba(241,132,45,0.14)', fg: '#F1842D', label: 'UPCOMING' }
+                      : { bg: colors.surfaceSecondary, fg: colors.textSecondary, label: 'ENDED' };
+
+                return (
+                  <View key={session._id} style={styles.sessionCard}>
+                    <View style={styles.sessionTopRow}>
+                      <View style={[styles.sessionIcon, { backgroundColor: pill.bg }]}>
+                        <Ionicons name="videocam" size={18} color={pill.fg} />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.videoTitle} numberOfLines={2}>{session.title}</Text>
+                        <Text style={styles.sessionMeta}>
+                          {formatSessionDate(session.scheduledAt)} · {session.durationInMinutes} mins
+                        </Text>
+                      </View>
+                      <View style={[styles.sessionPill, { backgroundColor: pill.bg }]}>
+                        <Text style={[styles.sessionPillText, { color: pill.fg }]}>{pill.label}</Text>
+                      </View>
+                    </View>
+
+                    {session.description ? (
+                      <Text style={styles.sessionDesc} numberOfLines={2}>{session.description}</Text>
+                    ) : null}
+
+                    {(joinable || hasRecording) && (
+                      <TouchableOpacity
+                        style={[
+                          styles.sessionJoinBtn,
+                          hasRecording
+                            ? { backgroundColor: colors.surfaceSecondary }
+                            : { backgroundColor: courseColor },
+                        ]}
+                        activeOpacity={0.85}
+                        onPress={() => {
+                          const url = hasRecording ? session.recordingUrl : session.meetingLink;
+                          if (url) Linking.openURL(url).catch(() => {});
+                        }}
+                      >
+                        <Ionicons
+                          name={hasRecording ? 'play-circle-outline' : 'videocam-outline'}
+                          size={16}
+                          color={hasRecording ? colors.textSecondary : '#FFFFFF'}
+                        />
+                        <Text style={[styles.sessionJoinText, hasRecording && { color: colors.textSecondary }]}>
+                          {hasRecording ? 'Watch Recording' : 'Join Meeting'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
           {/* ── Video List ── */}
           <View style={styles.section}>

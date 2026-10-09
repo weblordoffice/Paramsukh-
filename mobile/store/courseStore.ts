@@ -50,6 +50,8 @@ export interface LiveSession {
     durationInMinutes: number;
     meetingPlatform: string;
     meetingLink: string;
+    recordingUrl?: string | null;
+    resources?: { title: string; pdfUrl: string }[];
     status: 'scheduled' | 'completed' | 'cancelled';
 }
 
