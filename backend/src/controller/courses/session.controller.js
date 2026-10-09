@@ -390,18 +390,29 @@ export const getAllUpcomingLiveSessions = async (req, res) => {
   try {
     const { limit = 10 } = req.query;
     const now = new Date();
+    // Include sessions that have already started (still ongoing), not just future
+    // ones. Look back far enough to cover any realistic session length.
+    const ONGOING_LOOKBACK_MS = 12 * 60 * 60 * 1000;
 
     const courses = await Course.find({
       status: 'published',
-      'liveSessions.scheduledAt': { $gte: now }
+      'liveSessions.scheduledAt': { $gte: new Date(now.getTime() - ONGOING_LOOKBACK_MS) }
     }).select('title liveSessions color icon');
 
-    // Flatten and filter upcoming sessions
+    // Flatten and keep every session that hasn't ended yet
     const upcomingSessions = [];
-    
+
     courses.forEach(course => {
       course.liveSessions.forEach(session => {
-        if (new Date(session.scheduledAt) >= now && session.status !== 'cancelled') {
+        if (session.status === 'cancelled') {
+          return;
+        }
+        const start = new Date(session.scheduledAt).getTime();
+        if (Number.isNaN(start)) {
+          return;
+        }
+        const end = start + (session.durationInMinutes || 60) * 60000;
+        if (end >= now.getTime()) {
           upcomingSessions.push({
             ...session.toObject(),
             courseId: course._id,
