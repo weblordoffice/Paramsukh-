@@ -45,3 +45,7 @@ app-example
 # Firebase
 google-services.json
 GoogleService-Info.plist
+
+# Firebase service-account keys (secrets — must never be committed)
+paramskh-gurukul-*.json
+*-firebase-adminsdk-*.json
