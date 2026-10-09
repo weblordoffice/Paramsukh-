@@ -45,7 +45,7 @@
         {
           "backgroundColor": "#ffffff",
           "image": "./assets/images/logo-n-splash.png",
-          "imageWidth": 220,
+          "imageWidth": 180,
           "resizeMode": "contain",
           "dark": {
             "backgroundColor": "#ffffff"

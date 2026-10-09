@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Image, Animated, ActivityIndicator } from 'react-native';
+import { View, Image, Animated, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 
 interface SplashScreenProps {
@@ -8,6 +8,10 @@ interface SplashScreenProps {
 
 export default function SplashScreen({ onFinish }: SplashScreenProps) {
   const { colors } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
+  // Size the emblem relative to the screen: ~45% of the width, clamped so it
+  // never looks oversized on large phones or tiny on small ones.
+  const logoSize = Math.max(140, Math.min(Math.round(screenWidth * 0.45), 220));
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
@@ -51,7 +55,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
       >
         <Image
           source={require('../assets/images/logo-n-splash.png')}
-          className="w-[300px] h-[300px]"
+          style={{ width: logoSize, height: logoSize }}
           resizeMode="contain"
         />
         <ActivityIndicator
