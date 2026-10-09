@@ -222,9 +222,9 @@ export default function BookCounselingScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.surfaceSecondary }}>
         <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); }} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background, borderRadius: 20 }}>
-          <Ionicons name="arrow-back" size={20} color="#2C2420" />
+          <Ionicons name="arrow-back" size={20} color={colors.text} />
         </TouchableOpacity>
-        <Text style={{ fontSize: 18, fontWeight: '700', color: '#2C2420' }}>Book Session</Text>
+        <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Book Session</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -232,8 +232,8 @@ export default function BookCounselingScreen() {
         <View style={{ borderRadius: 24, padding: 20, marginBottom: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surfaceSecondary }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
             <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={{ fontSize: 22, fontWeight: '800', color: '#2C2420', marginBottom: 4 }}>{title}</Text>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: '#F1842D' }}>{counselorName}</Text>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: colors.text, marginBottom: 4 }}>{title}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.primary }}>{counselorName}</Text>
             </View>
             <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: displayColor + '15' }}>
               <Text style={{ fontWeight: '700', fontSize: 12, color: displayColor }}>
@@ -242,22 +242,22 @@ export default function BookCounselingScreen() {
             </View>
           </View>
 
-          <Text style={{ fontSize: 14, color: '#5C4A42', marginBottom: 14, lineHeight: 20 }}>{description}</Text>
+          <Text style={{ fontSize: 14, color: colors.textSecondary, marginBottom: 14, lineHeight: 20 }}>{description}</Text>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', columnGap: 16, borderTopWidth: 1, borderTopColor: colors.background, paddingTop: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="time-outline" size={16} color="#8C7B73" />
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#8C7B73', marginLeft: 6 }}>{duration || '60 mins'}</Text>
+              <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginLeft: 6 }}>{duration || '60 mins'}</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Ionicons name="videocam-outline" size={16} color="#8C7B73" />
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#8C7B73', marginLeft: 6 }}>Video Call</Text>
+              <Ionicons name="videocam-outline" size={16} color={colors.textSecondary} />
+              <Text style={{ fontSize: 12, fontWeight: '600', color: colors.textSecondary, marginLeft: 6 }}>Video Call</Text>
             </View>
           </View>
         </View>
 
         <View style={{ marginBottom: 20 }}>
-          <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420', marginBottom: 10 }}>Select Date</Text>
+          <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 10 }}>Select Date</Text>
           <View style={{ backgroundColor: colors.surface, borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: colors.surfaceSecondary, padding: 8 }}>
             <Calendar
               current={today}
@@ -267,17 +267,17 @@ export default function BookCounselingScreen() {
                 [selectedDate]: { selected: true, selectedColor: displayColor }
               }}
               theme={{
-                calendarBackground: '#ffffff',
-                textSectionTitleColor: '#8C7B73',
+                calendarBackground: colors.surface,
+                textSectionTitleColor: colors.textSecondary,
                 selectedDayBackgroundColor: displayColor,
                 selectedDayTextColor: '#ffffff',
                 todayTextColor: displayColor,
-                dayTextColor: '#2C2420',
+                dayTextColor: colors.text,
                 textDisabledColor: colors.border,
                 dotColor: displayColor,
                 selectedDotColor: '#ffffff',
                 arrowColor: displayColor,
-                monthTextColor: '#2C2420',
+                monthTextColor: colors.text,
                 indicatorColor: displayColor,
                 textDayFontWeight: '600',
                 textMonthFontWeight: 'bold',
@@ -292,16 +292,16 @@ export default function BookCounselingScreen() {
 
         {selectedDate && (
           <View style={{ marginBottom: 20 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420', marginBottom: 10 }}>Select Time</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 10 }}>Select Time</Text>
             {fetchingSlots ? (
               <View style={{ backgroundColor: colors.surface, padding: 16, borderRadius: 24, borderWidth: 1, borderColor: colors.surfaceSecondary, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
                 <ActivityIndicator size="small" color={displayColor} />
-                <Text style={{ color: '#8C7B73', fontWeight: '500', marginLeft: 10 }}>Finding available slots...</Text>
+                <Text style={{ color: colors.textSecondary, fontWeight: '500', marginLeft: 10 }}>Finding available slots...</Text>
               </View>
             ) : availableSlots.length === 0 ? (
-              <View style={{ backgroundColor: '#FFF7ED', padding: 16, borderRadius: 24, borderWidth: 1, borderColor: '#FED7AA', flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="information-circle" size={24} color="#F97316" />
-                <Text style={{ color: '#9A3412', fontSize: 13, fontWeight: '500', flex: 1, marginLeft: 10 }}>No slots available for this date. Try another day.</Text>
+              <View style={{ backgroundColor: colors.surface, padding: 16, borderRadius: 24, borderWidth: 1, borderColor: colors.warning, flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="information-circle" size={24} color={colors.warning} />
+                <Text style={{ color: colors.text, fontSize: 13, fontWeight: '500', flex: 1, marginLeft: 10 }}>No slots available for this date. Try another day.</Text>
               </View>
             ) : (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
@@ -321,7 +321,7 @@ export default function BookCounselingScreen() {
                         borderColor: isSelected ? displayColor : colors.surfaceSecondary
                       }}
                     >
-                      <Text style={{ fontSize: 14, fontWeight: '700', color: isSelected ? displayColor : '#5C4A42' }}>{time}</Text>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: isSelected ? displayColor : colors.text }}>{time}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -332,9 +332,9 @@ export default function BookCounselingScreen() {
 
         {selectedTime && (
           <View style={{ marginBottom: 20 }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420', marginBottom: 10 }}>Additional Notes (Optional)</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 10 }}>Additional Notes (Optional)</Text>
             <TextInput
-              style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surfaceSecondary, borderRadius: 24, padding: 16, minHeight: 96, color: '#2C2420' }}
+              style={{ backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.surfaceSecondary, borderRadius: 24, padding: 16, minHeight: 96, color: colors.text }}
               placeholder="Share any specific concerns or topics you'd like to discuss before the session..."
               placeholderTextColor={colors.textSecondary}
               multiline
@@ -348,14 +348,14 @@ export default function BookCounselingScreen() {
 
         {selectedTime && showPayment && (
           <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 16, borderWidth: 1, borderColor: colors.surfaceSecondary }}>
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420', marginBottom: 12 }}>Payment Summary</Text>
+            <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12 }}>Payment Summary</Text>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <Text style={{ fontSize: 14, fontWeight: '500', color: '#5C4A42' }}>Session Fee</Text>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: '#2C2420' }}>₹{price}</Text>
+              <Text style={{ fontSize: 14, fontWeight: '500', color: colors.textSecondary }}>Session Fee</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>₹{price}</Text>
             </View>
             <View style={{ borderTopWidth: 1, borderTopColor: colors.border, marginTop: 8, paddingTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ fontSize: 16, fontWeight: '700', color: '#2C2420' }}>Total Amount</Text>
-              <Text style={{ fontSize: 20, fontWeight: '800', color: '#F1842D' }}>₹{price}</Text>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Total Amount</Text>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: colors.primary }}>₹{price}</Text>
             </View>
           </View>
         )}

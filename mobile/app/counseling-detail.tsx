@@ -521,12 +521,15 @@ export default function CounselingDetailScreen() {
                                 onDayPress={(day: any) => { setRescheduleDate(day.dateString); setRescheduleTime(null); }}
                                 markedDates={rescheduleDate ? { [rescheduleDate]: { selected: true, selectedColor: '#F1842D' } } : {}}
                                 theme={{
-                                    calendarBackground: '#ffffff',
+                                    calendarBackground: colors.surface,
+                                    textSectionTitleColor: colors.textSecondary,
                                     selectedDayBackgroundColor: '#F1842D',
+                                    selectedDayTextColor: '#ffffff',
                                     todayTextColor: '#F1842D',
-                                    dayTextColor: '#2C2420',
+                                    dayTextColor: colors.text,
+                                    textDisabledColor: colors.border,
                                     arrowColor: '#F1842D',
-                                    monthTextColor: '#2C2420',
+                                    monthTextColor: colors.text,
                                 }}
                             />
                         </View>
