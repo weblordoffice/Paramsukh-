@@ -42,6 +42,7 @@ interface DeepLinkFetchOptions {
   params?: Record<string, string>;
   pick: (data: any) => any[];
   label: (item: any) => string;
+  id?: (item: any) => string;
 }
 
 interface DeepLink {
@@ -50,8 +51,11 @@ interface DeepLink {
   group: string;
   param?: string;
   idPlaceholder?: string;
+  id?: string;
   fetchOptions?: DeepLinkFetchOptions;
 }
+
+const deepLinkKey = (d: DeepLink) => d.id ?? d.value;
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -115,6 +119,8 @@ const DEEP_LINKS: DeepLink[] = [
   { value: '/(home)/courses',       label: 'Courses (list)',     group: 'Content' },
   { value: '/course-detail',        label: 'Course Detail',      group: 'Content', param: 'id',          idPlaceholder: 'Course ID',
     fetchOptions: { path: '/api/courses/all', params: { limit: '100' }, pick: (d) => d?.courses || [], label: (c) => c?.title } },
+  { id: 'live-session', value: '/course-detail', label: 'Live Session', group: 'Content', param: 'id',       idPlaceholder: 'Course ID',
+    fetchOptions: { path: '/api/livesessions/upcoming', params: { limit: '50' }, pick: (d) => d?.liveSessions || [], id: (s) => s?.courseId, label: (s) => [s?.title, s?.courseTitle].filter(Boolean).join(' — ') } },
   { value: '/(home)/events',        label: 'Events (list)',      group: 'Content' },
   { value: '/event-detail',         label: 'Event Detail',       group: 'Content', param: 'eventId',     idPlaceholder: 'Event ID',
     fetchOptions: { path: '/api/events/all', params: { limit: '100' }, pick: (d) => d?.events || [], label: (e) => e?.title } },
@@ -185,19 +191,19 @@ export default function NotificationsPage() {
 
   const patch = (f: Partial<typeof form>) => setForm(p => ({ ...p, ...f }));
 
-  const selectedDeepLink = DEEP_LINKS.find(d => d.value === deepLink);
-  const actionUrl = !deepLink
+  const selectedDeepLink = DEEP_LINKS.find(d => deepLinkKey(d) === deepLink);
+  const actionUrl = !selectedDeepLink
     ? ''
-    : selectedDeepLink?.param && deepLinkId.trim()
-      ? `${deepLink}?${selectedDeepLink.param}=${encodeURIComponent(deepLinkId.trim())}`
-      : deepLink;
+    : selectedDeepLink.param && deepLinkId.trim()
+      ? `${selectedDeepLink.value}?${selectedDeepLink.param}=${encodeURIComponent(deepLinkId.trim())}`
+      : selectedDeepLink.value;
 
   const [pickerItems, setPickerItems] = useState<{ id: string; label: string }[]>([]);
   const [pickerLoading, setPickerLoading] = useState(false);
   const [pickerError, setPickerError] = useState<string | null>(null);
 
   useEffect(() => {
-    const opts = DEEP_LINKS.find(d => d.value === deepLink)?.fetchOptions;
+    const opts = DEEP_LINKS.find(d => deepLinkKey(d) === deepLink)?.fetchOptions;
     if (!opts) {
       setPickerItems([]);
       setPickerError(null);
@@ -212,7 +218,10 @@ export default function NotificationsPage() {
       .then(res => {
         if (cancelled) return;
         const items = (opts.pick(res.data) || [])
-          .map((item: any) => ({ id: String(item?._id || ''), label: opts.label(item) || String(item?._id || '') }))
+          .map((item: any) => {
+            const itemId = String((opts.id ? opts.id(item) : item?._id) || '');
+            return { id: itemId, label: opts.label(item) || itemId };
+          })
           .filter((item: { id: string }) => item.id);
         setPickerItems(items);
       })
@@ -504,7 +513,7 @@ export default function NotificationsPage() {
                   {DEEP_LINK_GROUPS.map(g => (
                     <optgroup key={g} label={g}>
                       {DEEP_LINKS.filter(d => d.group === g).map(d => (
-                        <option key={d.value} value={d.value}>{d.label}</option>
+                        <option key={deepLinkKey(d)} value={deepLinkKey(d)}>{d.label}</option>
                       ))}
                     </optgroup>
                   ))}
