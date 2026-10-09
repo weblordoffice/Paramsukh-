@@ -8,7 +8,7 @@ import {
   BookOpen, Calendar, ShoppingCart, Package, MessageSquare,
   Mic, Settings, Target, Megaphone, Filter, Clock,
   Search, LayoutDashboard, Sparkles, ChevronRight, BellOff,
-  ClipboardList, Star
+  ClipboardList, Star, Link2, AlertCircle
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -35,6 +35,14 @@ interface Section {
   bg: string;
   border: string;
   filters?: { key: string; label: string; placeholder: string }[];
+}
+
+interface DeepLink {
+  value: string;
+  label: string;
+  group: string;
+  param?: string;
+  idPlaceholder?: string;
 }
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -88,6 +96,38 @@ const TEMPLATES = [
   { icon: '🔔', title: 'App Update Alert',     message: "We've improved your experience with new features. Update the app today!" },
 ];
 
+// Destinations the mobile app actually accepts (mirrors mobile/utils/notificationNavigation.ts).
+// Anything outside this list silently falls back to the Notifications screen.
+const DEEP_LINKS: DeepLink[] = [
+  { value: '/(home)/my-membership', label: 'My Membership',      group: 'Membership & Account' },
+  { value: '/(home)/my-progress',   label: 'My Progress',        group: 'Membership & Account' },
+  { value: '/(home)/referral',      label: 'Referral Program',   group: 'Membership & Account' },
+  { value: '/(home)/settings',      label: 'Settings',           group: 'Membership & Account' },
+
+  { value: '/(home)/courses',       label: 'Courses (list)',     group: 'Content' },
+  { value: '/course-detail',        label: 'Course Detail',      group: 'Content', param: 'id',          idPlaceholder: 'Course ID' },
+  { value: '/(home)/events',        label: 'Events (list)',      group: 'Content' },
+  { value: '/event-detail',         label: 'Event Detail',       group: 'Content', param: 'eventId',     idPlaceholder: 'Event ID' },
+  { value: '/(home)/podcasts',      label: 'Podcasts',           group: 'Content', param: 'podcastId',   idPlaceholder: 'Podcast ID (optional)' },
+  { value: '/blogs',                label: 'Blogs (list)',       group: 'Content' },
+  { value: '/blog-detail',          label: 'Blog Detail',        group: 'Content', param: 'id',          idPlaceholder: 'Blog ID' },
+  { value: '/(home)/community',     label: 'Community',          group: 'Content' },
+
+  { value: '/shops',                label: 'Shops (list)',       group: 'Commerce' },
+  { value: '/shop-detail',          label: 'Shop Detail',        group: 'Commerce', param: 'shopId',     idPlaceholder: 'Shop ID' },
+  { value: '/product-detail',       label: 'Product Detail',     group: 'Commerce', param: 'productId',  idPlaceholder: 'Product ID' },
+  { value: '/orders',               label: 'My Orders',          group: 'Commerce' },
+  { value: '/order-detail',         label: 'Order Detail',       group: 'Commerce', param: 'orderId',    idPlaceholder: 'Order ID' },
+  { value: '/donations',            label: 'Donations',          group: 'Commerce' },
+
+  { value: '/counseling',           label: 'Counseling (list)',  group: 'Support & Care' },
+  { value: '/counseling-detail',    label: 'Counseling Detail',  group: 'Support & Care', param: 'bookingId', idPlaceholder: 'Booking ID' },
+  { value: '/(home)/help-support',  label: 'Help & Support',     group: 'Support & Care' },
+  { value: '/(home)/notifications', label: 'Notifications',      group: 'Support & Care' },
+];
+
+const DEEP_LINK_GROUPS = Array.from(new Set(DEEP_LINKS.map(d => d.group)));
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function timeAgo(d: string) {
@@ -122,10 +162,19 @@ export default function NotificationsPage() {
 
   const [form, setForm] = useState({
     title: '', message: '', type: 'general',
-    priority: 'medium', icon: '🔔', actionUrl: '',
+    priority: 'medium', icon: '🔔',
   });
+  const [deepLink, setDeepLink] = useState('');
+  const [deepLinkId, setDeepLinkId] = useState('');
 
   const patch = (f: Partial<typeof form>) => setForm(p => ({ ...p, ...f }));
+
+  const selectedDeepLink = DEEP_LINKS.find(d => d.value === deepLink);
+  const actionUrl = !deepLink
+    ? ''
+    : selectedDeepLink?.param && deepLinkId.trim()
+      ? `${deepLink}?${selectedDeepLink.param}=${encodeURIComponent(deepLinkId.trim())}`
+      : deepLink;
 
   useEffect(() => { load(); }, []);
 
@@ -148,7 +197,7 @@ export default function NotificationsPage() {
         await apiClient.post('/api/notifications/broadcast', {
           title: form.title, message: form.message,
           type: form.type, priority: form.priority,
-          icon: form.icon, actionUrl: form.actionUrl || undefined,
+          icon: form.icon, actionUrl: actionUrl || undefined,
         });
         toast.success('📢 Broadcast sent to all users!');
       } else {
@@ -158,12 +207,14 @@ export default function NotificationsPage() {
           title: form.title, message: form.message,
           section: section.id, filters: cleanFilters,
           type: form.type, priority: form.priority,
-          icon: form.icon, actionUrl: form.actionUrl || undefined,
+          icon: form.icon, actionUrl: actionUrl || undefined,
         });
         const count = r.data.data?.recipientCount ?? 0;
         toast.success(`✅ Sent to ${count} user${count !== 1 ? 's' : ''} in ${section.label}`);
       }
-      patch({ title: '', message: '', actionUrl: '' });
+      patch({ title: '', message: '' });
+      setDeepLink('');
+      setDeepLinkId('');
       setTimeout(load, 700);
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to send');
@@ -389,19 +440,50 @@ export default function NotificationsPage() {
                 </div>
               </div>
 
-              {/* Action URL */}
+              {/* Deep Link */}
               <div>
-                <label className="block text-xs font-medium text-accent mb-1">
+                <label className="block text-xs font-medium text-accent mb-1 flex items-center gap-1.5">
+                  <Link2 className="w-3.5 h-3.5" />
                   Deep Link <span className="font-normal">(optional)</span>
                 </label>
-                <input
-                  type="text"
-                  value={form.actionUrl}
-                  onChange={e => patch({ actionUrl: e.target.value })}
-                  placeholder="/event-detail?eventId=abc123"
-                  className="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
-                <p className="text-[11px] text-accent/60 mt-1">App navigates here when user taps the push</p>
+                <select
+                  value={deepLink}
+                  onChange={e => { setDeepLink(e.target.value); setDeepLinkId(''); }}
+                  className="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
+                >
+                  <option value="">— None (opens Notifications) —</option>
+                  {DEEP_LINK_GROUPS.map(g => (
+                    <optgroup key={g} label={g}>
+                      {DEEP_LINKS.filter(d => d.group === g).map(d => (
+                        <option key={d.value} value={d.value}>{d.label}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
+
+                {selectedDeepLink?.param && (
+                  <input
+                    type="text"
+                    value={deepLinkId}
+                    onChange={e => setDeepLinkId(e.target.value)}
+                    placeholder={selectedDeepLink.idPlaceholder || 'ID'}
+                    className="w-full mt-2 px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                )}
+
+                {selectedDeepLink?.param && !deepLinkId.trim() && (
+                  <p className="text-[11px] text-orange-500 mt-1 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" /> Add an ID so the push opens the right item
+                  </p>
+                )}
+
+                <p className="text-[11px] text-accent/60 mt-1">
+                  {actionUrl ? (
+                    <>Opens <code className="bg-gray-100 px-1 py-0.5 rounded text-[10px] text-secondary">{actionUrl}</code> when tapped</>
+                  ) : (
+                    'App opens the Notifications screen when tapped — pick a destination to deep-link elsewhere.'
+                  )}
+                </p>
               </div>
             </div>
 
