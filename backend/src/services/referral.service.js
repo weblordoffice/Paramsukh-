@@ -226,3 +226,8 @@ export const getReferralValidation = async (code, newUserId, ip) => {
 
   return { valid: true, referrer };
 };
+
+// Alias used by the auth controllers (authOTP / clerkAuth):
+//   validateReferral({ referralCode, newUserId, ip })
+export const validateReferral = ({ referralCode, newUserId, ip } = {}) =>
+  getReferralValidation(referralCode, newUserId, ip);

@@ -29,8 +29,9 @@ export default function ReferralScreen() {
   const [loading, setLoading] = useState(true);
   const [referralCode, setReferralCode] = useState('');
   const [referrals, setReferrals] = useState<ReferredFriend[]>([]);
-  const referrerRewardText = 'Get 7 days FREE Premium';
-  const refereeRewardText = 'Get 3 days FREE Premium';
+  const [points, setPoints] = useState(0);
+  const [totalEarned, setTotalEarned] = useState(0);
+  const [pointValue, setPointValue] = useState(1);
 
   useEffect(() => {
     loadReferralData();
@@ -38,13 +39,13 @@ export default function ReferralScreen() {
 
   const loadReferralData = async () => {
     try {
-      const res = await apiClient.get('/user/referral');
-      if (res.data?.referralCode) {
-        setReferralCode(res.data.referralCode);
-      }
-      if (res.data?.referrals) {
-        setReferrals(res.data.referrals);
-      }
+      const res = await apiClient.get('/user/profile/referrals');
+      const d = res.data || {};
+      if (d.referralCode) setReferralCode(d.referralCode);
+      if (Array.isArray(d.referrals)) setReferrals(d.referrals);
+      setPoints(d.points || 0);
+      setTotalEarned(d.totalPointsEarned || 0);
+      setPointValue(d.pointValue || 1);
     } catch (err) {
       console.warn('Failed to load referral data:', err);
     } finally {
@@ -60,7 +61,7 @@ export default function ReferralScreen() {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Join me on ParamSukh wellness Gurukul and learn scientifically to live a balanced life! Use my referral code: ${referralCode} during signup.\n\n${refereeRewardText}`
+        message: `Join me on ParamSukh wellness Gurukul and learn scientifically to live a balanced life! Use my referral code: ${referralCode} during signup.`
       });
     } catch (error) {
       console.error('Error sharing referral code:', error);
@@ -129,9 +130,9 @@ export default function ReferralScreen() {
             <View style={s.promoBanner}>
               <View style={s.promoInner}>
                 <View style={s.promoTextContainer}>
-                  <Text style={s.promoLabel}>Referral Reward</Text>
-                  <Text style={s.promoReward}>{referrerRewardText}</Text>
-                  <Text style={s.promoSub}>Plus, unlock the exclusive "Wellness Guide" badge on your profile!</Text>
+                  <Text style={s.promoLabel}>Your Referral Points</Text>
+                  <Text style={s.promoReward}>{points} pts</Text>
+                  <Text style={s.promoSub}>Worth ₹{points * pointValue} · {totalEarned} earned in total</Text>
                 </View>
                 <Ionicons name="gift" size={56} color="#FFFFFF" style={{ opacity: 0.85 }} />
               </View>
@@ -183,7 +184,7 @@ export default function ReferralScreen() {
                   </View>
                   <View style={s.stepContent}>
                     <Text style={s.stepTitle}>Claim your rewards</Text>
-                    <Text style={s.stepDesc}>Get free premium extension days the moment they complete their first Gurukul course!</Text>
+                    <Text style={s.stepDesc}>Earn referral points when they sign up — and more when they complete a course!</Text>
                   </View>
                 </View>
               </View>

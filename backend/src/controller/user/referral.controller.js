@@ -33,6 +33,16 @@ export const getUserReferralDashboard = async (req, res) => {
       ]),
     ]);
 
+    // A referred friend is "completed" once they've earned the referrer a
+    // course-completion reward; otherwise they're just "joined".
+    const referredIds = referrals.map((r) => r.referredUser?._id).filter(Boolean);
+    const completedTxns = referredIds.length
+      ? await PointTransaction.find({ userId, type: 'user.course_complete', referredUserId: { $in: referredIds } })
+          .select('referredUserId')
+          .lean()
+      : [];
+    const completedSet = new Set(completedTxns.map((t) => String(t.referredUserId)));
+
     return res.status(200).json({
       success: true,
       referralCode: user.referralCode,
@@ -44,6 +54,7 @@ export const getUserReferralDashboard = async (req, res) => {
         _id: r._id,
         displayName: r.referredUser?.displayName || 'Member',
         joinedAt: r.createdAt,
+        status: completedSet.has(String(r.referredUser?._id)) ? 'completed' : 'joined',
       })),
       recentActivity: pointTxns.map(t => ({
         type: t.type,
