@@ -1,6 +1,6 @@
 Add-Type -AssemblyName System.Drawing
 
-$srcPath = "c:\Users\Neeraj\Desktop\saas-native\mobile\assets\paramsukh.png"
+$srcPath = "c:\Users\Neeraj\Desktop\saas-native\mobile\assets\images\logo-n-splash.png"
 $destDir = "c:\Users\Neeraj\Desktop\saas-native\mobile\assets\images"
 
 if (-not (Test-Path $destDir)) {
@@ -24,7 +24,7 @@ $gBase.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQua
 # Create a circular clipping path
 $centerX = $w / 2
 $centerY = $h / 2
-$radius = 233  # Fit the gold border
+$radius = [Math]::Min($w, $h) / 2  # Full bounds — the source is already a circular emblem
 $x = $centerX - $radius
 $y = $centerY - $radius
 $diameter = $radius * 2

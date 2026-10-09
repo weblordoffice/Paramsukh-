@@ -116,7 +116,7 @@ export default function VerifyPhoneScreen() {
       >
         <View style={{ backgroundColor: colors.surface, borderColor: colors.border }} className="pt-20 pb-10 px-6 items-center border-b">
           <Image
-            source={require('../assets/paramsukh.png')}
+            source={require('../assets/images/logo-n-splash.png')}
             className="w-36 h-36 mb-4"
             resizeMode="contain"
           />

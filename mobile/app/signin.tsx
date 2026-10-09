@@ -167,7 +167,7 @@ export default function SignInScreen() {
       >
         <View style={{ backgroundColor: colors.surface }} className="pt-16 pb-12 px-6 items-center">
           <Image
-            source={require('../assets/paramsukh.png')}
+            source={require('../assets/images/logo-n-splash.png')}
             className="w-48 h-48 mb-6"
             resizeMode="contain"
           />

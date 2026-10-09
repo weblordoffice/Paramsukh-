@@ -50,7 +50,7 @@ export default function SplashScreen({ onFinish }: SplashScreenProps) {
         }}
       >
         <Image
-          source={require('../assets/paramsukh.png')}
+          source={require('../assets/images/logo-n-splash.png')}
           className="w-[300px] h-[300px]"
           resizeMode="contain"
         />

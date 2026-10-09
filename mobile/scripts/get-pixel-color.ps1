@@ -1,5 +1,5 @@
 Add-Type -AssemblyName System.Drawing
-$img = [System.Drawing.Bitmap]::FromFile("c:\Users\Neeraj\Desktop\saas-native\mobile\assets\paramsukh.png")
+$img = [System.Drawing.Bitmap]::FromFile("c:\Users\Neeraj\Desktop\saas-native\mobile\assets\images\logo-n-splash.png")
 $w = $img.Width
 $h = $img.Height
 $pixel = $img.GetPixel([int]($w/2), [int]($h/2))
