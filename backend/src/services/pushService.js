@@ -116,15 +116,21 @@ async function sendToExpo(messages) {
     return null;
   }
 
+  if (!res.ok) {
+    console.warn(`⚠️  Push: Expo push service responded HTTP ${res.status}`);
+  }
+
   // Log any individual ticket errors without throwing — push failure shouldn't
   // crash the main business logic that called it.
   if (json?.data) {
     json.data.forEach((ticket, i) => {
       if (ticket.status === 'error') {
         console.warn(`⚠️  Push ticket[${i}] error:`, ticket.message, ticket.details);
-        // Clean up dead/invalid tokens automatically so future sends stay healthy
+        // Only remove a token when the device itself is no longer registered.
+        // InvalidCredentials is a project-wide FCM/APNs credential problem, not
+        // a bad token — deleting on it would wipe every device on one hiccup.
         const errCode = ticket.details?.error;
-        if (errCode === 'DeviceNotRegistered' || errCode === 'InvalidCredentials') {
+        if (errCode === 'DeviceNotRegistered') {
           const badToken = messages[i]?.to;
           if (badToken) DeviceToken.deleteOne({ token: badToken }).catch(() => {});
         }
