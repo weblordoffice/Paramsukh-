@@ -37,12 +37,20 @@ interface Section {
   filters?: { key: string; label: string; placeholder: string }[];
 }
 
+interface DeepLinkFetchOptions {
+  path: string;
+  params?: Record<string, string>;
+  pick: (data: any) => any[];
+  label: (item: any) => string;
+}
+
 interface DeepLink {
   value: string;
   label: string;
   group: string;
   param?: string;
   idPlaceholder?: string;
+  fetchOptions?: DeepLinkFetchOptions;
 }
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -105,23 +113,31 @@ const DEEP_LINKS: DeepLink[] = [
   { value: '/(home)/settings',      label: 'Settings',           group: 'Membership & Account' },
 
   { value: '/(home)/courses',       label: 'Courses (list)',     group: 'Content' },
-  { value: '/course-detail',        label: 'Course Detail',      group: 'Content', param: 'id',          idPlaceholder: 'Course ID' },
+  { value: '/course-detail',        label: 'Course Detail',      group: 'Content', param: 'id',          idPlaceholder: 'Course ID',
+    fetchOptions: { path: '/api/courses/all', params: { limit: '100' }, pick: (d) => d?.courses || [], label: (c) => c?.title } },
   { value: '/(home)/events',        label: 'Events (list)',      group: 'Content' },
-  { value: '/event-detail',         label: 'Event Detail',       group: 'Content', param: 'eventId',     idPlaceholder: 'Event ID' },
-  { value: '/(home)/podcasts',      label: 'Podcasts',           group: 'Content', param: 'podcastId',   idPlaceholder: 'Podcast ID (optional)' },
+  { value: '/event-detail',         label: 'Event Detail',       group: 'Content', param: 'eventId',     idPlaceholder: 'Event ID',
+    fetchOptions: { path: '/api/events/all', params: { limit: '100' }, pick: (d) => d?.events || [], label: (e) => e?.title } },
+  { value: '/(home)/podcasts',      label: 'Podcasts',           group: 'Content', param: 'podcastId',   idPlaceholder: 'Podcast ID (optional)',
+    fetchOptions: { path: '/api/podcasts/admin/all', pick: (d) => d?.data?.podcasts || [], label: (p) => p?.title } },
   { value: '/blogs',                label: 'Blogs (list)',       group: 'Content' },
-  { value: '/blog-detail',          label: 'Blog Detail',        group: 'Content', param: 'id',          idPlaceholder: 'Blog ID' },
+  { value: '/blog-detail',          label: 'Blog Detail',        group: 'Content', param: 'id',          idPlaceholder: 'Blog ID',
+    fetchOptions: { path: '/api/blogs', params: { limit: '50' }, pick: (d) => d?.data?.blogs || [], label: (b) => b?.title } },
   { value: '/(home)/community',     label: 'Community',          group: 'Content' },
 
   { value: '/shops',                label: 'Shops (list)',       group: 'Commerce' },
-  { value: '/shop-detail',          label: 'Shop Detail',        group: 'Commerce', param: 'shopId',     idPlaceholder: 'Shop ID' },
-  { value: '/product-detail',       label: 'Product Detail',     group: 'Commerce', param: 'productId',  idPlaceholder: 'Product ID' },
+  { value: '/shop-detail',          label: 'Shop Detail',        group: 'Commerce', param: 'shopId',     idPlaceholder: 'Shop ID',
+    fetchOptions: { path: '/api/shops', params: { limit: '100' }, pick: (d) => d?.data?.shops || [], label: (s) => s?.name } },
+  { value: '/product-detail',       label: 'Product Detail',     group: 'Commerce', param: 'productId',  idPlaceholder: 'Product ID',
+    fetchOptions: { path: '/api/products', params: { limit: '100' }, pick: (d) => d?.data?.products || [], label: (p) => p?.name } },
   { value: '/orders',               label: 'My Orders',          group: 'Commerce' },
-  { value: '/order-detail',         label: 'Order Detail',       group: 'Commerce', param: 'orderId',    idPlaceholder: 'Order ID' },
+  { value: '/order-detail',         label: 'Order Detail',       group: 'Commerce', param: 'orderId',    idPlaceholder: 'Order ID',
+    fetchOptions: { path: '/api/orders/all', params: { limit: '100' }, pick: (d) => d?.data?.orders || d?.orders || [], label: (o) => [o?.orderNumber, o?.user?.displayName].filter(Boolean).join(' — ') || 'Order' } },
   { value: '/donations',            label: 'Donations',          group: 'Commerce' },
 
   { value: '/counseling',           label: 'Counseling (list)',  group: 'Support & Care' },
-  { value: '/counseling-detail',    label: 'Counseling Detail',  group: 'Support & Care', param: 'bookingId', idPlaceholder: 'Booking ID' },
+  { value: '/counseling-detail',    label: 'Counseling Detail',  group: 'Support & Care', param: 'bookingId', idPlaceholder: 'Booking ID',
+    fetchOptions: { path: '/api/counseling/all', params: { limit: '200' }, pick: (d) => d?.data?.bookings || [], label: (b) => b?.bookingTitle || b?.userPhone || 'Counseling session' } },
   { value: '/(home)/help-support',  label: 'Help & Support',     group: 'Support & Care' },
   { value: '/(home)/notifications', label: 'Notifications',      group: 'Support & Care' },
 ];
@@ -175,6 +191,39 @@ export default function NotificationsPage() {
     : selectedDeepLink?.param && deepLinkId.trim()
       ? `${deepLink}?${selectedDeepLink.param}=${encodeURIComponent(deepLinkId.trim())}`
       : deepLink;
+
+  const [pickerItems, setPickerItems] = useState<{ id: string; label: string }[]>([]);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [pickerError, setPickerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const opts = DEEP_LINKS.find(d => d.value === deepLink)?.fetchOptions;
+    if (!opts) {
+      setPickerItems([]);
+      setPickerError(null);
+      setPickerLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setPickerItems([]);
+    setPickerError(null);
+    setPickerLoading(true);
+    apiClient.get(opts.path, { params: opts.params })
+      .then(res => {
+        if (cancelled) return;
+        const items = (opts.pick(res.data) || [])
+          .map((item: any) => ({ id: String(item?._id || ''), label: opts.label(item) || String(item?._id || '') }))
+          .filter((item: { id: string }) => item.id);
+        setPickerItems(items);
+      })
+      .catch((err: any) => {
+        if (!cancelled) setPickerError(err.response?.data?.message || 'Could not load the list');
+      })
+      .finally(() => {
+        if (!cancelled) setPickerLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [deepLink]);
 
   useEffect(() => { load(); }, []);
 
@@ -462,13 +511,39 @@ export default function NotificationsPage() {
                 </select>
 
                 {selectedDeepLink?.param && (
-                  <input
-                    type="text"
-                    value={deepLinkId}
-                    onChange={e => setDeepLinkId(e.target.value)}
-                    placeholder={selectedDeepLink.idPlaceholder || 'ID'}
-                    className="w-full mt-2 px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
+                  <div className="mt-2 space-y-2">
+                    {selectedDeepLink.fetchOptions && (
+                      <div>
+                        <select
+                          value={pickerItems.some(i => i.id === deepLinkId) ? deepLinkId : ''}
+                          onChange={e => setDeepLinkId(e.target.value)}
+                          disabled={pickerLoading || pickerItems.length === 0}
+                          className="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white disabled:bg-gray-50 disabled:text-accent"
+                        >
+                          <option value="">
+                            {pickerLoading
+                              ? 'Loading…'
+                              : pickerItems.length === 0
+                                ? 'No items found — paste an ID below'
+                                : `Choose ${selectedDeepLink.label.replace(' Detail', '')}…`}
+                          </option>
+                          {pickerItems.map(item => (
+                            <option key={item.id} value={item.id}>{item.label}</option>
+                          ))}
+                        </select>
+                        {pickerError && (
+                          <p className="text-[11px] text-red-500 mt-1">{pickerError} — paste the ID below instead.</p>
+                        )}
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      value={deepLinkId}
+                      onChange={e => setDeepLinkId(e.target.value)}
+                      placeholder={selectedDeepLink.idPlaceholder || 'ID'}
+                      className="w-full px-3 py-2 border rounded-xl text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
                 )}
 
                 {selectedDeepLink?.param && !deepLinkId.trim() && (
