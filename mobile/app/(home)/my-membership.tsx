@@ -397,6 +397,7 @@ export default function MyMembershipScreen() {
         }[]
     >([]);
     const [loadingPurchases, setLoadingPurchases] = useState(true);
+    const [purchasesError, setPurchasesError] = useState(false);
     const [syncingPayment, setSyncingPayment] = useState(false);
     const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
     const [plansLoading, setPlansLoading] = useState(true);
@@ -485,13 +486,15 @@ export default function MyMembershipScreen() {
     }, []);
 
     const loadPurchases = useCallback(async () => {
+        setPurchasesError(false);
         try {
             const res = await apiClient.get('/payments/history');
             if (res.data?.success && Array.isArray(res.data?.data?.payments)) {
                 setPurchases(res.data.data.payments);
             }
-        } catch {
-            // silently fail
+        } catch (err: any) {
+            setPurchasesError(true);
+            console.warn('Failed to load purchase history:', err?.message || err);
         } finally {
             setLoadingPurchases(false);
         }
@@ -519,8 +522,8 @@ export default function MyMembershipScreen() {
                 });
                 return data.courseSelection;
             }
-        } catch {
-            // silently fail
+        } catch (err: any) {
+            console.warn('Failed to load active membership:', err?.message || err);
         }
         return null;
     };
@@ -1095,6 +1098,12 @@ export default function MyMembershipScreen() {
                 {loadingPurchases ? (
                     <View style={styles.loadingBox}>
                         <ActivityIndicator size="small" color="#8B5CF6" />
+                    </View>
+                ) : purchasesError ? (
+                    <View style={styles.emptyBox}>
+                        <Ionicons name="alert-circle-outline" size={40} color={colors.textSecondary} />
+                        <Text style={styles.emptyTitle}>Couldn&apos;t load purchases</Text>
+                        <Text style={styles.emptySub}>Please check your connection and try again</Text>
                     </View>
                 ) : purchases.length === 0 ? (
                     <View style={styles.emptyBox}>

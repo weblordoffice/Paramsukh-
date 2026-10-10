@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useNotificationStore, type NotificationItem } from '../../store/notificationStore';
 import { resolveNotificationRoute } from '../../utils/notificationNavigation';
 import { useBottomTabBarHeight } from '../../hooks/useBottomTabBarHeight';
@@ -266,9 +267,11 @@ export default function NotificationsScreen() {
     await fetchNotifications({ limit: 50 });
   }, [fetchNotifications]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);

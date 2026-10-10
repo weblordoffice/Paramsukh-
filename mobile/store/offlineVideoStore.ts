@@ -28,6 +28,7 @@ interface OfflineVideoState {
   isDownloaded: (videoId: string) => boolean;
   downloadVideo: (item: Omit<OfflineVideoItem, 'localUri' | 'downloadedAt'>) => Promise<{ success: boolean; message?: string }>;
   removeDownload: (videoId: string) => Promise<boolean>;
+  reset: () => Promise<void>;
 }
 
 function sanitizeFilePart(value: string): string {
@@ -268,5 +269,11 @@ export const useOfflineVideoStore = create<OfflineVideoState>((set, get) => ({
     } catch (error) {
       return false;
     }
+  },
+
+  reset: async () => {
+    set({ downloads: [], progressByVideoId: {}, activeDownloads: {}, hydrated: false });
+    await AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+    await FileSystem.deleteAsync(DOWNLOAD_DIR, { idempotent: true }).catch(() => {});
   },
 }));

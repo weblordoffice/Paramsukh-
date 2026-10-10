@@ -28,6 +28,7 @@ interface OfflinePodcastState {
     isDownloaded: (podcastId: string) => boolean;
     downloadPodcast: (item: Omit<OfflinePodcastItem, 'localUri' | 'downloadedAt'>) => Promise<{ success: boolean; message?: string }>;
     removeDownload: (podcastId: string) => Promise<boolean>;
+    reset: () => Promise<void>;
 }
 
 function sanitizeFilePart(value: string): string {
@@ -180,5 +181,11 @@ export const useOfflinePodcastStore = create<OfflinePodcastState>((set, get) => 
         } catch (error) {
             return false;
         }
+    },
+
+    reset: async () => {
+        set({ downloads: [], progressByPodcastId: {}, activeDownloads: {}, hydrated: false });
+        await AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+        await FileSystem.deleteAsync(DOWNLOAD_DIR, { idempotent: true }).catch(() => {});
     },
 }));

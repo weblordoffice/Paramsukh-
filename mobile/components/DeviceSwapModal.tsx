@@ -99,7 +99,7 @@ export default function DeviceSwapModal({
                       }}
                     >
                       <Ionicons
-                        name={device.os.toLowerCase().includes('ios') || device.os.toLowerCase().includes('android') ? 'phone-portrait-outline' : 'desktop-outline'}
+                        name={(device.os || '').toLowerCase().includes('ios') || (device.os || '').toLowerCase().includes('android') ? 'phone-portrait-outline' : 'desktop-outline'}
                         size={22}
                         color={isSelected ? '#7C3AED' : colors.textSecondary}
                       />

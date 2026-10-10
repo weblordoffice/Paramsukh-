@@ -288,6 +288,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       // Clear membership cache on logout
       useMembershipStore.getState().clearMembership();
+
+      // Clear user-scoped stores so a different account on this device never
+      // sees the previous user's notifications or offline downloads.
+      try {
+        const [notifications, offlineVideo, offlinePodcast] = await Promise.all([
+          import('./notificationStore'),
+          import('./offlineVideoStore'),
+          import('./offlinePodcastStore'),
+        ]);
+        notifications.useNotificationStore.getState().reset();
+        await offlineVideo.useOfflineVideoStore.getState().reset();
+        await offlinePodcast.useOfflinePodcastStore.getState().reset();
+      } catch (_) {}
     }
   },
 

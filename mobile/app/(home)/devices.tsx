@@ -200,7 +200,7 @@ export default function DevicesScreen() {
                   }}
                 >
                   <Ionicons
-                    name={device.os.toLowerCase().includes('ios') || device.os.toLowerCase().includes('android') ? 'phone-portrait-outline' : 'desktop-outline'}
+                    name={(device.os || '').toLowerCase().includes('ios') || (device.os || '').toLowerCase().includes('android') ? 'phone-portrait-outline' : 'desktop-outline'}
                     size={24}
                     color={device.isCurrentDevice ? colors.primary : colors.textSecondary}
                   />

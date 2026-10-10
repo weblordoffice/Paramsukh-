@@ -34,11 +34,11 @@ interface SupportTicket {
 }
 
 const faqs = [
-  { question: 'How do I reset my password?', answer: 'Go to Settings > Account > Change Password. You can reset your password from there.' },
+  { question: 'I cannot sign in, what do I do?', answer: 'There is no password to reset — you sign in with a one-time code (OTP) sent to your phone. If you cannot receive the OTP, contact support below.' },
   { question: 'How can I join a community group?', answer: 'Visit the Community tab, browse available groups, and tap the "Follow" button to join.' },
   { question: 'How do I access my purchased courses?', answer: 'All your purchased courses are available in the My Progress section under "Courses Completed".' },
   { question: 'Can I download content for offline viewing?', answer: 'Yes, premium members can download courses and podcasts for offline access. Look for the download icon.' },
-  { question: 'How do I cancel my subscription?', answer: 'Go to Settings > Account > Manage Subscription to view and cancel your active subscriptions.' },
+  { question: 'How do I cancel my subscription?', answer: 'Open My Membership to view your active plan. To cancel or change your plan, contact support below.' },
 ];
 
 const contactOptions = [
@@ -114,6 +114,7 @@ export default function HelpSupportScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState(false);
+  const [ticketsError, setTicketsError] = useState(false);
   const [closingTicketId, setClosingTicketId] = useState<string | null>(null);
 
   const formatDateTime = (value?: string) => !value ? '' : new Date(value).toLocaleString(undefined, { hour12: true });
@@ -122,6 +123,7 @@ export default function HelpSupportScreen() {
     const token = useAuthStore.getState().token;
     if (!token) { setTickets([]); return; }
     setIsLoadingTickets(true);
+    setTicketsError(false);
     try {
       const response = await axios.get(`${API_URL}/support/messages`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -130,6 +132,8 @@ export default function HelpSupportScreen() {
         setTickets(Array.isArray(response.data.messages) ? response.data.messages : []);
       }
     } catch (error: any) {
+      setTicketsError(true);
+      console.warn('Failed to load support requests:', error?.message || error);
     } finally {
       setIsLoadingTickets(false);
     }
@@ -186,7 +190,7 @@ export default function HelpSupportScreen() {
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
-        <TouchableOpacity style={s.headerBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={s.headerBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Help & Support</Text>
@@ -232,7 +236,13 @@ export default function HelpSupportScreen() {
             {isLoadingTickets ? <ActivityIndicator size="small" color={colors.primary} /> : null}
           </View>
 
-          {tickets.length === 0 && !isLoadingTickets ? (
+          {ticketsError && !isLoadingTickets ? (
+            <View style={s.messageCard}>
+              <Text style={{ fontSize: 14, color: colors.textSecondary }}>
+                Couldn&apos;t load your support requests. Please check your connection and try again.
+              </Text>
+            </View>
+          ) : tickets.length === 0 && !isLoadingTickets ? (
             <View style={s.messageCard}>
               <Text style={{ fontSize: 14, color: colors.textSecondary }}>
                 You haven&apos;t submitted any support requests yet.

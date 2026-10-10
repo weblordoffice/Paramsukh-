@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useState, useRef } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '../../store/authStore';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
@@ -37,39 +38,41 @@ export default function ProfileMenuScreen() {
   const [loadingWellness, setLoadingWellness] = useState(true);
   const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    isMountedRef.current = true;
-    const loadUser = async () => {
-      const result = await fetchCurrentUser();
-      if (!isMountedRef.current) return;
-      if (result.success && result.user) {
-        setUser(result.user);
-      }
-    };
-    loadUser();
-
-    // Fetch wellness profile
-    const loadWellness = async () => {
-      try {
-        const token = await useAuthStore.getState().token;
-        const res = await axios.get(`${API_URL}/user/profile`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        });
-        if (res.data?.profileDetails) {
-          setWellness(res.data.profileDetails as WellnessProfile);
+  useFocusEffect(
+    useCallback(() => {
+      isMountedRef.current = true;
+      const loadUser = async () => {
+        const result = await fetchCurrentUser();
+        if (!isMountedRef.current) return;
+        if (result.success && result.user) {
+          setUser(result.user);
         }
-      } catch (err) {
-        console.warn('Failed to load wellness profile:', err);
-      } finally {
-        if (isMountedRef.current) setLoadingWellness(false);
-      }
-    };
-    loadWellness();
+      };
+      loadUser();
 
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+      // Fetch wellness profile
+      const loadWellness = async () => {
+        try {
+          const token = await useAuthStore.getState().token;
+          const res = await axios.get(`${API_URL}/user/profile`, {
+            headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          });
+          if (res.data?.profileDetails) {
+            setWellness(res.data.profileDetails as WellnessProfile);
+          }
+        } catch (err) {
+          console.warn('Failed to load wellness profile:', err);
+        } finally {
+          if (isMountedRef.current) setLoadingWellness(false);
+        }
+      };
+      loadWellness();
+
+      return () => {
+        isMountedRef.current = false;
+      };
+    }, [fetchCurrentUser]),
+  );
 
   const getUserInitial = () => {
     return getInitials(user?.displayName);

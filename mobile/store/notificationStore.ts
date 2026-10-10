@@ -30,6 +30,7 @@ interface NotificationState {
   markAllAsRead: () => Promise<boolean>;
   deleteNotification: (id: string) => Promise<boolean>;
   registerDeviceToken: (expoPushToken: string) => Promise<boolean>;
+  reset: () => void;
 }
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
@@ -151,4 +152,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
     }
     return false;
   },
+
+  reset: () =>
+    set({ notifications: [], unreadCount: 0, isLoading: false, error: null, deviceTokenRegistered: false }),
 }));

@@ -113,7 +113,7 @@ export default function ReferralScreen() {
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
-        <TouchableOpacity style={s.headerBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={s.headerBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Invite & Earn</Text>

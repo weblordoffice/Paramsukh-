@@ -316,7 +316,7 @@ export default function DownloadsScreen() {
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.removeBtn} onPress={() => handleRemovePodcast(item.podcastId)}>
-                      <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                      <Ionicons name="trash-outline" size={18} color={colors.danger} />
                       <Text style={styles.removeText}>Remove</Text>
                     </TouchableOpacity>
                   </View>
@@ -343,7 +343,7 @@ export default function DownloadsScreen() {
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.removeBtn} onPress={() => handleRemoveVideo(item.videoId)}>
-                      <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                      <Ionicons name="trash-outline" size={18} color={colors.danger} />
                       <Text style={styles.removeText}>Remove</Text>
                     </TouchableOpacity>
                   </View>

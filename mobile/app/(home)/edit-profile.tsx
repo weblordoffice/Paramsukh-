@@ -133,8 +133,8 @@ export default function EditProfileScreen() {
         {
           displayName: formData.displayName.trim(),
           age: formData.age ? parseInt(formData.age, 10) : undefined,
-          occupation: formData.occupation.trim() || undefined,
-          location: formData.location.trim() || undefined,
+          occupation: formData.occupation.trim(),
+          location: formData.location.trim(),
           physicalIssue: formData.physicalIssue,
           specialDiseaseIssue: formData.specialDiseaseIssue,
           relationshipIssue: formData.relationshipIssue,
@@ -238,6 +238,7 @@ export default function EditProfileScreen() {
 
       if (response.data.success) {
         await fetchCurrentUser();
+        setContactModal((prev) => ({ ...prev, loading: false, error: '' }));
         Alert.alert(
           'Updated!',
           `${field === 'email' ? 'Email' : 'Phone'} updated successfully.`,
@@ -289,7 +290,7 @@ export default function EditProfileScreen() {
   const currentEmail = (user as any)?.email || '';
   const currentPhone = (user as any)?.phone || '';
   const displayPhone = currentPhone
-    ? `${currentPhone.replace(/^\+91/, '').replace(/(\d{5})(\d{5})/, '$1-$2-')}`
+    ? `${currentPhone.replace(/^\+91/, '').replace(/(\d{5})(\d{5})/, '$1 $2')}`
     : '';
 
   return (

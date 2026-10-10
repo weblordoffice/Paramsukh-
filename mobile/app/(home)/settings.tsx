@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -136,7 +137,6 @@ export default function SettingsScreen() {
     setSendingOtp(true);
     try {
       await apiClient.post(`${API_URL}/user/account/delete-otp`);
-      setOtp('');
       setOtpModalVisible(true);
     } catch (error: any) {
       Alert.alert('Error', error.response?.data?.message || 'Failed to send OTP. Please try again.');
@@ -161,13 +161,13 @@ export default function SettingsScreen() {
   };
 
   const confirmDeleteWithOtp = async () => {
-    if (!otp || otp.trim().length < 4) {
+    if (!otp || otp.trim().length < 6) {
       Alert.alert('Error', 'Please enter the OTP sent to your phone');
       return;
     }
     setVerifyingDelete(true);
     try {
-      const response = await apiClient.delete(`${API_URL}/user/delete-account`, {
+      const response = await apiClient.delete(`${API_URL}/user/account`, {
         data: { confirmDelete: 'DELETE', otp: otp.trim() },
       });
       if (response.data?.success) {
@@ -185,7 +185,7 @@ export default function SettingsScreen() {
   };
 
   const requestFinalDelete = () => {
-    if (!otp || otp.trim().length < 4) {
+    if (!otp || otp.trim().length < 6) {
       Alert.alert('Error', 'Please enter the OTP sent to your phone');
       return;
     }
@@ -356,7 +356,7 @@ export default function SettingsScreen() {
             
           <TouchableOpacity 
             style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: colors.surface, padding: 16, borderRadius: 12, marginBottom: 8, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 2, elevation: 1 }}
-            onPress={() => router.push('/profile-menu')}
+            onPress={() => router.push('/edit-profile')}
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
               <Ionicons name="person-outline" size={24} color={colors.primary} />
@@ -448,8 +448,13 @@ export default function SettingsScreen() {
       </ScrollView>
 
       {/* OTP verification modal for account deletion */}
-      {otpModalVisible && (
-        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20, zIndex: 50 }}>
+      <Modal
+        visible={otpModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { if (!verifyingDelete) setOtpModalVisible(false); }}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <View style={{ width: '100%', maxWidth: 400, backgroundColor: colors.surface, borderRadius: 16, padding: 24, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 8, elevation: 6 }}>
             <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text }}>Verify Mobile Number</Text>
             <Text style={{ fontSize: 14, color: colors.textSecondary, marginTop: 8, lineHeight: 20 }}>
@@ -512,7 +517,7 @@ export default function SettingsScreen() {
             </View>
           </View>
         </View>
-      )}
+      </Modal>
     </SafeAreaView>
   );
 }

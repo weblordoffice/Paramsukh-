@@ -60,7 +60,7 @@ export default function TermsPrivacyScreen() {
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
-        <TouchableOpacity style={s.headerBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={s.headerBtn} onPress={() => { if (router.canGoBack()) router.back(); }}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={s.headerTitle}>Terms & Privacy</Text>
@@ -88,7 +88,7 @@ export default function TermsPrivacyScreen() {
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={s.scrollContent}>
         <Text style={s.pageTitle}>{activeTab === 'terms' ? 'Terms of Service' : 'Privacy Policy'}</Text>
-        <Text style={s.lastUpdated}>Last updated: November 8, 2025</Text>
+        <Text style={s.lastUpdated}>Last updated: October 2026</Text>
 
         {(activeTab === 'terms' ? content.terms : content.privacy).map((item, i) => (
           <View key={i}>
