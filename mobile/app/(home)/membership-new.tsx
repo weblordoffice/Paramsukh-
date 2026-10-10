@@ -420,7 +420,7 @@ export default function MembershipScreen() {
                       {!!plan.tagline && (
                         <ExpandableText
                           text={plan.tagline}
-                          numberOfLines={2}
+                          numberOfLines={3}
                           style={{ fontSize: 14, color: '#4B5563', marginTop: 4 }}
                           linkStyle={{ color: colors.primary }}
                         />

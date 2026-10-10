@@ -855,7 +855,7 @@ export default function MyMembershipScreen() {
                                         <View style={styles.activePlanInfo}>
                                             <Text style={styles.activePlanLabel}>{isPrimary ? 'Current Plan' : 'Active Plan'}</Text>
                                             <Text style={[styles.activePlanName, { color: ACCENT }]}>{cfg.name}</Text>
-                                            <ExpandableText text={cfg.tagline} numberOfLines={2} style={styles.activePlanTagline} linkStyle={{ color: ACCENT }} />
+                                            <ExpandableText text={cfg.tagline} numberOfLines={3} style={styles.activePlanTagline} linkStyle={{ color: ACCENT }} />
                                         </View>
                                         <View style={[styles.statusBadge, { backgroundColor: colors.surfaceSecondary, borderColor: colors.success }]}>
                                             <View style={[styles.statusDot, { backgroundColor: colors.success }]} />
@@ -1034,7 +1034,7 @@ export default function MyMembershipScreen() {
                             <View style={[styles.planHeaderRow, isOwnedPlan && !hasPreview && { marginTop: 16 }]}>
                                 <View style={styles.planTitleBlock}>
                                     <Text style={styles.planName}>{plan.name}</Text>
-                                    {!!plan.tagline && <ExpandableText text={plan.tagline} numberOfLines={2} style={styles.planTagline} linkStyle={{ color: ACCENT }} />}
+                                    {!!plan.tagline && <ExpandableText text={plan.tagline} numberOfLines={3} style={styles.planTagline} linkStyle={{ color: ACCENT }} />}
                                 </View>
                                 <View style={styles.planPriceBlock}>
                                     <Text style={styles.planPrice}>₹{plan.price.toLocaleString('en-IN')}</Text>
