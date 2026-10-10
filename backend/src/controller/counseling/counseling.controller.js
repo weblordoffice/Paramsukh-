@@ -407,6 +407,12 @@ export const bookCounseling = async (req, res) => {
       actionUrl: `/counseling-detail?bookingId=${booking._id}`
     });
 
+    // Referral: reward the referrer when their referred user books a session
+    if (user?.referredBy) {
+      const { fireTrigger } = await import('../../services/referral.service.js');
+      fireTrigger('user.counseling_book', { referrerId: user.referredBy, referredUserId: userId }).catch(() => {});
+    }
+
     // COUNSELOR NOTIFICATION: Notify admins about new booking
     try {
       const { User } = await import('../../models/user.models.js');

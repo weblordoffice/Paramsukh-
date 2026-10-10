@@ -209,6 +209,12 @@ export const registerForEvent = async (req, res) => {
       }).catch(() => {});
     }
 
+    // Referral: reward the referrer when their referred user registers
+    if (!paymentRequired && req.user?.referredBy) {
+      const { fireTrigger } = await import('../../services/referral.service.js');
+      fireTrigger('user.event_register', { referrerId: req.user.referredBy, referredUserId: userId }).catch(() => {});
+    }
+
     return res.status(201).json({
       success: true,
       message: responseMessage,
@@ -735,6 +741,12 @@ export const confirmEventPayment = async (req, res) => {
     registration.paidAt = new Date();
     registration.status = 'confirmed';
     await registration.save();
+
+    // Referral: reward the referrer when the paid registration is confirmed
+    if (req.user?.referredBy) {
+      const { fireTrigger } = await import('../../services/referral.service.js');
+      fireTrigger('user.event_register', { referrerId: req.user.referredBy, referredUserId: userId }).catch(() => {});
+    }
 
     await releaseEventSeat(eventId);
 

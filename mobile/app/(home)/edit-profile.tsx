@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +17,8 @@ import { useAuthStore } from '../../store/authStore';
 import axios from 'axios';
 import { API_URL } from '../../config/api';
 import { useTheme } from '../../hooks/useTheme';
+import * as ImagePicker from 'expo-image-picker';
+import apiClient from '../../utils/apiClient';
 
 export default function EditProfileScreen() {
   const { colors } = useTheme();
@@ -44,6 +47,8 @@ export default function EditProfileScreen() {
   const { user, fetchCurrentUser } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [photoURL, setPhotoURL] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [formData, setFormData] = useState({
     displayName: '',
     age: '',
@@ -99,6 +104,7 @@ export default function EditProfileScreen() {
       if (response.data.success) {
         const userData = response.data.user;
         const details = response.data.profileDetails || {};
+        setPhotoURL(userData.photoURL || null);
         setFormData({
           displayName: userData.displayName || '',
           age: details.age ? details.age.toString() : computeAge(details.birthDate || userData.birthDate),
@@ -117,6 +123,75 @@ export default function EditProfileScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handlePickPhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please grant permission to access your photos.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
+        Alert.alert('File Too Large', 'Please choose an image under 5MB.');
+        return;
+      }
+
+      setUploadingPhoto(true);
+      const ext = (asset.uri.split('.').pop() || 'jpg').split('?')[0];
+      const formData = new FormData();
+      formData.append('image', { uri: asset.uri, name: `profile.${ext}`, type: `image/${ext}` } as any);
+
+      const uploadRes = await apiClient.post(`${API_URL}/upload/image?folder=profile`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const url = uploadRes.data?.data?.url;
+      if (!url) {
+        Alert.alert('Upload failed', 'Could not upload the photo. Please try again.');
+        return;
+      }
+
+      const res = await apiClient.put(`${API_URL}/user/profile/photo`, { photoURL: url });
+      if (res.data?.success) {
+        setPhotoURL(res.data.photoURL || url);
+        await fetchCurrentUser();
+      } else {
+        Alert.alert('Error', res.data?.message || 'Failed to update photo');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error?.response?.data?.message || 'Failed to update photo');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    Alert.alert('Remove Photo', 'Remove your profile photo?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await apiClient.delete(`${API_URL}/user/profile/photo`);
+            setPhotoURL(null);
+            await fetchCurrentUser();
+          } catch (error: any) {
+            Alert.alert('Error', error?.response?.data?.message || 'Failed to remove photo');
+          }
+        },
+      },
+    ]);
   };
 
   const handleSave = async () => {
@@ -317,11 +392,38 @@ export default function EditProfileScreen() {
           <>
             {/* Profile Image */}
             <View className="items-center mb-8">
-              <View className="relative mb-3">
-                <View className="w-[100px] h-[100px] rounded-full items-center justify-center" style={{ backgroundColor: colors.surfaceSecondary }}>
-                  <Ionicons name="person" size={50} color={colors.primary} />
+              <TouchableOpacity
+                className="relative mb-3"
+                onPress={handlePickPhoto}
+                disabled={uploadingPhoto}
+                activeOpacity={0.8}
+              >
+                <View className="w-[100px] h-[100px] rounded-full items-center justify-center overflow-hidden" style={{ backgroundColor: colors.surfaceSecondary }}>
+                  {photoURL ? (
+                    <Image source={{ uri: photoURL }} style={{ width: 100, height: 100 }} resizeMode="cover" />
+                  ) : uploadingPhoto ? (
+                    <ActivityIndicator color={colors.primary} />
+                  ) : (
+                    <Ionicons name="person" size={50} color={colors.primary} />
+                  )}
                 </View>
-              </View>
+                <View className="absolute bottom-0 right-0 w-8 h-8 rounded-full items-center justify-center border-2" style={{ backgroundColor: colors.primary, borderColor: colors.surface }}>
+                  {uploadingPhoto ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Ionicons name="camera" size={16} color="#FFFFFF" />
+                  )}
+                </View>
+              </TouchableOpacity>
+
+              {photoURL ? (
+                <TouchableOpacity onPress={handleRemovePhoto} disabled={uploadingPhoto}>
+                  <Text className="text-xs mb-2" style={{ color: colors.textSecondary }}>Remove photo</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text className="text-xs mb-2" style={{ color: colors.textSecondary }}>Tap to add a photo</Text>
+              )}
+
               <Text className="text-lg font-bold" style={{ color: colors.text }}>
                 {formData.displayName || 'Gurukul Learner'}
               </Text>

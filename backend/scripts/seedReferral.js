@@ -25,6 +25,8 @@ const RULES = [
   { name: 'Signup Bonus', slug: 'user-signup', triggerEvent: 'user.signup', pointsValue: 10, isActive: true, cooldownPerUser: 1, holdDays: 0, displayOrder: 0, description: 'Awarded when a referred user signs up.' },
   { name: 'First Purchase', slug: 'user-first-purchase', triggerEvent: 'user.first_purchase', pointsValue: 20, isActive: true, cooldownPerUser: 1, holdDays: 0, displayOrder: 1, description: 'Awarded on the referred user’s first paid purchase (held for the config hold period).' },
   { name: 'Course Completed', slug: 'user-course-complete', triggerEvent: 'user.course_complete', pointsValue: 25, isActive: true, cooldownPerUser: 1, holdDays: 0, displayOrder: 2, description: 'Awarded when the referred user completes a course.' },
+  { name: 'Event Registration', slug: 'user-event-register', triggerEvent: 'user.event_register', pointsValue: 15, isActive: true, cooldownPerUser: 1, holdDays: 0, displayOrder: 3, description: 'Awarded when the referred user registers for an event.' },
+  { name: 'Counseling Booked', slug: 'user-counseling-book', triggerEvent: 'user.counseling_book', pointsValue: 15, isActive: true, cooldownPerUser: 1, holdDays: 0, displayOrder: 4, description: 'Awarded when the referred user books a counseling session.' },
 ];
 
 const run = async () => {

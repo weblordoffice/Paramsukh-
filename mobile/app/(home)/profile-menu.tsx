@@ -1,5 +1,5 @@
 import React, { useCallback, useState, useRef } from 'react';
-import { ScrollView, Text, TouchableOpacity, View, Alert, ActivityIndicator } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View, Alert, ActivityIndicator, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -209,8 +209,12 @@ export default function ProfileMenuScreen() {
         <View className="p-5">
           {/* Profile Header */}
           <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 24, marginBottom: 20, alignItems: 'center', shadowColor: colors.border, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2 }}>
-            <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: colors.primary, marginBottom: 12 }}>
-              <Text style={{ fontSize: 36, fontWeight: '700', color: colors.primary }}>{getUserInitial()}</Text>
+            <View style={{ width: 96, height: 96, borderRadius: 48, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: colors.primary, marginBottom: 12, overflow: 'hidden' }}>
+              {user?.photoURL ? (
+                <Image source={{ uri: user.photoURL }} style={{ width: 96, height: 96 }} resizeMode="cover" />
+              ) : (
+                <Text style={{ fontSize: 36, fontWeight: '700', color: colors.primary }}>{getUserInitial()}</Text>
+              )}
             </View>
             <Text style={{ fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 4 }}>{user?.displayName || 'User'}</Text>
             <Text style={{ fontSize: 14, color: colors.textSecondary }}>Spiritual Seeker</Text>
