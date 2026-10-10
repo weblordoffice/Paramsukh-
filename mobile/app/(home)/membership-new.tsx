@@ -10,6 +10,7 @@ import { useAuthStore } from '../../store/authStore';
 import apiClient from '../../utils/apiClient';
 import { fetchPublicMembershipPlans, fetchEligibleMembershipPlans, UIMembershipPlan, PENDING_MEMBERSHIP_LINK_KEY } from '../../utils/membershipPlans';
 import { useTheme } from '../../hooks/useTheme';
+import ExpandableText from '../../components/ExpandableText';
 
 const PENDING_LINK_KEY = PENDING_MEMBERSHIP_LINK_KEY;
 
@@ -417,7 +418,12 @@ export default function MembershipScreen() {
                         )}
                       </View>
                       {!!plan.tagline && (
-                        <Text className="text-sm text-gray-600 mt-1">{plan.tagline}</Text>
+                        <ExpandableText
+                          text={plan.tagline}
+                          numberOfLines={2}
+                          style={{ fontSize: 14, color: '#4B5563', marginTop: 4 }}
+                          linkStyle={{ color: colors.primary }}
+                        />
                       )}
                       {isCovered && (
                         <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>

@@ -216,7 +216,7 @@ export default function MembershipModal({ user, onClose }: MembershipModalProps)
                     />
                     <div>
                       <p className="font-medium text-gray-900">{plan.label}</p>
-                      <p className="text-xs text-gray-500">{plan.description}</p>
+                        <p className="text-xs text-gray-500 line-clamp-2">{plan.description}</p>
                       <p className="text-xs text-gray-400 mt-1">
                         {`INR ${Number(plan.amount || 0).toLocaleString('en-IN')} • ${plan.validityDays || 365} days`}
                         {plan.status ? ` • ${plan.status}` : ''}

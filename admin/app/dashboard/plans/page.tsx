@@ -1101,7 +1101,7 @@ export default function MembershipPlansPage() {
                   {form.status}
                 </span>
               </div>
-              <p className="text-sm text-gray-600 mt-2">{form.description || "No description yet."}</p>
+                <p className="text-sm text-gray-600 mt-2 line-clamp-2">{form.description || "No description yet."}</p>
               <div className="mt-3 flex flex-wrap gap-2 text-xs">
                 <span className="px-2 py-1 rounded bg-blue-50 text-blue-700">INR {Number(form.amount || 0).toLocaleString("en-IN")}</span>
                 <span className="px-2 py-1 rounded bg-indigo-50 text-indigo-700">
