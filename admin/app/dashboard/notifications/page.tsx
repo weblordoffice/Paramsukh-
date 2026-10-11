@@ -8,7 +8,7 @@ import {
   BookOpen, Calendar, ShoppingCart, Package, MessageSquare,
   Mic, Settings, Target, Megaphone, Filter, Clock,
   Search, LayoutDashboard, Sparkles, ChevronRight, BellOff,
-  ClipboardList, Star, Link2, AlertCircle
+  ClipboardList, Star, Link2, AlertCircle, FlaskConical
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -150,6 +150,16 @@ const DEEP_LINKS: DeepLink[] = [
 
 const DEEP_LINK_GROUPS = Array.from(new Set(DEEP_LINKS.map(d => d.group)));
 
+// Dev-only one-click deep-link test pushes (route paths the app resolves; ids are from the dev DB).
+const DEV_DEEP_LINKS: { label: string; actionUrl: string }[] = [
+  { label: 'Product detail', actionUrl: '/product-detail?productId=6acbae05d400f43676a5e932' },
+  { label: 'Course detail',  actionUrl: '/course-detail?id=6ac77ae2b896cdae1ba62178' },
+  { label: 'Event detail',   actionUrl: '/event-detail?eventId=6acbb92cd400f43676a5e9ee' },
+  { label: 'Community',      actionUrl: '/(home)/community' },
+  { label: 'My Membership',  actionUrl: '/(home)/my-membership' },
+  { label: 'Settings',       actionUrl: '/(home)/settings' },
+];
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function timeAgo(d: string) {
@@ -188,6 +198,7 @@ export default function NotificationsPage() {
   });
   const [deepLink, setDeepLink] = useState('');
   const [deepLinkId, setDeepLinkId] = useState('');
+  const [sendingTest, setSendingTest] = useState<string | null>(null);
 
   const patch = (f: Partial<typeof form>) => setForm(p => ({ ...p, ...f }));
 
@@ -279,6 +290,25 @@ export default function NotificationsPage() {
     } finally { setSending(false); }
   };
 
+  // Dev-only: one click → real broadcast push carrying a preset deep link.
+  const sendTestDeepLink = async (label: string, actionUrl: string) => {
+    setSendingTest(label);
+    try {
+      await apiClient.post('/api/notifications/broadcast', {
+        title: `🧪 Test: ${label}`,
+        message: `Open ${label} — dev deep-link test push.`,
+        type: 'system',
+        priority: 'high',
+        icon: '🧪',
+        actionUrl,
+      });
+      toast.success(`Test push sent → ${actionUrl}`);
+      setTimeout(load, 700);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to send test push');
+    } finally { setSendingTest(null); }
+  };
+
   const onDelete = async (id: string) => {
     if (!confirm('Delete this notification?')) return;
     try {
@@ -335,6 +365,32 @@ export default function NotificationsPage() {
 
         {/* ════════════ LEFT — Compose Panel ════════════ */}
         <div className="w-[440px] flex-shrink-0 flex flex-col gap-0 overflow-y-auto pr-1">
+
+          {/* DEV ONLY — one-click deep-link test push */}
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mb-5 bg-amber-50 border-2 border-dashed border-amber-300 rounded-2xl p-4">
+              <p className="text-sm font-bold text-amber-800 flex items-center gap-2 mb-1">
+                <FlaskConical className="w-4 h-4" /> Dev · one-click deep-link push
+              </p>
+              <p className="text-[11px] text-amber-700 mb-3">
+                Dev mode only. Sends a real broadcast, tap the notification on your phone to land on the screen.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {DEV_DEEP_LINKS.map(d => (
+                  <button
+                    key={d.label}
+                    type="button"
+                    disabled={sendingTest !== null}
+                    onClick={() => sendTestDeepLink(d.label, d.actionUrl)}
+                    className="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100 text-xs font-semibold text-amber-800 rounded-lg transition disabled:opacity-50"
+                  >
+                    {sendingTest === d.label ? 'Sending…' : d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSend} className="flex flex-col gap-5">
 
             {/* Mode toggle */}
