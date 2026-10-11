@@ -23,7 +23,6 @@ export default function ProductDetailScreen() {
     },
     header: {
         position: 'absolute',
-        top: 50,
         left: 0,
         right: 0,
         zIndex: 10,
@@ -31,31 +30,20 @@ export default function ProductDetailScreen() {
         justifyContent: 'space-between',
         paddingHorizontal: 20,
     },
-    backButton: {
+    headerButton: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.9)',
+        backgroundColor: 'rgba(0,0,0,0.35)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.25)',
         alignItems: 'center',
         justifyContent: 'center',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-    },
-    cartButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowOpacity: 0.2,
+        shadowRadius: 6,
+        elevation: 4,
     },
     scrollContent: {
         paddingBottom: 100,
@@ -221,18 +209,18 @@ export default function ProductDetailScreen() {
     return (
         <View style={styles.container}>
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity style={styles.backButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
-                    <Ionicons name="arrow-back" size={24} color={colors.text} />
+            <View style={[styles.header, { top: insets.top + 8 }]}>
+                <TouchableOpacity style={styles.headerButton} onPress={() => { if (router.canGoBack()) router.back(); }}>
+                    <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.cartButton} onPress={() => router.push('/cart')}>
-                    <Ionicons name="cart-outline" size={24} color={colors.text} />
+                <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/cart')}>
+                    <Ionicons name="cart-outline" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 {/* Image Gallery */}
-                <View style={styles.imageGallery}>
+                <View style={[styles.imageGallery, { height: 350 + insets.top }]}>
                     <ScrollView
                         horizontal
                         pagingEnabled
@@ -244,7 +232,7 @@ export default function ProductDetailScreen() {
                         scrollEventThrottle={16}
                     >
                         {imageUrls.map((imgUrl: string, index: number) => (
-                            <View key={index} style={styles.imageWrapper}>
+                            <View key={index} style={[styles.imageWrapper, { height: 350 + insets.top, paddingTop: insets.top }]}>
                                 {imgUrl && imgUrl.startsWith('http') ? (
                                     <Image source={{ uri: imgUrl }} style={styles.productImage} resizeMode="contain" />
                                 ) : (

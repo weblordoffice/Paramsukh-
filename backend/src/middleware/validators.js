@@ -89,6 +89,19 @@ export const validateMongoId = [
 ];
 
 /**
+ * Validate one or more route params as Mongo ObjectIds.
+ * Usage: router.get('/x/:postId', validateMongoIdParams('postId'), handler)
+ */
+export const validateMongoIdParams = (...paramNames) => [
+  ...paramNames.map((name) =>
+    param(name)
+      .isMongoId()
+      .withMessage(`Invalid ${name} format`)
+  ),
+  handleValidationErrors
+];
+
+/**
  * Event Validators
  */
 export const validateCreateEvent = [

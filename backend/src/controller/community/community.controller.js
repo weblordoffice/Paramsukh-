@@ -266,7 +266,7 @@ export const getGroupPosts = async (req, res) => {
     const userId = req.user._id;
     const { groupId } = req.params;
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
     const skip = (page - 1) * limit;
 
     // Determine which group IDs to query posts from
@@ -360,7 +360,7 @@ export const getAllFeedPosts = async (req, res) => {
   try {
     const userId = req.user._id;
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
     const skip = (page - 1) * limit;
 
     const memberships = await GroupMember.find({ userId, isActive: true })
@@ -761,6 +761,22 @@ export const toggleCommentLike = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Comment not found"
+      });
+    }
+
+    // Ensure the caller is a member of the group that owns this comment's post
+    const post = await Post.findById(comment.postId).select('groupId').lean();
+    if (!post) {
+      return res.status(404).json({
+        success: false,
+        message: "Post not found"
+      });
+    }
+    const membership = await GroupMember.findOne({ groupId: post.groupId, userId, isActive: true });
+    if (!membership) {
+      return res.status(403).json({
+        success: false,
+        message: "You are not a member of this group"
       });
     }
 

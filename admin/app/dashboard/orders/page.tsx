@@ -11,7 +11,8 @@ interface Order {
     orderNumber: string;
     user: { displayName: string; email: string; phone: string };
     items: any[];
-    totalAmount: number;
+    totalAmount?: number;
+    pricing?: { total: number };
     status: string;
     createdAt: string;
     deliveryAddress: {
@@ -144,7 +145,7 @@ export default function OrdersPage() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-accent">{order.items?.length || 0} items</td>
-                                        <td className="px-6 py-4 font-semibold text-secondary">₹{order.totalAmount || 0}</td>
+                                        <td className="px-6 py-4 font-semibold text-secondary">₹{order.pricing?.total ?? order.totalAmount ?? 0}</td>
                                         <td className="px-6 py-4">
                                             <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
                                                 {order.status || 'Pending'}
@@ -216,7 +217,7 @@ export default function OrdersPage() {
                                     </div>
                                     <div className="mt-4 pt-4 border-t flex justify-between items-center font-bold text-lg">
                                         <span>Total Amount</span>
-                                        <span>₹{selectedOrder.totalAmount || 0}</span>
+                                        <span>₹{selectedOrder.pricing?.total ?? selectedOrder.totalAmount ?? 0}</span>
                                     </div>
                                 </div>
                             </div>

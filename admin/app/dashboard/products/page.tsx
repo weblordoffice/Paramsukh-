@@ -454,9 +454,9 @@ export default function ProductsPage() {
                                     </div>
                                 )}
                                 <div className="absolute top-2 left-2">
-                                    {(product as Product).productType === 'amazon' && (
+                                    {((product as Product).productType === 'amazon' || (product as Product).productType === 'external') && (
                                         <span className="px-2 py-1 bg-amber-500 text-white text-xs font-semibold rounded flex items-center gap-1">
-                                            <ExternalLink className="w-3 h-3" /> Amazon
+                                            <ExternalLink className="w-3 h-3" /> External
                                         </span>
                                     )}
                                 </div>
@@ -488,7 +488,7 @@ export default function ProductsPage() {
                                     <span className="px-3 py-1 bg-primary/10 text-primary rounded-full font-medium truncate max-w-[120px]">
                                         {typeof product.category === 'object' ? (product.category as any).name : (product.category || 'General')}
                                     </span>
-                                    {(product as Product).productType !== 'amazon' && (
+                                    {(product as Product).productType !== 'amazon' && (product as Product).productType !== 'external' && (
                                         <span className={`font-medium ${(product.inventory?.stock || product.inventory?.quantity || product.stock) > 0 ? 'text-green-600' : 'text-red-600'}`}>
                                             Stock: {product.inventory?.stock || product.inventory?.quantity || product.stock || 0}
                                         </span>
@@ -496,8 +496,8 @@ export default function ProductsPage() {
                                 </div>
 
                                 <div className="flex items-center justify-between pt-4 border-t">
-                                    {(product as Product).productType === 'amazon' ? (
-                                        <span className="text-sm text-amber-600 font-medium flex items-center gap-1">View on Amazon</span>
+                                    {((product as Product).productType === 'amazon' || (product as Product).productType === 'external') ? (
+                                        <span className="text-sm text-amber-600 font-medium flex items-center gap-1">View on external site</span>
                                     ) : (
                                         <span className="text-2xl font-bold text-secondary">₹{product.pricing?.sellingPrice || product.price || 0}</span>
                                     )}

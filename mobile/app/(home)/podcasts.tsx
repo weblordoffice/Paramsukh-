@@ -726,63 +726,85 @@ export default function PodcastsScreen() {
 
       {/* Payment Flow Modal */}
       <Modal
-        animationType="slide"
+        animationType="fade"
         transparent={true}
         visible={showPaymentFlow}
         onRequestClose={() => setShowPaymentFlow(false)}
       >
-        <View className="flex-1 bg-black/50 items-center justify-center p-4">
-          <View className="rounded-3xl p-6 width-full max-w-xs w-full" style={{ backgroundColor: colors.surface }}>
-            <TouchableOpacity
-              onPress={() => setShowPaymentFlow(false)}
-              className="absolute top-4 right-4 w-8 h-8 items-center justify-center"
-            >
-              <Ionicons name="close" size={24} color={colors.textSecondary} />
-            </TouchableOpacity>
-
+        <View className="flex-1 bg-black/60 items-center justify-center p-5">
+          <View className="rounded-3xl w-full max-w-sm overflow-hidden" style={{ backgroundColor: colors.surface }}>
             {selectedPodcast && (
               <>
-                <Text className="text-2xl font-bold mb-2 pr-6" style={{ color: colors.text }}>
-                  {selectedPodcast.title}
-                </Text>
-                <Text className="text-lg mb-6" style={{ color: colors.textSecondary }}>{selectedPodcast.host}</Text>
+                {/* Artwork */}
+                <View style={{ height: 170, backgroundColor: colors.surfaceSecondary }} className="items-center justify-center">
+                  {selectedPodcast.thumbnailUrl && selectedPodcast.thumbnailUrl.startsWith('http') ? (
+                    <Image source={{ uri: selectedPodcast.thumbnailUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  ) : (
+                    <Ionicons name="mic" size={56} color={colors.textSecondary} />
+                  )}
 
-                <View className="rounded-2xl p-6 mb-6 border" style={{ backgroundColor: colors.surfaceSecondary, borderColor: colors.border }}>
-                  <Text className="text-sm mb-1" style={{ color: colors.textSecondary }}>Price</Text>
-                  <Text className="text-3xl font-bold text-purple-600">
-                    ₹{selectedPodcast.price}
-                  </Text>
-                  <Text className="text-xs mt-2" style={{ color: colors.textSecondary }}>
-                    One-time purchase • Lifetime access
-                  </Text>
+                  <View className="absolute top-3 left-3 flex-row items-center px-3 py-1 rounded-full" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                    <Ionicons name="lock-closed" size={12} color="#FFFFFF" />
+                    <Text className="text-xs font-semibold ml-1" style={{ color: '#FFFFFF' }}>Premium</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    onPress={() => setShowPaymentFlow(false)}
+                    className="absolute top-3 right-3 w-9 h-9 rounded-full items-center justify-center"
+                    style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+                  >
+                    <Ionicons name="close" size={20} color="#FFFFFF" />
+                  </TouchableOpacity>
                 </View>
 
-                <ScrollView className="max-h-32 mb-6">
-                  <Text className="text-base" style={{ color: colors.textSecondary }}>
-                    {selectedPodcast.description}
+                <View className="p-6">
+                  <Text className="text-xl font-bold mb-1" style={{ color: colors.text }} numberOfLines={2}>
+                    {selectedPodcast.title}
                   </Text>
-                </ScrollView>
+                  <Text className="text-sm mb-5" style={{ color: colors.textSecondary }}>{selectedPodcast.host}</Text>
 
-                <TouchableOpacity
-                  className="w-full bg-purple-600 py-4 rounded-xl items-center justify-center"
-                  disabled={processingPayment}
-                  onPress={() => handlePurchasePodcast(selectedPodcast)}
-                >
-                  {processingPayment ? (
-                    <ActivityIndicator size="small" color="white" />
-                  ) : (
-                    <Text className="text-white text-lg font-semibold">Purchase Now</Text>
-                  )}
-                </TouchableOpacity>
+                  {/* Price */}
+                  <View className="rounded-2xl px-5 py-4 mb-5 flex-row items-center justify-between" style={{ backgroundColor: colors.surfaceSecondary }}>
+                    <View>
+                      <Text className="text-xs mb-1" style={{ color: colors.textSecondary }}>One-time payment</Text>
+                      <Text className="text-3xl font-bold" style={{ color: colors.primary }}>₹{selectedPodcast.price}</Text>
+                    </View>
+                    <View className="items-end">
+                      <Ionicons name="infinite" size={22} color={colors.success} />
+                      <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>Lifetime access</Text>
+                    </View>
+                  </View>
 
-                <TouchableOpacity
-                  className="w-full mt-3 py-3 rounded-xl items-center justify-center border"
-                  style={{ borderColor: colors.border }}
-                  onPress={() => setShowPaymentFlow(false)}
-                  disabled={processingPayment}
-                >
-                  <Text className="text-base font-semibold" style={{ color: colors.textSecondary }}>Cancel</Text>
-                </TouchableOpacity>
+                  <ScrollView className="max-h-24 mb-6">
+                    <Text className="text-sm leading-6" style={{ color: colors.textSecondary }}>
+                      {selectedPodcast.description}
+                    </Text>
+                  </ScrollView>
+
+                  <TouchableOpacity
+                    className="w-full py-4 rounded-xl items-center justify-center flex-row"
+                    style={{ backgroundColor: colors.primary, opacity: processingPayment ? 0.7 : 1 }}
+                    disabled={processingPayment}
+                    onPress={() => handlePurchasePodcast(selectedPodcast)}
+                  >
+                    {processingPayment ? (
+                      <ActivityIndicator size="small" color={colors.surface} />
+                    ) : (
+                      <>
+                        <Ionicons name="card-outline" size={20} color={colors.surface} />
+                        <Text className="text-base font-bold ml-2" style={{ color: colors.surface }}>Purchase Now</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    className="w-full mt-2 py-3 items-center justify-center"
+                    onPress={() => setShowPaymentFlow(false)}
+                    disabled={processingPayment}
+                  >
+                    <Text className="text-sm font-semibold" style={{ color: colors.textSecondary }}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
               </>
             )}
           </View>

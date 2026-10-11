@@ -141,7 +141,10 @@ export const createProductAdmin = async (req, res) => {
             images: formattedImages,
             category: categoryId,
             productType: productType === 'amazon' ? 'external' : productType, // Migrate 'amazon' to 'external'
-            externalLink: externalLink || '',
+            externalLink:
+                productType === 'external' || productType === 'amazon'
+                    ? String(externalLink || '').trim() || null
+                    : null,
             pricing: {
                 mrp: sellingPrice,
                 sellingPrice,
@@ -152,7 +155,6 @@ export const createProductAdmin = async (req, res) => {
                 isUnlimited: productType === 'external' || productType === 'amazon'
             },
             shop: shop._id,
-            externalLink: productType === 'amazon' && externalLink ? externalLink.trim() : null,
             isFeatured,
             isActive: true,
             specifications: [],
