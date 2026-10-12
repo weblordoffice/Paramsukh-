@@ -17,21 +17,23 @@
       "env": {
         "EXPO_NO_DOTENV": "1",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
-      }
+      },
+      "channel": "development"
     },
-    "preview": {    
+    "preview": {
       "node": "22.12.0",
       "android": {
         "buildType": "apk"
       },
       "ios": {
         "simulator": true
-      },   
+      },
       "env": {
         "EXPO_NO_DOTENV": "1",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ"
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "node": "22.12.0",
@@ -42,7 +44,8 @@
         "EXPO_NO_DOTENV": "1",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ"
-      }
+      },
+      "channel": "production"
     },
     "production-apk": {
       "node": "22.12.0",
@@ -53,7 +56,8 @@
         "EXPO_NO_DOTENV": "1",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
         "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_ZnJlZS1tYW5hdGVlLTUzLmNsZXJrLmFjY291bnRzLmRldiQ"
-      }
+      },
+      "channel": "production-apk"
     }
   },
   "submit": {
