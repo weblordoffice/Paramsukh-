@@ -89,6 +89,40 @@ export const updateProfile = async (req, res) => {
       spiritualGrowthDetails
     } = req.body;
 
+    // Validate wellness/profile ranges before writing.
+    if (age !== undefined && age !== null && age !== '') {
+      const numericAge = Number(age);
+      if (!Number.isFinite(numericAge) || numericAge < 1 || numericAge > 120) {
+        return res.status(400).json({
+          success: false,
+          message: 'Age must be between 1 and 120'
+        });
+      }
+    }
+
+    const wellnessScores = { stressLevel, sleepQuality, energyLevel, moodRating };
+    for (const [field, value] of Object.entries(wellnessScores)) {
+      if (value !== undefined && value !== null && value !== '') {
+        const numericValue = Number(value);
+        if (!Number.isFinite(numericValue) || numericValue < 1 || numericValue > 10) {
+          return res.status(400).json({
+            success: false,
+            message: `${field} must be between 1 and 10`
+          });
+        }
+      }
+    }
+
+    if (physicalActivityLevel !== undefined && physicalActivityLevel !== null && physicalActivityLevel !== '') {
+      const allowedActivityLevels = new Set(['sedentary', 'light', 'moderate', 'active', 'very_active']);
+      if (!allowedActivityLevels.has(String(physicalActivityLevel).toLowerCase())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid physical activity level'
+        });
+      }
+    }
+
     // 1. Build update object for User (only include provided fields)
     const updateData = {};
 
@@ -159,6 +193,13 @@ export const updateProfile = async (req, res) => {
         hasAssessmentUpdates = true;
       }
     });
+
+    if (Object.keys(updateData).length === 0 && !hasAssessmentUpdates) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid fields to update'
+      });
+    }
 
     let assessment = null;
     if (hasAssessmentUpdates) {

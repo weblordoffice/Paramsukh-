@@ -43,6 +43,57 @@ export const enrollUserInGroup = async (groupId, userId) => {
   return result.value;
 };
 
+/**
+ * Assign a user as a mentor to a group. Creates or reactivates the
+ * GroupMember row with role=mentor and keeps memberCount accurate.
+ */
+export const assignMentorToGroup = async (userId, groupId) => {
+  if (!userId || !groupId) return null;
+
+  const existing = await GroupMember.findOne({ groupId, userId })
+    .select('isActive')
+    .lean();
+
+  const result = await GroupMember.findOneAndUpdate(
+    { groupId, userId },
+    {
+      $set: { isActive: true, role: 'mentor' },
+      $setOnInsert: { groupId, userId },
+    },
+    { upsert: true, new: true, rawResult: true }
+  );
+
+  const becameActive = !existing || existing.isActive === false;
+  if (becameActive) {
+    await Group.findByIdAndUpdate(groupId, { $inc: { memberCount: 1 } });
+  }
+
+  return result.value;
+};
+
+/**
+ * Remove a mentor assignment from a group. Only deactivates rows that are
+ * still marked as mentor, so normal plan memberships are untouched.
+ */
+export const removeMentorFromGroup = async (userId, groupId) => {
+  if (!userId || !groupId) return null;
+
+  const membership = await GroupMember.findOne({
+    groupId,
+    userId,
+    isActive: true,
+    role: 'mentor',
+  });
+
+  if (!membership) return null;
+
+  membership.isActive = false;
+  await membership.save();
+  await Group.findByIdAndUpdate(groupId, { $inc: { memberCount: -1 } });
+
+  return membership;
+};
+
 export const isPublicGroup = (group) =>
   group?.isPublic === true || group?.planSlug === 'general';
 

@@ -821,9 +821,23 @@ export default function CheckoutScreen() {
                         <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Shipping Fee</Text>
                             <Text style={styles.summaryValue}>
-                                {cart.shippingCost > 0 ? `₹${cart.shippingCost}` : 'FREE'}
+                                {(cart.shippingCharge ?? cart.shippingCost ?? 0) > 0
+                                    ? `₹${cart.shippingCharge ?? cart.shippingCost}`
+                                    : 'FREE'}
                             </Text>
                         </View>
+                        {cart.discount > 0 && (
+                            <View style={styles.summaryRow}>
+                                <Text style={[styles.summaryLabel, { color: colors.success }]}>
+                                    {cart.coupon?.code
+                                        ? `Coupon (${cart.coupon.code})`
+                                        : cart.offer?.title
+                                            ? `Offer (${cart.offer.title})`
+                                            : 'Discount'}
+                                </Text>
+                                <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{cart.discount}</Text>
+                            </View>
+                        )}
                         {usePoints > 0 && (
                             <View style={styles.summaryRow}>
                                 <Text style={[styles.summaryLabel, { color: colors.success }]}>Referral Discount</Text>

@@ -6,6 +6,15 @@ import { sendNotification } from '../notifications/notifications.controller.js';
 import { recordTransaction } from '../../services/transaction.service.js';
 import { sendEventRegistrationEmail } from '../../services/emailService.js';
 
+const evaluateEventAchievements = async (userId) => {
+  try {
+    const { unlockBadgesForUser } = await import('../../services/badgeUnlockingService.js');
+    await unlockBadgesForUser(userId);
+  } catch (error) {
+    console.error('Event badge evaluation failed:', error?.message);
+  }
+};
+
 const syncEventAttendeeCount = async (eventOrId) => {
   const event = typeof eventOrId?.updateAttendeeCount === 'function'
     ? eventOrId
@@ -214,6 +223,8 @@ export const registerForEvent = async (req, res) => {
       const { fireTrigger } = await import('../../services/referral.service.js');
       fireTrigger('user.event_register', { referrerId: req.user.referredBy, referredUserId: userId }).catch(() => {});
     }
+
+    await evaluateEventAchievements(userId);
 
     return res.status(201).json({
       success: true,

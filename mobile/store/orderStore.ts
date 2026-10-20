@@ -25,6 +25,17 @@ export interface Order {
         tax: number;
         total: number;
     };
+    coupon?: {
+        code?: string;
+        discount?: number;
+        discountType?: string;
+    };
+    offer?: {
+        offerId?: string;
+        title?: string;
+        discount?: number;
+        discountType?: string;
+    };
     totalAmount?: number;
     status: 'pending' | 'confirmed' | 'processing' | 'shipped' | 'out_for_delivery' | 'delivered' | 'cancelled' | 'returned';
     paymentStatus?: 'pending' | 'processing' | 'completed' | 'failed' | 'refunded';

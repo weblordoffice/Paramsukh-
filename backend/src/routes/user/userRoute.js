@@ -18,6 +18,8 @@ import {
   getUserCertificates,
   generateCertificate
 } from '../../controller/user/certificate.controller.js';
+import { getUserAchievements } from '../../controller/user/achievement.controller.js';
+import { getUserAnalytics } from '../../controller/user/analytics.controller.js';
 import {
   getUserReferralDashboard, getPointsHistory, handleRedeemPoints,
   regenerateReferralCode, applyReferralCode
@@ -30,9 +32,13 @@ import {
   deleteUserAdmin,
   updateUserMembership,
   getUserEnrollments,
-  getUserPayments,
-  getUserActivity
+  getUserPayments
 } from '../../controller/user/admin.controller.js';
+import {
+  getUserAnalyticsAdmin,
+  getUserActivity,
+  getUsersNeedingAttention
+} from '../../controller/user/adminUserTracking.controller.js';
 import {
   previewUserImport,
   commitUserImport,
@@ -42,6 +48,7 @@ import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
 import { uploadLimiter, generalLimiter } from '../../middleware/rateLimiter.js';
 import { uploadSingleSpreadsheet, handleMulterError } from '../../middleware/uploadMiddleware.js';
+import { validateMongoIdParams } from '../../middleware/validators.js';
 
 const router = express.Router();
 
@@ -62,6 +69,8 @@ router.post('/profile/verify-contact-change', protectedRoutes, verifyContactChan
 router.get('/subscription', protectedRoutes, getSubscription);
 router.post('/membership/purchase', protectedRoutes, purchaseMembership);
 router.get('/stats', protectedRoutes, getUserStats);
+router.get('/analytics', protectedRoutes, getUserAnalytics);
+router.get('/achievements', protectedRoutes, getUserAchievements);
 router.get('/profile/certificates', protectedRoutes, getUserCertificates);
 router.post('/profile/certificates/claim/:courseId', protectedRoutes, generateCertificate);
 router.get('/profile/referrals', protectedRoutes, getUserReferralDashboard);
@@ -83,14 +92,16 @@ router.post('/create', adminAuth, createUserAdmin);
 router.get('/import/template', adminAuth, generalLimiter, getUserImportTemplate);
 router.post('/import/preview', adminAuth, uploadLimiter, uploadSingleSpreadsheet, handleMulterError, previewUserImport);
 router.post('/import/commit', adminAuth, uploadLimiter, commitUserImport);
+router.get('/analytics/admin/attention', adminAuth, getUsersNeedingAttention);
 
 // Admin parameterized routes (must be after specific user paths)
+router.get('/:userId/analytics/admin', adminAuth, validateMongoIdParams('userId'), getUserAnalyticsAdmin);
 router.get('/:id', adminAuth, getUserById);
 router.patch('/:id', adminAuth, updateUserAdmin);
 router.delete('/:id', adminAuth, deleteUserAdmin);
 router.patch('/:id/membership', adminAuth, updateUserMembership);
 router.get('/:userId/enrollments', adminAuth, getUserEnrollments);
 router.get('/:userId/payments', adminAuth, getUserPayments);
-router.get('/:userId/activity', adminAuth, getUserActivity);
+router.get('/:userId/activity', adminAuth, validateMongoIdParams('userId'), getUserActivity);
 
 export default router;

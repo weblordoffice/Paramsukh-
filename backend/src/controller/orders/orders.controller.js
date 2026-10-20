@@ -206,6 +206,7 @@ export const createOrder = async (req, res) => {
         total: adjustedTotal
       },
       coupon: cart.coupon,
+      offer: cart.offer,
       referralPoints: referralPointsRedeemed > 0 ? {
         points: referralPointsRedeemed,
         discount: referralPointsDiscount
@@ -379,6 +380,21 @@ export const createOrder = async (req, res) => {
         }
       } catch (couponUsageErr) {
         console.error('Failed to log coupon usage stats:', couponUsageErr);
+      }
+    }
+
+    // Record automatic offer usage stats
+    if (cart.offer && cart.offer.offerId) {
+      try {
+        const { Offer } = await import('../../models/offer.models.js');
+        await Offer.findByIdAndUpdate(cart.offer.offerId, {
+          $inc: {
+            'stats.timesApplied': 1,
+            'stats.totalDiscount': Number(cart.offer.discount) || 0,
+          },
+        });
+      } catch (offerStatsError) {
+        console.error('Failed to record offer usage stats:', offerStatsError.message);
       }
     }
 

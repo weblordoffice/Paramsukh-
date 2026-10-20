@@ -27,7 +27,7 @@ import AssessmentModal from '@/components/AssessmentModal';
 import CommentsModal from '@/components/CommentsModal';
 import ImageViewerModal from '@/components/ImageViewerModal';
 import * as ImagePicker from 'expo-image-picker';
-import { useCommunityStore, Group, PlanGroup, Post } from '@/store/communityStore';
+import { useCommunityStore, Group, PlanGroup, Post, CommunityPostType, QuestionFilter } from '@/store/communityStore';
 import { useBottomTabBarHeight } from '@/hooks/useBottomTabBarHeight';
 import { useTheme } from '../../hooks/useTheme';
 
@@ -139,16 +139,11 @@ export default function CommunityScreen() {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(253, 186, 116, 0.25)',
+    backgroundColor: 'rgba(241, 132, 45, 0.08)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#F1842D',
-    shadowColor: '#F1842D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: 'rgba(241, 132, 45, 0.25)',
   },
   profileIconText: {
     fontSize: 20,
@@ -515,6 +510,103 @@ export default function CommunityScreen() {
     borderTopWidth: 1,
     borderTopColor: 'rgba(92, 74, 66, 0.06)',
   },
+  communityTabs: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginTop: 14,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 12,
+    padding: 4,
+  },
+  communityTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 9,
+    borderRadius: 9,
+  },
+  communityTabActive: {
+    backgroundColor: colors.surface,
+    shadowColor: colors.border,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  communityTabText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  communityTabTextActive: {
+    color: '#F1842D',
+  },
+  questionFiltersRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  questionFilterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  questionFilterChipActive: {
+    backgroundColor: 'rgba(241, 132, 45, 0.12)',
+  },
+  questionFilterText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  questionFilterTextActive: {
+    color: '#F1842D',
+  },
+  questionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.text,
+    marginTop: 4,
+    marginBottom: 6,
+    lineHeight: 23,
+  },
+  resolvedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  resolvedBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2E7D32',
+  },
+  questionInputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+  questionTitleInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    backgroundColor: colors.surfaceSecondary,
+    marginBottom: 14,
+  },
   section: {
     paddingHorizontal: 20,
     marginBottom: 24,
@@ -876,6 +968,7 @@ export default function CommunityScreen() {
     posts,
     groups,
     planGroups,
+    mentorGroups,
     generalGroup,
     isLoading: isStoreLoading,
     fetchMyGroups,
@@ -883,6 +976,7 @@ export default function CommunityScreen() {
     fetchAllPosts,
     createPost: storeCreatePost,
     togglePostLike: storeToggleLike,
+    votePost,
     deletePost: storeDeletePost,
     communityAccessDenied,
     postingBlocked
@@ -893,6 +987,9 @@ export default function CommunityScreen() {
 
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [postContent, setPostContent] = useState('');
+  const [questionTitle, setQuestionTitle] = useState('');
+  const [feedTab, setFeedTab] = useState<CommunityPostType>('discussion');
+  const [questionFilter, setQuestionFilter] = useState<QuestionFilter>('all');
   const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>('feed');
@@ -971,24 +1068,20 @@ export default function CommunityScreen() {
   // Default to the "All" view (no specific group selected). The user can pick
   // a group from the chip bar or the sidebar.
 
-  // When the selected group changes, reset filters and fetch the matching feed
+  const loadFeedPage = useCallback((page = 1) => {
+    if (activeGroup) {
+      return fetchGroupPosts(activeGroup._id, page, feedTab, questionFilter);
+    }
+    return fetchAllPosts(page, feedTab, questionFilter);
+  }, [activeGroup, feedTab, questionFilter, fetchGroupPosts, fetchAllPosts]);
+
+  // When the selected group, tab, or filter changes, reset and fetch the matching feed.
   useEffect(() => {
     setSelectedPostFilter('all');
     setSelectedTag(null);
     setCurrentPage(1);
-    if (activeGroup) {
-      fetchGroupPosts(activeGroup._id);
-    } else {
-      fetchAllPosts();
-    }
-  }, [activeGroup, fetchGroupPosts, fetchAllPosts]);
-
-  const loadFeedPage = useCallback((page = 1) => {
-    if (activeGroup) {
-      return fetchGroupPosts(activeGroup._id, page);
-    }
-    return fetchAllPosts(page);
-  }, [activeGroup, fetchGroupPosts, fetchAllPosts]);
+    loadFeedPage(1);
+  }, [activeGroup, feedTab, questionFilter, loadFeedPage]);
 
   const toggleSidebar = useCallback(() => {
     setShowSidebar(!showSidebar);
@@ -1066,11 +1159,16 @@ export default function CommunityScreen() {
         targetGroup._id,
         postContent,
         uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined,
-        createPostTags
+        createPostTags,
+        {
+          postType: feedTab,
+          title: feedTab === 'question' ? questionTitle.trim() : undefined,
+        }
       );
 
       if (success) {
         setPostContent('');
+        setQuestionTitle('');
         setSelectedMedia(null);
         setCreatePostTags([]);
         setShowCreatePost(false);
@@ -1078,7 +1176,7 @@ export default function CommunityScreen() {
         // Re-fetch to get server-assigned data (author enrichment, timeAgo, etc.)
         loadFeedPage(1);
 
-        Alert.alert('Success', 'Your post has been published!');
+        Alert.alert('Success', feedTab === 'question' ? 'Your question has been posted!' : 'Your post has been published!');
       } else {
         setIsLoading(false);
         Alert.alert('Error', 'Failed to publish post');
@@ -1090,7 +1188,16 @@ export default function CommunityScreen() {
   };
 
   const handleCreatePost = () => {
-    if (!postContent.trim() && !selectedMedia) {
+    if (feedTab === 'question') {
+      if (questionTitle.trim().length < 5) {
+        Alert.alert('Title Required', 'Please add a question title of at least 5 characters.');
+        return;
+      }
+      if (!postContent.trim()) {
+        Alert.alert('Details Required', 'Please describe your question.');
+        return;
+      }
+    } else if (!postContent.trim() && !selectedMedia) {
       Alert.alert('Content Required', 'Please add text or an image to your post.');
       return;
     }
@@ -1157,6 +1264,7 @@ export default function CommunityScreen() {
     return filtered;
   };
 
+  const activePost = posts.find((p) => p._id === activePostId) || null;
   const notificationBadgeCount = unreadCount > 99 ? '99+' : String(unreadCount);
 
 
@@ -1442,7 +1550,9 @@ export default function CommunityScreen() {
               // Fallback: flat group list for backward compat
               groups.length > 0 && (
                 <View style={{ marginLeft: 20, marginTop: 8 }}>
-                  {groups.map(g => (
+                  {groups
+                    .filter((g) => g._id !== generalGroup?._id && !mentorGroups.some((mentorGroup) => mentorGroup._id === g._id))
+                    .map(g => (
                     <TouchableOpacity
                       key={g._id}
                       style={{ paddingVertical: 10, flexDirection: 'row', alignItems: 'center' }}
@@ -1460,6 +1570,55 @@ export default function CommunityScreen() {
                   ))}
                 </View>
               )
+            )}
+
+            {mentorGroups.length > 0 && (
+              <View style={styles.sidebarSection}>
+                <Text style={styles.sidebarSectionTitle}>Mentor Groups</Text>
+                {mentorGroups.map((mentorGroup) => {
+                  const alreadyListed = planGroups.some(
+                    (planGroup) => planGroup._id === mentorGroup._id
+                      || planGroup.subgroups?.some((subgroup) => subgroup._id === mentorGroup._id)
+                  );
+                  if (alreadyListed) return null;
+
+                  return (
+                    <TouchableOpacity
+                      key={mentorGroup._id}
+                      style={[
+                        styles.subgroupItem,
+                        activeGroup?._id === mentorGroup._id && styles.subgroupItemActive,
+                      ]}
+                      onPress={() => {
+                        setActiveGroup(mentorGroup);
+                        setCurrentView('feed');
+                        setShowSidebar(false);
+                      }}
+                    >
+                      <View style={[
+                        styles.subgroupIconContainer,
+                        activeGroup?._id === mentorGroup._id && styles.subgroupIconContainerActive,
+                      ]}>
+                        <Ionicons
+                          name="school-outline"
+                          size={14}
+                          color={activeGroup?._id === mentorGroup._id ? '#F1842D' : '#8C7B73'}
+                        />
+                      </View>
+                      <Text
+                        style={[
+                          styles.subgroupText,
+                          activeGroup?._id === mentorGroup._id && styles.subgroupTextActive,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {mentorGroup.name}
+                      </Text>
+                      <Text style={styles.subgroupCount}>{mentorGroup.memberCount}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             )}
 
             <TouchableOpacity
@@ -1481,6 +1640,32 @@ export default function CommunityScreen() {
                 ]}
               >
                 All Groups
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sidebarItem}
+              onPress={() => {
+                setShowSidebar(false);
+                router.push('/(home)/mentor-corner' as any);
+              }}
+            >
+              <Ionicons name="school" size={24} color="#5C4A42" />
+              <Text style={styles.sidebarItemText}>
+                Mentor Corner
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.sidebarItem}
+              onPress={() => {
+                setShowSidebar(false);
+                router.push('/(home)/leaderboard' as any);
+              }}
+            >
+              <Ionicons name="trophy" size={24} color="#5C4A42" />
+              <Text style={styles.sidebarItemText}>
+                Leaderboard
               </Text>
             </TouchableOpacity>
 
@@ -1582,6 +1767,73 @@ export default function CommunityScreen() {
                         ))}
                       </React.Fragment>
                     ))}
+                    {mentorGroups.map((mentorGroup) => {
+                      const alreadyListed = planGroups.some(
+                        (planGroup) => planGroup._id === mentorGroup._id
+                          || planGroup.subgroups?.some((subgroup) => subgroup._id === mentorGroup._id)
+                      );
+                      if (alreadyListed) return null;
+
+                      return (
+                        <TouchableOpacity
+                          key={`mentor-${mentorGroup._id}`}
+                          style={[styles.groupChip, styles.groupChipSub, activeGroup?._id === mentorGroup._id && styles.groupChipActive]}
+                          onPress={() => { setActiveGroup(mentorGroup); setCurrentView('feed'); setCurrentPage(1); }}
+                        >
+                          <Ionicons name="school-outline" size={12} color={activeGroup?._id === mentorGroup._id ? '#FFF' : '#8C7B73'} />
+                          <Text style={[styles.groupChipText, styles.groupChipSubText, activeGroup?._id === mentorGroup._id && styles.groupChipTextActive]} numberOfLines={1}>
+                            {mentorGroup.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+
+                {/* Discussion / Questions tabs */}
+                <View style={styles.communityTabs}>
+                  <TouchableOpacity
+                    style={[styles.communityTab, feedTab === 'discussion' && styles.communityTabActive]}
+                    onPress={() => setFeedTab('discussion')}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.communityTabText, feedTab === 'discussion' && styles.communityTabTextActive]}>
+                      Discussion
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.communityTab, feedTab === 'question' && styles.communityTabActive]}
+                    onPress={() => setFeedTab('question')}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.communityTabText, feedTab === 'question' && styles.communityTabTextActive]}>
+                      Questions
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {feedTab === 'question' && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.questionFiltersRow}
+                  >
+                    {([
+                      { key: 'all', label: 'All' },
+                      { key: 'unanswered', label: 'Unanswered' },
+                      { key: 'resolved', label: 'Resolved' },
+                      { key: 'mine', label: 'My Questions' },
+                    ] as { key: QuestionFilter; label: string }[]).map((filter) => (
+                      <TouchableOpacity
+                        key={filter.key}
+                        style={[styles.questionFilterChip, questionFilter === filter.key && styles.questionFilterChipActive]}
+                        onPress={() => setQuestionFilter(filter.key)}
+                      >
+                        <Text style={[styles.questionFilterText, questionFilter === filter.key && styles.questionFilterTextActive]}>
+                          {filter.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
                   </ScrollView>
                 )}
 
@@ -1629,7 +1881,9 @@ export default function CommunityScreen() {
                     <Text style={styles.createPostText}>
                       {postingBlocked
                         ? 'You are blocked from posting'
-                        : 'Share something with the community...'}
+                        : feedTab === 'question'
+                          ? 'Ask the community a question...'
+                          : 'Share something with the community...'}
                     </Text>
                   </View>
                   <View style={styles.mediaIcons}>
@@ -1639,7 +1893,7 @@ export default function CommunityScreen() {
 
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>
-                    Recent Posts
+                    {feedTab === 'question' ? 'Recent Questions' : 'Recent Posts'}
                   </Text>
                 </View>
               </>
@@ -1656,9 +1910,11 @@ export default function CommunityScreen() {
               ) : (
                 <View style={[styles.emptyState, { paddingTop: 40 }]}>
                   <Text style={styles.emptyStateText}>
-                    {!activeGroup || (generalGroup && activeGroup._id === generalGroup._id)
-                      ? 'No posts yet — be the first to share.'
-                      : 'No posts found'}
+                    {feedTab === 'question'
+                      ? 'No questions yet — be the first to ask.'
+                      : (!activeGroup || (generalGroup && activeGroup._id === generalGroup._id)
+                        ? 'No posts yet — be the first to share.'
+                        : 'No posts found')}
                   </Text>
                 </View>
               )
@@ -1675,7 +1931,14 @@ export default function CommunityScreen() {
                       />
                     </View>
                     <View>
-                      <Text style={styles.userName}>{post.author.displayName || 'User'}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Text style={styles.userName}>{post.author.displayName || 'User'}</Text>
+                        {post.author.isMentor && (
+                          <View style={{ backgroundColor: 'rgba(241,132,45,0.12)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 }}>
+                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#F1842D' }}>Mentor</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={styles.postTime}>{/* format date */ new Date(post.createdAt).toLocaleDateString()}</Text>
                     </View>
                   </View>
@@ -1683,6 +1946,18 @@ export default function CommunityScreen() {
                     <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
                   </TouchableOpacity>
                 </View>
+
+                {post.postType === 'question' && (
+                  <>
+                    {post.isResolved && (
+                      <View style={styles.resolvedBadge}>
+                        <Ionicons name="checkmark-circle" size={12} color="#2E7D32" />
+                        <Text style={styles.resolvedBadgeText}>Resolved</Text>
+                      </View>
+                    )}
+                    {!!post.title && <Text style={styles.questionTitle}>{post.title}</Text>}
+                  </>
+                )}
 
                 {/* Post Content */}
                 <Text style={styles.postContent}>{post.content}</Text>
@@ -1718,19 +1993,35 @@ export default function CommunityScreen() {
 
                 {/* Post Actions */}
                 <View style={styles.postActions}>
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => toggleLike(post._id)}
-                  >
-                    <Ionicons
-                      name={post.userLiked ? "heart" : "heart-outline"}
-                      size={22}
-                      color={post.userLiked ? "#EF4444" : colors.textSecondary}
-                    />
-                    <Text style={[styles.actionText, post.userLiked && styles.likedText]}>
-                      {post.likeCount}
-                    </Text>
-                  </TouchableOpacity>
+                  {post.postType === 'question' ? (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => votePost(post._id)}
+                    >
+                      <Ionicons
+                        name={post.userVoted ? "arrow-up-circle" : "arrow-up-circle-outline"}
+                        size={22}
+                        color={post.userVoted ? "#F1842D" : colors.textSecondary}
+                      />
+                      <Text style={[styles.actionText, post.userVoted && { color: '#F1842D' }]}>
+                        {post.voteCount || 0}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.actionButton}
+                      onPress={() => toggleLike(post._id)}
+                    >
+                      <Ionicons
+                        name={post.userLiked ? "heart" : "heart-outline"}
+                        size={22}
+                        color={post.userLiked ? "#EF4444" : colors.textSecondary}
+                      />
+                      <Text style={[styles.actionText, post.userLiked && styles.likedText]}>
+                        {post.likeCount}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
 
                   <TouchableOpacity
                     style={styles.actionButton}
@@ -1902,7 +2193,7 @@ export default function CommunityScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Create Post</Text>
+              <Text style={styles.modalTitle}>{feedTab === 'question' ? 'Ask a Question' : 'Create Post'}</Text>
               <TouchableOpacity
                 style={{ padding: 4 }}
                 onPress={() => {
@@ -1919,14 +2210,28 @@ export default function CommunityScreen() {
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             >
+              {feedTab === 'question' && (
+                <View>
+                  <Text style={styles.questionInputLabel}>Question title</Text>
+                  <TextInput
+                    style={styles.questionTitleInput}
+                    placeholder="What do you need help with?"
+                    placeholderTextColor={colors.textSecondary}
+                    value={questionTitle}
+                    onChangeText={setQuestionTitle}
+                    maxLength={200}
+                  />
+                </View>
+              )}
+
               <TextInput
                 style={styles.postInput}
-                placeholder="What's on your mind?"
+                placeholder={feedTab === 'question' ? 'Describe your question in detail...' : "What's on your mind?"}
                 placeholderTextColor={colors.textSecondary}
                 multiline
                 value={postContent}
                 onChangeText={setPostContent}
-                maxLength={500}
+                maxLength={5000}
               />
 
               {selectedMedia && (
@@ -1999,13 +2304,17 @@ export default function CommunityScreen() {
               <TouchableOpacity
                 style={[
                   styles.publishButton,
-                  (!postContent.trim() && !selectedMedia) && styles.publishButtonDisabled
+                  (feedTab === 'question'
+                    ? (questionTitle.trim().length < 5 || !postContent.trim())
+                    : (!postContent.trim() && !selectedMedia)) && styles.publishButtonDisabled
                 ]}
                 onPress={handleCreatePost}
-                disabled={!postContent.trim() && !selectedMedia}
+                disabled={feedTab === 'question'
+                  ? (questionTitle.trim().length < 5 || !postContent.trim())
+                  : (!postContent.trim() && !selectedMedia)}
                 activeOpacity={0.85}
               >
-                <Text style={styles.publishButtonText}>Publish Post</Text>
+                <Text style={styles.publishButtonText}>{feedTab === 'question' ? 'Post Question' : 'Publish Post'}</Text>
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
@@ -2317,6 +2626,7 @@ export default function CommunityScreen() {
       <CommentsModal
         visible={showCommentsModal}
         postId={activePostId}
+        post={activePost}
         onClose={() => setShowCommentsModal(false)}
       />
 

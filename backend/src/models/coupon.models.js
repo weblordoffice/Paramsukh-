@@ -75,6 +75,11 @@ const couponSchema = new mongoose.Schema({
     enum: ['all', 'specific', 'new', 'premium'],
     default: 'all'
   },
+  newUserDays: {
+    type: Number,
+    default: 30,
+    min: 1
+  },
   // Validity
   startDate: {
     type: Date,
@@ -140,6 +145,52 @@ couponSchema.methods.canUserUse = async function(userId, orderValue) {
     const isAllowed = this.applicableUsers.some(user => user.toString() === userId.toString());
     if (!isAllowed) {
       return { valid: false, message: 'Coupon not applicable for your account' };
+    }
+  }
+
+  if (this.userRestriction === 'new' || this.userRestriction === 'premium') {
+    const User = mongoose.model('User');
+    const user = await User.findById(userId)
+      .select('createdAt subscriptionPlan subscriptionStatus subscriptionEndDate')
+      .lean();
+
+    if (!user) {
+      return { valid: false, message: 'User not found' };
+    }
+
+    if (this.userRestriction === 'new') {
+      const allowedDays = Number(this.newUserDays) || 30;
+      const accountAgeMs = Date.now() - new Date(user.createdAt).getTime();
+      if (accountAgeMs > allowedDays * 24 * 60 * 60 * 1000) {
+        return { valid: false, message: `Coupon is only valid for accounts created within ${allowedDays} days` };
+      }
+    }
+
+    if (this.userRestriction === 'premium') {
+      const isPremiumByUser =
+        String(user.subscriptionPlan || '').toLowerCase() !== 'free'
+        && String(user.subscriptionStatus || '').toLowerCase() === 'active'
+        && (!user.subscriptionEndDate || new Date(user.subscriptionEndDate) >= new Date());
+
+      let hasActiveMembership = false;
+      try {
+        const { UserMembership } = await import('./userMembership.models.js');
+        hasActiveMembership = Boolean(await UserMembership.exists({
+          userId,
+          status: 'active',
+          $or: [
+            { endDate: { $gte: new Date() } },
+            { endDate: null },
+            { endDate: { $exists: false } },
+          ],
+        }));
+      } catch {
+        hasActiveMembership = false;
+      }
+
+      if (!isPremiumByUser && !hasActiveMembership) {
+        return { valid: false, message: 'Coupon is only valid for premium members' };
+      }
     }
   }
   

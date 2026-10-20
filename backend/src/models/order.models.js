@@ -93,6 +93,16 @@ const orderSchema = new mongoose.Schema({
     discount: Number,
     discountType: String
   },
+  // Automatically applied offer
+  offer: {
+    offerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Offer'
+    },
+    title: String,
+    discount: Number,
+    discountType: String
+  },
   // Referral points applied
   referralPoints: {
     points: { type: Number, default: 0 },

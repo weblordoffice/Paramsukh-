@@ -20,6 +20,7 @@ export const createCoupon = async (req, res) => {
       maxUsagePerUser,
       userRestriction,
       applicableUsers,
+      newUserDays,
       startDate,
       endDate,
       isActive
@@ -55,6 +56,7 @@ export const createCoupon = async (req, res) => {
       maxUsagePerUser: maxUsagePerUser !== undefined ? maxUsagePerUser : 1,
       userRestriction: userRestriction || 'all',
       applicableUsers: applicableUsers || [],
+      newUserDays: newUserDays !== undefined ? Number(newUserDays) : 30,
       startDate,
       endDate,
       isActive: isActive !== undefined ? isActive : true
@@ -82,7 +84,11 @@ export const createCoupon = async (req, res) => {
  */
 export const getAllCoupons = async (req, res) => {
   try {
-    const coupons = await Coupon.find().sort({ createdAt: -1 });
+    const coupons = await Coupon.find()
+      .populate('categories', 'name')
+      .populate('products', 'name')
+      .populate('shops', 'name')
+      .sort({ createdAt: -1 });
     return res.status(200).json({
       success: true,
       coupons

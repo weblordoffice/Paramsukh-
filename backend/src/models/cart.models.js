@@ -31,6 +31,59 @@ const cartItemSchema = new mongoose.Schema({
   }
 });
 
+const getEligibleSubtotalForRule = (items, subtotal, rule) => {
+  if (!rule) return 0;
+
+  if (rule.applicableOn === 'category') {
+    return items.reduce((sum, item) => {
+      const productCategory = item.product?.category?._id || item.product?.category || item.product;
+      const matchesCategory = (rule.categories || []).some((catId) =>
+        catId.toString() === productCategory?.toString()
+      );
+      return matchesCategory ? sum + (item.price * item.quantity) : sum;
+    }, 0);
+  }
+
+  if (rule.applicableOn === 'product') {
+    return items.reduce((sum, item) => {
+      const productId = item.product?._id || item.product;
+      const matchesProduct = (rule.products || []).some((prodId) =>
+        prodId.toString() === productId?.toString()
+      );
+      return matchesProduct ? sum + (item.price * item.quantity) : sum;
+    }, 0);
+  }
+
+  if (rule.applicableOn === 'shop') {
+    return items.reduce((sum, item) => {
+      const productShop = item.product?.shop?._id || item.product?.shop || item.product;
+      const matchesShop = (rule.shops || []).some((shopId) =>
+        shopId.toString() === productShop?.toString()
+      );
+      return matchesShop ? sum + (item.price * item.quantity) : sum;
+    }, 0);
+  }
+
+  return subtotal;
+};
+
+const calculateRuleDiscount = (rule, eligibleSubtotal) => {
+  if (!rule || eligibleSubtotal <= 0) return 0;
+  if (eligibleSubtotal < (rule.minOrderValue || 0)) return 0;
+
+  let discount = 0;
+  if (rule.discountType === 'percentage') {
+    discount = (eligibleSubtotal * rule.discountValue) / 100;
+    if (rule.maxDiscount && discount > rule.maxDiscount) {
+      discount = rule.maxDiscount;
+    }
+  } else {
+    discount = rule.discountValue;
+  }
+
+  return Math.min(discount, eligibleSubtotal);
+};
+
 const cartSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
@@ -43,6 +96,19 @@ const cartSchema = new mongoose.Schema({
   // Applied coupon
   coupon: {
     code: String,
+    discount: Number,
+    discountType: {
+      type: String,
+      enum: ['percentage', 'flat']
+    }
+  },
+  // Automatically applied offer (coupons take precedence)
+  offer: {
+    offerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Offer'
+    },
+    title: String,
     discount: Number,
     discountType: {
       type: String,
@@ -78,83 +144,46 @@ const cartSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Update cart totals
-cartSchema.methods.calculateTotals = function(coupon = null) {
-  // Calculate subtotal
+// Update cart totals. Coupons take precedence over automatic offers.
+cartSchema.methods.calculateTotals = function(coupon = null, offer = null) {
   this.subtotal = this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  
-  // Apply coupon discount
-  if (coupon) {
-    let eligibleSubtotal = 0;
-    
-    if (coupon.applicableOn === 'category') {
-      eligibleSubtotal = this.items.reduce((sum, item) => {
-        const productCategory = item.product?.category?._id || item.product?.category || item.product;
-        const matchesCategory = coupon.categories.some(catId => 
-          catId.toString() === productCategory.toString()
-        );
-        return matchesCategory ? sum + (item.price * item.quantity) : sum;
-      }, 0);
-    } 
-    else if (coupon.applicableOn === 'product') {
-      eligibleSubtotal = this.items.reduce((sum, item) => {
-        const productId = item.product?._id || item.product;
-        const matchesProduct = coupon.products.some(prodId => 
-          prodId.toString() === productId.toString()
-        );
-        return matchesProduct ? sum + (item.price * item.quantity) : sum;
-      }, 0);
-    } 
-    else if (coupon.applicableOn === 'shop') {
-      eligibleSubtotal = this.items.reduce((sum, item) => {
-        const productShop = item.product?.shop?._id || item.product?.shop || item.product;
-        const matchesShop = coupon.shops.some(shopId => 
-          shopId.toString() === productShop.toString()
-        );
-        return matchesShop ? sum + (item.price * item.quantity) : sum;
-      }, 0);
-    } 
-    else {
-      eligibleSubtotal = this.subtotal;
-    }
 
-    let discount = 0;
-    if (eligibleSubtotal >= (coupon.minOrderValue || 0)) {
-      if (coupon.discountType === 'percentage') {
-        discount = (eligibleSubtotal * coupon.discountValue) / 100;
-        if (coupon.maxDiscount && discount > coupon.maxDiscount) {
-          discount = coupon.maxDiscount;
-        }
-      } else {
-        discount = coupon.discountValue;
-      }
-      discount = Math.min(discount, this.subtotal);
-    }
+  let discount = 0;
+
+  if (coupon) {
+    const eligibleSubtotal = getEligibleSubtotalForRule(this.items, this.subtotal, coupon);
+    discount = calculateRuleDiscount(coupon, eligibleSubtotal);
 
     this.coupon = {
       code: coupon.code,
       discount: coupon.discountType === 'percentage' ? coupon.discountValue : discount,
       discountType: coupon.discountType
     };
-    this.discount = discount;
-  } else if (this.coupon && this.coupon.code) {
-    if (this.coupon.discountType === 'percentage') {
-      this.discount = Math.min((this.subtotal * this.coupon.discount) / 100, this.subtotal);
-    } else {
-      this.discount = Math.min(this.coupon.discount, this.subtotal);
-    }
+    this.offer = undefined;
+  } else if (offer) {
+    const eligibleSubtotal = getEligibleSubtotalForRule(this.items, this.subtotal, offer);
+    discount = calculateRuleDiscount(offer, eligibleSubtotal);
+
+    this.offer = {
+      offerId: offer._id,
+      title: offer.title,
+      discount,
+      discountType: offer.discountType
+    };
+    this.coupon = undefined;
   } else {
     this.coupon = undefined;
-    this.discount = 0;
+    this.offer = undefined;
   }
-  
+
+  this.discount = Math.min(discount, this.subtotal);
+
   // Calculate tax per-item using each product's taxRate
   this.tax = Math.round(this.items.reduce((sum, item) => {
     const itemNet = Math.max(0, (item.price * item.quantity) - (this.discount || 0) * (item.price * item.quantity / Math.max(1, this.subtotal)));
     return sum + (itemNet * ((item.taxRate ?? 18) / 100));
   }, 0) * 100) / 100;
-  
-  // Calculate total
+
   this.total = this.subtotal - this.discount + this.shippingCharge + this.tax;
   this.lastUpdated = Date.now();
 };
@@ -219,6 +248,7 @@ cartSchema.methods.updateQuantity = async function(itemId, quantity) {
 cartSchema.methods.clearCart = async function() {
   this.items = [];
   this.coupon = undefined;
+  this.offer = undefined;
   this.discount = 0;
   this.calculateTotals();
   await this.save();

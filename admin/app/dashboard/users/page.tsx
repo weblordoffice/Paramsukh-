@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { Search, UserPlus, Edit, Trash2, Mail, Phone, Crown, FileText, Loader2, Filter, Tags, Upload, Link2, Eye } from 'lucide-react';
+import { Search, UserPlus, Edit, Trash2, Mail, Phone, Crown, FileText, Loader2, Filter, Tags, Upload, Link2, Eye, Activity, AlertTriangle } from 'lucide-react';
 import UserModal from './UserModal';
 import AssessmentModal from './AssessmentModal';
 import BulkImportModal from './BulkImportModal';
@@ -24,6 +24,48 @@ interface User {
     tags?: string[];
 }
 
+interface AttentionUserSummary {
+    userId: string;
+    displayName: string;
+    email?: string | null;
+    phone?: string | null;
+    plan?: string;
+    lastActivityAt?: string | null;
+    inactiveDays?: number | null;
+    riskStatus: 'active' | 'at_risk' | 'inactive';
+    flags: string[];
+}
+
+interface AttentionData {
+    counts: {
+        total: number;
+        active: number;
+        atRisk: number;
+        inactive: number;
+        stalled: number;
+        overdueGoals: number;
+    };
+    top: AttentionUserSummary[];
+    users: Array<{
+        userId: string;
+        lastActivityAt?: string | null;
+        inactiveDays?: number | null;
+        riskStatus: 'active' | 'at_risk' | 'inactive';
+        flags: string[];
+    }>;
+}
+
+const FLAG_LABELS: Record<string, string> = {
+    account_inactive: 'Account disabled',
+    inactive_30d: 'Inactive 30+ days',
+    inactive_14d: 'Inactive 14+ days',
+    stalled_courses: 'Stalled courses',
+    not_started_courses: 'Not started',
+    overdue_goals: 'Overdue goals',
+    no_goals: 'No goals',
+    no_enrollments: 'No enrollments',
+};
+
 export default function UsersPage() {
     const router = useRouter();
     const [users, setUsers] = useState<User[]>([]);
@@ -32,6 +74,7 @@ export default function UsersPage() {
     const [selectedPlan, setSelectedPlan] = useState('all');
     const [selectedStatus, setSelectedStatus] = useState('all');
     const [selectedTag, setSelectedTag] = useState('all');
+    const [attention, setAttention] = useState<AttentionData | null>(null);
 
     // User Modal State
     const [isModalOpen, setIsModalOpen] = useState(false); // For User Create/Edit
@@ -46,7 +89,17 @@ export default function UsersPage() {
 
     useEffect(() => {
         fetchUsers();
+        fetchAttention();
     }, []);
+
+    const fetchAttention = async () => {
+        try {
+            const response = await apiClient.get('/api/user/analytics/admin/attention');
+            setAttention(response.data);
+        } catch (error) {
+            console.error('Error fetching user attention data:', error);
+        }
+    };
 
     const fetchUsers = async () => {
         try {
@@ -166,6 +219,24 @@ export default function UsersPage() {
         return matchesSearch && matchesPlan && matchesStatus && matchesTag;
     });
 
+    const attentionByUserId = new Map(
+        (attention?.users || []).map((item) => [String(item.userId), item])
+    );
+
+    const getRiskBadge = (status?: string) => {
+        if (!status) return { label: '—', className: 'bg-gray-100 text-gray-500' };
+        if (status === 'inactive') return { label: 'Inactive', className: 'bg-red-100 text-red-700' };
+        if (status === 'at_risk') return { label: 'At risk', className: 'bg-amber-100 text-amber-700' };
+        return { label: 'Active', className: 'bg-green-100 text-green-700' };
+    };
+
+    const formatLastActive = (value?: string | null) => {
+        if (!value) return 'No activity';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return 'No activity';
+        return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    };
+
     const getPlanColor = (plan: string) => {
         switch (plan?.toLowerCase()) {
             case 'free': return 'bg-gray-100 text-gray-700';
@@ -212,6 +283,72 @@ export default function UsersPage() {
                     </button>
                 </div>
             </div>
+
+            {/* Users Needing Attention */}
+            {attention && (
+                <div className="bg-white rounded-xl p-5 shadow-md">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <div>
+                            <h2 className="text-lg font-bold text-secondary flex items-center gap-2">
+                                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                                Users Needing Attention
+                            </h2>
+                            <p className="text-sm text-accent mt-1">Inactive users, stalled learners, and overdue goals.</p>
+                        </div>
+                        <span className="text-xs text-accent">{attention.counts.total} total users</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                        <div className="rounded-lg bg-green-50 p-3">
+                            <p className="text-xs font-semibold text-green-700 uppercase">Active</p>
+                            <p className="text-2xl font-bold text-green-700">{attention.counts.active}</p>
+                        </div>
+                        <div className="rounded-lg bg-amber-50 p-3">
+                            <p className="text-xs font-semibold text-amber-700 uppercase">At risk</p>
+                            <p className="text-2xl font-bold text-amber-700">{attention.counts.atRisk}</p>
+                        </div>
+                        <div className="rounded-lg bg-red-50 p-3">
+                            <p className="text-xs font-semibold text-red-700 uppercase">Inactive</p>
+                            <p className="text-2xl font-bold text-red-700">{attention.counts.inactive}</p>
+                        </div>
+                        <div className="rounded-lg bg-sky-50 p-3">
+                            <p className="text-xs font-semibold text-sky-700 uppercase">Stalled / Overdue</p>
+                            <p className="text-2xl font-bold text-sky-700">{attention.counts.stalled} / {attention.counts.overdueGoals}</p>
+                        </div>
+                    </div>
+
+                    {attention.top.length > 0 && (
+                        <div className="space-y-2">
+                            {attention.top.slice(0, 5).map((item) => (
+                                <div key={item.userId} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-secondary">{item.displayName}</p>
+                                        <p className="text-xs text-accent truncate">
+                                            {item.email || item.phone || 'No contact'} · last active {formatLastActive(item.lastActivityAt)}
+                                        </p>
+                                        {item.flags.length > 0 && (
+                                            <div className="flex flex-wrap gap-1 mt-1">
+                                                {item.flags.slice(0, 3).map((flag) => (
+                                                    <span key={flag} className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700">
+                                                        {FLAG_LABELS[flag] || flag}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => router.push(`/dashboard/users/${item.userId}`)}
+                                        className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5"
+                                    >
+                                        <Activity className="w-3.5 h-3.5" />
+                                        Track
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Search Bar */}
             <div className="bg-white rounded-xl p-4 shadow-md">
@@ -304,6 +441,12 @@ export default function UsersPage() {
                                     Status
                                 </th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-accent uppercase tracking-wider">
+                                    Last Active
+                                </th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-accent uppercase tracking-wider">
+                                    Risk
+                                </th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-accent uppercase tracking-wider">
                                     Joined
                                 </th>
                                 <th className="px-6 py-4 text-left text-xs font-semibold text-accent uppercase tracking-wider">
@@ -314,7 +457,7 @@ export default function UsersPage() {
                         <tbody className="divide-y divide-gray-200">
                             {filteredUsers.length === 0 ? (
                                 <tr>
-                                    <td colSpan={7} className="px-6 py-12 text-center text-accent">
+                                    <td colSpan={9} className="px-6 py-12 text-center text-accent">
                                         No users found
                                     </td>
                                 </tr>
@@ -370,10 +513,31 @@ export default function UsersPage() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-accent text-sm">
+                                            {formatLastActive(attentionByUserId.get(user._id)?.lastActivityAt)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {(() => {
+                                                const risk = attentionByUserId.get(user._id);
+                                                const badge = getRiskBadge(risk?.riskStatus);
+                                                return (
+                                                    <span className={`px-2 py-1 rounded text-xs font-semibold ${badge.className}`}>
+                                                        {badge.label}
+                                                    </span>
+                                                );
+                                            })()}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-accent text-sm">
                                             {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center space-x-2">
+                                                <button
+                                                    onClick={() => router.push(`/dashboard/users/${user._id}`)}
+                                                    className="p-2 text-primary hover:bg-primary/10 rounded-lg transition"
+                                                    title="Track user progress"
+                                                >
+                                                    <Activity className="w-4 h-4" />
+                                                </button>
                                                 <button
                                                     onClick={() => router.push(`/dashboard/memberships/${user._id}`)}
                                                     className="p-2 text-sky-600 hover:bg-sky-50 rounded-lg transition"

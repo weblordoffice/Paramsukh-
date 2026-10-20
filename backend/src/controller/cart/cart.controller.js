@@ -1,61 +1,109 @@
 import Cart from '../../models/cart.models.js';
 import Product from '../../models/product.models.js';
 import Coupon from '../../models/coupon.models.js';
+import { Offer } from '../../models/offer.models.js';
 
 /**
- * Calculates the subtotal of items in the cart that match the coupon's restrictions.
+ * Calculates the subtotal of items in the cart that match a coupon/offer restriction.
  */
-const getEligibleSubtotal = (cart, coupon) => {
-  if (coupon.applicableOn === 'category') {
+const getEligibleSubtotalForRule = (cart, rule) => {
+  if (!rule) return 0;
+
+  if (rule.applicableOn === 'category') {
     return cart.items.reduce((sum, item) => {
       const productCategory = item.product?.category?._id || item.product?.category || item.product;
-      const matchesCategory = coupon.categories.some(catId => 
-        catId.toString() === productCategory.toString()
+      const matchesCategory = (rule.categories || []).some(catId =>
+        catId.toString() === productCategory?.toString()
       );
       return matchesCategory ? sum + (item.price * item.quantity) : sum;
     }, 0);
-  } 
-  else if (coupon.applicableOn === 'product') {
+  }
+
+  if (rule.applicableOn === 'product') {
     return cart.items.reduce((sum, item) => {
       const productId = item.product?._id || item.product;
-      const matchesProduct = coupon.products.some(prodId => 
-        prodId.toString() === productId.toString()
+      const matchesProduct = (rule.products || []).some(prodId =>
+        prodId.toString() === productId?.toString()
       );
       return matchesProduct ? sum + (item.price * item.quantity) : sum;
     }, 0);
-  } 
-  else if (coupon.applicableOn === 'shop') {
+  }
+
+  if (rule.applicableOn === 'shop') {
     return cart.items.reduce((sum, item) => {
       const productShop = item.product?.shop?._id || item.product?.shop || item.product;
-      const matchesShop = coupon.shops.some(shopId => 
-        shopId.toString() === productShop.toString()
+      const matchesShop = (rule.shops || []).some(shopId =>
+        shopId.toString() === productShop?.toString()
       );
       return matchesShop ? sum + (item.price * item.quantity) : sum;
     }, 0);
-  } 
+  }
+
   return cart.subtotal;
 };
 
+const calculateRuleDiscount = (rule, eligibleSubtotal) => {
+  if (!rule || eligibleSubtotal <= 0) return 0;
+  if (eligibleSubtotal < (rule.minOrderValue || 0)) return 0;
+
+  let discount = 0;
+  if (rule.discountType === 'percentage') {
+    discount = (eligibleSubtotal * rule.discountValue) / 100;
+    if (rule.maxDiscount && discount > rule.maxDiscount) {
+      discount = rule.maxDiscount;
+    }
+  } else {
+    discount = rule.discountValue;
+  }
+
+  return Math.min(discount, eligibleSubtotal);
+};
+
+const findBestOfferForCart = async (cart) => {
+  const now = new Date();
+  const offers = await Offer.find({
+    isActive: true,
+    startDate: { $lte: now },
+    endDate: { $gte: now },
+  })
+    .sort({ priority: -1, createdAt: -1 })
+    .lean();
+
+  let bestOffer = null;
+  let bestDiscount = 0;
+
+  for (const offer of offers) {
+    const eligibleSubtotal = getEligibleSubtotalForRule(cart, offer);
+    const discount = calculateRuleDiscount(offer, eligibleSubtotal);
+    if (discount > bestDiscount) {
+      bestDiscount = discount;
+      bestOffer = offer;
+    }
+  }
+
+  return bestDiscount > 0 ? bestOffer : null;
+};
+
 /**
- * Helper to dynamically load the active coupon from DB and recalculate cart totals.
+ * Helper to dynamically load the active coupon/offer from DB and recalculate cart totals.
  */
 export const recalculateCartTotals = async (cart) => {
+  await cart.populate({
+    path: 'items.product',
+    select: 'name images pricing inventory shop category'
+  });
+
   if (cart.coupon && cart.coupon.code) {
     const coupon = await Coupon.findOne({ code: cart.coupon.code.toUpperCase(), isActive: true });
     if (coupon) {
-      await cart.populate({
-        path: 'items.product',
-        select: 'name images pricing inventory shop category'
-      });
       cart.calculateTotals(coupon);
-    } else {
-      cart.coupon = undefined;
-      cart.discount = 0;
-      cart.calculateTotals();
+      return cart;
     }
-  } else {
-    cart.calculateTotals();
+    cart.coupon = undefined;
   }
+
+  const bestOffer = await findBestOfferForCart(cart);
+  cart.calculateTotals(null, bestOffer);
   return cart;
 };
 
@@ -316,7 +364,7 @@ export const applyCoupon = async (req, res) => {
       select: 'name images pricing inventory shop category'
     });
 
-    const eligibleSubtotal = getEligibleSubtotal(cart, coupon);
+    const eligibleSubtotal = getEligibleSubtotalForRule(cart, coupon);
     if (eligibleSubtotal === 0) {
       return res.status(400).json({
         success: false,
@@ -366,8 +414,7 @@ export const removeCoupon = async (req, res) => {
     }
 
     cart.coupon = undefined;
-    cart.discount = 0;
-    cart.calculateTotals();
+    await recalculateCartTotals(cart);
     await cart.save();
 
     await cart.populate({

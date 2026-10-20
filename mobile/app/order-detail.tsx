@@ -285,7 +285,13 @@ export default function OrderDetailScreen() {
                             <Text style={styles.summaryValue}>₹{currentOrder.pricing?.shippingCharge ?? 0}</Text>
                         </View>
                         <View style={styles.summaryRow}>
-                            <Text style={styles.summaryLabel}>Discount</Text>
+                            <Text style={styles.summaryLabel}>
+                                {currentOrder.coupon?.code
+                                    ? `Coupon (${currentOrder.coupon.code})`
+                                    : currentOrder.offer?.title
+                                        ? `Offer (${currentOrder.offer.title})`
+                                        : 'Discount'}
+                            </Text>
                             <Text style={styles.summaryValue}>-₹{currentOrder.pricing?.discount ?? 0}</Text>
                         </View>
                         <View style={styles.divider} />

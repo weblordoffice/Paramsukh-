@@ -79,7 +79,7 @@ const groupMemberSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['member', 'moderator', 'admin'],
+    enum: ['member', 'mentor', 'moderator', 'admin'],
     default: 'member'
   },
   joinedAt: {
@@ -115,6 +115,46 @@ const postSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Group',
     required: true
+  },
+  postType: {
+    type: String,
+    enum: ['discussion', 'question'],
+    default: 'discussion',
+    index: true
+  },
+  title: {
+    type: String,
+    trim: true,
+    maxlength: 200,
+    default: null
+  },
+  isResolved: {
+    type: Boolean,
+    default: false
+  },
+  acceptedCommentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Comment',
+    default: null
+  },
+  assignedMentorId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'MentorProfile',
+    default: null
+  },
+  votes: [{
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  voteCount: {
+    type: Number,
+    default: 0
   },
   content: {
     type: String,
@@ -213,6 +253,52 @@ const commentSchema = new mongoose.Schema({
   timestamps: true
 });
 
+// Mentor Profile Schema (community experts assigned to groups)
+const mentorProfileSchema = new mongoose.Schema({
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    unique: true,
+    index: true,
+  },
+  headline: {
+    type: String,
+    trim: true,
+    maxlength: 120,
+    default: '',
+  },
+  bio: {
+    type: String,
+    trim: true,
+    maxlength: 2000,
+    default: '',
+  },
+  expertise: [{
+    type: String,
+    trim: true,
+  }],
+  languages: [{
+    type: String,
+    trim: true,
+  }],
+  isVerified: {
+    type: Boolean,
+    default: false,
+  },
+  isActive: {
+    type: Boolean,
+    default: true,
+    index: true,
+  },
+  groupIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Group',
+  }],
+}, {
+  timestamps: true
+});
+
 // Indexes
 groupSchema.index({ courseId: 1 }, { unique: true, sparse: true });  // Prevent duplicate course groups
 groupSchema.index(
@@ -246,11 +332,17 @@ groupSchema.index(
 groupMemberSchema.index({ groupId: 1, userId: 1 }, { unique: true });
 groupMemberSchema.index({ userId: 1 });
 postSchema.index({ groupId: 1, createdAt: -1 });
+postSchema.index({ groupId: 1, postType: 1, createdAt: -1 });
+postSchema.index({ groupId: 1, postType: 1, isResolved: 1, createdAt: -1 });
+postSchema.index({ assignedMentorId: 1, isResolved: 1 });
 postSchema.index({ userId: 1 });
 commentSchema.index({ postId: 1, createdAt: -1 });
 commentSchema.index({ parentCommentId: 1, createdAt: 1 });
+mentorProfileSchema.index({ groupIds: 1, isActive: 1 });
+mentorProfileSchema.index({ expertise: 1 });
 
 export const Group = mongoose.model("Group", groupSchema);
 export const GroupMember = mongoose.model("GroupMember", groupMemberSchema);
 export const Post = mongoose.model("Post", postSchema);
 export const Comment = mongoose.model("Comment", commentSchema);
+export const MentorProfile = mongoose.model("MentorProfile", mentorProfileSchema);

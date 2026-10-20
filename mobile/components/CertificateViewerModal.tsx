@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, Share } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Share, Linking, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../hooks/useTheme';
 
@@ -8,6 +8,8 @@ interface CertificateData {
   issuedTo: string;
   courseName: string;
   issuedAt: string;
+  viewUrl?: string;
+  verificationUrl?: string;
 }
 
 interface CertificateViewerModalProps {
@@ -156,6 +158,35 @@ export default function CertificateViewerModal({
       marginLeft: 8,
       fontSize: 16
     },
+    downloadBtn: {
+      backgroundColor: colors.primary,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 12,
+      borderRadius: 12,
+      gap: 8
+    },
+    downloadText: {
+      color: '#FFFFFF',
+      fontWeight: 'bold',
+      fontSize: 16
+    },
+    verifyBtn: {
+      borderWidth: 1.5,
+      borderColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 11,
+      borderRadius: 12,
+      flexDirection: 'row',
+      gap: 8
+    },
+    verifyText: {
+      color: colors.primary,
+      fontWeight: '700',
+      fontSize: 14
+    },
     closeBtn: {
       borderWidth: 1.5,
       borderColor: colors.border,
@@ -175,11 +206,23 @@ export default function CertificateViewerModal({
 
   const handleShare = async () => {
     try {
+      const verificationLine = certificate.verificationUrl
+        ? `\nVerify: ${certificate.verificationUrl}`
+        : '';
       await Share.share({
-        message: `I successfully completed "${certificate.courseName}" on ParamSukh Gurukul! Verifiable Certificate ID: ${certificate.certificateId}`
+        message: `I successfully completed "${certificate.courseName}" on ParamSukh Gurukul! Verifiable Certificate ID: ${certificate.certificateId}${verificationLine}`
       });
     } catch (error) {
       console.error('Error sharing certificate:', error);
+    }
+  };
+
+  const openLink = async (url?: string) => {
+    if (!url) return;
+    try {
+      await Linking.openURL(url);
+    } catch {
+      // Keep the modal usable if the device cannot open the link.
     }
   };
 
@@ -197,6 +240,11 @@ export default function CertificateViewerModal({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
+        <ScrollView
+          style={{ width: '100%' }}
+          contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.container}>
 
           {/* Certificate Frame */}
@@ -241,6 +289,20 @@ export default function CertificateViewerModal({
 
           {/* Action Buttons */}
           <View style={styles.actions}>
+            {!!certificate.viewUrl && (
+              <TouchableOpacity style={styles.downloadBtn} onPress={() => openLink(certificate.viewUrl)}>
+                <Ionicons name="download-outline" size={20} color="#FFFFFF" />
+                <Text style={styles.downloadText}>Download / Print</Text>
+              </TouchableOpacity>
+            )}
+
+            {!!certificate.verificationUrl && (
+              <TouchableOpacity style={styles.verifyBtn} onPress={() => openLink(certificate.verificationUrl)}>
+                <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+                <Text style={styles.verifyText}>Verify Online</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity style={styles.shareBtn} onPress={handleShare}>
               <Ionicons name="share-social-outline" size={20} color="#FFFFFF" />
               <Text style={styles.shareText}>Share Achievement</Text>
@@ -252,6 +314,7 @@ export default function CertificateViewerModal({
           </View>
 
         </View>
+        </ScrollView>
       </View>
     </Modal>
   );

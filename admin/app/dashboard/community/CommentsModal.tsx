@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { X, Trash2, MessageCircle } from 'lucide-react';
+import { X, Trash2, MessageCircle, CheckCircle2 } from 'lucide-react';
 
 interface Comment {
     _id: string;
@@ -12,19 +12,23 @@ interface Comment {
     parentCommentId?: string | null;
     replyCount?: number;
     likeCount?: number;
+    isAccepted?: boolean;
     createdAt: string;
 }
 
 interface CommentsModalProps {
     isOpen: boolean;
     postId: string | null;
+    postType?: 'discussion' | 'question';
+    onAccepted?: () => void;
     onClose: () => void;
 }
 
-export default function CommentsModal({ isOpen, postId, onClose }: CommentsModalProps) {
+export default function CommentsModal({ isOpen, postId, postType, onAccepted, onClose }: CommentsModalProps) {
     const [comments, setComments] = useState<Comment[]>([]);
     const [loading, setLoading] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [acceptingId, setAcceptingId] = useState<string | null>(null);
 
     useEffect(() => {
         if (isOpen && postId) {
@@ -59,6 +63,21 @@ export default function CommentsModal({ isOpen, postId, onClose }: CommentsModal
         }
     };
 
+    const handleAccept = async (commentId: string) => {
+        if (!postId) return;
+        setAcceptingId(commentId);
+        try {
+            await apiClient.patch(`/api/community/admin/posts/${postId}/accept-answer`, { commentId });
+            toast.success('Answer accepted');
+            await fetchComments();
+            onAccepted?.();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to accept answer');
+        } finally {
+            setAcceptingId(null);
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -67,7 +86,7 @@ export default function CommentsModal({ isOpen, postId, onClose }: CommentsModal
                 <div className="sticky top-0 z-10 bg-white border-b px-6 py-4 flex items-center justify-between rounded-t-xl">
                     <h2 className="text-xl font-bold text-secondary flex items-center gap-2">
                         <MessageCircle className="w-5 h-5" />
-                        Comments ({comments.length})
+                        {postType === 'question' ? 'Answers' : 'Comments'} ({comments.length})
                     </h2>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg" title="Close">
                         <X className="w-5 h-5" />
@@ -84,12 +103,18 @@ export default function CommentsModal({ isOpen, postId, onClose }: CommentsModal
                             <div key={comment._id} className="border border-gray-200 rounded-lg p-4">
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-wrap">
                                             <span className="font-semibold text-secondary">
                                                 {comment.userId?.displayName || 'Unknown User'}
                                             </span>
                                             {comment.parentCommentId && (
                                                 <span className="text-xs bg-gray-100 text-accent px-2 py-0.5 rounded">Reply</span>
+                                            )}
+                                            {comment.isAccepted && (
+                                                <span className="text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded flex items-center gap-1">
+                                                    <CheckCircle2 className="w-3 h-3" />
+                                                    Accepted
+                                                </span>
                                             )}
                                         </div>
                                         <p className="text-sm text-accent mt-0.5">
@@ -101,14 +126,26 @@ export default function CommentsModal({ isOpen, postId, onClose }: CommentsModal
                                             <span>{comment.replyCount || 0} replies</span>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => handleDelete(comment._id)}
-                                        disabled={deletingId === comment._id}
-                                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
-                                        title="Delete comment"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        {postType === 'question' && !comment.isAccepted && (
+                                            <button
+                                                onClick={() => handleAccept(comment._id)}
+                                                disabled={acceptingId === comment._id}
+                                                className="p-2 text-green-700 hover:bg-green-50 rounded-lg transition disabled:opacity-50"
+                                                title="Accept answer"
+                                            >
+                                                <CheckCircle2 className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => handleDelete(comment._id)}
+                                            disabled={deletingId === comment._id}
+                                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                                            title="Delete comment"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         ))

@@ -13,12 +13,14 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import AIChatPanel from './AIChatPanel';
 import { useAIAssistantStore } from '../store/aiAssistantStore';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../hooks/useTheme';
 import type { ThemeColors } from '../theme/colors';
+import { buildAIScreenContext } from '../utils/aiScreenContext';
 
 const HIDDEN_PATHS = new Set([
   '/signin',
@@ -56,7 +58,7 @@ export default function AIAssistantWidget() {
   const initialWidth = winWidth || 390;
   const initialHeight = winHeight || 844;
   const user = useAuthStore((state) => state.user);
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   const widgetPosition = useAIAssistantStore((state) => state.widgetPosition);
@@ -75,6 +77,10 @@ export default function AIAssistantWidget() {
   const isTabScreen = useMemo(
     () => TAB_SCREEN_PATHS.has(pathname) || TAB_SCREEN_PATHS.has(normalizedPath),
     [pathname, normalizedPath]
+  );
+  const aiContext = useMemo(
+    () => buildAIScreenContext(normalizedPath),
+    [normalizedPath]
   );
   const bottomOffset = useMemo(
     () => (isTabScreen ? 94 + insets.bottom : 28 + insets.bottom),
@@ -257,58 +263,15 @@ export default function AIAssistantWidget() {
       <Modal
         visible={isOpen}
         animationType="slide"
-        transparent
         onRequestClose={() => setIsOpen(false)}
       >
-        <View style={styles.overlay}>
-          <Pressable style={styles.overlayDismiss} onPress={() => setIsOpen(false)} />
-          <View
-            style={[
-              styles.sheetComingSoon,
-              { paddingBottom: Math.max(insets.bottom, 16) + 8 },
-            ]}
-          >
-            <LinearGradient
-              colors={
-                isDark
-                  ? ['rgba(41, 37, 36, 0.95)', 'rgba(28, 25, 23, 1)']
-                  : ['rgba(255,248,239,0.95)', 'rgba(248,243,236,1)']
-              }
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.sheetGlow}
-            />
-            <View style={styles.handle} />
-
-            <View style={styles.comingSoon}>
-              <LinearGradient
-                colors={['#FFB56F', '#F47A20', '#D9570B']}
-                locations={[0, 0.55, 1]}
-                start={{ x: 0.1, y: 0 }}
-                end={{ x: 0.9, y: 1 }}
-                style={styles.comingSoonIcon}
-              >
-                <Ionicons name="sparkles" size={34} color="#FFF8EF" />
-              </LinearGradient>
-
-              <Text style={styles.comingSoonTitle}>ParamSukh AI</Text>
-
-              <View style={styles.comingSoonBadge}>
-                <Ionicons name="time-outline" size={14} color={colors.primary} />
-                <Text style={styles.comingSoonBadgeText}>Coming Soon</Text>
-              </View>
-
-              <Text style={styles.comingSoonText}>
-                Our AI guide is on the way. Soon you&apos;ll be able to ask questions and get
-                guidance tailored to your journey right here.
-              </Text>
-
-              <Pressable style={styles.comingSoonButton} onPress={() => setIsOpen(false)}>
-                <Text style={styles.comingSoonButtonText}>Got it</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+          <AIChatPanel
+            compact
+            onClose={() => setIsOpen(false)}
+            context={aiContext}
+          />
+        </SafeAreaView>
       </Modal>
     </>
   );

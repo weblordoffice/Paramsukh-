@@ -6,6 +6,7 @@ export interface Author {
     displayName: string;
     photoURL?: string;
     subscriptionPlan?: string;
+    isMentor?: boolean;
 }
 
 export interface Post {
@@ -14,7 +15,14 @@ export interface Post {
     images?: string[];
     video?: string;
     audio?: string;
-    postType?: 'image' | 'video' | 'audio' | 'text';
+    postType?: 'discussion' | 'question';
+    title?: string | null;
+    isResolved?: boolean;
+    acceptedCommentId?: string | null;
+    assignedMentorId?: string | null;
+    voteCount?: number;
+    userVoted?: boolean;
+    viewerCanManageQuestion?: boolean;
     likeCount: number;
     commentCount: number;
     isPinned: boolean;
@@ -24,6 +32,60 @@ export interface Post {
     updatedAt: string;
     timeAgo?: string; // Calculated on frontend
     tags?: string[];
+}
+
+export type CommunityPostType = 'discussion' | 'question';
+export type QuestionFilter = 'all' | 'unanswered' | 'resolved' | 'mine';
+export type LeaderboardPeriod = 'weekly' | 'monthly' | 'all';
+
+export interface LeaderboardEntry {
+    rank: number;
+    userId: string;
+    displayName: string;
+    photoURL?: string | null;
+    points: number;
+    level: string;
+    isCurrentUser?: boolean;
+}
+
+export interface LeaderboardMe {
+    rank: number | null;
+    points: number;
+    level: string;
+}
+
+export type MentorQuestionFilter = 'all' | 'unanswered' | 'resolved';
+
+export interface MentorGroup {
+    _id: string;
+    name: string;
+    groupType?: string;
+    category?: string | null;
+    planSlug?: string | null;
+}
+
+export interface Mentor {
+    _id: string;
+    userId: string;
+    displayName: string;
+    photoURL?: string | null;
+    headline?: string;
+    bio?: string;
+    expertise?: string[];
+    languages?: string[];
+    groups: MentorGroup[];
+    isVerified?: boolean;
+    isActive?: boolean;
+}
+
+export interface MentorDetail {
+    mentor: Mentor;
+    stats: {
+        questionsAssigned: number;
+        answersGiven: number;
+    };
+    recentQuestions: Post[];
+    recentPosts: Post[];
 }
 
 export interface Group {
@@ -67,8 +129,11 @@ export interface PlanGroup {
 export interface Comment {
     _id: string;
     content: string;
+    parentCommentId?: string | null;
     author: Author;
     likeCount: number;
+    replyCount?: number;
+    isAccepted?: boolean;
     userLiked: boolean;
     createdAt: string;
     timeAgo?: string;
@@ -78,34 +143,68 @@ interface CommunityState {
     posts: Post[];
     groups: Group[];
     planGroups: PlanGroup[];
+    mentorGroups: Group[];
     generalGroup: Group | null;
     currentGroup: Group | null;
     comments: { [postId: string]: Comment[] };
+    leaderboard: LeaderboardEntry[];
+    leaderboardMe: LeaderboardMe | null;
+    leaderboardLoading: boolean;
+    mentors: Mentor[];
+    mentorDetail: MentorDetail | null;
+    mentorMe: { isMentor: boolean; profile: Mentor | null };
+    mentorQuestions: Post[];
+    mentorLoading: boolean;
+    mentorError: string | null;
     isLoading: boolean;
     error: string | null;
     communityAccessDenied: boolean;
     postingBlocked: boolean;
 
     fetchMyGroups: () => Promise<void>;
-    fetchGroupPosts: (groupId: string, page?: number) => Promise<void>;
-    fetchAllPosts: (page?: number) => Promise<void>;
-    createPost: (groupId: string, content: string, images?: string[], tags?: string[]) => Promise<boolean>;
+    fetchGroupPosts: (groupId: string, page?: number, postType?: CommunityPostType, status?: QuestionFilter) => Promise<void>;
+    fetchAllPosts: (page?: number, postType?: CommunityPostType, status?: QuestionFilter) => Promise<void>;
+    createPost: (
+        groupId: string,
+        content: string,
+        images?: string[],
+        tags?: string[],
+        options?: { postType?: CommunityPostType; title?: string; assignedMentorId?: string | null }
+    ) => Promise<boolean>;
     togglePostLike: (postId: string) => Promise<void>;
+    votePost: (postId: string) => Promise<void>;
+    resolveQuestion: (postId: string, resolved?: boolean) => Promise<boolean>;
+    acceptAnswer: (postId: string, commentId: string) => Promise<boolean>;
     deletePost: (postId: string) => Promise<void>;
     uploadMedia: (uri: string, type: 'image' | 'video') => Promise<string | null>;
     fetchPostComments: (postId: string) => Promise<void>;
-    addComment: (postId: string, content: string) => Promise<boolean>;
+    addComment: (postId: string, content: string, parentCommentId?: string | null) => Promise<boolean>;
     toggleCommentLike: (commentId: string, postId: string) => Promise<void>;
     deleteComment: (commentId: string, postId: string) => Promise<boolean>;
+    fetchLeaderboard: (params?: { period?: LeaderboardPeriod; groupId?: string | null }) => Promise<void>;
+    fetchMentors: () => Promise<void>;
+    fetchMentorDetail: (userId: string) => Promise<void>;
+    fetchMentorMe: () => Promise<void>;
+    fetchMentorQuestions: (params?: { status?: MentorQuestionFilter; assigned?: boolean }) => Promise<void>;
 }
 
 export const useCommunityStore = create<CommunityState>((set, get) => ({
     posts: [],
     groups: [],
     planGroups: [],
+    mentorGroups: [],
     generalGroup: null,
     currentGroup: null,
     comments: {},
+    leaderboard: [],
+    leaderboardMe: null,
+    leaderboardLoading: false,
+    mentors: [],
+    mentorDetail: null,
+    mentorMe: { isMentor: false, profile: null },
+    mentorQuestions: [],
+    mentorLoading: false,
+    mentorError: null,
     isLoading: false,
     error: null,
     communityAccessDenied: false,
@@ -120,6 +219,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 set({
                     groups: response.data?.groups || [],
                     planGroups: response.data?.planGroups || [],
+                    mentorGroups: response.data?.mentorGroups || [],
                     generalGroup: response.data?.generalGroup || null,
                     isLoading: false,
                     communityAccessDenied: false,
@@ -127,7 +227,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                     error: null
                 });
             } else {
-                set({ groups: [], planGroups: [], generalGroup: null, isLoading: false, error: null });
+                set({ groups: [], planGroups: [], mentorGroups: [], generalGroup: null, isLoading: false, error: null });
             }
         } catch (error: any) {
             // Handle 403 - user doesn't have community access
@@ -135,22 +235,31 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 set({ 
                     groups: [], 
                     planGroups: [],
+                    mentorGroups: [],
                     generalGroup: null,
                     isLoading: false, 
                     error: null,
                     communityAccessDenied: true 
                 });
             } else {
-                set({ groups: [], planGroups: [], generalGroup: null, isLoading: false, error: error?.message || 'Failed to load groups' });
+                set({ groups: [], planGroups: [], mentorGroups: [], generalGroup: null, isLoading: false, error: error?.message || 'Failed to load groups' });
             }
         }
     },
 
-    fetchGroupPosts: async (groupId: string, page = 1) => {
+    fetchGroupPosts: async (groupId: string, page = 1, postType: CommunityPostType = 'discussion', status: QuestionFilter = 'all') => {
         set({ isLoading: true, error: null });
         try {
+            const params: Record<string, string | number> = { page, postType };
+            if (postType === 'question' && status !== 'all') {
+                if (status === 'mine') {
+                    params.mine = 'true';
+                } else {
+                    params.status = status;
+                }
+            }
             const response = await apiClient.get(`${API_URL}/community/groups/${groupId}/posts`, {
-                params: { page }
+                params
             });
             if (response.data?.success) {
                 const newPosts = response.data?.posts ?? [];
@@ -171,11 +280,19 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         }
     },
 
-    fetchAllPosts: async (page = 1) => {
+    fetchAllPosts: async (page = 1, postType: CommunityPostType = 'discussion', status: QuestionFilter = 'all') => {
         set({ isLoading: true, error: null });
         try {
+            const params: Record<string, string | number> = { page, postType };
+            if (postType === 'question' && status !== 'all') {
+                if (status === 'mine') {
+                    params.mine = 'true';
+                } else {
+                    params.status = status;
+                }
+            }
             const response = await apiClient.get(`${API_URL}/community/feed`, {
-                params: { page }
+                params
             });
             if (response.data?.success) {
                 const newPosts = response.data?.posts ?? [];
@@ -237,13 +354,22 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         }
     },
 
-    createPost: async (groupId: string, content: string, images?: string[], tags?: string[]) => {
+    createPost: async (
+        groupId: string,
+        content: string,
+        images?: string[],
+        tags?: string[],
+        options?: { postType?: CommunityPostType; title?: string; assignedMentorId?: string | null }
+    ) => {
         set({ isLoading: true, error: null });
         try {
             const response = await apiClient.post(`${API_URL}/community/groups/${groupId}/posts`, {
                 content,
                 images,
-                tags
+                tags,
+                postType: options?.postType || 'discussion',
+                title: options?.title,
+                assignedMentorId: options?.assignedMentorId || undefined,
             });
 
             if (response.data?.success) {
@@ -307,6 +433,75 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         }
     },
 
+    votePost: async (postId: string) => {
+        const previousPosts = get().posts;
+
+        set(state => ({
+            posts: state.posts.map(p => {
+                if (p._id !== postId) return p;
+                return {
+                    ...p,
+                    userVoted: !p.userVoted,
+                    voteCount: Math.max(0, (p.voteCount || 0) + (p.userVoted ? -1 : 1)),
+                };
+            })
+        }));
+
+        try {
+            const response = await apiClient.post(`${API_URL}/community/posts/${postId}/vote`);
+            if (response.data?.success) {
+                set(state => ({
+                    posts: state.posts.map(p => p._id === postId
+                        ? { ...p, userVoted: response.data.voted, voteCount: response.data.voteCount }
+                        : p)
+                }));
+            }
+        } catch (error) {
+            set({ posts: previousPosts });
+        }
+    },
+
+    resolveQuestion: async (postId: string, resolved = true) => {
+        try {
+            const response = await apiClient.patch(`${API_URL}/community/posts/${postId}/resolve`, { resolved });
+            if (response.data?.success) {
+                set(state => ({
+                    posts: state.posts.map(p => p._id === postId
+                        ? { ...p, isResolved: response.data.isResolved, acceptedCommentId: response.data.acceptedCommentId }
+                        : p)
+                }));
+                return true;
+            }
+            return false;
+        } catch (error) {
+            return false;
+        }
+    },
+
+    acceptAnswer: async (postId: string, commentId: string) => {
+        try {
+            const response = await apiClient.patch(`${API_URL}/community/posts/${postId}/accept-answer`, { commentId });
+            if (response.data?.success) {
+                set(state => ({
+                    posts: state.posts.map(p => p._id === postId
+                        ? { ...p, isResolved: true, acceptedCommentId: response.data.acceptedCommentId }
+                        : p),
+                    comments: {
+                        ...state.comments,
+                        [postId]: (state.comments[postId] || []).map(c => ({
+                            ...c,
+                            isAccepted: c._id === commentId,
+                        })),
+                    },
+                }));
+                return true;
+            }
+            return false;
+        } catch (error) {
+            return false;
+        }
+    },
+
     deletePost: async (postId: string) => {
         // Optimistic update
         const previousPosts = get().posts;
@@ -337,10 +532,11 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         }
     },
 
-    addComment: async (postId: string, content: string) => {
+    addComment: async (postId: string, content: string, parentCommentId?: string | null) => {
         try {
             const response = await apiClient.post(`${API_URL}/community/posts/${postId}/comments`, {
-                content
+                content,
+                parentCommentId: parentCommentId || undefined,
             });
 
             if (response.data?.success) {
@@ -408,5 +604,96 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         } catch (error) {
             return false;
         }
-    }
+    },
+
+    fetchLeaderboard: async ({ period = 'all', groupId = null } = {}) => {
+        set({ leaderboardLoading: true });
+        try {
+            const params: Record<string, string> = { period };
+            if (groupId) params.groupId = groupId;
+
+            const response = await apiClient.get(`${API_URL}/community/leaderboard`, { params });
+            if (response.data?.success) {
+                set({
+                    leaderboard: response.data.leaderboard || [],
+                    leaderboardMe: response.data.me || null,
+                    leaderboardLoading: false,
+                });
+            } else {
+                set({ leaderboard: [], leaderboardMe: null, leaderboardLoading: false });
+            }
+        } catch (error) {
+            set({ leaderboard: [], leaderboardMe: null, leaderboardLoading: false });
+        }
+    },
+
+    fetchMentors: async () => {
+        set({ mentorLoading: true, mentorError: null });
+        try {
+            const response = await apiClient.get(`${API_URL}/community/mentors`);
+            set({
+                mentors: response.data?.mentors || [],
+                mentorLoading: false,
+            });
+        } catch (error: any) {
+            set({
+                mentors: [],
+                mentorLoading: false,
+                mentorError: error.response?.data?.message || 'Failed to load mentors',
+            });
+        }
+    },
+
+    fetchMentorDetail: async (userId: string) => {
+        set({ mentorLoading: true, mentorError: null, mentorDetail: null });
+        try {
+            const response = await apiClient.get(`${API_URL}/community/mentors/${userId}`);
+            set({
+                mentorDetail: response.data?.success ? response.data : null,
+                mentorLoading: false,
+            });
+        } catch (error: any) {
+            set({
+                mentorDetail: null,
+                mentorLoading: false,
+                mentorError: error.response?.data?.message || 'Failed to load mentor profile',
+            });
+        }
+    },
+
+    fetchMentorMe: async () => {
+        try {
+            const response = await apiClient.get(`${API_URL}/community/mentor/me`);
+            set({
+                mentorMe: {
+                    isMentor: response.data?.isMentor === true,
+                    profile: response.data?.profile || null,
+                },
+            });
+        } catch (error) {
+            set({ mentorMe: { isMentor: false, profile: null } });
+        }
+    },
+
+    fetchMentorQuestions: async ({ status = 'all', assigned = false } = {}) => {
+        set({ mentorLoading: true, mentorError: null });
+        try {
+            const params: Record<string, string> = { status };
+            if (assigned) params.assigned = 'true';
+
+            const response = await apiClient.get(`${API_URL}/community/mentor/questions`, { params });
+            set({
+                mentorQuestions: response.data?.questions || [],
+                mentorLoading: false,
+            });
+        } catch (error: any) {
+            set({
+                mentorQuestions: [],
+                mentorLoading: false,
+                mentorError: error.response?.status === 403
+                    ? 'NOT_A_MENTOR'
+                    : error.response?.data?.message || 'Failed to load mentor questions',
+            });
+        }
+    },
 }));

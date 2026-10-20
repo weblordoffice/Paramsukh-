@@ -18,7 +18,10 @@ import {
     FileText,
     X,
     DollarSign,
-    Brain
+    Brain,
+    Video,
+    TicketPercent,
+    Sparkles
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -49,11 +52,14 @@ const menuItems: MenuItem[] = [
     { icon: Crown, label: 'Memberships', href: '/dashboard/memberships', permission: 'manage_users' },
     { icon: Crown, label: 'Plans', href: '/dashboard/plans', permission: 'manage_users' },
     { icon: BookOpen, label: 'Courses', href: '/dashboard/courses', permission: 'manage_courses' },
+    { icon: Video, label: 'Live Sessions', href: '/dashboard/live-sessions', permission: 'manage_courses' },
     { icon: Mic, label: 'Podcasts', href: '/dashboard/podcasts', permission: 'manage_content' },
     { icon: FileText, label: 'Blogs', href: '/dashboard/blogs', permission: 'manage_content' },
     { icon: Calendar, label: 'Events', href: '/dashboard/events', permission: 'manage_events' },
     { icon: ShoppingCart, label: 'Products', href: '/dashboard/products', permission: 'manage_shop' },
     { icon: Package, label: 'Orders', href: '/dashboard/orders', permission: 'manage_orders' },
+    { icon: TicketPercent, label: 'Coupons', href: '/dashboard/coupons', permission: 'manage_shop' },
+    { icon: Sparkles, label: 'Offers', href: '/dashboard/offers', permission: 'manage_shop' },
     { icon: ClipboardList, label: 'Bookings', href: '/dashboard/bookings', permission: 'manage_content' },
     { icon: MessageSquare, label: 'Community', href: '/dashboard/community', permission: 'manage_community' },
     { icon: MessageSquare, label: 'Counseling', href: '/dashboard/counseling', permission: 'manage_content' },

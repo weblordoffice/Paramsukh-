@@ -16,20 +16,22 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useCommunityStore } from '@/store/communityStore';
+import { useCommunityStore, Post } from '@/store/communityStore';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '../hooks/useTheme';
 
 interface CommentsModalProps {
     visible: boolean;
     postId: string | null;
+    post?: Post | null;
     onClose: () => void;
 }
 
-export default function CommentsModal({ visible, postId, onClose }: CommentsModalProps) {
+export default function CommentsModal({ visible, postId, post, onClose }: CommentsModalProps) {
     const { colors } = useTheme();
     const [content, setContent] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [replyingTo, setReplyingTo] = useState<{ id: string; name: string } | null>(null);
     const { user } = useAuthStore();
 
     const styles = useMemo(() => StyleSheet.create({
@@ -179,12 +181,18 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
         fetchPostComments,
         addComment,
         toggleCommentLike,
-        deleteComment
+        deleteComment,
+        acceptAnswer,
     } = useCommunityStore();
 
     const postComments = postId ? comments[postId] || [] : [];
     const [loadingComments, setLoadingComments] = useState(false);
     const activePostIdRef = useRef<string | null>(null);
+
+    useEffect(() => {
+        setReplyingTo(null);
+        setContent('');
+    }, [postId, visible]);
 
     useEffect(() => {
         const loadComments = async () => {
@@ -203,18 +211,30 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
         }
     }, [visible, postId, fetchPostComments]);
 
+    const isQuestion = post?.postType === 'question';
+    const canAccept = isQuestion && post?.viewerCanManageQuestion === true;
+
     const handleSend = async () => {
         if (!postId || !content.trim()) return;
 
         setIsSubmitting(true);
-        const success = await addComment(postId, content);
+        const success = await addComment(postId, content, replyingTo?.id || null);
         if (success) {
             setContent('');
+            setReplyingTo(null);
             Keyboard.dismiss();
         } else {
             Alert.alert('Error', 'Failed to post comment. Please try again.');
         }
         setIsSubmitting(false);
+    };
+
+    const handleAccept = async (commentId: string) => {
+        if (!postId) return;
+        const success = await acceptAnswer(postId, commentId);
+        if (!success) {
+            Alert.alert('Error', 'Failed to accept this answer. Please try again.');
+        }
     };
 
     const handleCommentDelete = (commentId: string) => {
@@ -247,7 +267,7 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
                 <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={onClose} />
                 <SafeAreaView style={styles.sheet} edges={['bottom']}>
                     <View style={styles.header}>
-                        <Text style={styles.headerTitle}>Comments</Text>
+                        <Text style={styles.headerTitle}>{isQuestion ? 'Answers' : 'Comments'}</Text>
                         <TouchableOpacity onPress={onClose} style={styles.closeButton}>
                             <Ionicons name="close" size={24} color={colors.text} />
                         </TouchableOpacity>
@@ -263,14 +283,27 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
                             keyExtractor={(item) => item._id}
                             contentContainerStyle={styles.listContent}
                             renderItem={({ item }) => (
-                                <View style={styles.commentItem}>
+                                <View style={[styles.commentItem, item.parentCommentId ? { marginLeft: 40 } : null]}>
                                     <Image
                                         source={{ uri: item.author?.photoURL || 'https://via.placeholder.com/40' }}
                                         style={styles.avatar}
                                     />
                                     <View style={styles.commentContent}>
                                         <View style={styles.commentHeader}>
-                                            <Text style={styles.authorName}>{item.author?.displayName || 'User'}</Text>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                                                <Text style={styles.authorName}>{item.author?.displayName || 'User'}</Text>
+                                                {item.author?.isMentor && (
+                                                    <View style={{ backgroundColor: 'rgba(241,132,45,0.12)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 }}>
+                                                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#F1842D' }}>Mentor</Text>
+                                                    </View>
+                                                )}
+                                                {item.isAccepted && (
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#E8F5E9', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 10 }}>
+                                                        <Ionicons name="checkmark-circle" size={11} color="#2E7D32" />
+                                                        <Text style={{ fontSize: 10, fontWeight: '700', color: '#2E7D32' }}>Accepted</Text>
+                                                    </View>
+                                                )}
+                                            </View>
                                             <View style={styles.headerRight}>
                                                 <Text style={styles.timeAgo}>{new Date(item.createdAt).toLocaleDateString()}</Text>
                                                 {item.author?._id && user?._id && item.author._id === user._id && (
@@ -300,6 +333,16 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
                                                     {item.likeCount > 0 ? item.likeCount : ''}
                                                 </Text>
                                             </TouchableOpacity>
+                                            <TouchableOpacity
+                                                onPress={() => setReplyingTo({ id: item._id, name: item.author?.displayName || 'comment' })}
+                                            >
+                                                <Text style={{ fontSize: 12, color: colors.textSecondary, fontWeight: '600' }}>Reply</Text>
+                                            </TouchableOpacity>
+                                            {canAccept && !item.isAccepted && (
+                                                <TouchableOpacity onPress={() => handleAccept(item._id)}>
+                                                    <Text style={{ fontSize: 12, color: '#2E7D32', fontWeight: '700' }}>Accept answer</Text>
+                                                </TouchableOpacity>
+                                            )}
                                         </View>
                                     </View>
                                 </View>
@@ -312,6 +355,17 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
                         />
                     )}
 
+                    {replyingTo && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surfaceSecondary }}>
+                            <Text style={{ fontSize: 12, color: colors.textSecondary }} numberOfLines={1}>
+                                Replying to {replyingTo.name}
+                            </Text>
+                            <TouchableOpacity onPress={() => setReplyingTo(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                                <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
                     <View style={styles.inputContainer}>
                         <Image
                             source={{ uri: user?.photoURL || 'https://via.placeholder.com/40' }}
@@ -320,7 +374,7 @@ export default function CommentsModal({ visible, postId, onClose }: CommentsModa
                         <View style={styles.inputWrapper}>
                             <TextInput
                                 style={styles.input}
-                                placeholder="Add a comment..."
+                                placeholder={replyingTo ? `Reply to ${replyingTo.name}...` : (isQuestion ? 'Write an answer...' : 'Add a comment...')}
                                 placeholderTextColor={colors.textSecondary}
                                 value={content}
                                 onChangeText={setContent}

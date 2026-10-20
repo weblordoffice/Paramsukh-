@@ -13,7 +13,8 @@ import {
     Activity,
     Clock,
     DollarSign,
-    FileText
+    FileText,
+    AlertTriangle
 } from 'lucide-react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
@@ -43,12 +44,23 @@ export default function DashboardPage() {
     });
     const [loading, setLoading] = useState(true);
     const [currentTime, setCurrentTime] = useState(new Date());
+    const [attention, setAttention] = useState<any>(null);
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 60000);
         fetchStats();
+        fetchAttention();
         return () => clearInterval(timer);
     }, []);
+
+    const fetchAttention = async () => {
+        try {
+            const response = await apiClient.get('/api/user/analytics/admin/attention');
+            setAttention(response.data);
+        } catch (error) {
+            console.error('Error fetching attention data:', error);
+        }
+    };
 
     const fetchStats = async () => {
         try {
@@ -227,6 +239,66 @@ export default function DashboardPage() {
                     </Link>
                 ))}
             </div>
+
+            {/* Users Needing Attention */}
+            {attention && (
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <AlertTriangle className="w-5 h-5 text-amber-500" />
+                                Users Needing Attention
+                            </h3>
+                            <p className="text-sm text-gray-500 mt-1">Inactive users, stalled learners, and overdue goals.</p>
+                        </div>
+                        <button
+                            onClick={() => router.push('/dashboard/users')}
+                            className="text-sm font-semibold text-primary hover:underline"
+                        >
+                            View all users
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                        <div className="rounded-xl bg-green-50 p-3">
+                            <p className="text-xs font-semibold text-green-700 uppercase">Active</p>
+                            <p className="text-2xl font-bold text-green-700">{attention.counts.active}</p>
+                        </div>
+                        <div className="rounded-xl bg-amber-50 p-3">
+                            <p className="text-xs font-semibold text-amber-700 uppercase">At risk</p>
+                            <p className="text-2xl font-bold text-amber-700">{attention.counts.atRisk}</p>
+                        </div>
+                        <div className="rounded-xl bg-red-50 p-3">
+                            <p className="text-xs font-semibold text-red-700 uppercase">Inactive</p>
+                            <p className="text-2xl font-bold text-red-700">{attention.counts.inactive}</p>
+                        </div>
+                        <div className="rounded-xl bg-sky-50 p-3">
+                            <p className="text-xs font-semibold text-sky-700 uppercase">Overdue goals</p>
+                            <p className="text-2xl font-bold text-sky-700">{attention.counts.overdueGoals}</p>
+                        </div>
+                    </div>
+
+                    {attention.top?.length > 0 && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {attention.top.slice(0, 4).map((item: any) => (
+                                <button
+                                    key={item.userId}
+                                    onClick={() => router.push(`/dashboard/users/${item.userId}`)}
+                                    className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2 text-left hover:bg-gray-50 transition"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-gray-900 truncate">{item.displayName}</p>
+                                        <p className="text-xs text-gray-500 truncate">
+                                            {item.email || item.phone || 'No contact'} · {item.riskStatus.replace('_', ' ')}
+                                        </p>
+                                    </div>
+                                    <ArrowRight className="w-4 h-4 text-gray-400 shrink-0" />
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Main Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

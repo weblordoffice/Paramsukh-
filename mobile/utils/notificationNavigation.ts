@@ -20,6 +20,11 @@ const KNOWN_PATHS = new Set([
   '/(home)/help-support',
   '/(home)/my-membership',
   '/(home)/community',
+  '/(home)/mentor-corner',
+  '/(home)/mentor-questions',
+  '/(home)/mentor-profile',
+  '/(home)/leaderboard',
+  '/(home)/live-sessions',
   '/(home)/podcasts',
   '/(home)/my-progress',
   '/(home)/courses',
@@ -77,6 +82,14 @@ export function resolveNotificationRoute(item: NotificationTarget): ResolvedRout
   // 2. Support replies always go to help-support
   if (item.relatedType === 'support' || item.type === 'support_reply') {
     return '/(home)/help-support';
+  }
+
+  if (item.type === 'mentor_question') {
+    return '/(home)/mentor-questions';
+  }
+
+  if (item.type === 'mentor_assigned') {
+    return '/(home)/mentor-corner';
   }
 
   const { relatedType, relatedId } = item;

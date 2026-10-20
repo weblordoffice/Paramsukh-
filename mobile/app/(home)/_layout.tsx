@@ -260,6 +260,48 @@ export default function HomeLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="leaderboard"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="mentor-corner"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="mentor-profile"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="mentor-questions"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="live-sessions"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="wellness-goals"
+          options={{
+            href: null,
+          }}
+        />
+        <Tabs.Screen
+          name="offers"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
 
       {/* Menu Bottom Sheet Modal */}

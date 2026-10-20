@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import React, { useRef, useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import React, { useCallback, useRef, useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View, Linking, Animated, StyleSheet, Image, Modal, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -499,6 +499,130 @@ const makeStyles = (colors: any) => StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: '600',
   },
+  continueSection: {
+    marginTop: 4,
+    marginBottom: 24,
+  },
+  continueHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  continueTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  continueTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  continueSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  continueSeeAll: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  continueScrollContent: {
+    paddingLeft: 20,
+    paddingRight: 8,
+    gap: 14,
+  },
+  continueCard: {
+    width: 280,
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+    marginRight: 14,
+    shadowColor: colors.border,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  continueImageWrap: {
+    height: 120,
+    position: 'relative',
+  },
+  continueImage: {
+    width: '100%',
+    height: '100%',
+  },
+  continuePlaceholder: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  continueProgressPill: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(17, 24, 39, 0.75)',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  continueProgressPillText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  continueBody: {
+    padding: 14,
+  },
+  continueCourseTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: colors.text,
+    minHeight: 40,
+  },
+  continueMeta: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 4,
+  },
+  continueProgressTrack: {
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.surfaceSecondary,
+    overflow: 'hidden',
+    marginTop: 10,
+  },
+  continueProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+  },
+  continueProgressLabel: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    marginTop: 5,
+  },
+  continueButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 10,
+    marginTop: 12,
+  },
+  continueButtonText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
 });
 
 // Helper functions for video URL parsing
@@ -653,6 +777,23 @@ interface UpcomingSession {
   courseColor?: string;
 }
 
+interface ContinueLearningItem {
+  enrollment: {
+    _id: string;
+    progress: number;
+    currentVideoIndex?: number;
+    lastAccessedAt?: string;
+  };
+  course?: {
+    _id: string;
+    title: string;
+    icon?: string;
+    color?: string;
+    thumbnailUrl?: string;
+    totalVideos?: number;
+  } | null;
+}
+
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function formatLiveDate(iso: string): string {
@@ -791,6 +932,7 @@ export default function HomeTab() {
   }, []);
 
   const [upcomingSessions, setUpcomingSessions] = useState<UpcomingSession[]>([]);
+  const [continueLearning, setContinueLearning] = useState<ContinueLearningItem[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -806,6 +948,24 @@ export default function HomeTab() {
       cancelled = true;
     };
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      apiClient
+        .get('/enrollments/continue-learning', { params: { limit: 5 } })
+        .then((res) => {
+          if (cancelled) return;
+          setContinueLearning(Array.isArray(res.data?.courses) ? res.data.courses : []);
+        })
+        .catch(() => {
+          if (!cancelled) setContinueLearning([]);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [])
+  );
 
   const handleWatchIntro = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -855,6 +1015,89 @@ export default function HomeTab() {
           </View>
         </Animated.View>
 
+        {/* Continue Learning Widget */}
+        {continueLearning.length > 0 && (
+          <View style={styles.continueSection}>
+            <View style={styles.continueHeader}>
+              <View>
+                <View style={styles.continueTitleRow}>
+                  <Ionicons name="play-circle-outline" size={22} color={colors.primary} />
+                  <Text style={styles.continueTitle}>Continue Learning</Text>
+                </View>
+                <Text style={styles.continueSubtitle}>Pick up exactly where you left off</Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push('/(home)/my-progress')}>
+                <Text style={styles.continueSeeAll}>See all</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.continueScrollContent}
+            >
+              {continueLearning.map((item) => {
+                const course = item.course;
+                if (!course?._id) return null;
+                const progress = Math.max(0, Math.min(100, Number(item.enrollment?.progress) || 0));
+                const accent = course.color || '#F1842D';
+
+                return (
+                  <TouchableOpacity
+                    key={item.enrollment?._id || course._id}
+                    style={styles.continueCard}
+                    activeOpacity={0.85}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/course-detail',
+                        params: {
+                          id: course._id,
+                          title: course.title || 'Course',
+                          color: accent,
+                          videos: course.totalVideos || 0,
+                        },
+                      })
+                    }
+                  >
+                    <View style={styles.continueImageWrap}>
+                      {course.thumbnailUrl ? (
+                        <Image source={{ uri: course.thumbnailUrl }} style={styles.continueImage} resizeMode="cover" />
+                      ) : (
+                        <View style={[styles.continuePlaceholder, { backgroundColor: accent + '18' }]}>
+                          <Ionicons name="book" size={34} color={accent} />
+                        </View>
+                      )}
+                      <View style={styles.continueProgressPill}>
+                        <Text style={styles.continueProgressPillText}>{progress}%</Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.continueBody}>
+                      <Text style={styles.continueCourseTitle} numberOfLines={2}>
+                        {course.title || 'Course'}
+                      </Text>
+                      <Text style={styles.continueMeta}>
+                        {course.totalVideos ? `${course.totalVideos} lessons · ` : ''}
+                        Resume your progress
+                      </Text>
+
+                      <View style={styles.continueProgressTrack}>
+                        <View style={[styles.continueProgressFill, { width: `${progress}%`, backgroundColor: accent }]} />
+                      </View>
+                      <Text style={styles.continueProgressLabel}>{progress}% complete</Text>
+
+                      <View style={[styles.continueButton, { backgroundColor: accent }]}>
+                        <Ionicons name="play" size={13} color="#FFFFFF" />
+                        <Text style={styles.continueButtonText}>Continue</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Feature Cards - Warm Neumorphic */}
         <View style={styles.featureSection}>
           <Text style={styles.sectionTitle}>What We Offer</Text>
@@ -882,6 +1125,14 @@ export default function HomeTab() {
               color="#F1842D"
               bgColor="rgba(241, 132, 45, 0.15)"
               onPress={() => router.push('/(home)/events')}
+            />
+            <FeatureCard
+              icon="videocam"
+              title="Live Sessions"
+              description="Join live coaching"
+              color="#EF4444"
+              bgColor="rgba(239, 68, 68, 0.12)"
+              onPress={() => router.push('/(home)/live-sessions' as any)}
             />
             <FeatureCard
               icon="headset"
@@ -1104,6 +1355,15 @@ export default function HomeTab() {
               description="Pooja items, idols, books & frames"
               iconBg="rgba(92, 74, 66, 0.08)"
               onPress={() => router.push('/shops')}
+            />
+            <View style={styles.divider} />
+            <QuickAccessItem
+              icon="pricetags"
+              title="Offers & Deals"
+              description="Active discounts and festive offers"
+              iconBg="rgba(241, 132, 45, 0.12)"
+              iconColor="#F1842D"
+              onPress={() => router.push('/(home)/offers' as any)}
             />
             <View style={styles.divider} />
             <QuickAccessItem

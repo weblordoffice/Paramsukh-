@@ -33,11 +33,18 @@ export interface Cart {
     items: CartItem[];
     subtotal: number;
     tax: number;
-    shippingCost: number;
+    shippingCost?: number;
+    shippingCharge?: number;
     total: number;
     discount: number;
     coupon?: {
         code: string;
+        discount: number;
+        discountType: string;
+    };
+    offer?: {
+        offerId?: string;
+        title: string;
         discount: number;
         discountType: string;
     };

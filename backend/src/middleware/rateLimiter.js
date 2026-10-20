@@ -165,6 +165,23 @@ export const communityLikeLimiter = rateLimit({
 });
 
 /**
+ * Community vote limiter - 50 votes per 10 minutes per user
+ */
+export const communityVoteLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 50,
+  message: {
+    success: false,
+    message: 'Too many votes. Please take a break.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    return `community:vote:${req.user?._id || req.ip}`;
+  }
+});
+
+/**
  * Booking rate limiter - 5 bookings per hour per user
  */
 export const bookingLimiter = rateLimit({
@@ -208,6 +225,7 @@ export default {
   communityPostLimiter,
   communityCommentLimiter,
   communityLikeLimiter,
+  communityVoteLimiter,
   bookingLimiter,
   progressLimiter
 };

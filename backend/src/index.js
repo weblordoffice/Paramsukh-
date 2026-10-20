@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
@@ -10,6 +10,7 @@ import connectDatabase from './config/database.js';
 import apiRoutes from './routes/index.js';
 import coursesRoutes from './routes/courses/courseRoute.js';
 import liveSessionRoutes from './routes/courses/liveSessionRoute.js';
+import standaloneLiveSessionRoutes from './routes/liveSessions/liveSessionRoute.js';
 import eventsRoutes from './routes/events/eventRoute.js';
 import enrollmentRoutes from './routes/enrollment/enrollmentRoute.js';
 import userRoutes from './routes/user/userRoute.js';
@@ -30,6 +31,10 @@ import uploadRoutes from './routes/upload/uploadRoute.js';
 import podcastRoutes from './routes/podcast/podcastRoute.js';
 import adminRoutes from './routes/admin/adminRoute.js';
 import chatRoutes from './routes/chat/chatRoute.js';
+import wellnessGoalRoutes from './routes/wellness/wellnessGoalRoute.js';
+import certificateRoutes from './routes/certificates/certificateRoute.js';
+import offerRoutes from './routes/offers/offerRoute.js';
+import adminOfferRoutes from './routes/offers/admin.offerRoute.js';
 import blogRoutes from './routes/blog/blogRoute.js';
 import configRoutes from './routes/config/configRoute.js';
 import adminCouponRoutes from './routes/coupons/admin.coupons.routes.js';
@@ -178,13 +183,18 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads
 // Routes
 app.use('/api/auth', apiRoutes);
 app.use('/api/admin/coupons', adminCouponRoutes);
+app.use('/api/admin/offers', adminOfferRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/courses', coursesRoutes);
 app.use('/api/livesessions', liveSessionRoutes);
+app.use('/api/live-sessions', standaloneLiveSessionRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/community', communityRoutes);
+app.use('/api/wellness-goals', wellnessGoalRoutes);
+app.use('/api/certificates', certificateRoutes);
+app.use('/api/offers', offerRoutes);
 app.use('/api/assessment', assessmentRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/counseling', counselingRoutes);
@@ -237,7 +247,7 @@ app.get('/metrics', (req, res) => {
 });
 app.get('/', (req, res) => {
   res.json({
-    message: '🚀 ParamSukh API v2.0',
+    message: 'ðŸš€ ParamSukh API v2.0',
     version: '2.0.0',
     endpoints: {
       auth: {
@@ -255,6 +265,14 @@ app.get('/', (req, res) => {
         videos: 'CRUD /api/courses/:courseId/videos',
         pdfs: 'CRUD /api/courses/:courseId/pdfs',
         liveSessions: 'CRUD /api/courses/:courseId/livesessions'
+      },
+      liveSessions: {
+        list: 'GET /api/live-sessions',
+        getById: 'GET /api/live-sessions/:id',
+        adminAll: 'GET /api/live-sessions/admin/all',
+        adminCreate: 'POST /api/live-sessions/admin',
+        adminUpdate: 'PATCH /api/live-sessions/admin/:id',
+        adminDelete: 'DELETE /api/live-sessions/admin/:id'
       },
       events: {
         create: 'POST /api/events/create',
@@ -276,17 +294,34 @@ app.get('/', (req, res) => {
         preferences: 'PUT /api/user/preferences',
         subscription: 'GET /api/user/subscription',
         membershipPurchase: 'POST /api/user/membership/purchase',
-        stats: 'GET /api/user/stats'
+        stats: 'GET /api/user/stats',
+        analytics: 'GET /api/user/analytics?range=7|30|90',
+        achievements: 'GET /api/user/achievements',
+        adminUserAnalytics: 'GET /api/user/:userId/analytics/admin',
+        adminUserActivity: 'GET /api/user/:userId/activity',
+        adminAttention: 'GET /api/user/analytics/admin/attention',
+        certificates: 'GET /api/user/profile/certificates',
+        wellnessGoals: 'CRUD /api/wellness-goals',
+        certificateView: 'GET /api/certificates/:certificateId/view'
       },
       community: {
         checkAccess: 'GET /api/community/check-access',
         myGroups: 'GET /api/community/my-groups',
         feed: 'GET /api/community/feed',
-        groupPosts: 'GET /api/community/groups/:groupId/posts',
+        groupPosts: 'GET /api/community/groups/:groupId/posts?postType=discussion|question',
         createPost: 'POST /api/community/groups/:groupId/posts',
         blockPost: 'PATCH /api/community/posts/:postId/block',
         blockUserPosting: 'POST /api/community/admin/users/:userId/posting-block',
         likePost: 'POST /api/community/posts/:postId/like',
+        votePost: 'POST /api/community/posts/:postId/vote',
+        resolveQuestion: 'PATCH /api/community/posts/:postId/resolve',
+        acceptAnswer: 'PATCH /api/community/posts/:postId/accept-answer',
+        leaderboard: 'GET /api/community/leaderboard?period=weekly|monthly|all',
+        mentors: 'GET /api/community/mentors',
+        mentorProfile: 'GET /api/community/mentors/:userId',
+        mentorMe: 'GET /api/community/mentor/me',
+        mentorQuestions: 'GET /api/community/mentor/questions',
+        adminMentors: 'GET/POST/PATCH/DELETE /api/community/admin/mentors',
         deletePost: 'DELETE /api/community/posts/:postId',
         comments: 'GET/POST /api/community/posts/:postId/comments',
         likeComment: 'POST /api/community/comments/:commentId/like'
@@ -404,7 +439,7 @@ setupReferralCrons();
 
 // GLOBAL ERROR HANDLER - Must be after all routes
 app.use((err, req, res, next) => {
-  console.error('❌ Global Error Handler:', err);
+  console.error('âŒ Global Error Handler:', err);
   console.error('Stack:', err.stack);
 
   // Mongoose validation error
@@ -451,21 +486,21 @@ app.use((err, req, res, next) => {
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled Promise Rejection:', err);
+  console.error('âŒ Unhandled Promise Rejection:', err);
   // Don't crash the server, just log it
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
-  console.error('❌ Uncaught Exception:', err);
+  console.error('âŒ Uncaught Exception:', err);
   process.exit(1); // Exit gracefully
 });
 
 // Bind to all interfaces inside the container so Docker's virtual network can reach it.
 // The host firewall / Docker port mapping controls external access, not loopback.
 const server = app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server is running on http://0.0.0.0:${PORT}`);
-  console.log(`   → Health check: http://127.0.0.1:${PORT}/health`);
+  console.log(`ðŸš€ Server is running on http://0.0.0.0:${PORT}`);
+  console.log(`   â†’ Health check: http://127.0.0.1:${PORT}/health`);
 });
 
 // Large video uploads are received by the server, so Node's default 5-minute

@@ -23,6 +23,11 @@ const notificationSchema = new mongoose.Schema({
       'community_like',
       'community_share',
       'community_mention',
+      'community_answer',
+      'community_answer_accepted',
+      'mentor_question',
+      'mentor_assigned',
+      'leaderboard_rank',
       // Counseling notifications
       'counseling_booked',
       'counseling_reminder',

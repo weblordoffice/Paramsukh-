@@ -284,6 +284,19 @@ export const validateCreatePost = [
     .trim()
     .isLength({ min: 1, max: 5000 })
     .withMessage('Post content must be between 1 and 5000 characters'),
+  body('postType')
+    .optional()
+    .isIn(['discussion', 'question'])
+    .withMessage('Post type must be either discussion or question'),
+  body('title')
+    .optional({ nullable: true, checkFalsy: true })
+    .trim()
+    .isLength({ min: 5, max: 200 })
+    .withMessage('Question title must be between 5 and 200 characters'),
+  body('assignedMentorId')
+    .optional({ nullable: true, checkFalsy: true })
+    .isMongoId()
+    .withMessage('Assigned mentor id must be a valid mentor id'),
   body('images')
     .optional()
     .isArray({ max: 10 })

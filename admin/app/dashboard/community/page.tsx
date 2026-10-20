@@ -3,15 +3,25 @@
 import { useEffect, useState } from 'react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { Search, MessageSquare, Heart, MessageCircle, Trash2, Pin, Plus, EyeOff, Eye, UserX, UserCheck } from 'lucide-react';
+import { Search, MessageSquare, Heart, MessageCircle, Trash2, Pin, Plus, EyeOff, Eye, UserX, UserCheck, CheckCircle2, Circle, ArrowUp } from 'lucide-react';
 import CreatePostModal from './CreatePostModal';
 import CommentsModal from './CommentsModal';
 import GeneralCommunityCard from './GeneralCommunityCard';
+import LeaderboardTab from './LeaderboardTab';
+import MentorsTab from './MentorsTab';
+
+type CommunityTab = 'posts' | 'questions' | 'mentors' | 'leaderboard';
+type QuestionStatus = 'all' | 'unanswered' | 'resolved';
 
 interface Post {
     _id: string;
     userId: { _id?: string; displayName: string; communityPostingBlocked?: boolean } | null;
     content: string;
+    postType?: 'discussion' | 'question';
+    title?: string | null;
+    isResolved?: boolean;
+    acceptedCommentId?: string | null;
+    voteCount?: number;
     images?: string[];
     groupId: { name: string };
     likeCount: number;
@@ -30,19 +40,36 @@ export default function CommunityPage() {
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [activeTab, setActiveTab] = useState<CommunityTab>('posts');
+    const [questionStatus, setQuestionStatus] = useState<QuestionStatus>('all');
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [pendingActionId, setPendingActionId] = useState<string | null>(null);
     const [showCommentsModal, setShowCommentsModal] = useState(false);
     const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
 
     useEffect(() => {
-        fetchPosts();
-    }, []);
+        if (activeTab === 'leaderboard' || activeTab === 'mentors') return;
+        setPage(1);
+        fetchPosts(1, false, activeTab, questionStatus);
+    }, [activeTab, questionStatus]);
 
-    const fetchPosts = async (pageNum = 1, append = false) => {
+    const fetchPosts = async (
+        pageNum = 1,
+        append = false,
+        tab: CommunityTab = activeTab,
+        status: QuestionStatus = questionStatus
+    ) => {
         try {
             if (append) setLoadingMore(true); else setLoading(true);
-            const response = await apiClient.get('/api/community/all', { params: { page: pageNum, limit: 20 } });
+            const params: Record<string, string | number> = {
+                page: pageNum,
+                limit: 20,
+                postType: tab === 'questions' ? 'question' : 'discussion',
+            };
+            if (tab === 'questions' && status !== 'all') {
+                params.status = status;
+            }
+            const response = await apiClient.get('/api/community/all', { params });
             const data = response.data.data?.posts || response.data.posts || response.data || [];
             const postsData = Array.isArray(data) ? data : (data.posts || []);
             if (append) {
@@ -108,6 +135,22 @@ export default function CommunityPage() {
         }
     };
 
+    const handleToggleResolve = async (postId: string, currentResolved: boolean) => {
+        if (pendingActionId) return;
+        setPendingActionId(postId);
+        try {
+            const response = await apiClient.patch(`/api/community/admin/posts/${postId}/resolve`, {
+                resolved: !currentResolved,
+            });
+            toast.success(!currentResolved ? 'Question marked resolved' : 'Question reopened');
+            setPosts(prev => prev.map(p => p._id === postId ? { ...p, isResolved: response.data.data.isResolved } : p));
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to update question status');
+        } finally {
+            setPendingActionId(null);
+        }
+    };
+
     const handleToggleBlockUser = async (userId: string, currentBlocked: boolean) => {
         if (pendingActionId) return;
         setPendingActionId(userId);
@@ -126,10 +169,13 @@ export default function CommunityPage() {
         }
     };
 
+    const commentsPost = posts.find((post) => post._id === commentsPostId) || null;
+
     const filteredPosts = posts.filter(post =>
         post.content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        post.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         post.userId?.displayName?.toLowerCase().includes(searchTerm.toLowerCase())
-    );   
+    );
 
     if (loading) {
         return (
@@ -144,25 +190,76 @@ export default function CommunityPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold text-secondary">Community Management</h1>
-                    <p className="text-accent mt-1">Manage posts, comments, and groups</p>
+                    <p className="text-accent mt-1">Manage discussions, questions, comments, and groups</p>
                 </div>
-                <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition font-medium"
-                >
-                    <Plus className="w-5 h-5" />
-                    Create Post
-                </button>
+                {activeTab === 'posts' && (
+                    <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition font-medium"
+                    >
+                        <Plus className="w-5 h-5" />
+                        Create Post
+                    </button>
+                )}
             </div>
 
-            <GeneralCommunityCard />
+            {activeTab !== 'leaderboard' && activeTab !== 'mentors' && <GeneralCommunityCard />}
 
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex rounded-lg bg-white p-1 shadow-md">
+                    <button
+                        onClick={() => setActiveTab('posts')}
+                        className={`px-5 py-2 rounded-md text-sm font-semibold transition ${activeTab === 'posts' ? 'bg-primary text-white' : 'text-accent hover:bg-gray-50'}`}
+                    >
+                        Discussions
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('questions')}
+                        className={`px-5 py-2 rounded-md text-sm font-semibold transition ${activeTab === 'questions' ? 'bg-primary text-white' : 'text-accent hover:bg-gray-50'}`}
+                    >
+                        Questions
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('mentors')}
+                        className={`px-5 py-2 rounded-md text-sm font-semibold transition ${activeTab === 'mentors' ? 'bg-primary text-white' : 'text-accent hover:bg-gray-50'}`}
+                    >
+                        Mentors
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('leaderboard')}
+                        className={`px-5 py-2 rounded-md text-sm font-semibold transition ${activeTab === 'leaderboard' ? 'bg-primary text-white' : 'text-accent hover:bg-gray-50'}`}
+                    >
+                        Leaderboard
+                    </button>
+                </div>
+
+                {activeTab === 'questions' && (
+                    <div className="inline-flex rounded-lg bg-white p-1 shadow-md">
+                        {(['all', 'unanswered', 'resolved'] as QuestionStatus[]).map((status) => (
+                            <button
+                                key={status}
+                                onClick={() => setQuestionStatus(status)}
+                                className={`px-4 py-2 rounded-md text-sm font-medium capitalize transition ${questionStatus === status ? 'bg-primary/10 text-primary' : 'text-accent hover:bg-gray-50'}`}
+                            >
+                                {status === 'all' ? 'All' : status === 'unanswered' ? 'Unanswered' : 'Resolved'}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {activeTab === 'leaderboard' ? (
+                <LeaderboardTab />
+            ) : activeTab === 'mentors' ? (
+                <MentorsTab />
+            ) : (
+                <>
             <div className="bg-white rounded-xl p-4 shadow-md">
                 <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-accent" />
                     <input
                         type="text"
-                        placeholder="Search posts..."
+                        placeholder={activeTab === 'questions' ? 'Search questions...' : 'Search posts...'}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
@@ -174,7 +271,9 @@ export default function CommunityPage() {
                 {filteredPosts.length === 0 ? (
                     <div className="bg-white rounded-xl p-12 text-center text-accent shadow-md">
                         <MessageSquare className="w-16 h-16 mx-auto mb-4 text-accent/30" />
-                        <p>{searchTerm ? 'No posts match your search' : 'No community posts found'}</p>
+                        <p>{searchTerm
+                            ? `No ${activeTab === 'questions' ? 'questions' : 'posts'} match your search`
+                            : `No ${activeTab === 'questions' ? 'questions' : 'community posts'} found`}</p>
                     </div>
                 ) : (
                     filteredPosts.map((post) => (
@@ -202,6 +301,12 @@ export default function CommunityPage() {
                                                     <span>Posting blocked</span>
                                                 </span>
                                             )}
+                                            {post.postType === 'question' && (
+                                                <span className={`px-2 py-1 rounded text-xs font-medium flex items-center space-x-1 ${post.isResolved ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-600'}`}>
+                                                    {post.isResolved ? <CheckCircle2 className="w-3 h-3" /> : <Circle className="w-3 h-3" />}
+                                                    <span>{post.isResolved ? 'Resolved' : 'Open'}</span>
+                                                </span>
+                                            )}
                                         </div>
                                         <p className="text-sm text-accent">{post.groupId?.name || 'Unknown Group'}</p>
                                     </div>
@@ -217,6 +322,16 @@ export default function CommunityPage() {
                                         >
                                             <MessageCircle className="w-4 h-4" />
                                         </button>
+                                        {post.postType === 'question' && (
+                                            <button
+                                                onClick={() => handleToggleResolve(post._id, !!post.isResolved)}
+                                                disabled={pendingActionId === post._id}
+                                                className={`p-2 rounded-lg transition ${pendingActionId === post._id ? 'opacity-50 cursor-not-allowed' : ''} ${post.isResolved ? 'text-green-700 bg-green-50 hover:bg-green-100' : 'text-gray-600 hover:bg-gray-100'}`}
+                                                title={post.isResolved ? 'Reopen question' : 'Mark resolved'}
+                                            >
+                                                <CheckCircle2 className="w-4 h-4" />
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => handleTogglePin(post._id, post.isPinned)}
                                             disabled={pendingActionId === post._id}
@@ -253,6 +368,9 @@ export default function CommunityPage() {
                                         </button>
                                     </div>
                                 </div>
+                                {post.postType === 'question' && post.title && (
+                                    <h4 className="text-lg font-semibold text-secondary">{post.title}</h4>
+                                )}
                                 <p className="text-secondary">{post.content}</p>
                                 {post.images && post.images.length > 0 && (
                                     <div className="flex flex-wrap gap-3">
@@ -274,13 +392,20 @@ export default function CommunityPage() {
                                     </div>
                                 )}
                                 <div className="flex items-center space-x-6 pt-4 border-t text-sm text-accent">
-                                    <div className="flex items-center space-x-2">
-                                        <Heart className="w-4 h-4" />
-                                        <span>{post.likeCount || 0} likes</span>
-                                    </div>
+                                    {post.postType === 'question' ? (
+                                        <div className="flex items-center space-x-2">
+                                            <ArrowUp className="w-4 h-4" />
+                                            <span>{post.voteCount || 0} votes</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center space-x-2">
+                                            <Heart className="w-4 h-4" />
+                                            <span>{post.likeCount || 0} likes</span>
+                                        </div>
+                                    )}
                                     <div className="flex items-center space-x-2">
                                         <MessageCircle className="w-4 h-4" />
-                                        <span>{post.commentCount || 0} comments</span>
+                                        <span>{post.commentCount || 0} {post.postType === 'question' ? 'answers' : 'comments'}</span>
                                     </div>
                                 </div>
                             </div>
@@ -303,6 +428,8 @@ export default function CommunityPage() {
                     </div>
                 )}
             </div>
+                </>
+            )}
 
             <CreatePostModal
                 isOpen={showCreateModal}
@@ -313,6 +440,8 @@ export default function CommunityPage() {
             <CommentsModal
                 isOpen={showCommentsModal}
                 postId={commentsPostId}
+                postType={commentsPost?.postType}
+                onAccepted={() => fetchPosts(1)}
                 onClose={() => { setShowCommentsModal(false); setCommentsPostId(null); }}
             />
         </div>

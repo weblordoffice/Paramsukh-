@@ -124,6 +124,14 @@ export default function ProfileMenuScreen() {
       route: '/my-progress',
     },
     {
+      id: 'wellness-goals',
+      title: 'Wellness Goals',
+      description: 'Set targets and track your progress',
+      icon: 'flag-outline',
+      color: '#14B8A6',
+      route: '/wellness-goals',
+    },
+    {
       id: 'referral',
       title: 'Invite & Earn',
       description: 'Invite friends to earn free premium',

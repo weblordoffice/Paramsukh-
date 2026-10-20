@@ -326,14 +326,15 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
 
   const existingMembershipsInTarget = targetGroupIds.length
     ? await GroupMember.find({ userId: normalizedUserId, groupId: { $in: targetGroupIds } })
-        .select('_id groupId isActive')
+        .select('_id groupId isActive role')
         .lean()
     : [];
 
   // Find all current active plan+category memberships to detect ones that need deactivation
   // Exclude 'general' planSlug — it belongs to the free/public General group
   const activePlanCategoryMemberships = await GroupMember.aggregate([
-    { $match: { userId: normalizedUserId, isActive: true } },
+    // Mentor memberships are managed by the Mentor Corner feature, not by plan sync.
+    { $match: { userId: normalizedUserId, isActive: true, role: { $ne: 'mentor' } } },
     {
       $lookup: {
         from: 'groups',
@@ -376,7 +377,8 @@ export const syncUserCommunityMembershipsByPlan = async ({ userId, planSlug, mem
       return;
     }
 
-    if (!existing.isActive) {
+    // Mentor memberships are managed by Mentor Corner, never by plan sync.
+    if (!existing.isActive && existing.role !== 'mentor') {
       reactivateMembershipIds.push(existing._id);
     }
   });

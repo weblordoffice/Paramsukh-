@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, ActivityIndicator, Alert, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCartStore } from '../store/cartStore';
@@ -157,6 +157,88 @@ export default function CartScreen() {
         marginLeft: 'auto',
         padding: 4,
     },
+    couponCard: {
+        backgroundColor: colors.surface,
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    couponTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 10,
+    },
+    couponTitle: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: colors.text,
+    },
+    couponInputRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    couponInput: {
+        flex: 1,
+        borderWidth: 1,
+        borderColor: colors.border,
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        fontSize: 14,
+        color: colors.text,
+        backgroundColor: colors.surfaceSecondary,
+    },
+    couponButton: {
+        backgroundColor: colors.primary,
+        borderRadius: 10,
+        paddingHorizontal: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    couponButtonText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    couponAppliedRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(16, 185, 129, 0.10)',
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    couponAppliedText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: colors.success,
+    },
+    couponRemoveText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: colors.danger,
+    },
+    couponError: {
+        marginTop: 8,
+        fontSize: 12,
+        color: colors.danger,
+    },
+    offerAppliedRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 8,
+    },
+    offerAppliedText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: colors.success,
+        flex: 1,
+    },
     summaryCard: {
         backgroundColor: colors.surface,
         borderRadius: 12,
@@ -245,9 +327,21 @@ export default function CartScreen() {
     },
   });
     const router = useRouter();
-    const { cart, fetchCart, updateCartItem, removeFromCart, clearCart, isLoading } = useCartStore();
+    const {
+        cart,
+        fetchCart,
+        updateCartItem,
+        removeFromCart,
+        clearCart,
+        applyCoupon,
+        removeCoupon,
+        isLoading,
+        error: cartError,
+    } = useCartStore();
     const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
     const [referralPoints, setReferralPoints] = useState(0);
+    const [couponCode, setCouponCode] = useState('');
+    const [applyingCoupon, setApplyingCoupon] = useState(false);
     const insets = useSafeAreaInsets();
 
     useEffect(() => {
@@ -281,6 +375,26 @@ export default function CartScreen() {
                 { text: "Remove", style: "destructive", onPress: () => removeFromCart(itemId) }
             ]
         );
+    };
+
+    const handleApplyCoupon = async () => {
+        const code = couponCode.trim();
+        if (!code) {
+            Alert.alert('Coupon Code Required', 'Enter a coupon code to apply.');
+            return;
+        }
+        setApplyingCoupon(true);
+        const success = await applyCoupon(code);
+        setApplyingCoupon(false);
+        if (success) {
+            setCouponCode('');
+        } else {
+            Alert.alert('Coupon Not Applied', cartError || 'Please check the code and try again.');
+        }
+    };
+
+    const handleRemoveCoupon = async () => {
+        await removeCoupon();
     };
 
     const handleClearCart = () => {
@@ -392,6 +506,61 @@ export default function CartScreen() {
                     </View>
                 ))}
 
+                {/* Coupon / Offer */}
+                <View style={styles.couponCard}>
+                    <View style={styles.couponTitleRow}>
+                        <Ionicons name="pricetag-outline" size={18} color={colors.primary} />
+                        <Text style={styles.couponTitle}>Coupons & Offers</Text>
+                    </View>
+
+                    {cart.coupon?.code ? (
+                        <View style={styles.couponAppliedRow}>
+                            <Text style={styles.couponAppliedText}>Coupon {cart.coupon.code} applied</Text>
+                            <TouchableOpacity onPress={handleRemoveCoupon} disabled={isLoading}>
+                                <Text style={styles.couponRemoveText}>Remove</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <View style={styles.couponInputRow}>
+                            <TextInput
+                                style={styles.couponInput}
+                                value={couponCode}
+                                onChangeText={setCouponCode}
+                                placeholder="Enter coupon code"
+                                placeholderTextColor={colors.textSecondary}
+                                autoCapitalize="characters"
+                                editable={!applyingCoupon}
+                            />
+                            <TouchableOpacity
+                                style={styles.couponButton}
+                                onPress={handleApplyCoupon}
+                                disabled={applyingCoupon}
+                            >
+                                {applyingCoupon ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <Text style={styles.couponButtonText}>Apply</Text>
+                                )}
+                            </TouchableOpacity>
+                        </View>
+                    )}
+
+                    {cart.offer?.title && (
+                        <View style={styles.offerAppliedRow}>
+                            <Ionicons name="sparkles-outline" size={14} color={colors.success} />
+                            <Text style={styles.offerAppliedText}>
+                                Offer applied automatically: {cart.offer.title}
+                            </Text>
+                        </View>
+                    )}
+
+                    {!cart.coupon?.code && !cart.offer?.title && (
+                        <Text style={styles.couponError}>
+                            Eligible offers are applied automatically at checkout.
+                        </Text>
+                    )}
+                </View>
+
                 {/* Summary */}
                 <View style={styles.summaryCard}>
                     <View style={styles.summaryRow}>
@@ -402,10 +571,10 @@ export default function CartScreen() {
                         <Text style={styles.summaryLabel}>Discount</Text>
                         <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{cart.discount}</Text>
                     </View>
-                    {cart.shippingCost > 0 && (
+                    {(cart.shippingCharge ?? cart.shippingCost ?? 0) > 0 && (
                         <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Shipping</Text>
-                            <Text style={styles.summaryValue}>₹{cart.shippingCost}</Text>
+                            <Text style={styles.summaryValue}>₹{cart.shippingCharge ?? cart.shippingCost}</Text>
                         </View>
                     )}
                     <View style={styles.divider} />

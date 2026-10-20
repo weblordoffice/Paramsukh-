@@ -1,22 +1,47 @@
-import { Post, Comment, Group } from '../../models/community.models.js';
+import { Post, Comment, Group, MentorProfile } from '../../models/community.models.js';
 import { User } from '../../models/user.models.js';
-import { ensureGeneralGroup } from '../../services/community.service.js';
+import Notification from '../../models/notification.models.js';
+import { sendPushToUser } from '../../services/pushService.js';
+import { ensureGeneralGroup, assignMentorToGroup, removeMentorFromGroup } from '../../services/community.service.js';
+import {
+    awardCommunityPoints,
+    revokeCommunityPointsForRef,
+    revokeCommunityPointsForPost,
+    getCommunityLeaderboard,
+    getCommunityPointEvents,
+} from '../../services/communityPoints.service.js';
 
 // @desc    Get all community posts (Admin only)
 // @route   GET /api/community/all
 // @access  Admin
 export const getAllPosts = async (req, res) => {
     try {
-        const { page = 1, limit = 20, search } = req.query;
+        const { page = 1, limit = 20, search, postType, status, groupId } = req.query;
         const pageNum = Math.max(1, parseInt(page) || 1);
         const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
 
         const query = { isActive: true };
 
+        if (postType === 'question') {
+            query.postType = 'question';
+        } else if (postType === 'discussion') {
+            query.$and = [
+                { $or: [{ postType: 'discussion' }, { postType: { $exists: false } }, { postType: null }] },
+            ];
+        }
+
+        if (status === 'unanswered') query.isResolved = false;
+        if (status === 'resolved') query.isResolved = true;
+
+        if (groupId) query.groupId = groupId;
+
         if (search) {
             // Escape regex-special characters to prevent ReDoS attacks
             const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            query.content = { $regex: escaped, $options: 'i' };
+            query.$or = [
+                { content: { $regex: escaped, $options: 'i' } },
+                { title: { $regex: escaped, $options: 'i' } },
+            ];
         }
 
         const posts = await Post.find(query)
@@ -68,6 +93,9 @@ export const deletePostAdmin = async (req, res) => {
         // Soft delete
         post.isActive = false;
         await post.save();
+
+        const commentIds = await Comment.find({ postId }).distinct('_id');
+        await revokeCommunityPointsForPost(post._id, commentIds);
 
         // Also soft delete all comments
         await Comment.updateMany({ postId }, { isActive: false });
@@ -304,14 +332,22 @@ export const getPostCommentsAdmin = async (req, res) => {
     try {
         const { postId } = req.params;
 
-        const comments = await Comment.find({ postId, isActive: true })
-            .populate('userId', 'displayName email photoURL')
-            .sort({ createdAt: -1 })
-            .lean();
+        const [post, comments] = await Promise.all([
+            Post.findById(postId).select('acceptedCommentId postType isResolved').lean(),
+            Comment.find({ postId, isActive: true })
+                .populate('userId', 'displayName email photoURL')
+                .sort({ createdAt: -1 })
+                .lean(),
+        ]);
+
+        const acceptedId = post?.acceptedCommentId ? String(post.acceptedCommentId) : null;
 
         res.status(200).json({
             success: true,
-            data: comments
+            data: comments.map((comment) => ({
+                ...comment,
+                isAccepted: acceptedId === String(comment._id),
+            }))
         });
     } catch (error) {
         console.error('Get Post Comments Admin Error:', error);
@@ -342,6 +378,20 @@ export const deleteCommentAdmin = async (req, res) => {
         comment.isActive = false;
         await comment.save();
 
+        await revokeCommunityPointsForRef({ refType: 'comment', refId: comment._id });
+
+        const post = await Post.findById(comment.postId).select('acceptedCommentId');
+        if (post?.acceptedCommentId?.toString() === comment._id.toString()) {
+            await Post.findByIdAndUpdate(comment.postId, {
+                $set: { acceptedCommentId: null, isResolved: false },
+            });
+            await revokeCommunityPointsForRef({
+                refType: 'post',
+                refId: comment.postId,
+                action: 'answer_accepted',
+            });
+        }
+
         // Decrement post commentCount
         await Post.findByIdAndUpdate(comment.postId, { $inc: { commentCount: -1 } });
 
@@ -361,6 +411,401 @@ export const deleteCommentAdmin = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to delete comment',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Resolve / unresolve a question (Admin only)
+// @route   PATCH /api/community/admin/posts/:postId/resolve
+// @access  Admin
+export const resolveQuestionAdmin = async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const post = await Post.findById(postId);
+        if (!post) {
+            return res.status(404).json({ success: false, message: 'Post not found' });
+        }
+        if ((post.postType || 'discussion') !== 'question') {
+            return res.status(400).json({ success: false, message: 'Only questions can be resolved' });
+        }
+
+        post.isResolved = typeof req.body?.resolved === 'boolean' ? req.body.resolved : !post.isResolved;
+        await post.save();
+
+        res.status(200).json({
+            success: true,
+            data: { isResolved: post.isResolved, acceptedCommentId: post.acceptedCommentId || null }
+        });
+    } catch (error) {
+        console.error('Resolve Question Admin Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update question status',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Accept an answer on a question (Admin only)
+// @route   PATCH /api/community/admin/posts/:postId/accept-answer
+// @access  Admin
+export const acceptAnswerAdmin = async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const { commentId } = req.body;
+
+        if (!commentId) {
+            return res.status(400).json({ success: false, message: 'Answer id is required' });
+        }
+
+        const [post, comment] = await Promise.all([
+            Post.findById(postId),
+            Comment.findOne({ _id: commentId, postId, isActive: true }),
+        ]);
+
+        if (!post) {
+            return res.status(404).json({ success: false, message: 'Post not found' });
+        }
+        if ((post.postType || 'discussion') !== 'question') {
+            return res.status(400).json({ success: false, message: 'Only questions can have an accepted answer' });
+        }
+        if (!comment) {
+            return res.status(404).json({ success: false, message: 'Answer not found' });
+        }
+
+        await revokeCommunityPointsForRef({
+            refType: 'post',
+            refId: post._id,
+            action: 'answer_accepted',
+        });
+
+        post.acceptedCommentId = comment._id;
+        post.isResolved = true;
+        await post.save();
+
+        await awardCommunityPoints({
+            userId: comment.userId,
+            action: 'answer_accepted',
+            refType: 'post',
+            refId: post._id,
+            groupId: post.groupId,
+            dedupeKey: `accept:${post._id}:${comment._id}`,
+            metadata: { commentId: comment._id },
+        });
+
+        res.status(200).json({
+            success: true,
+            data: { acceptedCommentId: post.acceptedCommentId, isResolved: post.isResolved }
+        });
+    } catch (error) {
+        console.error('Accept Answer Admin Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to accept answer',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get community leaderboard (Admin only)
+// @route   GET /api/community/admin/leaderboard
+// @access  Admin
+export const getLeaderboardAdmin = async (req, res) => {
+    try {
+        const result = await getCommunityLeaderboard({
+            period: req.query.period,
+            groupId: req.query.groupId || null,
+            limit: req.query.limit,
+            currentUserId: null,
+        });
+
+        res.status(200).json({ success: true, ...result });
+    } catch (error) {
+        console.error('Get Leaderboard Admin Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve the leaderboard',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Get community point events (Admin only)
+// @route   GET /api/community/admin/leaderboard/events
+// @access  Admin
+export const getPointEventsAdmin = async (req, res) => {
+    try {
+        const result = await getCommunityPointEvents({
+            period: req.query.period,
+            groupId: req.query.groupId || null,
+            page: req.query.page,
+            limit: req.query.limit,
+            includeInactive: req.query.includeInactive !== 'false',
+        });
+
+        res.status(200).json({ success: true, ...result });
+    } catch (error) {
+        console.error('Get Point Events Admin Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve point events',
+            error: error.message
+        });
+    }
+};
+
+const normalizeStringArray = (value) => {
+    if (!Array.isArray(value)) return [];
+    return [...new Set(value.map((item) => String(item || '').trim()).filter(Boolean))];
+};
+
+const resolveMentorGroupIds = async (groupIds) => {
+    const uniqueIds = [...new Set(
+        (Array.isArray(groupIds) ? groupIds : [])
+            .map((id) => String(id || '').trim())
+            .filter(Boolean)
+    )];
+
+    if (uniqueIds.length === 0) return [];
+
+    const groups = await Group.find({ _id: { $in: uniqueIds }, isActive: true })
+        .select('_id groupType')
+        .lean();
+
+    const planParentIds = groups
+        .filter((group) => group.groupType === 'plan')
+        .map((group) => group._id);
+
+    const children = planParentIds.length > 0
+        ? await Group.find({
+            parentGroupId: { $in: planParentIds },
+            isActive: true,
+        }).select('_id').lean()
+        : [];
+
+    return [...new Set([
+        ...groups.map((group) => String(group._id)),
+        ...children.map((child) => String(child._id)),
+    ])];
+};
+
+const populateMentor = (mentorId) => MentorProfile.findById(mentorId)
+    .populate('userId', 'displayName email phone photoURL subscriptionPlan')
+    .populate('groupIds', 'name groupType category planSlug isActive')
+    .lean();
+
+const notifyMentorAssigned = async (userId, groupCount = 0) => {
+    if (!userId) return;
+    try {
+        const title = 'You are now a community mentor';
+        const message = groupCount > 0
+            ? `You have been assigned to ${groupCount} community group${groupCount === 1 ? '' : 's'}.`
+            : 'Your mentor profile is ready. Ask an administrator to assign you to groups.';
+
+        await Notification.createNotification({
+            user: userId,
+            type: 'mentor_assigned',
+            title,
+            message,
+            actionUrl: '/(home)/mentor-corner',
+            icon: '🎓',
+        });
+
+        await sendPushToUser(userId, {
+            title,
+            body: message,
+            data: { type: 'mentor_assigned', actionUrl: '/(home)/mentor-corner' },
+        });
+    } catch (error) {
+        console.error('Mentor assignment notification error:', error?.message);
+    }
+};
+
+// @desc    List all mentors (Admin only)
+// @route   GET /api/community/admin/mentors
+// @access  Admin
+export const getAdminMentors = async (req, res) => {
+    try {
+        const mentors = await MentorProfile.find({})
+            .populate('userId', 'displayName email phone photoURL subscriptionPlan')
+            .populate('groupIds', 'name groupType category planSlug isActive')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        res.status(200).json({ success: true, data: mentors });
+    } catch (error) {
+        console.error('Get Admin Mentors Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve mentors',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Create a mentor profile (Admin only)
+// @route   POST /api/community/admin/mentors
+// @access  Admin
+export const createMentorAdmin = async (req, res) => {
+    try {
+        const { userId } = req.body;
+        if (!userId) {
+            return res.status(400).json({ success: false, message: 'User id is required' });
+        }
+
+        const user = await User.findById(userId).select('displayName email');
+        if (!user) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+
+        const existing = await MentorProfile.findOne({ userId });
+        if (existing) {
+            return res.status(409).json({ success: false, message: 'This user is already a mentor' });
+        }
+
+        const groupIds = await resolveMentorGroupIds(req.body.groupIds);
+        const profile = await MentorProfile.create({
+            userId,
+            headline: String(req.body.headline || '').trim(),
+            bio: String(req.body.bio || '').trim(),
+            expertise: normalizeStringArray(req.body.expertise),
+            languages: normalizeStringArray(req.body.languages),
+            groupIds,
+            isVerified: req.body.isVerified === undefined ? true : req.body.isVerified === true,
+            isActive: req.body.isActive === undefined ? true : req.body.isActive === true,
+        });
+
+        if (profile.isActive) {
+            for (const groupId of groupIds) {
+                await assignMentorToGroup(userId, groupId);
+            }
+            await notifyMentorAssigned(userId, groupIds.length);
+        }
+
+        const populated = await populateMentor(profile._id);
+
+        res.status(201).json({
+            success: true,
+            message: 'Mentor created successfully',
+            data: populated
+        });
+    } catch (error) {
+        console.error('Create Mentor Admin Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create mentor',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Update a mentor profile (Admin only)
+// @route   PATCH /api/community/admin/mentors/:mentorId
+// @access  Admin
+export const updateMentorAdmin = async (req, res) => {
+    try {
+        const { mentorId } = req.params;
+        const profile = await MentorProfile.findById(mentorId);
+        if (!profile) {
+            return res.status(404).json({ success: false, message: 'Mentor not found' });
+        }
+
+        const wasActive = profile.isActive !== false;
+        const oldGroupIds = (profile.groupIds || []).map(String);
+        const nextGroupIds = req.body.groupIds === undefined
+            ? oldGroupIds
+            : await resolveMentorGroupIds(req.body.groupIds);
+        const nextActive = req.body.isActive === undefined
+            ? profile.isActive !== false
+            : req.body.isActive === true;
+
+        if (req.body.headline !== undefined) {
+            profile.headline = String(req.body.headline || '').trim();
+        }
+        if (req.body.bio !== undefined) {
+            profile.bio = String(req.body.bio || '').trim();
+        }
+        if (req.body.expertise !== undefined) {
+            profile.expertise = normalizeStringArray(req.body.expertise);
+        }
+        if (req.body.languages !== undefined) {
+            profile.languages = normalizeStringArray(req.body.languages);
+        }
+        if (req.body.isVerified !== undefined) {
+            profile.isVerified = req.body.isVerified === true;
+        }
+
+        if (nextActive) {
+            for (const groupId of oldGroupIds) {
+                if (!nextGroupIds.includes(groupId)) {
+                    await removeMentorFromGroup(profile.userId, groupId);
+                }
+            }
+            for (const groupId of nextGroupIds) {
+                await assignMentorToGroup(profile.userId, groupId);
+            }
+        } else {
+            for (const groupId of new Set([...oldGroupIds, ...nextGroupIds])) {
+                await removeMentorFromGroup(profile.userId, groupId);
+            }
+        }
+
+        profile.groupIds = nextGroupIds;
+        profile.isActive = nextActive;
+        await profile.save();
+
+        if (nextActive && (!wasActive || req.body.groupIds !== undefined)) {
+            await notifyMentorAssigned(profile.userId, nextGroupIds.length);
+        }
+
+        const populated = await populateMentor(profile._id);
+
+        res.status(200).json({
+            success: true,
+            message: nextActive ? 'Mentor updated successfully' : 'Mentor deactivated',
+            data: populated
+        });
+    } catch (error) {
+        console.error('Update Mentor Admin Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update mentor',
+            error: error.message
+        });
+    }
+};
+
+// @desc    Deactivate a mentor (Admin only)
+// @route   DELETE /api/community/admin/mentors/:mentorId
+// @access  Admin
+export const deactivateMentorAdmin = async (req, res) => {
+    try {
+        const { mentorId } = req.params;
+        const profile = await MentorProfile.findById(mentorId);
+        if (!profile) {
+            return res.status(404).json({ success: false, message: 'Mentor not found' });
+        }
+
+        for (const groupId of profile.groupIds || []) {
+            await removeMentorFromGroup(profile.userId, groupId);
+        }
+
+        profile.isActive = false;
+        await profile.save();
+
+        const populated = await populateMentor(profile._id);
+
+        res.status(200).json({
+            success: true,
+            message: 'Mentor deactivated',
+            data: populated
+        });
+    } catch (error) {
+        console.error('Deactivate Mentor Admin Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to deactivate mentor',
             error: error.message
         });
     }
