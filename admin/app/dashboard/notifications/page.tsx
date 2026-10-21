@@ -187,6 +187,7 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [sendingQuote, setSendingQuote] = useState(false);
   const [sendMode, setSendMode] = useState<SendMode>('broadcast');
   const [section, setSection] = useState<Section>(SECTIONS[0]);
   const [sectionFilters, setSectionFilters] = useState<Record<string, string>>({});
@@ -330,6 +331,20 @@ export default function NotificationsPage() {
     n.message.toLowerCase().includes(search.toLowerCase())
   );
 
+  const sendDailyMotivation = async () => {
+    if (sendingQuote) return;
+    setSendingQuote(true);
+    try {
+      const res = await apiClient.post('/api/notifications/automation/daily-quote');
+      toast.success(res.data?.message || 'Daily motivation sent');
+      await load();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to send daily motivation');
+    } finally {
+      setSendingQuote(false);
+    }
+  };
+
   const unread = notifications.filter(n => !n.isRead).length;
   const SectionIcon = section.icon;
 
@@ -347,6 +362,15 @@ export default function NotificationsPage() {
         </div>
         {/* Stat chips */}
         <div className="hidden sm:flex items-center gap-3">
+          <button
+            type="button"
+            onClick={sendDailyMotivation}
+            disabled={sendingQuote}
+            className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
+          >
+            <Sparkles className="w-4 h-4" />
+            {sendingQuote ? 'Sending...' : 'Send Daily Motivation'}
+          </button>
           {[
             { label: 'Total', val: notifications.length, cls: 'bg-gray-100 text-secondary' },
             { label: 'Unread', val: unread, cls: 'bg-primary/10 text-primary' },

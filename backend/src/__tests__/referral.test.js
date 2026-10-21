@@ -107,7 +107,7 @@ describe('Referral - getReferralValidation', () => {
   });
 
   it('rejects an already-referred user', async () => {
-    const other = await createTestUser2();
+    const other = await createTestUser2({ phone: '+919876543220' });
     other.referralCode = 'OTHER-9';
     await other.save();
     await Referral.create({ referrer: other._id, referredUser: buyer._id, referralCode: other.referralCode });
@@ -143,8 +143,8 @@ describe('Referral - fireTrigger', () => {
 
   it('respects maxPointsPerReferrerTotal cap (atomic)', async () => {
     await ReferralConfig.updateOne({}, { maxPointsPerReferrerTotal: 15 });
-    const r2 = await createTestUser();
-    const r3 = await createTestUser();
+    const r2 = await createTestUser({ phone: '+919876543221' });
+    const r3 = await createTestUser({ phone: '+919876543222' });
     await fireTrigger('user.signup', { referrerId: referrer._id, referredUserId: r2._id });
     await fireTrigger('user.signup', { referrerId: referrer._id, referredUserId: r3._id });
     const refreshed = await User.findById(referrer._id);
@@ -275,7 +275,7 @@ describe('Referral - applyReferralCode route', () => {
       .post('/api/user/profile/referrals/apply')
       .set(getAuthHeader(generateUserToken(buyer._id)))
       .send({ code: referrer.referralCode });
-    const other = await createTestUser2();
+    const other = await createTestUser2({ phone: '+919876543223' });
     other.referralCode = 'REF-APPLY-2';
     await other.save();
     const res = await request(app)

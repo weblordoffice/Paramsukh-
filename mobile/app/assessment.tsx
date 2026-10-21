@@ -24,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import apiClient from '../utils/apiClient';
 import { useAssessmentStore } from '../store/assessmentStore';
 import { useAuthStore } from '../store/authStore';
+import { useRecommendationStore } from '../store/recommendationStore';
 import { useTheme } from '../hooks/useTheme';
 const makeStyles = (colors: any) => StyleSheet.create({
   container: {
@@ -597,6 +598,9 @@ export default function AssessmentScreen() {
           stateName: selectedState?.name || '',
         };
         await AsyncStorage.setItem('assessment_answers', JSON.stringify(allAnswers));
+
+        // Refresh recommendations so the home carousel reflects the new assessment.
+        void useRecommendationStore.getState().fetchRecommendations(true);
 
         await new Promise(resolve => setTimeout(resolve, 500));
         store.reset();

@@ -1,6 +1,7 @@
 import express from 'express';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import { bookingLimiter } from '../../middleware/rateLimiter.js';
 import { sanitizePostContent } from '../../middleware/sanitizeInput.js';
 import {
@@ -53,31 +54,31 @@ router.get('/availability', protectedRoutes, getAvailability);
 // ========================================
 
 // Service Management (MUST be before /admin/:id wildcard)
-router.get('/admin/services', adminAuth, getAllServicesAdmin);
-router.post('/admin/services', adminAuth, createService);
-router.put('/admin/services/:id', adminAuth, updateService);
-router.delete('/admin/services/:id', adminAuth, deleteService);
+router.get('/admin/services', adminAuth, requirePermission('manage_content'), getAllServicesAdmin);
+router.post('/admin/services', adminAuth, requirePermission('manage_content'), createService);
+router.put('/admin/services/:id', adminAuth, requirePermission('manage_content'), updateService);
+router.delete('/admin/services/:id', adminAuth, requirePermission('manage_content'), deleteService);
 
 // Cleanup & Automation (MUST be before /admin/:id wildcard)
-router.post('/admin/cleanup-expired', adminAuth, triggerCleanupExpired);
-router.post('/admin/auto-complete', adminAuth, triggerAutoComplete);
-router.delete('/admin/wipe', adminAuth, wipeCounselingData);
-router.get('/admin/reschedule-requests', adminAuth, getPendingRescheduleRequests);
+router.post('/admin/cleanup-expired', adminAuth, requirePermission('manage_content'), triggerCleanupExpired);
+router.post('/admin/auto-complete', adminAuth, requirePermission('manage_content'), triggerAutoComplete);
+router.delete('/admin/wipe', adminAuth, requirePermission('manage_content'), wipeCounselingData);
+router.get('/admin/reschedule-requests', adminAuth, requirePermission('manage_content'), getPendingRescheduleRequests);
 
 // Availability Exceptions (MUST be before /admin/:id wildcard)
-router.get('/admin/availability-exceptions', adminAuth, getAvailabilityExceptions);
-router.post('/admin/availability-exceptions', adminAuth, createAvailabilityException);
-router.put('/admin/availability-exceptions/:id', adminAuth, updateAvailabilityException);
-router.delete('/admin/availability-exceptions/:id', adminAuth, deleteAvailabilityException);
+router.get('/admin/availability-exceptions', adminAuth, requirePermission('manage_content'), getAvailabilityExceptions);
+router.post('/admin/availability-exceptions', adminAuth, requirePermission('manage_content'), createAvailabilityException);
+router.put('/admin/availability-exceptions/:id', adminAuth, requirePermission('manage_content'), updateAvailabilityException);
+router.delete('/admin/availability-exceptions/:id', adminAuth, requirePermission('manage_content'), deleteAvailabilityException);
 
 // Booking Management (wildcard :id routes - must be LAST)
-router.get('/all', adminAuth, getAllBookings);
-router.get('/admin/:id', adminAuth, getBookingDetailsAdmin);
-router.patch('/admin/:id/status', adminAuth, updateBookingStatusAdmin);
-router.patch('/admin/:id/meeting', adminAuth, updateBookingMeetingAdmin);
-router.post('/admin/:id/reschedule-request', adminAuth, requestRescheduleAdmin);
-router.post('/admin/:id/reschedule-respond', adminAuth, respondRescheduleAdmin);
-router.delete('/admin/:id', adminAuth, deleteBookingAdmin);
+router.get('/all', adminAuth, requirePermission('manage_content'), getAllBookings);
+router.get('/admin/:id', adminAuth, requirePermission('manage_content'), getBookingDetailsAdmin);
+router.patch('/admin/:id/status', adminAuth, requirePermission('manage_content'), updateBookingStatusAdmin);
+router.patch('/admin/:id/meeting', adminAuth, requirePermission('manage_content'), updateBookingMeetingAdmin);
+router.post('/admin/:id/reschedule-request', adminAuth, requirePermission('manage_content'), requestRescheduleAdmin);
+router.post('/admin/:id/reschedule-respond', adminAuth, requirePermission('manage_content'), respondRescheduleAdmin);
+router.delete('/admin/:id', adminAuth, requirePermission('manage_content'), deleteBookingAdmin);
 
 // ========================================
 // Protected Routes (User Auth)

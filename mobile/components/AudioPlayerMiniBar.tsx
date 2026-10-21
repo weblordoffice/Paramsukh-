@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Image, StyleSheet, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAudioPlayerStore } from '../store/audioPlayerStore';
 import { useTheme } from '../hooks/useTheme';
@@ -132,6 +132,19 @@ export default function AudioPlayerMiniBar() {
                         size={24}
                         color={colors.text}
                     />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.closeBtn}
+                    onPress={() => {
+                        if (!currentTrack) return;
+                        Share.share({
+                            title: currentTrack.title,
+                            message: `Listening to "${currentTrack.title}" by ${currentTrack.host} on Paramsukh Online Gurukul.`,
+                        }).catch(() => {});
+                    }}
+                >
+                    <Ionicons name="share-social-outline" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.closeBtn} onPress={stop}>

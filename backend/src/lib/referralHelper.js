@@ -2,6 +2,18 @@ import crypto from 'crypto';
 import { User } from '../models/user.models.js';
 import ReferralConfig from '../models/referralConfig.models.js';
 
+const BASE64_ALPHABET_PATTERN = /[+/=0OIl]/g;
+
+const randomAlphanumeric = (length) => {
+  let encoded = '';
+  while (encoded.length < length) {
+    encoded += crypto.randomBytes(length).toString('base64')
+      .replace(BASE64_ALPHABET_PATTERN, '')
+      .toUpperCase();
+  }
+  return encoded.substring(0, length);
+};
+
 /**
  * Generates a unique referral code.
  * Format is driven by ReferralConfig.referralCodeFormat:
@@ -20,21 +32,10 @@ export const generateUniqueReferralCode = async (displayName = '') => {
   while (!isUnique) {
     if (format === 'displayName' && displayName) {
       const base = displayName.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6) || 'PARAM';
-      const suffix = crypto.randomBytes(2).toString('base64')
-        .replace(/[+/=]/g, '')
-        .replace(/[0OIl]/g, '')
-        .substring(0, 4)
-        .toUpperCase();
-      code = `${base}-${suffix}`;
+      code = `${base}-${randomAlphanumeric(4)}`;
     } else {
       const len = format === 'random12' ? 12 : 8;
-      const randomBytes = crypto.randomBytes(Math.ceil(len * 0.75));
-      const encoded = Buffer.from(randomBytes).toString('base64')
-        .replace(/[+/=]/g, '')
-        .replace(/[0OIl]/g, '')
-        .substring(0, len)
-        .toUpperCase();
-      code = `PARAM-${encoded}`;
+      code = `PARAM-${randomAlphanumeric(len)}`;
     }
 
     const existing = await User.findOne({ referralCode: code });

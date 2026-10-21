@@ -138,11 +138,15 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
         const formDataObj = new FormData();
 
         if (type === 'video') {
+            const isAudio = file.type.startsWith('audio/');
             setUploadingVideo(true);
-            formDataObj.append('video', file);
+            formDataObj.append(isAudio ? 'audio' : 'video', file);
 
             try {
-                const response = await apiClient.post('/api/upload/video', formDataObj);
+                const response = await apiClient.post(
+                    isAudio ? '/api/upload/audio' : '/api/upload/video',
+                    formDataObj
+                );
 
                 if (response.data?.success) {
                     const { url, duration } = response.data.data;
@@ -151,12 +155,12 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
                         videoUrl: url,
                         duration: duration ? formatDuration(duration) : prev.duration
                     }));
-                    toast.success('Video uploaded successfully');
+                    toast.success(isAudio ? 'Audio uploaded successfully' : 'Video uploaded successfully');
                 }
             } catch (error) {
-                console.error('Video upload error:', error);
+                console.error('Media upload error:', error);
                 const axiosError = error as { response?: { data?: { message?: string; error?: string } } };
-                toast.error(axiosError.response?.data?.error || axiosError.response?.data?.message || 'Failed to upload video');
+                toast.error(axiosError.response?.data?.error || axiosError.response?.data?.message || 'Failed to upload media');
             } finally {
                 setUploadingVideo(false);
             }
@@ -416,12 +420,12 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
                                     {uploadingVideo ? (
                                         <div className="flex flex-col items-center justify-center text-blue-600">
                                             <Loader2 className="w-8 h-8 animate-spin mb-2" />
-                                            <span className="text-sm font-medium">Uploading video...</span>
+                                            <span className="text-sm font-medium">Uploading media...</span>
                                         </div>
                                     ) : formData.videoUrl ? (
                                         <div className="flex flex-col items-center justify-center text-green-600">
                                             <VideoIcon className="w-8 h-8 mb-2" />
-                                            <span className="text-sm font-medium">Video uploaded</span>
+                                            <span className="text-sm font-medium">Media uploaded</span>
                                         </div>
                                     ) : (
                                         <div className="flex flex-col items-center justify-center text-gray-500">

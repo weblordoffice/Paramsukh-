@@ -12,7 +12,7 @@ export const markVideoComplete = async (req, res) => {
         const userId = req.user._id;
 
         // Fetch the course first so we can update video index and progress
-        const course = await Course.findById(courseId).select('videos pdfs').lean();
+        const course = await Course.findById(courseId).select('videos pdfs audioLessons reflections').lean();
         if (!course) {
             return res.status(404).json({
                 success: false,
@@ -45,7 +45,12 @@ export const markVideoComplete = async (req, res) => {
             updated.currentVideoId = videoId;
         }
 
-        updated.updateProgress((course.videos || []).length, (course.pdfs || []).length);
+        updated.updateProgress(
+            (course.videos || []).length,
+            (course.pdfs || []).length,
+            (course.audioLessons || []).length,
+            (course.reflections || []).filter((reflection) => reflection.isRequired !== false).length
+        );
 
         await updated.save();
 
@@ -117,7 +122,11 @@ export const markPdfComplete = async (req, res) => {
 
         updated.updateProgress(
             course.videos ? course.videos.length : 0,
-            course.pdfs ? course.pdfs.length : 0
+            course.pdfs ? course.pdfs.length : 0,
+            course.audioLessons ? course.audioLessons.length : 0,
+            course.reflections
+                ? course.reflections.filter((reflection) => reflection.isRequired !== false).length
+                : 0
         );
 
         await updated.save();
@@ -155,6 +164,77 @@ export const markPdfComplete = async (req, res) => {
 };
 
 /**
+ * Mark audio lesson as complete
+ * POST /api/courses/:courseId/progress/audio/:audioId
+ */
+export const markAudioComplete = async (req, res) => {
+    try {
+        const { courseId, audioId } = req.params;
+        const userId = req.user._id;
+
+        const course = await Course.findById(courseId).select('videos pdfs audioLessons reflections');
+        if (!course) {
+            return res.status(404).json({ success: false, message: 'Course not found' });
+        }
+
+        if (!course.audioLessons.id(audioId)) {
+            return res.status(404).json({ success: false, message: 'Audio lesson not found' });
+        }
+
+        const enrollment = await Enrollment.findOneAndUpdate(
+            { userId, courseId },
+            {
+                $addToSet: { completedAudioLessons: audioId },
+                $set: { lastAccessedAt: new Date() },
+            },
+            { new: true }
+        );
+
+        if (!enrollment) {
+            return res.status(404).json({ success: false, message: 'Enrollment not found' });
+        }
+
+        enrollment.updateProgress(
+            course.videos.length,
+            course.pdfs.length,
+            course.audioLessons.length,
+            course.reflections.filter((reflection) => reflection.isRequired !== false).length
+        );
+        await enrollment.save();
+
+        if (enrollment.isCompleted) {
+            await handleCourseCompletion(userId, courseId).catch((err) =>
+                console.error('Post-completion hook failed:', err.message)
+            );
+        }
+
+        try {
+            const { unlockBadgesForUser } = await import('../../services/badgeUnlockingService.js');
+            await unlockBadgesForUser(userId);
+        } catch (badgeError) {
+            console.error('Failed to update achievements:', badgeError);
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Audio lesson marked as complete',
+            data: {
+                progress: enrollment.progress,
+                completedAudioLessons: enrollment.completedAudioLessons,
+                isCompleted: enrollment.isCompleted,
+            },
+        });
+    } catch (error) {
+        console.error('Mark Audio Complete Error:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Failed to update audio progress',
+            error: error.message,
+        });
+    }
+};
+
+/**
  * Get enrollment progress for a course
  * GET /api/courses/:courseId/progress
  */
@@ -178,6 +258,8 @@ export const getEnrollmentProgress = async (req, res) => {
                 progress: enrollment.progress,
                 completedVideos: enrollment.completedVideos,
                 completedPdfs: enrollment.completedPdfs,
+                completedAudioLessons: enrollment.completedAudioLessons,
+                completedReflections: enrollment.completedReflections,
                 currentVideoId: enrollment.currentVideoId,
                 isCompleted: enrollment.isCompleted,
                 lastAccessedAt: enrollment.lastAccessedAt

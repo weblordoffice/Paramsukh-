@@ -1,5 +1,6 @@
 import { Pdf } from '../../models/course.models.js';
 import { Course } from '../../models/course.models.js';
+import { notifyCourseContentAdded } from '../../services/notificationAutomation.service.js';
 
 
 export const addPdfToCourse = async(req ,res) =>{
@@ -38,6 +39,9 @@ export const addPdfToCourse = async(req ,res) =>{
             fileSize: fileSize || ''
         });
         await course.save();
+        notifyCourseContentAdded(course, 'reading material', title).catch((error) =>
+            console.error('Course content notification failed:', error?.message)
+        );
         return res.status(201).json({
             success: true,
             message:"Pdf added to course successfully",

@@ -1,6 +1,7 @@
 import express from 'express';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import {
     recordDonation,
     getMyDonations,
@@ -29,6 +30,6 @@ router.get('/my-history', protectedRoutes, getMyDonations);
 router.get('/', protectedRoutes, getMyDonations);
 
 // Admin routes
-router.get('/all', adminAuth, getAllDonations);
+router.get('/all', adminAuth, requirePermission('view_analytics', 'manage_orders'), getAllDonations);
 
 export default router;

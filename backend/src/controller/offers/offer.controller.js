@@ -1,4 +1,5 @@
 import { Offer } from '../../models/offer.models.js';
+import { notifyNewOffer } from '../../services/notificationAutomation.service.js';
 
 const ALLOWED_APPLICABLE_ON = new Set(['all', 'category', 'product', 'shop']);
 const ALLOWED_DISCOUNT_TYPES = new Set(['percentage', 'flat']);
@@ -147,6 +148,10 @@ export const createOffer = async (req, res) => {
 
     const offer = await Offer.create(validated.value);
     const populated = await populateOffer(offer._id);
+
+    notifyNewOffer(offer).catch((error) =>
+      console.error('Offer notification failed:', error?.message)
+    );
 
     return res.status(201).json({
       success: true,

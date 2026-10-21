@@ -46,6 +46,7 @@ import {
 } from '../../controller/user/import.controller.js';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import { uploadLimiter, generalLimiter } from '../../middleware/rateLimiter.js';
 import { uploadSingleSpreadsheet, handleMulterError } from '../../middleware/uploadMiddleware.js';
 import { validateMongoIdParams } from '../../middleware/validators.js';
@@ -87,21 +88,21 @@ router.delete('/account', protectedRoutes, deleteAccount);
 // Must define specific paths BEFORE parameterized /:id
 // ========================================
 
-router.get('/all', adminAuth, getAllUsers);
-router.post('/create', adminAuth, createUserAdmin);
-router.get('/import/template', adminAuth, generalLimiter, getUserImportTemplate);
-router.post('/import/preview', adminAuth, uploadLimiter, uploadSingleSpreadsheet, handleMulterError, previewUserImport);
-router.post('/import/commit', adminAuth, uploadLimiter, commitUserImport);
-router.get('/analytics/admin/attention', adminAuth, getUsersNeedingAttention);
+router.get('/all', adminAuth, requirePermission('manage_users'), getAllUsers);
+router.post('/create', adminAuth, requirePermission('manage_users'), createUserAdmin);
+router.get('/import/template', adminAuth, requirePermission('manage_users'), generalLimiter, getUserImportTemplate);
+router.post('/import/preview', adminAuth, requirePermission('manage_users'), uploadLimiter, uploadSingleSpreadsheet, handleMulterError, previewUserImport);
+router.post('/import/commit', adminAuth, requirePermission('manage_users'), uploadLimiter, commitUserImport);
+router.get('/analytics/admin/attention', adminAuth, requirePermission('manage_users'), getUsersNeedingAttention);
 
 // Admin parameterized routes (must be after specific user paths)
-router.get('/:userId/analytics/admin', adminAuth, validateMongoIdParams('userId'), getUserAnalyticsAdmin);
-router.get('/:id', adminAuth, getUserById);
-router.patch('/:id', adminAuth, updateUserAdmin);
-router.delete('/:id', adminAuth, deleteUserAdmin);
-router.patch('/:id/membership', adminAuth, updateUserMembership);
-router.get('/:userId/enrollments', adminAuth, getUserEnrollments);
-router.get('/:userId/payments', adminAuth, getUserPayments);
-router.get('/:userId/activity', adminAuth, validateMongoIdParams('userId'), getUserActivity);
+router.get('/:userId/analytics/admin', adminAuth, requirePermission('manage_users'), validateMongoIdParams('userId'), getUserAnalyticsAdmin);
+router.get('/:id', adminAuth, requirePermission('manage_users'), getUserById);
+router.patch('/:id', adminAuth, requirePermission('manage_users'), updateUserAdmin);
+router.delete('/:id', adminAuth, requirePermission('manage_users'), deleteUserAdmin);
+router.patch('/:id/membership', adminAuth, requirePermission('manage_users'), updateUserMembership);
+router.get('/:userId/enrollments', adminAuth, requirePermission('manage_users'), getUserEnrollments);
+router.get('/:userId/payments', adminAuth, requirePermission('manage_users'), getUserPayments);
+router.get('/:userId/activity', adminAuth, requirePermission('manage_users'), validateMongoIdParams('userId'), getUserActivity);
 
 export default router;

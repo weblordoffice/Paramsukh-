@@ -168,6 +168,90 @@ describe('Standalone Live Sessions', () => {
     expect(deleted).toBeFalsy();
   });
 
+  it('should register, list, and cancel a live-session registration', async () => {
+    const created = await request(app)
+      .post('/api/live-sessions/admin')
+      .set(getAdminApiKeyHeader())
+      .send(basePayload({ capacity: 10 }));
+
+    expect(created.status).toBe(201);
+    const sessionId = created.body.data._id;
+
+    const config = await request(app)
+      .get('/api/live-sessions/admin/config')
+      .set(getAdminApiKeyHeader());
+    expect(config.status).toBe(200);
+    expect(typeof config.body.zoomConfigured).toBe('boolean');
+
+    const register = await request(app)
+      .post(`/api/live-sessions/${sessionId}/register`)
+      .set(getAuthHeader(freeToken));
+    expect(register.status).toBe(200);
+    expect(register.body.registrationCount).toBe(1);
+
+    const list = await request(app)
+      .get('/api/live-sessions')
+      .set(getAuthHeader(freeToken));
+    const listedSession = list.body.upcoming.find((session) => session._id === sessionId);
+    expect(listedSession.isRegistered).toBe(true);
+    expect(listedSession.registrationCount).toBe(1);
+
+    const mine = await request(app)
+      .get('/api/live-sessions/my-registrations')
+      .set(getAuthHeader(freeToken));
+    expect(mine.status).toBe(200);
+    expect(mine.body.registrations.some((item) => item.session._id === sessionId)).toBe(true);
+
+    const adminRegistrations = await request(app)
+      .get(`/api/live-sessions/admin/${sessionId}/registrations`)
+      .set(getAdminApiKeyHeader());
+    expect(adminRegistrations.status).toBe(200);
+    expect(adminRegistrations.body.total).toBe(1);
+
+    const calendar = await request(app)
+      .get(`/api/live-sessions/${sessionId}/calendar.ics`);
+    expect(calendar.status).toBe(200);
+    expect(calendar.headers['content-type']).toContain('text/calendar');
+    expect(calendar.text).toContain('BEGIN:VEVENT');
+
+    const cancel = await request(app)
+      .delete(`/api/live-sessions/${sessionId}/register`)
+      .set(getAuthHeader(freeToken));
+    expect(cancel.status).toBe(200);
+
+    const afterCancel = await request(app)
+      .get('/api/live-sessions')
+      .set(getAuthHeader(freeToken));
+    const cancelledSession = afterCancel.body.upcoming.find((session) => session._id === sessionId);
+    expect(cancelledSession.isRegistered).toBe(false);
+    expect(cancelledSession.registrationCount).toBe(0);
+  });
+
+  it('should enforce session capacity', async () => {
+    const created = await request(app)
+      .post('/api/live-sessions/admin')
+      .set(getAdminApiKeyHeader())
+      .send(basePayload({ capacity: 1 }));
+
+    expect(created.status).toBe(201);
+    const sessionId = created.body.data._id;
+
+    const first = await request(app)
+      .post(`/api/live-sessions/${sessionId}/register`)
+      .set(getAuthHeader(freeToken));
+    expect(first.status).toBe(200);
+
+    const secondUser = await createTestUser2({ email: `live-cap-${Date.now()}@test.com` });
+    await createTestDeviceSession(secondUser._id);
+    const secondToken = generateUserToken(secondUser._id);
+
+    const second = await request(app)
+      .post(`/api/live-sessions/${sessionId}/register`)
+      .set(getAuthHeader(secondToken));
+    expect(second.status).toBe(400);
+    expect(second.body.message).toContain('full');
+  });
+
   it('should reject plan-audience sessions without plans', async () => {
     const res = await request(app)
       .post('/api/live-sessions/admin')

@@ -245,12 +245,6 @@ jobs:
               exit 1
             fi
 
-            ADMIN_API_KEY_VALUE="$(grep -E '^ADMIN_API_KEY=' backend/.env | tail -n1 | cut -d= -f2- | tr -d '\r')"
-            if [ -z "${ADMIN_API_KEY_VALUE}" ] || [ "${ADMIN_API_KEY_VALUE}" = "dev-admin-key-123" ]; then
-              echo "FATAL: Could not resolve a valid ADMIN_API_KEY from backend/.env"
-              exit 1
-            fi
-
             # Cloudflare R2 (video storage): if any R2 credential is present, all
             # are required. A partial config makes /api/upload/video return HTTP 500.
             if grep -Eq '^R2_(ACCOUNT_ID|ACCESS_KEY_ID|SECRET_ACCESS_KEY|BUCKET_NAME)=' backend/.env; then
@@ -264,25 +258,15 @@ jobs:
               echo "WARN: Cloudflare R2 not configured in backend/.env — video uploads will use local storage fallback"
             fi
 
-            NEXT_PUBLIC_ADMIN_API_KEY_VALUE="$(grep -E '^NEXT_PUBLIC_ADMIN_API_KEY=' .env 2>/dev/null | tail -n1 | cut -d= -f2- | tr -d '\r' || true)"
-            if [ -z "${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" ]; then
-              echo "WARN: NEXT_PUBLIC_ADMIN_API_KEY missing in .env; using backend/.env ADMIN_API_KEY for admin build"
-              NEXT_PUBLIC_ADMIN_API_KEY_VALUE="${ADMIN_API_KEY_VALUE}"
-            fi
-            if [ "${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" = "dev-admin-key-123" ]; then
-              echo "FATAL: NEXT_PUBLIC_ADMIN_API_KEY resolved to placeholder dev-admin-key-123"
-              exit 1
-            fi
-
             # Authenticate to GHCR with the workflow token — the same identity that
             # pushed the images in build-and-push and that is already used for the
             # git fetch below. A separate GHCR_TOKEN PAT is not needed here; if it is
             # missing/expired/under-scoped it produces "Get https://ghcr.io/v2/: denied".
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
             BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" AI_SERVICE_IMAGE="${{ needs.build-and-push.outputs.ai_service_image }}" docker compose pull backend ai-service admin || true
-            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" AI_SERVICE_IMAGE="${{ needs.build-and-push.outputs.ai_service_image }}" NEXT_PUBLIC_ADMIN_API_KEY="${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" docker compose build admin || true
+            BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" AI_SERVICE_IMAGE="${{ needs.build-and-push.outputs.ai_service_image }}" docker compose build admin || true
 
-            if ! BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" AI_SERVICE_IMAGE="${{ needs.build-and-push.outputs.ai_service_image }}" NEXT_PUBLIC_ADMIN_API_KEY="${NEXT_PUBLIC_ADMIN_API_KEY_VALUE}" docker compose up -d ai-service backend admin; then
+            if ! BACKEND_IMAGE="${{ needs.build-and-push.outputs.backend_image }}" ADMIN_IMAGE="${{ needs.build-and-push.outputs.admin_image }}" AI_SERVICE_IMAGE="${{ needs.build-and-push.outputs.ai_service_image }}" docker compose up -d ai-service backend admin; then
               echo "docker compose up failed; dumping ai-service/backend/admin logs"
               docker compose logs --no-color --tail=200 ai-service backend admin || true
               exit 1

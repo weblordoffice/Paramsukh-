@@ -3,12 +3,20 @@ import createTestApp from './app.js';
 import { Course } from '../models/course.models.js';
 import {
   createTestCourse,
+  createTestUser,
+  generateUserToken,
   getAdminApiKeyHeader,
+  getAuthHeader,
 } from './helpers.js';
 import { setupDB } from './db.js';
 
 const app = createTestApp();
 setupDB();
+
+const createUserAuthHeader = async () => {
+  const user = await createTestUser();
+  return getAuthHeader(generateUserToken(user._id));
+};
 
 describe('Course Module - /api/courses', () => {
   describe('GET /api/courses/all', () => {
@@ -188,9 +196,11 @@ describe('Course Module - /api/courses', () => {
 
     it('should get course videos', async () => {
       const course = await createTestCourse();
+      const authHeader = await createUserAuthHeader();
 
       const res = await request(app)
-        .get(`/api/courses/${course._id}/videos`);
+        .get(`/api/courses/${course._id}/videos`)
+        .set(authHeader);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -244,9 +254,11 @@ describe('Course Module - /api/courses', () => {
 
     it('should get course PDFs', async () => {
       const course = await createTestCourse();
+      const authHeader = await createUserAuthHeader();
 
       const res = await request(app)
-        .get(`/api/courses/${course._id}/pdfs`);
+        .get(`/api/courses/${course._id}/pdfs`)
+        .set(authHeader);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
@@ -280,9 +292,11 @@ describe('Course Module - /api/courses', () => {
 
     it('should get course live sessions', async () => {
       const course = await createTestCourse();
+      const authHeader = await createUserAuthHeader();
 
       const res = await request(app)
-        .get(`/api/courses/${course._id}/livesessions`);
+        .get(`/api/courses/${course._id}/livesessions`)
+        .set(authHeader);
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);

@@ -1,4 +1,5 @@
 import { Course } from '../../models/course.models.js';
+import { notifyCourseContentAdded } from '../../services/notificationAutomation.service.js';
 
 const ALLOWED_MEETING_PLATFORMS = new Set(['zoom', 'google-meet', 'teams', 'other']);
 const ALLOWED_SESSION_STATUSES = new Set(['scheduled', 'completed', 'cancelled']);
@@ -83,7 +84,9 @@ export const addLiveSessionToCourse = async (req, res) => {
     // Get the newly added session
     const addedSession = course.liveSessions[course.liveSessions.length - 1];
 
-    console.log(`✅ Live session added to course: ${course.title}`);
+    notifyCourseContentAdded(course, 'live session', title).catch((error) =>
+      console.error('Course content notification failed:', error?.message)
+    );
 
     return res.status(201).json({
       success: true,

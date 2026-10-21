@@ -9,16 +9,12 @@ export const apiClient = axios.create({
     },
 });
 
-// Request interceptor: add admin JWT + API key
+// Request interceptor: add admin JWT
 apiClient.interceptors.request.use(
     (config) => {
         const token = useAuthStore.getState().token;
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
-        }
-        const apiKey = process.env.NEXT_PUBLIC_ADMIN_API_KEY;
-        if (apiKey) {
-            config.headers['x-admin-api-key'] = apiKey;
         }
         if (config.data instanceof FormData) {
             delete config.headers['Content-Type'];

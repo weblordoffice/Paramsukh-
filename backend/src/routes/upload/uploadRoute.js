@@ -1,12 +1,13 @@
 import express from 'express';
-import crypto from 'crypto';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
-import { adminAuth } from '../../middleware/adminAuth.js';
+import { adminAuth, getAdminFromRequest, isValidAdminApiKey } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import { uploadLimiter } from '../../middleware/rateLimiter.js';
 import {
   uploadSingleImage as uploadSingleImageMiddleware,
   uploadMultipleImages as uploadMultipleImagesMiddleware,
   uploadSingleVideo,
+  uploadSingleAudio,
   uploadSinglePdf,
   uploadProfilePhoto as uploadProfilePhotoMiddleware,
   handleMulterError
@@ -16,6 +17,7 @@ import {
   uploadImages,
   uploadProfilePhoto,
   uploadVideoFile,
+  uploadAudioFile,
   getVideoPresignedUrl,
   uploadPdfFile,
   uploadProductImages,
@@ -26,17 +28,17 @@ import {
 
 const router = express.Router();
 
-// Helper middleware to allow either Admin API Key or User Token
+// Helper middleware to allow either an Admin (JWT/API key) or a User token
 const adminOrUserAuth = async (req, res, next) => {
-  const apiKey = req.headers['x-admin-api-key'];
-  const adminApiKey = process.env.ADMIN_API_KEY;
+  const admin = await getAdminFromRequest(req);
+  if (admin) {
+    req.admin = admin;
+    return next();
+  }
 
-  if (apiKey && adminApiKey) {
-    const keyBuffer = Buffer.from(String(apiKey));
-    const expectedBuffer = Buffer.from(adminApiKey);
-    if (keyBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(keyBuffer, expectedBuffer)) {
-      return next();
-    }
+  if (isValidAdminApiKey(req)) {
+    req.isAdminApiKey = true;
+    return next();
   }
 
   return protectedRoutes(req, res, next);
@@ -102,6 +104,7 @@ router.post('/product-images',
 // @query type: thumbnail or banner
 router.post('/course-media',
   adminAuth,
+  requirePermission('manage_courses'),
   uploadSingleImageMiddleware,
   handleMulterError,
   uploadCourseMedia
@@ -129,6 +132,17 @@ router.post('/video',
   uploadSingleVideo,
   handleMulterError,
   uploadVideoFile
+);
+
+// Upload audio (podcasts)
+// POST /api/upload/audio
+// @multipart file: audio
+// @query folder: optional folder name
+router.post('/audio',
+  adminOrUserAuth,
+  uploadSingleAudio,
+  handleMulterError,
+  uploadAudioFile
 );
 
 // Upload PDF (for course materials)

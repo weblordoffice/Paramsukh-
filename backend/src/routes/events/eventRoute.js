@@ -12,7 +12,8 @@ import {
   addEventImages,
   addEventVideo,
   deleteEventImage,
-  deleteEventVideo
+  deleteEventVideo,
+  downloadEventCalendar
 } from '../../controller/events/events.controller.js';
 import {
   registerForEvent,
@@ -29,6 +30,7 @@ import {
 } from '../../controller/events/eventRegistration.controller.js';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import { validateCreateEvent } from '../../middleware/validators.js';
 
 const router = express.Router();
@@ -39,7 +41,7 @@ const router = express.Router();
 
 // Create new event
 // POST /api/events/create
-router.post('/create', adminAuth, validateCreateEvent, createEvent);
+router.post('/create', adminAuth, requirePermission('manage_events'), validateCreateEvent, createEvent);
 
 // Get all events with filters
 // GET /api/events/all
@@ -62,17 +64,20 @@ router.get('/slug/:slug', getEventBySlug);
 // GET /api/events/my-registrations
 router.get('/my-registrations', protectedRoutes, getMyRegistrations);
 
+// Public calendar download (event id is an unguessable ObjectId)
+// GET /api/events/:id/calendar.ics
+router.get('/:id/calendar.ics', downloadEventCalendar);
+
 // Get event by ID
-// GET /api/events/:id
 router.get('/:id', getEventById);
 
 // Update event
 // PUT /api/events/:id
-router.put('/:id', adminAuth, updateEvent);
+router.put('/:id', adminAuth, requirePermission('manage_events'), updateEvent);
 
 // Delete event
 // DELETE /api/events/:id
-router.delete('/:id', adminAuth, deleteEvent);
+router.delete('/:id', adminAuth, requirePermission('manage_events'), deleteEvent);
 
 // ========================================
 // Event Actions
@@ -80,23 +85,23 @@ router.delete('/:id', adminAuth, deleteEvent);
 
 // Cancel event (soft delete - sets status to 'cancelled')
 // PATCH /api/events/:id/cancel
-router.patch('/:id/cancel', adminAuth, cancelEvent);
+router.patch('/:id/cancel', adminAuth, requirePermission('manage_events'), cancelEvent);
 
 // Add images to event (for past events gallery)
 // POST /api/events/:id/images
-router.post('/:id/images', adminAuth, addEventImages);
+router.post('/:id/images', adminAuth, requirePermission('manage_events'), addEventImages);
 
 // Add YouTube video to event (for recordings)
 // POST /api/events/:id/videos
-router.post('/:id/videos', adminAuth, addEventVideo);
+router.post('/:id/videos', adminAuth, requirePermission('manage_events'), addEventVideo);
 
 // Delete single image from event (by url or _id)
 // DELETE /api/events/:id/images
-router.delete('/:id/images', adminAuth, deleteEventImage);
+router.delete('/:id/images', adminAuth, requirePermission('manage_events'), deleteEventImage);
 
 // Delete single video from event (by url or _id)
 // DELETE /api/events/:id/videos
-router.delete('/:id/videos', adminAuth, deleteEventVideo);
+router.delete('/:id/videos', adminAuth, requirePermission('manage_events'), deleteEventVideo);
 
 // ========================================
 // Event Registration Routes (Protected)
@@ -128,15 +133,15 @@ router.get('/:eventId/registration-status', protectedRoutes, getRegistrationStat
 
 // Get all registrations for an event (admin only)
 // GET /api/events/:eventId/registrations
-router.get('/:eventId/registrations', adminAuth, getEventRegistrations);
+router.get('/:eventId/registrations', adminAuth, requirePermission('manage_events'), getEventRegistrations);
 
 // Check-in user at event
 // PATCH /api/events/:eventId/registrations/:registrationId/checkin
-router.patch('/:eventId/registrations/:registrationId/checkin', adminAuth, checkInUser);
+router.patch('/:eventId/registrations/:registrationId/checkin', adminAuth, requirePermission('manage_events'), checkInUser);
 
 // Update payment status
 // PATCH /api/events/:eventId/registrations/:registrationId/payment
-router.patch('/:eventId/registrations/:registrationId/payment', adminAuth, updatePaymentStatus);
+router.patch('/:eventId/registrations/:registrationId/payment', adminAuth, requirePermission('manage_events'), updatePaymentStatus);
 
 export default router;
 

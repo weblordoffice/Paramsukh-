@@ -26,6 +26,7 @@ const KNOWN_PATHS = new Set([
   '/(home)/leaderboard',
   '/(home)/live-sessions',
   '/(home)/podcasts',
+  '/(home)/offers',
   '/(home)/my-progress',
   '/(home)/courses',
   '/(home)/events',
@@ -86,6 +87,10 @@ export function resolveNotificationRoute(item: NotificationTarget): ResolvedRout
 
   if (item.type === 'mentor_question') {
     return '/(home)/mentor-questions';
+  }
+
+  if (item.type === 'live_session_reminder' || item.type === 'live_session_registered') {
+    return '/(home)/live-sessions';
   }
 
   if (item.type === 'mentor_assigned') {

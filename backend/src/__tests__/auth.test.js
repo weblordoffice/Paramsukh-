@@ -128,7 +128,7 @@ describe('Auth Module - /api/auth', () => {
       const phone = validPhone();
       const res = await request(app)
         .post('/api/auth/verify-otp')
-        .send({ phone, otp: '123456' });
+        .send({ phone, otp: '654321' });
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);

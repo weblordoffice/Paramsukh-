@@ -528,10 +528,20 @@ export const markCourseComplete = async (req, res) => {
     if (Array.isArray(course.pdfs)) {
       course.pdfs.forEach(p => enrollment.markPdfComplete(p._id));
     }
+    if (Array.isArray(course.audioLessons)) {
+      course.audioLessons.forEach(a => enrollment.markAudioComplete(a._id));
+    }
+    if (Array.isArray(course.reflections)) {
+      course.reflections.forEach(r => enrollment.markReflectionComplete(r._id));
+    }
 
     const totalVideos = Array.isArray(course.videos) ? course.videos.length : 0;
     const totalPdfs = Array.isArray(course.pdfs) ? course.pdfs.length : 0;
-    enrollment.updateProgress(totalVideos, totalPdfs);
+    const totalAudioLessons = Array.isArray(course.audioLessons) ? course.audioLessons.length : 0;
+    const totalReflections = Array.isArray(course.reflections)
+      ? course.reflections.filter((reflection) => reflection.isRequired !== false).length
+      : 0;
+    enrollment.updateProgress(totalVideos, totalPdfs, totalAudioLessons, totalReflections);
     await enrollment.save();
 
     const { handleCourseCompletion } = await import('../../services/courseCompletion.service.js');

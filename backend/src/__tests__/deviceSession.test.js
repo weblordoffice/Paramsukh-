@@ -12,6 +12,9 @@ import {
 
 setupDB();
 
+process.env.MAX_ACTIVE_DEVICES = '2';
+process.env.MAX_DEVICE_REGISTRATIONS_24H = '3';
+
 const app = createTestApp();
 
 const uid = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(-10);

@@ -1,6 +1,7 @@
 import express from 'express';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import { contentCreationLimiter, communityPostLimiter, communityCommentLimiter, communityLikeLimiter, communityVoteLimiter } from '../../middleware/rateLimiter.js';
 import { validateCreatePost, validateCreateComment, validateMongoIdParams } from '../../middleware/validators.js';
 import { sanitizePostContent, sanitizeCommentContent } from '../../middleware/sanitizeInput.js';
@@ -31,26 +32,26 @@ import { runScheduledCleanup } from '../../controller/community/communityCleanup
 const router = express.Router();
 
 // Admin routes
-router.get('/all', adminAuth, getAllPosts);
-router.delete('/posts/:postId/admin', adminAuth, validateMongoIdParams('postId'), deletePostAdmin);
-router.patch('/posts/:postId/pin', adminAuth, validateMongoIdParams('postId'), togglePinPost);
-router.patch('/posts/:postId/block', adminAuth, validateMongoIdParams('postId'), toggleBlockPost);
-router.post('/admin/users/:userId/posting-block', adminAuth, validateMongoIdParams('userId'), setUserPostingBlock);
-router.post('/admin/posts', adminAuth, communityPostLimiter, sanitizePostContent, validateCreatePost, createPostAdmin);
-router.get('/admin/groups', adminAuth, getAdminGroups);
-router.get('/admin/groups/general', adminAuth, getGeneralGroup);
-router.patch('/admin/groups/general', adminAuth, updateGeneralGroup);
-router.get('/admin/posts/:postId/comments', adminAuth, validateMongoIdParams('postId'), getPostCommentsAdmin);
-router.patch('/admin/posts/:postId/resolve', adminAuth, validateMongoIdParams('postId'), resolveQuestionAdmin);
-router.patch('/admin/posts/:postId/accept-answer', adminAuth, validateMongoIdParams('postId'), acceptAnswerAdmin);
-router.get('/admin/leaderboard', adminAuth, getLeaderboardAdmin);
-router.get('/admin/leaderboard/events', adminAuth, getPointEventsAdmin);
-router.get('/admin/mentors', adminAuth, getAdminMentors);
-router.post('/admin/mentors', adminAuth, createMentorAdmin);
-router.patch('/admin/mentors/:mentorId', adminAuth, validateMongoIdParams('mentorId'), updateMentorAdmin);
-router.delete('/admin/mentors/:mentorId', adminAuth, validateMongoIdParams('mentorId'), deactivateMentorAdmin);
-router.delete('/comments/:commentId/admin', adminAuth, validateMongoIdParams('commentId'), deleteCommentAdmin);
-router.get('/admin/cleanup-expired', adminAuth, runScheduledCleanup);  // Scheduled cleanup endpoint
+router.get('/all', adminAuth, requirePermission('manage_community'), getAllPosts);
+router.delete('/posts/:postId/admin', adminAuth, requirePermission('manage_community'), validateMongoIdParams('postId'), deletePostAdmin);
+router.patch('/posts/:postId/pin', adminAuth, requirePermission('manage_community'), validateMongoIdParams('postId'), togglePinPost);
+router.patch('/posts/:postId/block', adminAuth, requirePermission('manage_community'), validateMongoIdParams('postId'), toggleBlockPost);
+router.post('/admin/users/:userId/posting-block', adminAuth, requirePermission('manage_community'), validateMongoIdParams('userId'), setUserPostingBlock);
+router.post('/admin/posts', adminAuth, requirePermission('manage_community'), communityPostLimiter, sanitizePostContent, validateCreatePost, createPostAdmin);
+router.get('/admin/groups', adminAuth, requirePermission('manage_community'), getAdminGroups);
+router.get('/admin/groups/general', adminAuth, requirePermission('manage_community'), getGeneralGroup);
+router.patch('/admin/groups/general', adminAuth, requirePermission('manage_community'), updateGeneralGroup);
+router.get('/admin/posts/:postId/comments', adminAuth, requirePermission('manage_community'), validateMongoIdParams('postId'), getPostCommentsAdmin);
+router.patch('/admin/posts/:postId/resolve', adminAuth, requirePermission('manage_community'), validateMongoIdParams('postId'), resolveQuestionAdmin);
+router.patch('/admin/posts/:postId/accept-answer', adminAuth, requirePermission('manage_community'), validateMongoIdParams('postId'), acceptAnswerAdmin);
+router.get('/admin/leaderboard', adminAuth, requirePermission('manage_community'), getLeaderboardAdmin);
+router.get('/admin/leaderboard/events', adminAuth, requirePermission('manage_community'), getPointEventsAdmin);
+router.get('/admin/mentors', adminAuth, requirePermission('manage_community'), getAdminMentors);
+router.post('/admin/mentors', adminAuth, requirePermission('manage_community'), createMentorAdmin);
+router.patch('/admin/mentors/:mentorId', adminAuth, requirePermission('manage_community'), validateMongoIdParams('mentorId'), updateMentorAdmin);
+router.delete('/admin/mentors/:mentorId', adminAuth, requirePermission('manage_community'), validateMongoIdParams('mentorId'), deactivateMentorAdmin);
+router.delete('/comments/:commentId/admin', adminAuth, requirePermission('manage_community'), validateMongoIdParams('commentId'), deleteCommentAdmin);
+router.get('/admin/cleanup-expired', adminAuth, requirePermission('manage_community'), runScheduledCleanup);  // Scheduled cleanup endpoint
 
 // All other community routes require authentication
 router.use(protectedRoutes);

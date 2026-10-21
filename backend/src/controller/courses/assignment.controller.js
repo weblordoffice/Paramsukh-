@@ -1,4 +1,5 @@
 import { Course, Assignment } from '../../models/course.models.js';
+import { notifyCourseContentAdded } from '../../services/notificationAutomation.service.js';
 
 /**
  * Add an assignment (standalone or linked to a video)
@@ -59,6 +60,10 @@ export const addAssignment = async (req, res) => {
         }
 
         await course.save();
+
+        notifyCourseContentAdded(course, 'quiz', title).catch((error) =>
+            console.error('Course content notification failed:', error?.message)
+        );
 
         return res.status(201).json({
             success: true,

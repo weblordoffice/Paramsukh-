@@ -23,10 +23,12 @@ const TYPE_STYLE: Record<string, { icon: string; color: string }> = {
   // Course notifications
   course_enrolled: { icon: 'book', color: '#8B5CF6' },
   course_completed: { icon: 'checkmark-circle', color: '#10B981' },
+  course_update: { icon: 'sparkles', color: '#8B5CF6' },
   video_completed: { icon: 'play-circle', color: '#8B5CF6' },
   // Event notifications
   event_reminder: { icon: 'calendar', color: '#F59E0B' },
   event_registered: { icon: 'calendar', color: '#F59E0B' },
+  event_created: { icon: 'calendar', color: '#F59E0B' },
   // Community notifications
   community_post: { icon: 'chatbubbles', color: '#10B981' },
   community_comment: { icon: 'chatbubble', color: '#10B981' },
@@ -50,6 +52,7 @@ const TYPE_STYLE: Record<string, { icon: string; color: string }> = {
   // Shop & Product notifications
   shop_product: { icon: 'pricetag', color: '#F59E0B' },
   shop_order: { icon: 'cart', color: '#3B82F6' },
+  offer_alert: { icon: 'sparkles', color: '#F59E0B' },
   // Podcast notifications
   podcast: { icon: 'radio', color: '#8B5CF6' },
   podcast_episode: { icon: 'musical-notes', color: '#8B5CF6' },
@@ -60,6 +63,7 @@ const TYPE_STYLE: Record<string, { icon: string; color: string }> = {
   // System notifications
   system: { icon: 'settings', color: '' }, // resolved via colors.textSecondary at render
   general: { icon: 'notifications', color: '#EC4899' },
+  daily_motivation: { icon: 'sunny', color: '#F59E0B' },
 };
 
 function formatTime(createdAt: string): string {

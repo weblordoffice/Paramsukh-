@@ -1,6 +1,7 @@
 import express from 'express';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import {
   getNotifications,
   getUnreadCount,
@@ -18,20 +19,28 @@ import {
   deleteNotificationAdmin,
   markNotificationReadAdmin
 } from '../../controller/notifications/admin.notifications.controller.js';
+import {
+  triggerDailyMotivationQuotes,
+  getNotificationAutomationStatus
+} from '../../controller/notifications/automation.notifications.controller.js';
 
 const router = express.Router();
 
 // ========================================
 // Admin Routes
 // ========================================
-router.get('/all', adminAuth, getAllNotifications);
-router.post('/broadcast', adminAuth, sendBroadcastNotification);
+router.get('/all', adminAuth, requirePermission('manage_content'), getAllNotifications);
+router.post('/broadcast', adminAuth, requirePermission('manage_content'), sendBroadcastNotification);
 // Targeted / section-specific send
 // POST /api/notifications/send
 // Body: { title, message, section, userIds?, filters?, type, icon, priority, actionUrl }
-router.post('/send', adminAuth, sendSectionNotification);
-router.delete('/:id/admin', adminAuth, deleteNotificationAdmin);
-router.patch('/:id/read/admin', adminAuth, markNotificationReadAdmin);
+router.post('/send', adminAuth, requirePermission('manage_content'), sendSectionNotification);
+router.delete('/:id/admin', adminAuth, requirePermission('manage_content'), deleteNotificationAdmin);
+router.patch('/:id/read/admin', adminAuth, requirePermission('manage_content'), markNotificationReadAdmin);
+
+// Notification automation
+router.get('/automation/status', adminAuth, requirePermission('manage_content'), getNotificationAutomationStatus);
+router.post('/automation/daily-quote', adminAuth, requirePermission('manage_content'), triggerDailyMotivationQuotes);
 
 // ========================================
 // Protected User Routes

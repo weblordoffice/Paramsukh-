@@ -8,6 +8,7 @@ import {
   TextInput,
   StatusBar,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +16,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCourseStore } from '../store/courseStore';
 import { useTheme } from '../hooks/useTheme';
+import apiClient from '../utils/apiClient';
 
 export default function AssignmentViewerScreen() {
   const { colors } = useTheme();
@@ -177,6 +179,33 @@ export default function AssignmentViewerScreen() {
     color: colors.textSecondary,
     lineHeight: 20,
   },
+  resultCard: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+  },
+  resultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  resultTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  resultScore: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  resultMeta: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
   finishBtn: {
     paddingVertical: 16,
     borderRadius: 16,
@@ -215,6 +244,7 @@ export default function AssignmentViewerScreen() {
   const { currentCourse } = useCourseStore();
 
   const assignmentId = params.assignmentId as string;
+  const courseId = params.courseId as string;
   const courseColor = (params.courseColor as string) || '#8B5CF6';
 
   // Find the assignment in the current course
@@ -223,6 +253,10 @@ export default function AssignmentViewerScreen() {
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({});
+  const [attempts, setAttempts] = useState<any[]>([]);
+  const [bestAttempt, setBestAttempt] = useState<any>(null);
+  const [latestResult, setLatestResult] = useState<any>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const storageKey = `assignment_answers_${assignmentId}`;
 
@@ -243,6 +277,27 @@ export default function AssignmentViewerScreen() {
     }
   }, [answers, storageKey]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadAttempts = async () => {
+      if (!courseId || !assignmentId) return;
+      try {
+        const response = await apiClient.get(
+          `/courses/${courseId}/assignments/${assignmentId}/attempts`
+        );
+        if (cancelled) return;
+        setAttempts(response.data?.attempts || []);
+        setBestAttempt(response.data?.best || null);
+      } catch {
+        // No attempts yet or offline; keep the quiz usable.
+      }
+    };
+    loadAttempts();
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId, assignmentId]);
+
   if (!assignment) {
     return (
       <View style={styles.errorContainer}>
@@ -256,11 +311,54 @@ export default function AssignmentViewerScreen() {
 
   const handleSelectOption = (questionId: string, option: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: option }));
-    setShowExplanation(prev => ({ ...prev, [questionId]: true }));
   };
 
   const handleInputChange = (questionId: string, text: string) => {
     setAnswers(prev => ({ ...prev, [questionId]: text }));
+  };
+
+  const handleSubmitQuiz = async () => {
+    if (!courseId || !assignmentId || !assignment) return;
+
+    const unanswered = (assignment.questions || []).filter(
+      (question) => !String(answers[question._id] || '').trim()
+    );
+    if (unanswered.length > 0) {
+      Alert.alert(
+        'Answer All Questions',
+        `Please answer ${unanswered.length} remaining question${unanswered.length === 1 ? '' : 's'} before submitting.`
+      );
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await apiClient.post(
+        `/courses/${courseId}/assignments/${assignmentId}/submit`,
+        { answers }
+      );
+      if (response.data?.success) {
+        const { submission, attempts: nextAttempts, best } = response.data;
+        setLatestResult(submission);
+        setAttempts(nextAttempts || []);
+        setBestAttempt(best || submission);
+        setShowExplanation(
+          (assignment.questions || []).reduce((acc, question) => {
+            acc[question._id] = true;
+            return acc;
+          }, {} as Record<string, boolean>)
+        );
+        AsyncStorage.removeItem(storageKey).catch(() => {});
+        Alert.alert(
+          submission?.passed ? 'Quiz Passed' : 'Quiz Submitted',
+          `Score: ${submission?.score ?? 0}/${submission?.maxScore ?? 0} (${submission?.percentage ?? 0}%)`
+        );
+      }
+    } catch (error: any) {
+      Alert.alert('Unable to submit quiz', error.response?.data?.message || 'Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -274,7 +372,11 @@ export default function AssignmentViewerScreen() {
         </TouchableOpacity>
         <View style={styles.headerTitleContainer}>
           <Text style={styles.headerTitle} numberOfLines={1}>{assignment.title}</Text>
-          <Text style={styles.headerSubtitle}>{assignment.questions?.length || 0} Questions</Text>
+          <Text style={styles.headerSubtitle}>
+            {assignment.questions?.length || 0} Questions
+            {bestAttempt ? ` · Best ${bestAttempt.percentage || 0}%` : ''}
+            {attempts.length > 0 ? ` · ${attempts.length} attempt${attempts.length === 1 ? '' : 's'}` : ''}
+          </Text>
         </View>
       </View>
 
@@ -282,6 +384,35 @@ export default function AssignmentViewerScreen() {
         {assignment.description ? (
           <Text style={styles.description}>{assignment.description}</Text>
         ) : null}
+
+        {latestResult && (
+          <View
+            style={[
+              styles.resultCard,
+              {
+                backgroundColor: latestResult.passed ? colors.success + '12' : colors.danger + '10',
+                borderColor: latestResult.passed ? colors.success + '40' : colors.danger + '30',
+              },
+            ]}
+          >
+            <View style={styles.resultRow}>
+              <Text style={styles.resultTitle}>
+                {latestResult.passed ? 'Passed' : 'Submitted'}
+              </Text>
+              <Text style={[styles.resultScore, { color: latestResult.passed ? colors.success : colors.danger }]}>
+                {latestResult.percentage || 0}%
+              </Text>
+            </View>
+            <Text style={styles.resultMeta}>
+              Score: {latestResult.score ?? 0}/{latestResult.maxScore ?? 0} · Attempt {latestResult.attemptNumber}
+            </Text>
+            {bestAttempt && (
+              <Text style={styles.resultMeta}>
+                Best score: {bestAttempt.percentage || 0}% across {attempts.length} attempt{attempts.length === 1 ? '' : 's'}
+              </Text>
+            )}
+          </View>
+        )}
 
         {assignment.questions?.map((q, index) => {
 
@@ -346,12 +477,6 @@ export default function AssignmentViewerScreen() {
                     onChangeText={(text) => handleInputChange(q._id, text)}
                     placeholderTextColor={colors.textSecondary}
                   />
-                  <TouchableOpacity 
-                    onPress={() => setShowExplanation(prev => ({ ...prev, [q._id]: true }))}
-                    style={[styles.checkBtn, { backgroundColor: courseColor }]}
-                  >
-                    <Text style={styles.checkBtnText}>Check</Text>
-                  </TouchableOpacity>
                 </View>
               )}
 
@@ -377,13 +502,25 @@ export default function AssignmentViewerScreen() {
           );
         })}
 
-        <TouchableOpacity 
-          onPress={() => { if (router.canGoBack()) router.back(); }} 
-          style={[styles.finishBtn, { backgroundColor: courseColor }]}
+        <TouchableOpacity
+          onPress={handleSubmitQuiz}
+          disabled={submitting}
+          style={[styles.finishBtn, { backgroundColor: courseColor }, submitting && { opacity: 0.6 }]}
         >
-          <Text style={styles.finishBtnText}>Finish Practice</Text>
+          {submitting ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <Text style={styles.finishBtnText}>Submit Quiz</Text>
+          )}
         </TouchableOpacity>
-        
+
+        <TouchableOpacity
+          onPress={() => { if (router.canGoBack()) router.back(); }}
+          style={{ alignItems: 'center', paddingVertical: 16 }}
+        >
+          <Text style={{ color: colors.textSecondary, fontSize: 14 }}>Close</Text>
+        </TouchableOpacity>
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>

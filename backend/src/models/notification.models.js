@@ -13,10 +13,14 @@ const notificationSchema = new mongoose.Schema({
       // Course notifications
       'course_enrolled',
       'course_completed',
+      'course_update',
       'video_completed',
       // Event notifications
       'event_reminder',
       'event_registered',
+      'event_created',
+      'live_session_registered',
+      'live_session_reminder',
       // Community notifications
       'community_post',
       'community_comment',
@@ -45,6 +49,7 @@ const notificationSchema = new mongoose.Schema({
       // Shop & Product notifications
       'shop_product',
       'shop_order',
+      'offer_alert',
       // Podcast notifications
       'podcast',
       'podcast_episode',
@@ -52,7 +57,8 @@ const notificationSchema = new mongoose.Schema({
       'support_reply',
       // System notifications
       'system',
-      'general'
+      'general',
+      'daily_motivation'
     ],
     required: true
   },

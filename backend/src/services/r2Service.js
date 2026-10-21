@@ -48,6 +48,8 @@ const MIME_BY_EXT = {
   webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml',
   mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
   avi: 'video/x-msvideo', mkv: 'video/x-matroska',
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav',
+  ogg: 'audio/ogg', aac: 'audio/aac', flac: 'audio/flac',
 };
 
 const guessContentType = (filename, fallback = 'application/octet-stream') => {

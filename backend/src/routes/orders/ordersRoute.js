@@ -1,6 +1,7 @@
 import express from 'express';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import {
   createOrder,
   getAllOrders,
@@ -22,9 +23,9 @@ import {
 const router = express.Router();
 
 // Admin routes
-router.get('/all', adminAuth, getAllOrders);
-router.get('/:id/admin', adminAuth, getOrderDetailsAdmin);
-router.patch('/:id/status', adminAuth, updateOrderStatusAdmin);
+router.get('/all', adminAuth, requirePermission('manage_orders'), getAllOrders);
+router.get('/:id/admin', adminAuth, requirePermission('manage_orders'), getOrderDetailsAdmin);
+router.patch('/:id/status', adminAuth, requirePermission('manage_orders'), updateOrderStatusAdmin);
 
 // All other routes are protected
 router.use(protectedRoutes);

@@ -3,11 +3,16 @@ import { CoursePlan } from '../../models/coursePlan.models.js';
 import { MembershipPlan } from '../../models/membershipPlan.models.js';
 import mongoose from 'mongoose';
 
+import { getAdminFromRequest, isValidAdminApiKey } from '../../middleware/adminAuth.js';
+import { notifyNewCourse } from '../../services/notificationAutomation.service.js';
+
 const normalizePlanIdentifier = (value) => String(value || '').trim();
 const normalizeText = (value) => String(value || '').trim();
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const resolveAdminApiKey = () => process.env.ADMIN_API_KEY || null;
-const isAdminRequest = (req) => String(req.headers['x-admin-api-key'] || '') === resolveAdminApiKey();
+const isAdminRequest = async (req) => {
+    if (isValidAdminApiKey(req)) return true;
+    return Boolean(await getAdminFromRequest(req));
+};
 const slugify = (value) =>
     normalizeText(value)
         .toLowerCase()
@@ -162,6 +167,10 @@ export const createCourse = async (req, res) => {
         // Sync junction table
         await syncCoursePlans(course._id, planIds);
 
+        notifyNewCourse(course).catch((error) =>
+            console.error('Course notification failed:', error?.message)
+        );
+
         return res.status(201).json({
             success: true,
             message: "Course created successfully",
@@ -234,6 +243,8 @@ export const updateCourse = async (req, res) => {
             });
         }
 
+        const wasPublished = course.status === 'published';
+
         const normalizedTitle = title !== undefined ? normalizeText(title) : course.title;
         const normalizedCategory = category !== undefined ? normalizeText(category).toLowerCase() : course.category;
         
@@ -295,6 +306,12 @@ export const updateCourse = async (req, res) => {
             await syncCoursePlans(id, planIds);
         }
 
+        if (!wasPublished && updatedCourse?.status === 'published') {
+            notifyNewCourse(updatedCourse).catch((error) =>
+                console.error('Course notification failed:', error?.message)
+            );
+        }
+
         return res.status(200).json({
             success: true,
             message: "Course updated successfully",
@@ -312,7 +329,7 @@ export const updateCourse = async (req, res) => {
 
 export const getAllCourses = async (req, res) => {
     try {
-        const query = isAdminRequest(req) ? {} : { status: 'published' };
+        const query = (await isAdminRequest(req)) ? {} : { status: 'published' };
         const page = Math.max(1, Number(req.query.page || 1));
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
 
@@ -358,7 +375,7 @@ export const getCourseById = async (req, res) => {
                 message: "Course not found"
             })
         }
-        if (!isAdminRequest(req) && course.status !== 'published') {
+        if (!(await isAdminRequest(req)) && course.status !== 'published') {
             return res.status(404).json({
                 success: false,
                 message: "Course not found"
@@ -397,7 +414,7 @@ export const getCourseBySlug = async (req, res) => {
                 message: "Course not found"
             })
         }
-        if (!isAdminRequest(req) && course.status !== 'published') {
+        if (!(await isAdminRequest(req)) && course.status !== 'published') {
             return res.status(404).json({
                 success: false,
                 message: "Course not found"

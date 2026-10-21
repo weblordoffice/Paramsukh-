@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,10 +14,20 @@ import {
   Linking,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useCourseStore, Video, Assignment, Pdf, LiveSession } from '../store/courseStore';
+import {
+  useCourseStore,
+  Video,
+  Assignment,
+  Pdf,
+  LiveSession,
+  AudioLesson,
+  Reflection,
+} from '../store/courseStore';
 import { useAuthStore } from '../store/authStore';
+import { useAudioPlayerStore } from '../store/audioPlayerStore';
+import AudioPlayerMiniBar from '../components/AudioPlayerMiniBar';
 import { useTheme } from '../hooks/useTheme';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -435,18 +445,23 @@ export default function CourseDetailScreen() {
     useCourseStore();
   const { token } = useAuthStore();
 
-  useEffect(() => {
-    if (courseId) {
+  useFocusEffect(
+    useCallback(() => {
+      if (!courseId) return;
       fetchCourseById(courseId);
-      // Only fetch progress if the user is authenticated – avoids the 404
+      // Only fetch progress if the user is authenticated — avoids the 404
       if (token) {
         fetchEnrollmentProgress(courseId);
       }
-    }
-  }, [courseId, token, fetchCourseById, fetchEnrollmentProgress]);
+    }, [courseId, token, fetchCourseById, fetchEnrollmentProgress])
+  );
 
   const videos: Video[] = [...(currentCourse?.videos || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
   const totalPdfs = currentCourse?.pdfs?.length || 0;
+  const audioLessons: AudioLesson[] = [...(currentCourse?.audioLessons || [])]
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+  const reflections: Reflection[] = [...(currentCourse?.reflections || [])]
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
 
   const sessionRank = (s: LiveSession) => {
     const phase = getSessionPhase(s);
@@ -463,12 +478,17 @@ export default function CourseDetailScreen() {
     });
   const completedVideos = enrollmentProgress?.completedVideos?.length || 0;
   const completedPdfs = enrollmentProgress?.completedPdfs?.length || 0;
+  const completedAudioLessons = enrollmentProgress?.completedAudioLessons?.length || 0;
+  const completedReflections = enrollmentProgress?.completedReflections?.length || 0;
   
   // Use backend progress percentage, falling back to calculation
-  const progressPct = enrollmentProgress?.progress !== undefined 
-    ? enrollmentProgress.progress 
-    : (videos.length + totalPdfs > 0 
-        ? Math.round(((completedVideos + completedPdfs) / (videos.length + totalPdfs)) * 100) 
+  const requiredReflections = reflections.filter((reflection) => reflection.isRequired !== false);
+  const totalActivities = videos.length + totalPdfs + audioLessons.length + requiredReflections.length;
+  const completedActivities = completedVideos + completedPdfs + completedAudioLessons + completedReflections;
+  const progressPct = enrollmentProgress?.progress !== undefined
+    ? enrollmentProgress.progress
+    : (totalActivities > 0
+        ? Math.round((completedActivities / totalActivities) * 100)
         : 0);
 
   const handleVideoPress = (video: Video) => {
@@ -496,6 +516,38 @@ export default function CourseDetailScreen() {
         assignmentId: assignment._id,
       },
     });
+  };
+
+  const handleAudioPress = async (lesson: AudioLesson) => {
+    await useAudioPlayerStore.getState().loadAndPlay({
+      id: `course-audio-${lesson._id}`,
+      title: lesson.title,
+      host: currentCourse?.title || 'ParamSukh Gurukul',
+      thumbnailUrl: lesson.thumbnailUrl || currentCourse?.thumbnailUrl || '',
+      audioUrl: lesson.audioUrl,
+      duration: lesson.duration || '',
+      category: currentCourse?.category || 'Course',
+    });
+  };
+
+  const handleAudioComplete = async (lesson: AudioLesson) => {
+    if (!token || !courseId) return;
+    await useCourseStore.getState().markAudioComplete(courseId, lesson._id);
+  };
+
+  const handleReflectionPress = (reflection: Reflection) => {
+    router.push({
+      pathname: '/reflection-viewer',
+      params: {
+        courseId,
+        courseColor,
+        reflectionId: reflection._id,
+        title: reflection.title,
+        prompt: reflection.prompt,
+        guidance: reflection.guidance || '',
+        minWords: String(reflection.minWords || 20),
+      },
+    } as any);
   };
 
   const handlePdfPress = async (pdf: Pdf) => {
@@ -592,7 +644,7 @@ export default function CourseDetailScreen() {
           </View>
 
           {/* ── Progress card ── */}
-          {token && !preview && (videos.length > 0 || totalPdfs > 0) && (
+          {token && !preview && totalActivities > 0 && (
             <View style={styles.progressCard}>
               <View style={styles.progressHeader}>
                 <Text style={styles.progressLabel}>Your Progress</Text>
@@ -604,7 +656,10 @@ export default function CourseDetailScreen() {
                 />
               </View>
               <Text style={styles.progressSub}>
-                {completedVideos} of {videos.length} videos {totalPdfs > 0 ? `& ${completedPdfs} of ${totalPdfs} PDFs ` : ''}completed
+                {completedVideos} of {videos.length} videos
+                {totalPdfs > 0 ? ` · ${completedPdfs} of ${totalPdfs} PDFs` : ''}
+                {audioLessons.length > 0 ? ` · ${completedAudioLessons} of ${audioLessons.length} audio` : ''}
+                {requiredReflections.length > 0 ? ` · ${completedReflections} of ${requiredReflections.length} reflections` : ''}
               </Text>
             </View>
           )}
@@ -784,6 +839,57 @@ export default function CourseDetailScreen() {
           </View>
 
           {/* ── Assignment List ── */}
+          {/* Audio Meditations */}
+          {audioLessons.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Audio Meditations
+                <Text style={styles.sectionCount}>  {audioLessons.length}</Text>
+              </Text>
+
+              {audioLessons.map((lesson, idx) => {
+                const isCompleted = enrollmentProgress?.completedAudioLessons?.includes(lesson._id);
+                return (
+                  <LessonCard
+                    key={lesson._id}
+                    style={styles.videoRow}
+                    onPress={() => handleAudioPress(lesson)}
+                  >
+                    <View style={styles.videoThumbWrap}>
+                      {lesson.thumbnailUrl ? (
+                        <Image source={{ uri: lesson.thumbnailUrl }} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+                      ) : (
+                        <View style={styles.videoThumbPlaceholder}>
+                          <Ionicons name="headset-outline" size={24} color={colors.textSecondary} />
+                        </View>
+                      )}
+                    </View>
+
+                    <View style={styles.videoInfo}>
+                      <Text style={styles.videoIndex}>Audio {idx + 1}</Text>
+                      <Text style={styles.videoTitle} numberOfLines={2}>{lesson.title}</Text>
+                      <Text style={styles.videoDesc} numberOfLines={1}>
+                        {lesson.duration ? `${lesson.duration} · ` : ''}{lesson.description || 'Guided audio meditation'}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={{ padding: 6 }}
+                      onPress={() => handleAudioComplete(lesson)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons
+                        name={isCompleted ? 'checkmark-circle' : 'checkmark-circle-outline'}
+                        size={24}
+                        color={isCompleted ? colors.success : colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  </LessonCard>
+                );
+              })}
+            </View>
+          )}
+
           {currentCourse?.assignments && currentCourse.assignments.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
@@ -820,6 +926,45 @@ export default function CourseDetailScreen() {
           )}
 
           {/* ── PDF Resources List ── */}
+          {/* Reflection Exercises */}
+          {reflections.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Reflection Exercises
+                <Text style={styles.sectionCount}>  {reflections.length}</Text>
+              </Text>
+
+              {reflections.map((reflection, idx) => {
+                const isCompleted = enrollmentProgress?.completedReflections?.includes(reflection._id);
+                return (
+                  <LessonCard
+                    key={reflection._id}
+                    style={styles.videoRow}
+                    onPress={() => handleReflectionPress(reflection)}
+                  >
+                    <View style={styles.videoThumbWrap}>
+                      <View style={styles.videoThumbPlaceholder}>
+                        <Ionicons name="create-outline" size={24} color={colors.textSecondary} />
+                      </View>
+                    </View>
+
+                    <View style={styles.videoInfo}>
+                      <Text style={styles.videoIndex}>Reflection {idx + 1}</Text>
+                      <Text style={styles.videoTitle} numberOfLines={2}>{reflection.title}</Text>
+                      <Text style={styles.videoDesc} numberOfLines={2}>{reflection.prompt}</Text>
+                    </View>
+
+                    <Ionicons
+                      name={isCompleted ? 'checkmark-circle' : 'chevron-forward'}
+                      size={isCompleted ? 24 : 18}
+                      color={isCompleted ? colors.success : colors.textSecondary}
+                    />
+                  </LessonCard>
+                );
+              })}
+            </View>
+          )}
+
           {currentCourse?.pdfs && currentCourse.pdfs.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
@@ -871,6 +1016,7 @@ export default function CourseDetailScreen() {
           <View style={{ height: 60 }} />
         </ScrollView>
       )}
+      <AudioPlayerMiniBar />
     </View>
   );
 }

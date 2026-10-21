@@ -40,8 +40,8 @@ cp ai-service/.env.example ai-service/.env
 Edit values with production credentials and domains.
 
 Important for admin auth:
-- In `.env` (project root), set `NEXT_PUBLIC_ADMIN_API_KEY` and keep it exactly the same as `ADMIN_API_KEY` in `backend/.env`.
-- If this key changes, rebuild admin image before restart so the new key is baked into the frontend bundle.
+- The admin panel authenticates with admin JWTs only; no API key is shipped to the browser.
+- `ADMIN_API_KEY` in `backend/.env` is a server-side secret used by scripts/tests and must never be exposed publicly.
 
 ## 4) First local container start
 

@@ -42,6 +42,35 @@ export interface Pdf {
     fileSize?: string;
 }
 
+export interface AudioLesson {
+    _id: string;
+    title: string;
+    description?: string;
+    audioUrl: string;
+    duration?: string;
+    durationInSeconds?: number;
+    thumbnailUrl?: string | null;
+    order?: number;
+    isFree?: boolean;
+    isCompleted?: boolean;
+}
+
+export interface Reflection {
+    _id: string;
+    title: string;
+    prompt: string;
+    guidance?: string;
+    minWords?: number;
+    order?: number;
+    isRequired?: boolean;
+    isCompleted?: boolean;
+    submission?: {
+        _id: string;
+        response: string;
+        submittedAt: string;
+    } | null;
+}
+
 export interface LiveSession {
     _id: string;
     title: string;
@@ -78,6 +107,8 @@ export interface Course {
     // Content Arrays (populated when fetching detail)
     videos?: Video[];
     pdfs?: Pdf[];
+    audioLessons?: AudioLesson[];
+    reflections?: Reflection[];
     liveSessions?: LiveSession[];
     assignments?: Assignment[];
 
@@ -88,6 +119,8 @@ export interface EnrollmentProgress {
     progress: number;
     completedVideos: string[];
     completedPdfs: string[];
+    completedAudioLessons?: string[];
+    completedReflections?: string[];
     currentVideoId: string | null;
     isCompleted: boolean;
     lastAccessedAt: string;
@@ -106,6 +139,7 @@ interface CourseState {
     fetchEnrollmentProgress: (courseId: string) => Promise<void>;
     markVideoComplete: (courseId: string, videoId: string) => Promise<boolean>;
     markPdfComplete: (courseId: string, pdfId: string) => Promise<boolean>;
+    markAudioComplete: (courseId: string, audioId: string) => Promise<boolean>;
     clearCurrentCourse: () => void;
 }
 
@@ -208,6 +242,19 @@ export const useCourseStore = create<CourseState>((set) => ({
     markPdfComplete: async (courseId: string, pdfId: string) => {
         try {
             const response = await apiClient.post(`${API_URL}/courses/${courseId}/progress/pdf/${pdfId}`);
+            if (response.data?.success) {
+                set({ enrollmentProgress: response.data?.data });
+                return true;
+            }
+            return false;
+        } catch (error: any) {
+            return false;
+        }
+    },
+
+    markAudioComplete: async (courseId: string, audioId: string) => {
+        try {
+            const response = await apiClient.post(`${API_URL}/courses/${courseId}/progress/audio/${audioId}`);
             if (response.data?.success) {
                 set({ enrollmentProgress: response.data?.data });
                 return true;

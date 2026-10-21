@@ -1,6 +1,7 @@
 import express from 'express';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import {
   createProduct,
   getAllProducts,
@@ -30,9 +31,9 @@ router.get('/:id', getProductById);
 router.get('/:id/reviews', getProductReviews);
 
 // Admin routes (New Simplified APIs)
-router.post('/admin/create', adminAuth, createProductAdmin);
-router.put('/admin/:id', adminAuth, updateProductAdmin);
-router.delete('/admin/:id', adminAuth, deleteProductAdmin);
+router.post('/admin/create', adminAuth, requirePermission('manage_shop'), createProductAdmin);
+router.put('/admin/:id', adminAuth, requirePermission('manage_shop'), updateProductAdmin);
+router.delete('/admin/:id', adminAuth, requirePermission('manage_shop'), deleteProductAdmin);
 
 // Protected routes (Original Shop Owner APIs)
 router.post('/create', protectedRoutes, createProduct);

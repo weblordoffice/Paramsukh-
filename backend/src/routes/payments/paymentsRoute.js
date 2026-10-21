@@ -1,6 +1,7 @@
 import express from 'express';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import { paymentLimiter } from '../../middleware/rateLimiter.js';
 import { validateCreateOrder, validateVerifyPayment } from '../../middleware/validators.js';
 import {
@@ -34,11 +35,11 @@ router.post('/membership-link', protectedRoutes, paymentLimiter, createMembershi
 
 // Create hosted membership payment link for any user (admin flow)
 // POST /api/payments/admin/membership-link
-router.post('/admin/membership-link', adminAuth, paymentLimiter, createAdminMembershipPaymentLink);
+router.post('/admin/membership-link', adminAuth, requirePermission('manage_users'), paymentLimiter, createAdminMembershipPaymentLink);
 
 // List admin-generated membership payment links
 // GET /api/payments/admin/membership-links
-router.get('/admin/membership-links', adminAuth, getAdminMembershipPaymentLinks);
+router.get('/admin/membership-links', adminAuth, requirePermission('manage_users'), getAdminMembershipPaymentLinks);
 
 // Confirm payment link status and activate (fallback for local dev when webhook can't reach)
 // POST /api/payments/membership-link/confirm

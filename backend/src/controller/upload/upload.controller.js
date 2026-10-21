@@ -213,6 +213,59 @@ export const uploadVideoFile = async (req, res) => {
 };
 
 /**
+ * Upload audio file (R2)
+ * POST /api/upload/audio
+ * @multipart file: audio file
+ * @query folder: optional folder name
+ */
+export const uploadAudioFile = async (req, res) => {
+  const tmpPath = req.file?.path;
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No audio uploaded'
+      });
+    }
+
+    const folder = req.query.folder || 'podcasts/audio';
+    const filename = req.file.originalname;
+    const result = await uploadVideo(tmpPath || req.file.buffer, folder, filename);
+    const url = result?.url;
+
+    if (!url) {
+      return res.status(500).json({
+        success: false,
+        message: 'Audio upload did not return a URL',
+        error: 'No URL in upload result'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Audio uploaded successfully',
+      data: {
+        url,
+        key: result.key,
+        size: result.bytes,
+        testMode: result.testMode || false
+      }
+    });
+  } catch (error) {
+    console.error('❌ Upload audio error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to upload audio',
+      error: error.message
+    });
+  } finally {
+    if (tmpPath) {
+      try { await fs.unlink(tmpPath); } catch {}
+    }
+  }
+};
+
+/**
  * Upload PDF file (Cloudinary)
  * POST /api/upload/pdf
  * @multipart file: PDF file
@@ -460,6 +513,7 @@ export default {
   uploadImages,
   uploadProfilePhoto,
   uploadVideoFile,
+  uploadAudioFile,
   getVideoPresignedUrl,
   uploadProductImages,
   uploadCourseMedia,

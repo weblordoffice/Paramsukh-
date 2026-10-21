@@ -23,6 +23,7 @@ import {
   getRecentEnrollments
 } from '../../controller/enrollment/enrollmentStats.controller.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import { progressLimiter } from '../../middleware/rateLimiter.js';
 
 const router = express.Router();
@@ -30,9 +31,9 @@ const router = express.Router();
 // ========================================
 // Admin Stats Routes (require admin API key)
 // ========================================
-router.get('/stats', adminAuth, getEnrollmentStats);
-router.get('/stats/courses', adminAuth, getEnrollmentStatsByCourse);
-router.get('/stats/recent', adminAuth, getRecentEnrollments);
+router.get('/stats', adminAuth, requirePermission('view_analytics', 'manage_courses'), getEnrollmentStats);
+router.get('/stats/courses', adminAuth, requirePermission('view_analytics', 'manage_courses'), getEnrollmentStatsByCourse);
+router.get('/stats/recent', adminAuth, requirePermission('view_analytics', 'manage_courses'), getRecentEnrollments);
 
 // ========================================
 // User Enrollment Routes (require authentication)

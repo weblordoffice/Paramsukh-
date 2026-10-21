@@ -1,6 +1,7 @@
 import express from 'express';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import {
   submitAssessment,
   getAssessment,
@@ -13,7 +14,7 @@ import {
 const router = express.Router();
 
 // Get assessment by user ID (Admin)
-router.get('/admin/user/:userId', adminAuth, getAssessmentByUserIdAdmin);
+router.get('/admin/user/:userId', adminAuth, requirePermission('manage_users'), getAssessmentByUserIdAdmin);
 
 // All routes below are protected (require user authentication)
 router.use(protectedRoutes);

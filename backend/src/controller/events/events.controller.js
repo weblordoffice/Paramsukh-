@@ -1,5 +1,6 @@
 import { Event } from '../../models/event.models.js';
 import { escapeRegex } from '../../utils/sanitizeUtils.js';
+import { notifyNewEvent } from '../../services/notificationAutomation.service.js';
 
 /**
  * Create a new event
@@ -120,6 +121,10 @@ export const createEvent = async (req, res) => {
     });
 
     console.log("✅ Event created:", event.title);
+
+    notifyNewEvent(event).catch((error) =>
+      console.error('Event notification failed:', error?.message)
+    );
 
     return res.status(201).json({
       success: true,
@@ -911,3 +916,65 @@ export const deleteEventVideo = async (req, res) => {
   }
 };
 
+
+const escapeIcs = (value) => String(value || '')
+  .replace(/\\/g, '\\\\')
+  .replace(/\n/g, '\\n')
+  .replace(/,/g, '\\,')
+  .replace(/;/g, '\\;');
+
+const formatIcsDate = (date) => new Date(date).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+
+/**
+ * Download an ICS calendar event for an event.
+ * GET /api/events/:id/calendar.ics
+ */
+export const downloadEventCalendar = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id).lean();
+    if (!event || event.status === 'cancelled') {
+      return res.status(404).send('Event not found');
+    }
+
+    const start = new Date(event.startTime || event.eventDate);
+    const end = event.endTime
+      ? new Date(event.endTime)
+      : new Date(start.getTime() + 2 * 60 * 60 * 1000);
+
+    const addressText = event.address
+      ? [event.address.street, event.address.city, event.address.state, event.address.zipCode, event.address.country]
+          .filter(Boolean)
+          .join(', ')
+      : '';
+    const locationText = [event.location, addressText].filter(Boolean).join(' - ');
+    const descriptionLines = [
+      event.description || event.shortDescription || '',
+      event.locationType === 'online' && event.onlineMeetingLink ? `Join: ${event.onlineMeetingLink}` : '',
+    ].filter(Boolean).join('\n');
+
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//ParamSukh//Events//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:${event._id}@paramsukh`,
+      `DTSTAMP:${formatIcsDate(new Date())}`,
+      `DTSTART:${formatIcsDate(start)}`,
+      `DTEND:${formatIcsDate(end)}`,
+      `SUMMARY:${escapeIcs(event.title)}`,
+      `DESCRIPTION:${escapeIcs(descriptionLines)}`,
+      `LOCATION:${escapeIcs(locationText || 'Online')}`,
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="event-${event._id}.ics"`);
+    return res.status(200).send(ics);
+  } catch (error) {
+    console.error('Download Event Calendar Error:', error);
+    return res.status(500).send('Failed to generate calendar file');
+  }
+};

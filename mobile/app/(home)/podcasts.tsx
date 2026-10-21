@@ -12,10 +12,12 @@ import {
   Dimensions,
   Linking,
   AppState,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as ExpoLinking from 'expo-linking';
 import apiClient from '../../utils/apiClient';
 import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks, verifyPendingPaymentsOnResume, PendingPaymentLink } from '../../utils/paymentBrowser';
 import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '../../utils/razorpayNative';
@@ -261,8 +263,24 @@ export default function PodcastsScreen() {
     }
   }, [podcastId, podcasts, handlePlayPodcast, fetchPodcasts]);
 
-  const handleDownloadPodcast = async (podcast: Podcast) => {
-    if (!isPremiumMember) {
+  const handleSharePodcast = useCallback(async (podcast: Podcast) => {
+    try {
+      const deepLink = ExpoLinking.createURL('/podcasts', {
+        queryParams: { podcastId: podcast._id },
+      });
+      await Share.share({
+        title: podcast.title,
+        message: `Listen to "${podcast.title}" by ${podcast.host} on Paramsukh Online Gurukul.\n${deepLink}`,
+        url: deepLink,
+      });
+    } catch (error: any) {
+      if (error?.message !== 'User did not share') {
+        Alert.alert('Share', 'Could not open the share sheet. Please try again.');
+      }
+    }
+  }, []);
+
+  const handleDownloadPodcast = async (podcast: Podcast) => {    if (!isPremiumMember) {
       Alert.alert(
         'Premium Feature',
         'Offline downloads are available for premium members only.',
@@ -655,6 +673,14 @@ export default function PodcastsScreen() {
                     size={18}
                     color={isFav ? "#EF4444" : colors.textSecondary}
                   />
+                </TouchableOpacity>
+
+                {/* Share Button */}
+                <TouchableOpacity
+                  className="w-10 h-10 rounded-full items-center justify-center"
+                  onPress={() => handleSharePodcast(podcast)}
+                >
+                  <Ionicons name="share-social-outline" size={18} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>

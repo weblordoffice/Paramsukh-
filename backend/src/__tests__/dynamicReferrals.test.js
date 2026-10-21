@@ -7,9 +7,14 @@ import { Enrollment } from '../models/enrollment.models.js';
 import { Course } from '../models/course.models.js';
 import { Referral } from '../models/referral.models.js';
 import { ReferralConfig } from '../models/referralConfig.models.js';
-import { UserMembership } from '../models/userMembership.models.js';
-import { MembershipPlan } from '../models/membershipPlan.models.js';
-import { getAuthHeader, generateUserToken } from './helpers.js';
+import { ReferralEarningRule } from '../models/referralEarningRule.models.js';
+import { PointTransaction } from '../models/pointTransaction.models.js';
+import {
+  getAuthHeader,
+  generateUserToken,
+  createTestAdmin,
+  generateAdminToken,
+} from './helpers.js';
 
 setupDB();
 
@@ -19,7 +24,7 @@ const uid = () => `${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(-10);
 describe('Dynamic Referral System', () => {
   let referrer;
   let referrerToken;
-  let campaign;
+  let config;
 
   beforeEach(async () => {
     await User.deleteMany({});
@@ -27,29 +32,16 @@ describe('Dynamic Referral System', () => {
     await Course.deleteMany({});
     await Referral.deleteMany({});
     await ReferralConfig.deleteMany({});
-    await UserMembership.deleteMany({});
-    await MembershipPlan.deleteMany({});
-
-    // Create default premium plan
-    await MembershipPlan.create({
-      title: 'Premium Plan',
-      slug: 'pro',
-      description: 'Test premium plan',
-      pricing: {
-        oneTime: { amount: 999, currency: 'INR' }
-      },
-      validityDays: 30,
-      isActive: true
-    });
+    await ReferralEarningRule.deleteMany({});
+    await PointTransaction.deleteMany({});
 
     // 1. Create active referral config
-    campaign = await ReferralConfig.create({
-      campaignName: 'Test Launch Reward Campaign',
+    config = await ReferralConfig.create({
       isActive: true,
-      rewardType: 'premium_extension',
-      rewardValue: 10,
-      referrerRewardText: 'Extend your Premium by 10 days!',
-      refereeRewardText: 'Get 10% off!'
+      pointValueInRupees: 1,
+      minRedemptionPoints: 1,
+      minReferrerAccountAgeDays: 0,
+      referralCodeFormat: 'random8',
     });
 
     // 2. Create referrer
@@ -75,7 +67,7 @@ describe('Dynamic Referral System', () => {
     });
   });
 
-  it('should list user referral code and reward descriptions in dashboard', async () => {
+  it('should list user referral code and points in dashboard', async () => {
     const res = await request(app)
       .get('/api/user/profile/referrals')
       .set(getAuthHeader(referrerToken));
@@ -83,30 +75,38 @@ describe('Dynamic Referral System', () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.referralCode).toBe('PARAM-REFER');
-    expect(res.body.referrerRewardText).toBe('Extend your Premium by 10 days!');
-    expect(res.body.refereeRewardText).toBe('Get 10% off!');
+    expect(res.body.points).toBe(0);
+    expect(res.body.pointValue).toBe(1);
     expect(res.body.referrals).toHaveLength(0);
   });
 
   it('should process referral configuration updates for admin', async () => {
-    const adminKeyHeader = { 'X-Admin-API-Key': process.env.ADMIN_API_KEY || 'test-admin-key' };
+    const admin = await createTestAdmin();
+    const token = generateAdminToken(admin._id);
+
     const res = await request(app)
-      .put('/api/user/referral-config')
-      .set(adminKeyHeader)
+      .put('/api/admin/referral/config')
+      .set(getAuthHeader(token))
       .send({
-        rewardType: 'unlock_course',
-        rewardValue: '5f7b3a2b9d3e2a1b2c3d4e5f',
-        referrerRewardText: 'Unlock Meditation Course!'
+        pointValueInRupees: 2,
+        minRedemptionPoints: 10,
       });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.config.rewardType).toBe('unlock_course');
-    expect(res.body.config.rewardValue).toBe('5f7b3a2b9d3e2a1b2c3d4e5f');
-    expect(res.body.config.referrerRewardText).toBe('Unlock Meditation Course!');
+    expect(res.body.config.pointValueInRupees).toBe(2);
+    expect(res.body.config.minRedemptionPoints).toBe(10);
   });
 
-  it('should award premium extension days to referrer when referred user completes course', async () => {
+  it('should award points to the referrer when the referred user completes a course', async () => {
+    await ReferralEarningRule.create({
+      name: 'Course Complete',
+      slug: 'course-complete',
+      triggerEvent: 'user.course_complete',
+      pointsValue: 25,
+      isActive: true,
+    });
+
     // 1. Create referred user
     const referee = await User.create({
       phone: `+91${uid()}`,
@@ -133,6 +133,7 @@ describe('Dynamic Referral System', () => {
     await Referral.create({
       referrer: referrer._id,
       referredUser: referee._id,
+      referralCode: referrer.referralCode,
       status: 'joined'
     });
 
@@ -162,22 +163,17 @@ describe('Dynamic Referral System', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.isCompleted).toBe(true);
 
-    // Verify referrer received membership reward (10 days as configured in test campaign)
-    const membership = await UserMembership.findOne({ userId: referrer._id });
-    expect(membership).not.toBeNull();
-    expect(membership.status).toBe('active');
-    
-    // Check validity difference
-    const diffDays = Math.round((membership.endDate.getTime() - membership.startDate.getTime()) / (24 * 60 * 60 * 1000));
-    expect(diffDays).toBe(10);
+    // Verify referrer received points for the course-completion event
+    const txn = await PointTransaction.findOne({
+      userId: referrer._id,
+      referredUserId: referee._id,
+      type: 'user.course_complete',
+    });
+    expect(txn).not.toBeNull();
+    expect(txn.points).toBe(25);
 
-    // Verify referrer unlocked "wellness-guide" badge
     const dbReferrer = await User.findById(referrer._id);
-    expect(dbReferrer.unlockedBadges.some(b => b.badgeId === 'wellness-guide')).toBe(true);
-
-    // Verify referral record is updated to completed
-    const dbReferral = await Referral.findOne({ referredUser: referee._id });
-    expect(dbReferral.status).toBe('completed');
-    expect(dbReferral.rewardApplied).toBe(true);
+    expect(dbReferrer.referralPoints).toBe(25);
+    expect(dbReferrer.totalPointsEarned).toBe(25);
   });
 });

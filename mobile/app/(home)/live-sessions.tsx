@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import apiClient from '../../utils/apiClient';
+import { API_URL } from '../../config/api';
 import { useTheme } from '../../hooks/useTheme';
 
 type LiveSession = {
@@ -24,6 +25,11 @@ type LiveSession = {
   durationInMinutes: number;
   meetingPlatform?: string;
   meetingLink: string;
+  meetingPassword?: string | null;
+  capacity?: number | null;
+  registrationCount?: number;
+  isRegistered?: boolean;
+  isFull?: boolean;
   audienceType?: 'all' | 'plans';
   planSlugs?: string[];
   recordingUrl?: string | null;
@@ -40,6 +46,7 @@ export default function LiveSessionsScreen() {
   const [past, setPast] = useState<LiveSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingRegistrationId, setPendingRegistrationId] = useState<string | null>(null);
 
   const loadSessions = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -79,6 +86,46 @@ export default function LiveSessionsScreen() {
     } catch {
       Alert.alert('Cannot open link', 'Please try again.');
     }
+  };
+
+  const registerForSession = async (session: LiveSession) => {
+    setPendingRegistrationId(session._id);
+    try {
+      const response = await apiClient.post(`/live-sessions/${session._id}/register`);
+      if (response.data?.success) {
+        Alert.alert('Registered', 'You are registered for this live session. A reminder will be sent before it starts.');
+        await loadSessions();
+      }
+    } catch (error: any) {
+      Alert.alert('Registration failed', error.response?.data?.message || 'Please try again.');
+    } finally {
+      setPendingRegistrationId(null);
+    }
+  };
+
+  const cancelRegistration = (session: LiveSession) => {
+    Alert.alert('Cancel Registration', `Cancel your registration for "${session.title}"?`, [
+      { text: 'Keep Registration', style: 'cancel' },
+      {
+        text: 'Cancel Registration',
+        style: 'destructive',
+        onPress: async () => {
+          setPendingRegistrationId(session._id);
+          try {
+            await apiClient.delete(`/live-sessions/${session._id}/register`);
+            await loadSessions();
+          } catch (error: any) {
+            Alert.alert('Cancel failed', error.response?.data?.message || 'Please try again.');
+          } finally {
+            setPendingRegistrationId(null);
+          }
+        },
+      },
+    ]);
+  };
+
+  const addToCalendar = (session: LiveSession) => {
+    openLink(`${API_URL}/live-sessions/${session._id}/calendar.ics`);
   };
 
   const getSessionState = (session: LiveSession) => {
@@ -175,7 +222,26 @@ export default function LiveSessionsScreen() {
     metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 10 },
     meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     metaText: { fontSize: 11, color: colors.textSecondary },
+    registeredBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(16,185,129,0.12)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 10,
+    },
+    registeredText: { fontSize: 10, fontWeight: '800', color: '#059669' },
     actionRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+    calendarBtn: {
+      width: 42,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 10,
+      backgroundColor: colors.surfaceSecondary,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
     primaryBtn: {
       flex: 1,
       flexDirection: 'row',
@@ -236,6 +302,12 @@ export default function LiveSessionsScreen() {
             />
             <Text style={badgeTextStyle}>{badgeLabel}</Text>
           </View>
+          {session.isRegistered && (
+            <View style={s.registeredBadge}>
+              <Ionicons name="checkmark-circle" size={11} color="#059669" />
+              <Text style={s.registeredText}>Registered</Text>
+            </View>
+          )}
         </View>
 
         <Text style={s.title}>{session.title}</Text>
@@ -250,18 +322,59 @@ export default function LiveSessionsScreen() {
             <Ionicons name="time-outline" size={13} color={colors.textSecondary} />
             <Text style={s.metaText}>{session.durationInMinutes} mins</Text>
           </View>
+          <View style={s.meta}>
+            <Ionicons name="people-outline" size={13} color={colors.textSecondary} />
+            <Text style={s.metaText}>
+              {session.registrationCount || 0}{session.capacity ? ` / ${session.capacity}` : ''} registered
+            </Text>
+          </View>
         </View>
 
         <View style={s.actionRow}>
           {!hasEnded ? (
-            <TouchableOpacity
-              style={s.primaryBtn}
-              onPress={() => openLink(session.meetingLink)}
-              activeOpacity={0.85}
-            >
-              <Ionicons name="videocam" size={16} color="#FFFFFF" />
-              <Text style={s.primaryBtnText}>{isLive ? 'Join Live' : 'Join Meeting'}</Text>
-            </TouchableOpacity>
+            session.isRegistered ? (
+              <>
+                <TouchableOpacity
+                  style={s.primaryBtn}
+                  onPress={() => openLink(session.meetingLink)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="videocam" size={16} color="#FFFFFF" />
+                  <Text style={s.primaryBtnText}>{isLive ? 'Join Live' : 'Join Meeting'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={s.calendarBtn} onPress={() => addToCalendar(session)}>
+                  <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.secondaryBtn, { flex: 0.8 }]}
+                  onPress={() => cancelRegistration(session)}
+                  disabled={pendingRegistrationId === session._id}
+                >
+                  <Text style={s.secondaryBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[s.primaryBtn, (session.isFull || pendingRegistrationId === session._id) && s.disabledBtn]}
+                  onPress={() => registerForSession(session)}
+                  disabled={session.isFull || pendingRegistrationId === session._id}
+                  activeOpacity={0.85}
+                >
+                  {pendingRegistrationId === session._id ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="person-add-outline" size={16} color="#FFFFFF" />
+                      <Text style={s.primaryBtnText}>{session.isFull ? 'Session Full' : 'Register'}</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity style={s.calendarBtn} onPress={() => addToCalendar(session)}>
+                  <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                </TouchableOpacity>
+              </>
+            )
           ) : session.recordingUrl ? (
             <TouchableOpacity
               style={s.primaryBtn}

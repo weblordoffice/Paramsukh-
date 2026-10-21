@@ -9,6 +9,7 @@ import { useEventStore } from '../store/eventStore';
 import { useAuthStore } from '../store/authStore';
 import { useTheme } from '../hooks/useTheme';
 import { formatTime12h } from '../utils/dateTime';
+import { API_URL } from '../config/api';
 
 export default function EventDetailScreen() {
   const { colors } = useTheme();
@@ -117,6 +118,13 @@ export default function EventDetailScreen() {
     if (!directionsQuery) return;
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(directionsQuery)}`;
     Linking.openURL(url).catch(() => {});
+  };
+
+  const addToCalendar = () => {
+    if (!event?._id) return;
+    Linking.openURL(`${API_URL}/events/${event._id}/calendar.ics`).catch(() => {
+      Alert.alert('Calendar', 'Could not open the calendar file. Please try again.');
+    });
   };
 
   const formattedDate = useMemo(() => {
@@ -449,6 +457,34 @@ export default function EventDetailScreen() {
               </Text>
             </View>
           </View>
+
+          {event.status !== 'cancelled' && event.startTime && new Date(event.startTime) > new Date() ? (
+            <TouchableOpacity
+              onPress={addToCalendar}
+              style={{
+                marginTop: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: eventColor + '12',
+                borderRadius: 16,
+                paddingVertical: 14,
+                borderWidth: 1,
+                borderColor: eventColor + '30'
+              }}
+            >
+              <Ionicons name="calendar-outline" size={18} color={eventColor} />
+              <Text style={{ fontSize: 14, fontWeight: '700', color: eventColor, marginLeft: 8 }}>
+                Add to Calendar
+              </Text>
+            </TouchableOpacity>
+          ) : null}
+
+          {isRegistered ? (
+            <Text style={{ fontSize: 12, color: colors.textSecondary, textAlign: 'center', marginTop: 8 }}>
+              We&apos;ll remind you 24 hours and 1 hour before the event starts.
+            </Text>
+          ) : null}
 
           {/* Venue & Directions (in-person only) */}
           {event.locationType === 'physical' && (

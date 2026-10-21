@@ -34,6 +34,26 @@ const LiveCoachingSessionSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  meetingPassword: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  zoomMeetingId: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  capacity: {
+    type: Number,
+    default: null,
+    min: 1,
+  },
+  registrationCount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
   audienceType: {
     type: String,
     enum: ['all', 'plans'],

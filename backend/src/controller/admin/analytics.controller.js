@@ -32,20 +32,21 @@ export const getBasicAnalytics = async (req, res) => {
             : 0;
 
         // 3. Revenue Analytics: Renewal Rate & Total Revenue
-        const [renewalAggr, totalRevAggr] = await Promise.all([
+        const [orderCounts, totalRevAggr] = await Promise.all([
             Order.aggregate([
                 { $match: { status: 'completed' } },
-                { $group: { _id: "$userId", count: { $sum: 1 } } },
-                { $group: { _id: null, repeatUsers: { $sum: { $cond: [{ $gt: ["$count", 1] }, 1, 0] } }, totalUsers: { $sum: 1 } } }
+                { $group: { _id: "$userId", count: { $sum: 1 } } }
             ]),
             Order.aggregate([
                 { $match: { status: 'completed' } },
                 { $group: { _id: null, total: { $sum: "$totalAmount" } } }
             ])
         ]);
-        
-        const renewalRate = (renewalAggr.length > 0 && renewalAggr[0].totalUsers > 0)
-            ? Math.round((renewalAggr[0].repeatUsers / renewalAggr[0].totalUsers) * 100)
+
+        const renewalUsers = orderCounts.length;
+        const repeatUsers = orderCounts.filter((order) => order.count > 1).length;
+        const renewalRate = renewalUsers > 0
+            ? Math.round((repeatUsers / renewalUsers) * 100)
             : 0;
         const totalRevenue = totalRevAggr.length > 0 ? (totalRevAggr[0].total || 0) : 0;
 
@@ -77,7 +78,7 @@ export const getBasicAnalytics = async (req, res) => {
                 revenue: {
                     totalRevenue,
                     renewalRate,
-                    totalOrders: renewalAggr.length > 0 ? renewalAggr[0].totalUsers : 0
+                    totalOrders: renewalUsers
                 },
                 events: {
                     totalEvents,

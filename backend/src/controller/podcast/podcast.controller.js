@@ -3,6 +3,7 @@ import Podcast from '../../models/podcast.model.js';
 import PodcastPurchase from '../../models/podcastPurchase.model.js';
 import PodcastFavorite from '../../models/podcastFavorite.model.js';
 import { UserMembership } from '../../models/userMembership.models.js';
+import { notifyNewPodcast } from '../../services/notificationAutomation.service.js';
 
 const stripMediaUrls = (podcastDoc) => {
     const podcast = podcastDoc.toObject ? podcastDoc.toObject() : { ...podcastDoc };
@@ -137,6 +138,10 @@ export const createPodcast = async (req, res) => {
         }
 
         const podcast = await Podcast.create(podcastData);
+
+        notifyNewPodcast(podcast).catch((error) =>
+            console.error('Podcast notification failed:', error?.message)
+        );
 
         res.status(201).json({
             success: true,

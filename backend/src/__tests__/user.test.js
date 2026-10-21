@@ -266,11 +266,22 @@ describe('User Module - /api/user', () => {
       const res = await request(app)
         .delete('/api/user/account')
         .set(getAuthHeader(token))
-        .send({ confirmDelete: 'DELETE' });
+        .send({ confirmDelete: 'DELETE', otp: '123456' });
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.message).toContain('deleted permanently');
+    });
+
+    it('should reject deletion without OTP verification', async () => {
+      const res = await request(app)
+        .delete('/api/user/account')
+        .set(getAuthHeader(token))
+        .send({ confirmDelete: 'DELETE' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toContain('OTP');
     });
 
     it('should reject deletion without confirmation', async () => {

@@ -96,6 +96,15 @@ const eventRegistrationSchema = new mongoose.Schema({
   checkedInAt: {
     type: Date,
     default: null
+  },
+  // Reminder tracking (set by the event reminder cron)
+  reminder24SentAt: {
+    type: Date,
+    default: null
+  },
+  reminder1SentAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true

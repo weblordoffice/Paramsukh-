@@ -43,6 +43,14 @@ const enrollmentSchema = new mongoose.Schema({
   completedPdfs: [{
     type: mongoose.Schema.Types.ObjectId
   }],
+  // Store ObjectIds of completed audio lessons
+  completedAudioLessons: [{
+    type: mongoose.Schema.Types.ObjectId
+  }],
+  // Store ObjectIds of completed reflection exercises
+  completedReflections: [{
+    type: mongoose.Schema.Types.ObjectId
+  }],
   lastAccessedAt: {
     type: Date,
     default: Date.now
@@ -67,23 +75,28 @@ enrollmentSchema.index({ userId: 1, isCompleted: 1 });
 enrollmentSchema.index({ courseId: 1, isCompleted: 1 });
 
 // Methods
-enrollmentSchema.methods.updateProgress = function(totalVideos, totalPdfs) {
-  const totalItems = totalVideos + totalPdfs;
+enrollmentSchema.methods.updateProgress = function(totalVideos, totalPdfs, totalAudioLessons = 0, totalReflections = 0) {
+  const totalItems = totalVideos + totalPdfs + totalAudioLessons + totalReflections;
   if (totalItems === 0) {
     this.progress = 100;
     this.isCompleted = true;
     this.completedAt = new Date();
     return this.progress;
   }
-  
-  const completedItems = this.completedVideos.length + this.completedPdfs.length;
+
+  const completedItems =
+    (this.completedVideos?.length || 0)
+    + (this.completedPdfs?.length || 0)
+    + (this.completedAudioLessons?.length || 0)
+    + (this.completedReflections?.length || 0);
+
   this.progress = Math.min(100, Math.round((completedItems / totalItems) * 100));
-  
+
   if (this.progress === 100 && !this.isCompleted) {
     this.isCompleted = true;
     this.completedAt = new Date();
   }
-  
+
   return this.progress;
 };
 
@@ -99,6 +112,22 @@ enrollmentSchema.methods.markPdfComplete = function(pdfId) {
   const pdfStr = String(pdfId);
   if (!this.completedPdfs.some(id => String(id) === pdfStr)) {
     this.completedPdfs.push(pdfId);
+  }
+  return this;
+};
+
+enrollmentSchema.methods.markAudioComplete = function(audioId) {
+  const audioStr = String(audioId);
+  if (!this.completedAudioLessons.some(id => String(id) === audioStr)) {
+    this.completedAudioLessons.push(audioId);
+  }
+  return this;
+};
+
+enrollmentSchema.methods.markReflectionComplete = function(reflectionId) {
+  const reflectionStr = String(reflectionId);
+  if (!this.completedReflections.some(id => String(id) === reflectionStr)) {
+    this.completedReflections.push(reflectionId);
   }
   return this;
 };

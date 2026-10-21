@@ -36,14 +36,34 @@ const imageFilter = (req, file, cb) => {
   }
 };
 
-// File filter for videos
+// File filter for videos (audio is accepted here for backward compatibility
+// with the legacy podcast upload flow that posts to /upload/video).
 const videoFilter = (req, file, cb) => {
-  const allowedMimes = ['video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm'];
+  const allowedMimes = [
+    'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm',
+    'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/x-m4a', 'audio/m4a',
+    'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/webm', 'audio/aac',
+  ];
 
   if (allowedMimes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only MP4, MPEG, MOV, AVI and WebM are allowed.'), false);
+    cb(new Error('Invalid file type. Only MP4, MPEG, MOV, AVI, WebM, MP3, M4A, WAV, OGG and AAC are allowed.'), false);
+  }
+};
+
+// File filter for audio uploads
+const audioFilter = (req, file, cb) => {
+  const allowedMimes = [
+    'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/x-m4a', 'audio/m4a',
+    'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/webm', 'audio/aac',
+    'audio/flac', 'audio/x-flac',
+  ];
+
+  if (allowedMimes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only MP3, M4A, WAV, OGG, AAC and FLAC are allowed.'), false);
   }
 };
 
@@ -84,7 +104,9 @@ const spreadsheetFilter = (req, file, cb) => {
 const mediaFilter = (req, file, cb) => {
   const allowedMimes = [
     'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
-    'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm'
+    'video/mp4', 'video/mpeg', 'video/quicktime', 'video/x-msvideo', 'video/webm',
+    'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/x-m4a', 'audio/m4a',
+    'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/webm', 'audio/aac',
   ];
 
   if (allowedMimes.includes(file.mimetype)) {
@@ -121,6 +143,15 @@ export const uploadSingleVideo = multer({
     fileSize: MAX_VIDEO_BYTES // 3GB
   }
 }).single('video');
+
+// Single audio upload (max 500MB)
+export const uploadSingleAudio = multer({
+  storage: videoStorage,
+  fileFilter: audioFilter,
+  limits: {
+    fileSize: 500 * 1024 * 1024
+  }
+}).single('audio');
 
 // Profile photo upload (max 2MB)
 export const uploadProfilePhoto = multer({
@@ -201,6 +232,7 @@ export default {
   uploadSingleImage,
   uploadMultipleImages,
   uploadSingleVideo,
+  uploadSingleAudio,
   uploadProfilePhoto,
   uploadSinglePdf,
   uploadSingleSpreadsheet,

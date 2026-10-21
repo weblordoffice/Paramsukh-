@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from './razorpayNative';
-import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from './paymentBrowser';
+import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '../utils/razorpayNative';
+import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../utils/paymentBrowser';
 import { useAuthStore } from '../store/authStore';
 import apiClient from '../utils/apiClient';
 
@@ -23,6 +23,8 @@ export const PAYMENT_STATUS = {
 };
 
 export const PENDING_PAYMENT_KEY_PREFIX = 'pending_payment_';
+
+export type PaymentStatus = typeof PAYMENT_STATUS[keyof typeof PAYMENT_STATUS];
 
 export interface PaymentConfig {
   type: keyof typeof PAYMENT_TYPE;
@@ -59,7 +61,7 @@ interface PendingPayment {
 }
 
 export const usePayment = () => {
-  const [status, setStatus] = useState<keyof typeof PAYMENT_STATUS>(PAYMENT_STATUS.IDLE);
+  const [status, setStatus] = useState<PaymentStatus>(PAYMENT_STATUS.IDLE);
   const [error, setError] = useState<PaymentError | null>(null);
   const [result, setResult] = useState<PaymentResult | null>(null);
   const processingRef = useRef(false);
@@ -179,6 +181,10 @@ export const usePayment = () => {
       setStatus(PAYMENT_STATUS.CANCELLED);
       config.onFailure?.(cancelError);
       return null;
+    }
+
+    if (payResult.status === 'unavailable') {
+      throw new Error('Native payment is not available on this device');
     }
 
     throw new Error(payResult.message || 'Payment failed');

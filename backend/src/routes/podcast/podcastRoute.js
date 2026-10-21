@@ -22,6 +22,7 @@ import {
     handlePodcastPaymentWebhook,
 } from '../../controller/podcast/podcastPayment.controller.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
+import { requirePermission } from '../../middleware/requirePermission.js';
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 
 const router = express.Router();
@@ -49,9 +50,9 @@ router.post('/:id/favorite', protectedRoutes, toggleFavorite);
 router.get('/:id/favorite-status', protectedRoutes, checkFavoriteStatus);
 
 // Admin routes
-router.get('/admin/all', adminAuth, getAdminAllPodcasts);
-router.post('/admin/create', adminAuth, createPodcast);
-router.put('/admin/:id', adminAuth, updatePodcast);
-router.delete('/admin/:id', adminAuth, deletePodcast);
+router.get('/admin/all', adminAuth, requirePermission('manage_content'), getAdminAllPodcasts);
+router.post('/admin/create', adminAuth, requirePermission('manage_content'), createPodcast);
+router.put('/admin/:id', adminAuth, requirePermission('manage_content'), updatePodcast);
+router.delete('/admin/:id', adminAuth, requirePermission('manage_content'), deletePodcast);
 
 export default router;

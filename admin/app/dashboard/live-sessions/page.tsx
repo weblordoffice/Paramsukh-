@@ -25,10 +25,25 @@ interface LiveSession {
     durationInMinutes: number;
     meetingPlatform: 'zoom' | 'google-meet' | 'teams' | 'other';
     meetingLink: string;
+    meetingPassword?: string | null;
+    zoomMeetingId?: string | null;
+    capacity?: number | null;
+    registrationCount?: number;
     audienceType: 'all' | 'plans';
     planSlugs: string[];
     recordingUrl?: string | null;
     status: 'scheduled' | 'completed' | 'cancelled';
+}
+
+interface SessionRegistration {
+    _id: string;
+    registeredAt: string;
+    userId?: {
+        _id?: string;
+        displayName?: string;
+        email?: string;
+        phone?: string;
+    } | null;
 }
 
 interface MembershipPlan {
@@ -45,6 +60,8 @@ interface FormState {
     durationInMinutes: number;
     meetingPlatform: LiveSession['meetingPlatform'];
     meetingLink: string;
+    capacity: string;
+    autoCreateZoomMeeting: boolean;
     audienceType: LiveSession['audienceType'];
     planSlugs: string[];
     recordingUrl: string;
@@ -58,6 +75,8 @@ const emptyForm: FormState = {
     durationInMinutes: 60,
     meetingPlatform: 'zoom',
     meetingLink: '',
+    capacity: '',
+    autoCreateZoomMeeting: false,
     audienceType: 'all',
     planSlugs: [],
     recordingUrl: '',
@@ -81,6 +100,10 @@ export default function LiveSessionsPage() {
     const [showModal, setShowModal] = useState(false);
     const [editing, setEditing] = useState<LiveSession | null>(null);
     const [form, setForm] = useState<FormState>(emptyForm);
+    const [zoomConfigured, setZoomConfigured] = useState(false);
+    const [registrationsSession, setRegistrationsSession] = useState<LiveSession | null>(null);
+    const [registrations, setRegistrations] = useState<SessionRegistration[]>([]);
+    const [loadingRegistrations, setLoadingRegistrations] = useState(false);
 
     const loadSessions = useCallback(async () => {
         setLoading(true);
@@ -107,7 +130,17 @@ export default function LiveSessionsPage() {
             }
         };
 
+        const loadConfig = async () => {
+            try {
+                const response = await apiClient.get('/api/live-sessions/admin/config');
+                setZoomConfigured(response.data?.zoomConfigured === true);
+            } catch {
+                setZoomConfigured(false);
+            }
+        };
+
         loadPlans();
+        loadConfig();
     }, [loadSessions]);
 
     const planTitleBySlug = useMemo(() => {
@@ -130,13 +163,29 @@ export default function LiveSessionsPage() {
             scheduledAt: toLocalInputValue(session.scheduledAt),
             durationInMinutes: session.durationInMinutes || 60,
             meetingPlatform: session.meetingPlatform || 'zoom',
-            meetingLink: session.meetingLink,
+            meetingLink: session.meetingLink || '',
+            capacity: session.capacity != null ? String(session.capacity) : '',
+            autoCreateZoomMeeting: false,
             audienceType: session.audienceType || 'all',
             planSlugs: session.planSlugs || [],
             recordingUrl: session.recordingUrl || '',
             status: session.status || 'scheduled',
         });
         setShowModal(true);
+    };
+
+    const openRegistrations = async (session: LiveSession) => {
+        setRegistrationsSession(session);
+        setLoadingRegistrations(true);
+        try {
+            const response = await apiClient.get(`/api/live-sessions/admin/${session._id}/registrations`);
+            setRegistrations(response.data.registrations || []);
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to load registrations');
+            setRegistrations([]);
+        } finally {
+            setLoadingRegistrations(false);
+        }
     };
 
     const togglePlan = (slug: string) => {
@@ -177,7 +226,8 @@ export default function LiveSessionsPage() {
             toast.error('Date and time are required');
             return;
         }
-        if (!form.meetingLink.trim()) {
+        const usingAutoZoom = form.autoCreateZoomMeeting && form.meetingPlatform === 'zoom';
+        if (!form.meetingLink.trim() && !usingAutoZoom) {
             toast.error('Meeting link is required');
             return;
         }
@@ -195,6 +245,8 @@ export default function LiveSessionsPage() {
                 durationInMinutes: Number(form.durationInMinutes) || 60,
                 meetingPlatform: form.meetingPlatform,
                 meetingLink: form.meetingLink.trim(),
+                capacity: form.capacity ? Number(form.capacity) : null,
+                autoCreateZoomMeeting: usingAutoZoom,
                 audienceType: form.audienceType,
                 planSlugs: form.audienceType === 'plans' ? form.planSlugs : [],
                 recordingUrl: form.recordingUrl.trim() || null,
@@ -331,11 +383,19 @@ export default function LiveSessionsPage() {
                                         ? 'All members'
                                         : `${session.planSlugs?.length || 0} plan(s)`}
                                 </span>
+                                <button
+                                    onClick={() => openRegistrations(session)}
+                                    className="flex items-center gap-2 text-primary hover:underline text-left"
+                                >
+                                    <Users className="w-4 h-4 shrink-0" />
+                                    {session.registrationCount || 0} registered
+                                    {session.capacity ? ` / ${session.capacity}` : ''}
+                                </button>
                                 <a
                                     href={session.meetingLink}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="flex items-center gap-2 text-primary hover:underline truncate"
+                                    className="flex items-center gap-2 text-primary hover:underline truncate sm:col-span-2"
                                 >
                                     <Link2 className="w-4 h-4 shrink-0" />
                                     <span className="truncate">{session.meetingLink}</span>
@@ -445,16 +505,42 @@ export default function LiveSessionsPage() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-semibold text-secondary mb-2">
-                                        Meeting link <span className="text-red-500">*</span>
+                                        Meeting link {!form.autoCreateZoomMeeting && <span className="text-red-500">*</span>}
                                     </label>
                                     <input
                                         type="url"
                                         value={form.meetingLink}
                                         onChange={(event) => setForm((prev) => ({ ...prev, meetingLink: event.target.value }))}
-                                        placeholder="https://zoom.us/j/..."
+                                        placeholder={form.autoCreateZoomMeeting ? 'Generated automatically by Zoom' : 'https://zoom.us/j/...'}
+                                        disabled={form.autoCreateZoomMeeting}
+                                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-50"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-secondary mb-2">Capacity</label>
+                                    <input
+                                        type="number"
+                                        min={1}
+                                        value={form.capacity}
+                                        onChange={(event) => setForm((prev) => ({ ...prev, capacity: event.target.value }))}
+                                        placeholder="Unlimited"
                                         className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-primary"
                                     />
                                 </div>
+                                {form.meetingPlatform === 'zoom' && zoomConfigured && (
+                                    <label className="flex items-center gap-2 text-sm font-medium text-secondary md:mt-8">
+                                        <input
+                                            type="checkbox"
+                                            checked={form.autoCreateZoomMeeting}
+                                            onChange={(event) => setForm((prev) => ({ ...prev, autoCreateZoomMeeting: event.target.checked }))}
+                                            className="w-4 h-4 accent-[#F1842D]"
+                                        />
+                                        Create Zoom meeting automatically
+                                    </label>
+                                )}
                             </div>
 
                             <div>
@@ -561,6 +647,49 @@ export default function LiveSessionsPage() {
                                     {saving ? 'Saving...' : editing ? 'Save Changes' : 'Create Session'}
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {registrationsSession && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setRegistrationsSession(null)}>
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto" onClick={(event) => event.stopPropagation()}>
+                        <div className="sticky top-0 z-10 bg-white border-b px-6 py-4 flex items-center justify-between rounded-t-xl">
+                            <div>
+                                <h2 className="text-xl font-bold text-secondary">Registrations</h2>
+                                <p className="text-sm text-accent">{registrationsSession.title}</p>
+                            </div>
+                            <button onClick={() => setRegistrationsSession(null)} className="p-2 hover:bg-gray-100 rounded-lg" title="Close">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            {loadingRegistrations ? (
+                                <div className="flex justify-center py-10">
+                                    <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                                </div>
+                            ) : registrations.length === 0 ? (
+                                <p className="text-sm text-accent text-center py-8">No registrations yet.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {registrations.map((registration) => (
+                                        <div key={registration._id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2">
+                                            <div className="min-w-0">
+                                                <p className="text-sm font-semibold text-secondary">
+                                                    {registration.userId?.displayName || 'User'}
+                                                </p>
+                                                <p className="text-xs text-accent truncate">
+                                                    {registration.userId?.email || registration.userId?.phone || 'No contact'}
+                                                </p>
+                                            </div>
+                                            <span className="text-xs text-accent whitespace-nowrap">
+                                                {new Date(registration.registeredAt).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

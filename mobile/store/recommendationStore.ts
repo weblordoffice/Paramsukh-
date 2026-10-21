@@ -52,7 +52,7 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
 
         set({ loading: true, error: null });
         try {
-            const response = await apiClient.get('/api/assessment/recommendations');
+            const response = await apiClient.get('/assessment/recommendations');
             if (response.data?.success && Array.isArray(response.data?.recommendations)) {
                 const recs = response.data.recommendations;
                 set({ recommendations: recs, loading: false });

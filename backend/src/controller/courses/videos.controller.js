@@ -1,4 +1,5 @@
 import { Course } from '../../models/course.models.js';
+import { notifyCourseContentAdded } from '../../services/notificationAutomation.service.js';
 
 // Helper function to parse duration string to seconds
 function parseDurationToSeconds(duration) {
@@ -82,6 +83,9 @@ export const addVideoToCourse = async (req, res) => {
         });
 
         await course.save();
+        notifyCourseContentAdded(course, 'video', title).catch((error) =>
+            console.error('Course content notification failed:', error?.message)
+        );
         return res.status(201).json({
             success: true,
             message: "Video added to course successfully",

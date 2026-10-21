@@ -130,6 +130,84 @@ const pdfSchema = new mongoose.Schema({
 
 export const Pdf = mongoose.model("Pdf", pdfSchema);
 
+const audioLessonSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  description: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  audioUrl: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  duration: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  durationInSeconds: {
+    type: Number,
+    default: 0,
+  },
+  thumbnailUrl: {
+    type: String,
+    default: null,
+  },
+  order: {
+    type: Number,
+    default: 0,
+  },
+  isFree: {
+    type: Boolean,
+    default: false,
+  },
+}, {
+  timestamps: true,
+});
+
+export const AudioLesson = mongoose.model("AudioLesson", audioLessonSchema);
+
+const reflectionSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  prompt: {
+    type: String,
+    required: true,
+    trim: true,
+  },
+  guidance: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  minWords: {
+    type: Number,
+    default: 20,
+    min: 1,
+  },
+  order: {
+    type: Number,
+    default: 0,
+  },
+  isRequired: {
+    type: Boolean,
+    default: true,
+  },
+}, {
+  timestamps: true,
+});
+
+export const Reflection = mongoose.model("Reflection", reflectionSchema);
+
 const liveSessionSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -231,6 +309,16 @@ const courseSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  audioLessons: [audioLessonSchema],
+  totalAudioLessons: {
+    type: Number,
+    default: 0
+  },
+  reflections: [reflectionSchema],
+  totalReflections: {
+    type: Number,
+    default: 0
+  },
   liveSessions: [liveSessionSchema],
   assignments: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -320,10 +408,12 @@ courseSchema.index({ category: 1 });
 courseSchema.index({ status: 1 });
 courseSchema.index({ createdAt: -1 });
 
-// Pre-save middleware to update totalVideos and totalPdfs
+// Pre-save middleware to keep content totals in sync
 courseSchema.pre('save', function (next) {
   this.totalVideos = this.videos.length;
   this.totalPdfs = this.pdfs.length;
+  this.totalAudioLessons = (this.audioLessons || []).length;
+  this.totalReflections = (this.reflections || []).length;
   next();
 });
 

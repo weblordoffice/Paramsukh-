@@ -48,6 +48,9 @@ import { handleDonationWebhook } from './controller/donations/donations.controll
 import { setupCounselingCrons } from './services/counselingCron.service.js';
 import { setupOrderCrons } from './services/orderCron.service.js';
 import { setupReferralCrons } from './services/referralCron.service.js';
+import { setupLiveSessionCrons } from './services/liveSessionReminder.service.js';
+import { setupEventReminderCrons } from './services/eventReminder.service.js';
+import { setupNotificationAutomationCrons } from './services/notificationAutomation.service.js';
 dotenv.config();
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -436,6 +439,15 @@ setupOrderCrons();
 
 // Setup referral system cron jobs (release held points / expire old points)
 setupReferralCrons();
+
+// Setup live-session registration reminders
+setupLiveSessionCrons();
+
+// Setup event registration reminders (24h + 1h before start)
+setupEventReminderCrons();
+
+// Setup notification automation (daily motivation quotes)
+setupNotificationAutomationCrons();
 
 // GLOBAL ERROR HANDLER - Must be after all routes
 app.use((err, req, res, next) => {
