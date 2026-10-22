@@ -17,6 +17,7 @@ export type ResolvedRoute =
 // Allow-list of real in-app routes (must match app/**/*.tsx).
 const KNOWN_PATHS = new Set([
   '/(home)/notifications',
+  '/(home)/menu',
   '/(home)/help-support',
   '/(home)/my-membership',
   '/(home)/community',

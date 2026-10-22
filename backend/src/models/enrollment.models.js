@@ -64,6 +64,32 @@ const enrollmentSchema = new mongoose.Schema({
   currentVideoId: {
     type: mongoose.Schema.Types.ObjectId,
     default: null
+  },
+
+  // Playback resume state — only set once the user actually starts a video.
+  // Continue Learning uses these fields so enrolled-but-never-watched courses
+  // do not appear in the widget.
+  hasStartedLearning: {
+    type: Boolean,
+    default: false
+  },
+  lastPlayedAt: {
+    type: Date,
+    default: null
+  },
+  lastPausedAt: {
+    type: Date,
+    default: null
+  },
+  lastVideoPositionSeconds: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  lastVideoDurationSeconds: {
+    type: Number,
+    default: 0,
+    min: 0
   }
 }, {
   timestamps: true
@@ -73,6 +99,7 @@ const enrollmentSchema = new mongoose.Schema({
 enrollmentSchema.index({ userId: 1, courseId: 1 }, { unique: true });
 enrollmentSchema.index({ userId: 1, isCompleted: 1 });
 enrollmentSchema.index({ courseId: 1, isCompleted: 1 });
+enrollmentSchema.index({ userId: 1, hasStartedLearning: 1, lastPausedAt: -1 });
 
 // Methods
 enrollmentSchema.methods.updateProgress = function(totalVideos, totalPdfs, totalAudioLessons = 0, totalReflections = 0) {

@@ -311,7 +311,13 @@ export const updateVideoPosition = async (req, res) => {
   try {
     const userId = req.user._id;
     const { courseId } = req.params;
-    const { videoId, videoIndex } = req.body;
+    const {
+      videoId,
+      videoIndex,
+      positionSeconds,
+      durationSeconds,
+      isPaused = true
+    } = req.body;
 
     const enrollment = await Enrollment.findOne({ userId, courseId });
     if (!enrollment) {
@@ -321,26 +327,49 @@ export const updateVideoPosition = async (req, res) => {
       });
     }
 
-    // Validate videoIndex against course's actual video count
     const course = await Course.findById(enrollment.courseId).select('videos').lean();
-    const maxIndex = (course?.videos?.length || 1) - 1;
-    if (videoIndex < 0 || videoIndex > maxIndex) {
+    const courseVideos = course?.videos || [];
+
+    // Resolve the video index from the id when the client does not send one.
+    let resolvedIndex = Number(videoIndex);
+    if (!Number.isInteger(resolvedIndex) || resolvedIndex < 0) {
+      resolvedIndex = videoId
+        ? courseVideos.findIndex((video) => String(video._id) === String(videoId))
+        : -1;
+    }
+
+    const maxIndex = Math.max(0, courseVideos.length - 1);
+    if (resolvedIndex < 0 || resolvedIndex > maxIndex) {
       return res.status(400).json({
         success: false,
         message: `videoIndex must be between 0 and ${maxIndex}`
       });
     }
 
-    enrollment.currentVideoId = videoId;
-    enrollment.currentVideoIndex = videoIndex;
+    const position = Math.max(0, Number(positionSeconds) || 0);
+    const duration = Math.max(0, Number(durationSeconds) || 0);
+
+    enrollment.currentVideoId = videoId || courseVideos[resolvedIndex]?._id || null;
+    enrollment.currentVideoIndex = resolvedIndex;
     enrollment.lastAccessedAt = new Date();
+    enrollment.lastPlayedAt = new Date();
+    enrollment.hasStartedLearning = true;
+    enrollment.lastVideoPositionSeconds = position;
+    enrollment.lastVideoDurationSeconds = duration;
+
+    if (isPaused !== false) {
+      enrollment.lastPausedAt = new Date();
+    }
+
     await enrollment.save();
 
     return res.status(200).json({
       success: true,
       message: "Position updated",
       currentVideoId: enrollment.currentVideoId,
-      currentVideoIndex: enrollment.currentVideoIndex
+      currentVideoIndex: enrollment.currentVideoIndex,
+      lastVideoPositionSeconds: enrollment.lastVideoPositionSeconds,
+      lastVideoDurationSeconds: enrollment.lastVideoDurationSeconds
     });
 
   } catch (error) {
@@ -444,7 +473,9 @@ export const checkEnrollmentStatus = async (req, res) => {
 };
 
 /**
- * Get continue learning data (recently accessed courses)
+ * Get continue learning data.
+ * Only returns courses where the user actually started a video and paused it,
+ * and has not finished that video yet.
  * GET /api/enrollments/continue-learning
  */
 export const getContinueLearning = async (req, res) => {
@@ -454,13 +485,27 @@ export const getContinueLearning = async (req, res) => {
 
     const enrollments = await Enrollment.find({
       userId,
-      isCompleted: false
+      isCompleted: false,
+      hasStartedLearning: true,
+      lastPausedAt: { $ne: null },
+      lastVideoPositionSeconds: { $gt: 0 },
+      $expr: {
+        $or: [
+          { $lte: ['$lastVideoDurationSeconds', 0] },
+          {
+            $lt: [
+              '$lastVideoPositionSeconds',
+              { $multiply: ['$lastVideoDurationSeconds', 0.99] }
+            ]
+          }
+        ]
+      }
     })
       .populate({
         path: 'courseId',
         select: 'title icon color thumbnailUrl totalVideos'
       })
-      .sort({ lastAccessedAt: -1 })
+      .sort({ lastPausedAt: -1, lastAccessedAt: -1 })
       .limit(parseInt(limit));
 
     return res.status(200).json({
@@ -471,7 +516,11 @@ export const getContinueLearning = async (req, res) => {
           _id: e._id,
           progress: e.progress,
           currentVideoIndex: e.currentVideoIndex,
-          lastAccessedAt: e.lastAccessedAt
+          currentVideoId: e.currentVideoId,
+          lastAccessedAt: e.lastAccessedAt,
+          lastPausedAt: e.lastPausedAt,
+          lastVideoPositionSeconds: e.lastVideoPositionSeconds,
+          lastVideoDurationSeconds: e.lastVideoDurationSeconds
         },
         course: e.courseId
       }))

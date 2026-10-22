@@ -8,12 +8,14 @@ import {
   StyleSheet,
   StatusBar,
   Alert,
+  AppState,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import * as WebBrowser from 'expo-web-browser';
 import { WebView } from 'react-native-webview';
+import apiClient from '../utils/apiClient';
 import { useCourseStore, Assignment } from '../store/courseStore';
 import { useAuthStore } from '../store/authStore';
 import {
@@ -353,11 +355,52 @@ export default function VideoPlayerScreen() {
 
   const isMountedRef = useRef(true);
   const hasAutoPlayedRef = useRef(false);
+  const lastKnownPositionRef = useRef(0);
+  const lastKnownDurationRef = useRef(0);
+  const lastSavedAtRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [marked, setMarked] = useState(false);
   const [watchProgressRatio, setWatchProgressRatio] = useState(0);
   const [hasReached99, setHasReached99] = useState(false);
+
+  // Persist the resume point only when playback is paused/left.
+  // Continue Learning ignores courses that were never started.
+  const persistVideoPosition = useCallback(async (force = false) => {
+    if (!token || !courseId || !videoId) return;
+
+    const position = lastKnownPositionRef.current;
+    const duration = lastKnownDurationRef.current;
+    if (!Number.isFinite(position) || position <= 0) return;
+
+    const now = Date.now();
+    if (!force && now - lastSavedAtRef.current < 5000) return;
+    lastSavedAtRef.current = now;
+
+    try {
+      await apiClient.patch(`/enrollments/course/${courseId}/position`, {
+        videoId,
+        positionSeconds: Math.floor(position),
+        durationSeconds: Math.round(Number.isFinite(duration) ? duration : 0),
+        isPaused: true,
+      });
+    } catch {
+      // Best-effort: a failed save should not interrupt playback.
+    }
+  }, [token, courseId, videoId]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') {
+        void persistVideoPosition(true);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+      void persistVideoPosition(true);
+    };
+  }, [persistVideoPosition]);
 
   // Sync initial completion status from store if already completed
   const enrollmentProgress = useCourseStore((s) => s.enrollmentProgress);
@@ -437,6 +480,8 @@ export default function VideoPlayerScreen() {
     const interval = setInterval(() => {
       try {
         if (player.duration > 0 && player.currentTime > 0) {
+          lastKnownPositionRef.current = player.currentTime;
+          lastKnownDurationRef.current = player.duration;
           const ratio = player.currentTime / player.duration;
           setWatchProgressRatio((prev) => {
             const next = Math.max(prev, ratio);
@@ -466,21 +511,35 @@ export default function VideoPlayerScreen() {
       }
     };
 
+    const onPlayingChange = (payload: any) => {
+      const isPlaying = payload?.isPlaying ?? payload;
+      if (isPlaying) {
+        // Allow the next pause to save immediately.
+        lastSavedAtRef.current = 0;
+      } else {
+        void persistVideoPosition(true);
+      }
+    };
+
     const onPlayToEnd = () => {
+      lastKnownPositionRef.current = player.duration || lastKnownPositionRef.current;
+      lastKnownDurationRef.current = player.duration || lastKnownDurationRef.current;
       setWatchProgressRatio(1);
       setHasReached99(true);
       markComplete();
     };
 
     const sub = player.addListener('statusChange', onStatusChange);
+    const playingSub = player.addListener('playingChange', onPlayingChange);
     const endSub = player.addListener('playToEnd', onPlayToEnd);
 
     return () => {
       clearInterval(interval);
       sub?.remove?.();
+      playingSub?.remove?.();
       endSub?.remove?.();
     };
-  }, [player, useNativePlayer, markComplete]);
+  }, [player, useNativePlayer, markComplete, persistVideoPosition]);
 
   // YouTube webview message handler
   const handleWebViewMessage = (event: any) => {
@@ -489,6 +548,12 @@ export default function VideoPlayerScreen() {
       if (data.type === 'ready') {
         setLoading(false);
       } else if (data.type === 'timeUpdate') {
+        if (typeof data.currentTime === 'number' && !isNaN(data.currentTime)) {
+          lastKnownPositionRef.current = data.currentTime;
+        }
+        if (typeof data.duration === 'number' && !isNaN(data.duration)) {
+          lastKnownDurationRef.current = data.duration;
+        }
         if (typeof data.ratio === 'number' && !isNaN(data.ratio)) {
           setWatchProgressRatio((prev) => {
             const next = Math.max(prev, data.ratio);
@@ -498,7 +563,15 @@ export default function VideoPlayerScreen() {
             return next;
           });
         }
+      } else if (data.type === 'state') {
+        // YouTube state: 1 = playing, 2 = paused
+        if (data.state === 1) {
+          lastSavedAtRef.current = 0;
+        } else if (data.state === 2) {
+          void persistVideoPosition(true);
+        }
       } else if (data.type === 'ended') {
+        lastKnownPositionRef.current = lastKnownDurationRef.current;
         setWatchProgressRatio(1);
         setHasReached99(true);
         markComplete();
@@ -553,6 +626,9 @@ export default function VideoPlayerScreen() {
                 }, 1000);
               },
               'onStateChange': function(event) {
+                if (window.ReactNativeWebView) {
+                  window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'state', state: event.data }));
+                }
                 if (event.data === 0 && window.ReactNativeWebView) {
                   window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ended' }));
                 }

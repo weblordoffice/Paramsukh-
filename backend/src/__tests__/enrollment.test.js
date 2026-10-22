@@ -106,7 +106,7 @@ describe('Enrollment Module - /api/enrollments', () => {
   });
 
   describe('GET /api/enrollments/continue-learning', () => {
-    it('should return continue learning data', async () => {
+    it('does not return a course that was enrolled but never started', async () => {
       await Enrollment.create({
         userId: user._id,
         courseId: course._id,
@@ -119,6 +119,60 @@ describe('Enrollment Module - /api/enrollments', () => {
 
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
+      expect(res.body.courses).toHaveLength(0);
+    });
+
+    it('returns a course only after the user starts a video and pauses', async () => {
+      await Enrollment.create({
+        userId: user._id,
+        courseId: course._id,
+      });
+
+      const saveRes = await request(app)
+        .patch(`/api/enrollments/course/${course._id}/position`)
+        .set(getAuthHeader(token))
+        .send({
+          videoId: course.videos[0]._id,
+          positionSeconds: 30,
+          durationSeconds: 600,
+          isPaused: true,
+        });
+
+      expect(saveRes.status).toBe(200);
+
+      const res = await request(app)
+        .get('/api/enrollments/continue-learning')
+        .set(getAuthHeader(token));
+
+      expect(res.status).toBe(200);
+      expect(res.body.courses).toHaveLength(1);
+      expect(res.body.courses[0].course._id.toString()).toBe(course._id.toString());
+      expect(res.body.courses[0].enrollment.lastVideoPositionSeconds).toBe(30);
+      expect(res.body.courses[0].enrollment.lastPausedAt).toBeTruthy();
+    });
+
+    it('hides a course when the paused position is at the end of the video', async () => {
+      await Enrollment.create({
+        userId: user._id,
+        courseId: course._id,
+      });
+
+      await request(app)
+        .patch(`/api/enrollments/course/${course._id}/position`)
+        .set(getAuthHeader(token))
+        .send({
+          videoId: course.videos[0]._id,
+          positionSeconds: 600,
+          durationSeconds: 600,
+          isPaused: true,
+        });
+
+      const res = await request(app)
+        .get('/api/enrollments/continue-learning')
+        .set(getAuthHeader(token));
+
+      expect(res.status).toBe(200);
+      expect(res.body.courses).toHaveLength(0);
     });
   });
 
