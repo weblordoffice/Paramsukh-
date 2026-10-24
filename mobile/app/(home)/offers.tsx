@@ -13,7 +13,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import apiClient from '../../utils/apiClient';
+import { BASE_URL } from '../../config/api';
 import { useTheme } from '../../hooks/useTheme';
+
+const resolveImageUrl = (value?: string | null) => {
+  if (!value) return null;
+  if (/^https?:\/\//i.test(value)) return value;
+  if (value.startsWith('/')) return `${BASE_URL}${value}`;
+  return value;
+};
 
 type Offer = {
   _id: string;
@@ -178,7 +186,7 @@ export default function OffersScreen() {
           offers.map((offer) => (
             <View key={offer._id} style={s.card}>
               {offer.bannerImage ? (
-                <Image source={{ uri: offer.bannerImage }} style={s.banner} resizeMode="cover" />
+                <Image source={{ uri: resolveImageUrl(offer.bannerImage)! }} style={s.banner} resizeMode="cover" />
               ) : null}
               <View style={s.cardBody}>
                 <View style={s.discountBadge}>

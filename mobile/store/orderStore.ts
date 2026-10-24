@@ -4,6 +4,7 @@ import { API_URL } from '../config/api';
 export interface Order {
     _id: string;
     orderNumber: string;
+    invoiceNumber?: string;
     user: string;
     items: {
         product?: {

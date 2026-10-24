@@ -14,6 +14,7 @@ import { getAutoEnrollCoursesForPlan, getInheritedCoursesForPlan } from '../../s
 import { handlePlanUpgrade } from '../../services/planUpgrade.service.js';
 import { verifyRazorpaySignature, fetchPaymentDetails } from '../../services/razorpayService.js';
 import { sendMembershipPurchaseEmail } from '../../services/emailService.js';
+import { recordTransaction } from '../../services/transaction.service.js';
 import { sendOTP, verifyOTP, sendEmailOTP, verifyEmailOTP } from '../../services/otpService.js';
 
 /**
@@ -799,6 +800,21 @@ export const purchaseMembership = async (req, res) => {
       const validityDays = Number(planConfig.validityDays || planConfig.plan?.validityDays || 365);
       user.subscriptionEndDate = new Date(Date.now() + validityDays * 24 * 60 * 60 * 1000);
     }
+
+    const paidAmount = Number(paymentDetails.amount) / 100;
+    user.payments = user.payments || [];
+    user.payments.push({
+      orderId: razorpayOrderId,
+      paymentId: razorpayPaymentId,
+      amount: paidAmount,
+      plan: finalPlan,
+      status: 'completed',
+      date: new Date(),
+      metadata: {
+        sourceController: 'profile.purchaseMembership',
+        provider: 'razorpay',
+      },
+    });
     await user.save();
 
     await upsertActiveUserMembership({
@@ -808,12 +824,30 @@ export const purchaseMembership = async (req, res) => {
       startDate: user.subscriptionStartDate,
       endDate: user.subscriptionEndDate,
       source: 'purchase',
+      payment: {
+        provider: 'razorpay',
+        orderId: razorpayOrderId,
+        paymentId: razorpayPaymentId,
+        amount: paidAmount,
+        currency: 'INR',
+      },
       metadata: {
         sourceController: 'profile.purchaseMembership',
         razorpayPaymentId,
         razorpayOrderId,
       },
     });
+
+    recordTransaction({
+      userId,
+      userName: user.displayName,
+      source: 'membership',
+      sourceId: razorpayOrderId,
+      amount: paidAmount,
+      provider: 'razorpay',
+      providerRef: razorpayPaymentId,
+      metadata: { planName: finalPlan, orderId: razorpayOrderId, paymentId: razorpayPaymentId },
+    }).catch((error) => console.error('Membership transaction recording failed:', error.message));
 
     // Auto-enroll in courses: all closure courses for entitlement plans, or the
     // inherited (lower-tier) courses for capped plans (the user picks the rest).

@@ -103,8 +103,8 @@ interface EventState {
         paymentRequired?: boolean;
         paymentAmount?: number;
     }>;
-    createEventOrder: (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string }) => Promise<{ success: boolean; data?: { registrationId: string; razorpay: { orderId: string; amount: number; currency: string; keyId: string } }; message?: string }>;
-    createEventPaymentLink: (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string }) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; registrationId?: string; expiresAt?: string; message?: string }>;
+    createEventOrder: (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string; couponCode?: string }) => Promise<{ success: boolean; data?: { registrationId: string; razorpay: { orderId: string; amount: number; currency: string; keyId: string } }; message?: string }>;
+    createEventPaymentLink: (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string; couponCode?: string }) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; registrationId?: string; expiresAt?: string; message?: string }>;
     confirmEventPaymentByLink: (eventId: string, paymentLinkId: string) => Promise<{ success: boolean; message?: string }>;
     confirmEventPayment: (eventId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => Promise<{ success: boolean; message?: string }>;
     cancelEventRegistration: (eventId: string) => Promise<boolean>;

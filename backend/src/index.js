@@ -30,6 +30,7 @@ import courseSelectionRoutes from './routes/membership/courseSelectionRoute.js';
 import uploadRoutes from './routes/upload/uploadRoute.js';
 import podcastRoutes from './routes/podcast/podcastRoute.js';
 import adminRoutes from './routes/admin/adminRoute.js';
+import certificationAdminRoutes from './routes/admin/certificationRoute.js';
 import chatRoutes from './routes/chat/chatRoute.js';
 import wellnessGoalRoutes from './routes/wellness/wellnessGoalRoute.js';
 import certificateRoutes from './routes/certificates/certificateRoute.js';
@@ -38,6 +39,7 @@ import adminOfferRoutes from './routes/offers/admin.offerRoute.js';
 import blogRoutes from './routes/blog/blogRoute.js';
 import configRoutes from './routes/config/configRoute.js';
 import adminCouponRoutes from './routes/coupons/admin.coupons.routes.js';
+import userCouponRoutes from './routes/coupons/user.coupons.routes.js';
 
 import donationsRoutes from './routes/donations/donationsRoute.js';
 import supportRoutes from './routes/support/supportRoute.js';
@@ -50,6 +52,7 @@ import { setupOrderCrons } from './services/orderCron.service.js';
 import { setupReferralCrons } from './services/referralCron.service.js';
 import { setupLiveSessionCrons } from './services/liveSessionReminder.service.js';
 import { setupEventReminderCrons } from './services/eventReminder.service.js';
+import { setupCouponCrons } from './services/couponCron.service.js';
 import { setupNotificationAutomationCrons } from './services/notificationAutomation.service.js';
 dotenv.config();
 
@@ -117,6 +120,7 @@ const corsOptions = {
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-API-Key', 'Cache-Control', 'Pragma', 'Last-Event-ID', 'X-Requested-With', 'Accept', 'Origin', 'x-device-id', 'x-device-name', 'x-device-os', 'x-device-browser', 'x-revoke-device-id'],
+  exposedHeaders: ['Content-Disposition'],
 };
 
 app.use(helmet({
@@ -186,7 +190,9 @@ app.use('/uploads', express.static(path.join(__dirname, '..', 'public', 'uploads
 // Routes
 app.use('/api/auth', apiRoutes);
 app.use('/api/admin/coupons', adminCouponRoutes);
+app.use('/api/coupons', userCouponRoutes);
 app.use('/api/admin/offers', adminOfferRoutes);
+app.use('/api/admin', certificationAdminRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/courses', coursesRoutes);
 app.use('/api/livesessions', liveSessionRoutes);
@@ -445,6 +451,9 @@ setupLiveSessionCrons();
 
 // Setup event registration reminders (24h + 1h before start)
 setupEventReminderCrons();
+
+// Setup personalized coupon notifications (notify assigned users at activation)
+setupCouponCrons();
 
 // Setup notification automation (daily motivation quotes)
 setupNotificationAutomationCrons();

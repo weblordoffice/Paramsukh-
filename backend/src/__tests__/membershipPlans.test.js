@@ -136,5 +136,40 @@ describe('Membership plan hierarchy - /api/membership-plans', () => {
 
       expect(res.status).toBe(400);
     });
+
+    it('should reject including a higher-tier plan', async () => {
+      const res = await request(app)
+        .patch(`/api/membership-plans/${copper._id}`)
+        .set(getAdminApiKeyHeader())
+        .send({
+          planKind: 'tiered',
+          tierLevel: 2,
+          access: { inheritedPlanIds: [silver._id] },
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/lower-tier/i);
+    });
+
+    it('should reject including a plan at the same tier level', async () => {
+      const peer = await createPlan({
+        title: 'Copper Peer',
+        slug: 'copper-peer',
+        planKind: 'tiered',
+        tierLevel: 2,
+      });
+
+      const res = await request(app)
+        .patch(`/api/membership-plans/${copper._id}`)
+        .set(getAdminApiKeyHeader())
+        .send({
+          planKind: 'tiered',
+          tierLevel: 2,
+          access: { inheritedPlanIds: [peer._id] },
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toMatch(/lower-tier/i);
+    });
   });
 });

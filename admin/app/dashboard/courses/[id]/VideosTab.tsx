@@ -382,7 +382,7 @@ export default function VideosTab({ courseId, videos, onUpdate }: VideosTabProps
                                             <p className="text-sm text-gray-600 mt-1">{video.description}</p>
                                         )}
                                         <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                                            <span>{video.duration} mins</span>
+                                            <span>{video.duration}</span>
                                             <span>Order: {video.order || index + 1}</span>
                                         </div>
                                     </div>

@@ -20,7 +20,7 @@ interface Course {
     color: string;
     thumbnailUrl: string;
     bannerUrl: string;
-    duration: number;
+    duration: string;
     category?: string;
     tags: string[];
     status: string;

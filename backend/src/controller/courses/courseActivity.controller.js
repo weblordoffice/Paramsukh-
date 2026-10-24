@@ -3,6 +3,7 @@ import { Enrollment } from '../../models/enrollment.models.js';
 import { Assignment } from '../../models/course.models.js';
 import { CourseActivitySubmission } from '../../models/courseActivitySubmission.models.js';
 import { notifyCourseContentAdded } from '../../services/notificationAutomation.service.js';
+import { recordRequiredAssignmentCompletion } from '../../services/certificationEligibility.service.js';
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase();
 
@@ -473,6 +474,10 @@ export const submitAssignment = async (req, res) => {
       if (!bestAttempt) return attempt;
       return (attempt.percentage || 0) > (bestAttempt.percentage || 0) ? attempt : bestAttempt;
     }, null);
+
+    await recordRequiredAssignmentCompletion(userId, courseId, assignmentId).catch((err) =>
+      console.error('Assessment unlock recalculation failed:', err.message)
+    );
 
     return res.status(201).json({
       success: true,

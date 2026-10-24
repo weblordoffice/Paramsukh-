@@ -29,6 +29,13 @@ import { getAutoEnrollCoursesForPlan, getInheritedCoursesForPlan, autoEnrollUser
 import { recordTransaction } from '../../services/transaction.service.js';
 import { AdminPaymentLink } from '../../models/adminPaymentLink.models.js';
 import { sendMembershipPurchaseEmail, sendCounselingBookingEmail, sendOrderConfirmationEmail, sendEventRegistrationEmail, sendPaymentFailedEmail, sendRefundProcessedEmail } from '../../services/emailService.js';
+import {
+  applyPurchaseDiscount,
+  cancelPurchaseDiscount,
+  createPurchaseDiscount,
+  findPurchaseDiscount,
+  resolvePurchaseDiscount,
+} from '../../services/purchaseDiscount.service.js';
 
 const MAX_ADMIN_LINK_EXPIRY_HOURS = 24 * 30;
 
@@ -319,7 +326,7 @@ export const confirmBookingPaymentLink = async (req, res) => {
 export const createMembershipOrder = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { plan, selectedCourseIds } = req.body;
+    const { plan, selectedCourseIds, couponCode } = req.body;
 
     const planConfig = await resolveMembershipPlanChargeAmount(plan);
     if (!planConfig.isValid) {
@@ -341,15 +348,30 @@ export const createMembershipOrder = async (req, res) => {
       });
     }
 
-    const amount = Number(planConfig.amount || 0);
+    const baseAmount = Number(planConfig.amount || 0);
     const validityDays = Number(planConfig.validityDays || planConfig.plan?.validityDays || 365);
 
     // Validate amount
-    if (!amount || amount <= 0) {
+    if (!baseAmount || baseAmount <= 0) {
       return res.status(400).json({
         success: false,
         message: 'Invalid amount'
       });
+    }
+
+    const discount = await resolvePurchaseDiscount({
+      userId,
+      purchaseType: 'membership',
+      targetId: planConfig.plan?._id || planConfig.plan?.id || null,
+      amount: baseAmount,
+      couponCode,
+    });
+    if (discount.error) {
+      return res.status(400).json({ success: false, message: discount.error });
+    }
+    const amount = Number(discount.finalAmount || 0);
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: 'This discount makes the plan free. Please contact support.' });
     }
 
     // Create Razorpay order
@@ -364,7 +386,21 @@ export const createMembershipOrder = async (req, res) => {
         userId: userId.toString(),
         validityDays: String(validityDays),
         selectedCourseIds: courseIds.length > 0 ? JSON.stringify(courseIds) : '',
+        baseAmount: String(discount.baseAmount),
+        discountAmount: String(discount.discountAmount),
+        finalAmount: String(discount.finalAmount),
+        couponCode: discount.couponCode || '',
+        offerId: discount.offer?._id ? String(discount.offer._id) : '',
       }
+    });
+
+    await createPurchaseDiscount({
+      userId,
+      purchaseType: 'membership',
+      targetId: planConfig.plan?._id || planConfig.plan?.id || null,
+      discount,
+      providerOrderId: order.id,
+      metadata: { plan: finalPlan, sourceController: 'payments.createMembershipOrder' },
     });
 
     console.log(`✅ Payment order created for user ${userId}, plan: ${finalPlan}`);
@@ -375,6 +411,8 @@ export const createMembershipOrder = async (req, res) => {
       data: {
         orderId: order.id,
         amount: order.amount,
+        baseAmount: discount.baseAmount,
+        discountAmount: discount.discountAmount,
         currency: order.currency,
         keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_demo',
         testMode: isTestMode()
@@ -398,7 +436,7 @@ export const createMembershipOrder = async (req, res) => {
 export const createMembershipPaymentLink = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { plan, selectedCourseIds } = req.body;
+    const { plan, selectedCourseIds, couponCode } = req.body;
     const rawCallbackUrl = req.body.callbackUrl || '';
     const callbackUrl = rawCallbackUrl.startsWith('http') ? rawCallbackUrl : (process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`);
 
@@ -408,11 +446,26 @@ export const createMembershipPaymentLink = async (req, res) => {
     }
 
     const finalPlan = planConfig.slug;
-    const amount = Number(planConfig.amount || 0);
+    const baseAmount = Number(planConfig.amount || 0);
     const validityDays = Number(planConfig.validityDays || planConfig.plan?.validityDays || 365);
 
-    if (!amount || amount <= 0) {
+    if (!baseAmount || baseAmount <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid amount' });
+    }
+
+    const discount = await resolvePurchaseDiscount({
+      userId,
+      purchaseType: 'membership',
+      targetId: planConfig.plan?._id || planConfig.plan?.id || null,
+      amount: baseAmount,
+      couponCode,
+    });
+    if (discount.error) {
+      return res.status(400).json({ success: false, message: discount.error });
+    }
+    const amount = Number(discount.finalAmount || 0);
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ success: false, message: 'This discount makes the plan free. Please contact support.' });
     }
 
     const coverage = await isPlanCoveredByUser(userId, finalPlan);
@@ -501,9 +554,23 @@ export const createMembershipPaymentLink = async (req, res) => {
         userId: userId.toString(),
         validityDays: String(validityDays),
         selectedCourseIds: courseIds.length > 0 ? JSON.stringify(courseIds) : '',
+        baseAmount: String(discount.baseAmount),
+        discountAmount: String(discount.discountAmount),
+        finalAmount: String(discount.finalAmount),
+        couponCode: discount.couponCode || '',
+        offerId: discount.offer?._id ? String(discount.offer._id) : '',
       },
       callback_url: callbackUrl || undefined,
       callback_method: callbackUrl ? 'get' : undefined,
+    });
+
+    await createPurchaseDiscount({
+      userId,
+      purchaseType: 'membership',
+      targetId: planConfig.plan?._id || planConfig.plan?.id || null,
+      discount,
+      providerPaymentLinkId: link.id,
+      metadata: { plan: finalPlan, sourceController: 'payments.createMembershipPaymentLink' },
     });
 
     // Update with real link data
@@ -523,6 +590,9 @@ export const createMembershipPaymentLink = async (req, res) => {
         url: link.short_url,
         callbackUrl,
         expiresAt: link.expire_by ? new Date(link.expire_by * 1000) : null,
+        amount: discount.finalAmount,
+        baseAmount: discount.baseAmount,
+        discountAmount: discount.discountAmount,
         testMode: isTestMode(),
       },
     });
@@ -791,10 +861,16 @@ export const confirmMembershipPaymentLink = async (req, res) => {
     // Validate amount against the plan price (skip in test mode where mock returns 0)
     // Admin-created links use the stored amount from notes (custom price may differ from plan config)
     if (!isRazorpayTestMode) {
+      const pendingDiscount = await findPurchaseDiscount({
+        providerPaymentLinkId: paymentLinkId,
+        providerOrderId: notes?.orderId || null,
+      });
       const adminAmount = isAdminCreated ? Number(notes?.amount || 0) : 0;
-      const expectedPaise = adminAmount > 0
-        ? adminAmount
-        : Math.round((finalPlanConfig.amount || 0) * 100);
+      const expectedPaise = pendingDiscount
+        ? Math.round(Number(pendingDiscount.finalAmount || 0) * 100)
+        : (adminAmount > 0
+          ? adminAmount
+          : Math.round((finalPlanConfig.amount || 0) * 100));
       const paidPaise = Number(link?.amount ?? link?.amount_paid ?? 0);
       if (expectedPaise > 0 && paidPaise !== expectedPaise) {
         return res.status(400).json({
@@ -848,7 +924,7 @@ export const confirmMembershipPaymentLink = async (req, res) => {
     user.pendingMembershipPaymentLink = undefined;
 
     await user.save();
-    await upsertActiveUserMembership({
+    const activatedMembership = await upsertActiveUserMembership({
       userId: targetUserId,
       planSlug: finalPlan,
       planConfig: finalPlanConfig,
@@ -868,6 +944,12 @@ export const confirmMembershipPaymentLink = async (req, res) => {
         trackingId: notes?.trackingId || null,
       },
       selectedCourseIds: parseSelectedCourseIds(notes),
+    });
+
+    await applyPurchaseDiscount({
+      providerPaymentLinkId: paymentLinkId,
+      referenceType: 'membership',
+      referenceId: activatedMembership?._id || null,
     });
     console.log(`✅ Membership activated for user ${targetUserId}: ${finalPlan}`);
 
@@ -994,11 +1076,12 @@ export const syncMembershipFromRazorpay = async (req, res) => {
       const paymentId = firstPayment?.payment_id || full?.payment_id || `pay_${Date.now()}`;
       const amountPaise = full?.amount ?? firstPayment?.amount ?? 0;
 
-      // Validate the paid amount matches the plan price
+      const pendingDiscount = await findPurchaseDiscount({ providerPaymentLinkId: orderId });
+      // Validate the paid amount against the discounted amount when present.
       if (!isRazorpayTestMode) {
-        const expectedPaise = Math.round((finalPlanConfig.amount || 0) * 100);
+        const expectedPaise = Math.round((pendingDiscount?.finalAmount ?? finalPlanConfig.amount ?? 0) * 100);
         if (expectedPaise > 0 && Number(amountPaise) !== expectedPaise) {
-          console.warn(`⏭️ Sync skipped: amount mismatch for user ${userId} on plan ${finalPlan}`);
+          console.warn(`Sync skipped: amount mismatch for user ${userId} on plan ${finalPlan}`);
           continue;
         }
       }
@@ -1022,7 +1105,7 @@ export const syncMembershipFromRazorpay = async (req, res) => {
       });
 
       await user.save();
-      await upsertActiveUserMembership({
+      const syncedMembership = await upsertActiveUserMembership({
         userId,
         planSlug: finalPlan,
         planConfig: finalPlanConfig,
@@ -1042,6 +1125,12 @@ export const syncMembershipFromRazorpay = async (req, res) => {
           trackingId: notes?.trackingId || null,
         },
         selectedCourseIds: parseSelectedCourseIds(notes),
+      });
+
+      await applyPurchaseDiscount({
+        providerPaymentLinkId: orderId,
+        referenceType: 'membership',
+        referenceId: syncedMembership?._id || null,
       });
 
       if (String(notes?.adminCreated || '').toLowerCase() === 'true') {
@@ -1149,6 +1238,9 @@ export const verifyMembershipPayment = async (req, res) => {
       });
     }
 
+    const pendingDiscount = await findPurchaseDiscount({ providerOrderId: razorpay_order_id });
+    const expectedAmount = pendingDiscount?.finalAmount ?? Number(planConfig.amount || 0);
+
     // Fetch and validate payment details from Razorpay.
     // Strict captured/order/amount checks only apply against live Razorpay —
     // in mock test mode the signature check above is the verification.
@@ -1162,7 +1254,7 @@ export const verifyMembershipPayment = async (req, res) => {
         if (paymentDetails.order_id !== razorpay_order_id) {
           return res.status(400).json({ success: false, message: 'Payment order mismatch' });
         }
-        if (Number(paymentDetails.amount) !== Number(planConfig.amount * 100)) {
+        if (Number(paymentDetails.amount) !== Number(expectedAmount * 100)) {
           return res.status(400).json({ success: false, message: 'Payment amount mismatch' });
         }
       }
@@ -1209,7 +1301,7 @@ export const verifyMembershipPayment = async (req, res) => {
 
     await user.save();
     const verifiedCourseIds = Array.isArray(selectedCourseIds) ? selectedCourseIds.filter(Boolean).map(String) : [];
-    await upsertActiveUserMembership({
+    const activatedMembership = await upsertActiveUserMembership({
       userId,
       planSlug: planConfig.slug,
       planConfig,
@@ -1225,6 +1317,12 @@ export const verifyMembershipPayment = async (req, res) => {
       },
       metadata: { sourceController: 'payments.verifyMembershipPayment' },
       selectedCourseIds: verifiedCourseIds,
+    });
+
+    await applyPurchaseDiscount({
+      providerOrderId: razorpay_order_id,
+      referenceType: 'membership',
+      referenceId: activatedMembership?._id || null,
     });
 
     // Enroll in selected courses if provided, otherwise auto-enroll (mirrors payment-link confirm)
@@ -1322,7 +1420,12 @@ export const createBookingOrder = async (req, res) => {
       });
     }
 
-    if (requestedAmount !== undefined && Number(requestedAmount) > 0 && Number(requestedAmount) !== amount) {
+    if (
+      requestedAmount !== undefined
+      && Number(requestedAmount) > 0
+      && Number(requestedAmount) !== amount
+      && !Number(booking.discountAmount || 0)
+    ) {
       return res.status(400).json({
         success: false,
         message: 'Booking amount mismatch'
@@ -1397,12 +1500,15 @@ export const handleWebhook = async (req, res) => {
               break;
             }
 
-            // Validate payment amount matches plan price
+            const pendingDiscount = await findPurchaseDiscount({
+              providerOrderId: payment.order_id || payment.id,
+            });
+            // Validate payment amount against the discounted amount when present.
             if (!isRazorpayTestMode) {
-              const expectedPaise = Math.round((planConfig.amount || 0) * 100);
+              const expectedPaise = Math.round((pendingDiscount?.finalAmount ?? planConfig.amount ?? 0) * 100);
               const paidPaise = Number(payment?.amount || 0);
               if (expectedPaise > 0 && paidPaise !== expectedPaise) {
-                console.error(`❌ Webhook amount mismatch for user ${pNotes.userId}: expected ${expectedPaise}, got ${paidPaise}`);
+                console.error(`Webhook amount mismatch for user ${pNotes.userId}: expected ${expectedPaise}, got ${paidPaise}`);
                 break;
               }
             }
@@ -1433,7 +1539,7 @@ export const handleWebhook = async (req, res) => {
 
             mUser.pendingMembershipPaymentLink = undefined;
             await mUser.save();
-            await upsertActiveUserMembership({
+            const webhookMembership = await upsertActiveUserMembership({
               userId: pNotes.userId,
               planSlug: planConfig.slug,
               planConfig,
@@ -1453,6 +1559,11 @@ export const handleWebhook = async (req, res) => {
                 trackingId: pNotes?.trackingId || null,
               },
               selectedCourseIds: parseSelectedCourseIds(pNotes),
+            });
+            await applyPurchaseDiscount({
+              providerOrderId: payment.order_id || payment.id,
+              referenceType: 'membership',
+              referenceId: webhookMembership?._id || null,
             });
             console.log(`✅ Membership activated via payment.captured for user ${pNotes.userId}: ${planConfig.slug}`);
 
@@ -1566,7 +1677,11 @@ export const handleWebhook = async (req, res) => {
                 { new: true }
               );
               if (confirmedBooking) {
-                console.log(`✅ Booking ${pNotes.bookingId} confirmed via payment.captured`);
+                await applyPurchaseDiscount({
+                  referenceType: 'counseling',
+                  referenceId: confirmedBooking._id,
+                });
+                console.log(`Booking ${pNotes.bookingId} confirmed via payment.captured`);
                 recordTransaction({
                   userId: confirmedBooking.user,
                   source: 'counseling',
@@ -1680,7 +1795,12 @@ export const handleWebhook = async (req, res) => {
           );
           if (eventReg) {
             await Event.findByIdAndUpdate(pNotes.eventId, { $inc: { reservedSeats: -1 } });
-            console.log(`✅ Event registration ${pNotes.registrationId} confirmed via payment.captured webhook`);
+            await applyPurchaseDiscount({
+              providerOrderId: payment.order_id || payment.id,
+              referenceType: 'event',
+              referenceId: eventReg._id,
+            });
+            console.log(`Event registration ${pNotes.registrationId} confirmed via payment.captured webhook`);
             recordTransaction({
               userId: eventReg.userId,
               source: 'event',
@@ -1734,12 +1854,16 @@ export const handleWebhook = async (req, res) => {
               break;
             }
 
-            // Validate payment amount matches plan price
+            const pendingDiscount = await findPurchaseDiscount({
+              providerPaymentLinkId: pl?.id || null,
+              providerOrderId: notes?.orderId || null,
+            });
+            // Validate payment amount against the discounted amount when present.
             if (!isRazorpayTestMode) {
-              const expectedPaise = Math.round((planConfig.amount || 0) * 100);
+              const expectedPaise = Math.round((pendingDiscount?.finalAmount ?? planConfig.amount ?? 0) * 100);
               const paidPaise = Number(pl?.amount || 0);
               if (expectedPaise > 0 && paidPaise !== expectedPaise) {
-                console.error(`❌ Webhook amount mismatch for user ${plUserId}: expected ${expectedPaise}, got ${paidPaise}`);
+                console.error(`Webhook amount mismatch for user ${plUserId}: expected ${expectedPaise}, got ${paidPaise}`);
                 break;
               }
             }
@@ -1768,7 +1892,7 @@ export const handleWebhook = async (req, res) => {
             if (inserted) {
               plUser.pendingMembershipPaymentLink = undefined;
               await plUser.save();
-              await upsertActiveUserMembership({
+              const linkMembership = await upsertActiveUserMembership({
                 userId: plUserId,
                 planSlug: planConfig.slug,
                 planConfig,
@@ -1788,6 +1912,12 @@ export const handleWebhook = async (req, res) => {
                   trackingId: notes?.trackingId || null,
                 },
                 selectedCourseIds: parseSelectedCourseIds(notes),
+              });
+              await applyPurchaseDiscount({
+                providerPaymentLinkId: pl?.id || null,
+                providerOrderId: notes?.orderId || null,
+                referenceType: 'membership',
+                referenceId: linkMembership?._id || null,
               });
               console.log(`✅ Membership activated via payment_link.paid for user ${plUserId}: ${planConfig.slug}`);
 
@@ -1876,7 +2006,11 @@ export const handleWebhook = async (req, res) => {
                 { new: true }
               );
               if (confirmedBooking) {
-                console.log(`✅ Booking ${notes.bookingId} confirmed via payment_link.paid`);
+                await applyPurchaseDiscount({
+                  referenceType: 'counseling',
+                  referenceId: confirmedBooking._id,
+                });
+                console.log(`Booking ${notes.bookingId} confirmed via payment_link.paid`);
                 try {
                   const bUser = await User.findById(confirmedBooking.user).select('email displayName');
                   if (bUser) await sendCounselingBookingEmail(bUser, confirmedBooking);
@@ -1903,7 +2037,12 @@ export const handleWebhook = async (req, res) => {
           );
           if (eventReg) {
             await Event.findByIdAndUpdate(notes.eventId, { $inc: { reservedSeats: -1 } });
-            console.log(`✅ Event registration ${notes.registrationId} confirmed via payment_link.paid webhook`);
+            await applyPurchaseDiscount({
+              providerPaymentLinkId: pl?.id || null,
+              referenceType: 'event',
+              referenceId: eventReg._id,
+            });
+            console.log(`Event registration ${notes.registrationId} confirmed via payment_link.paid webhook`);
             recordTransaction({
               userId: eventReg.userId,
               source: 'event',

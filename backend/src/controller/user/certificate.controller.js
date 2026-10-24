@@ -45,8 +45,11 @@ export const verifyByCertificateId = async (req, res) => {
       valid: true,
       certificate: {
         certificateId: cert.certificateId,
+        type: cert.type || 'course_participation',
+        title: cert.title || 'Certificate of Completion',
         issuedTo: cert.issuedTo,
         courseName: cert.courseName,
+        planName: cert.planName,
         issuedAt: cert.issuedAt
       }
     });
@@ -62,7 +65,12 @@ export const verifyByCertificateId = async (req, res) => {
 export const getUserCertificates = async (req, res) => {
   try {
     const userId = req.user._id;
-    const certificates = await Certificate.find({ user: userId, isRevoked: false })
+    const query = { user: userId, isRevoked: false };
+    if (req.query.type) {
+      query.type = String(req.query.type);
+    }
+
+    const certificates = await Certificate.find(query)
       .sort({ issuedAt: -1 })
       .lean();
 
@@ -70,6 +78,8 @@ export const getUserCertificates = async (req, res) => {
       success: true,
       certificates: certificates.map((certificate) => ({
         ...certificate,
+        type: certificate.type || 'course_participation',
+        title: certificate.title || 'Certificate of Completion',
         ...buildCertificateLinks(req, certificate),
       }))
     });
@@ -143,13 +153,27 @@ export const renderCertificateView = async (req, res) => {
       month: 'long',
       year: 'numeric',
     });
+    const certificateType = certificate.type || 'course_participation';
+    const certificateTitle = certificate.title || (certificateType === 'membership'
+      ? 'Membership Certificate'
+      : certificateType === 'course_assessment'
+        ? 'Course Assessment Certificate'
+        : 'Certificate of Completion');
+    const certificateSubject = certificateType === 'membership'
+      ? (certificate.planName || certificate.courseName || 'Membership')
+      : (certificate.courseName || '');
+    const certificateCopy = certificateType === 'membership'
+      ? 'for an active membership in'
+      : certificateType === 'course_assessment'
+        ? 'for successfully passing the course assessment for'
+        : 'for successfully completing';
 
     const html = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ParamSukh Certificate - ${escapeHtml(certificate.courseName)}</title>
+  <title>ParamSukh Certificate - ${escapeHtml(certificateSubject)}</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; padding: 32px; background: #f5f0e8; font-family: Georgia, 'Times New Roman', serif; color: #2f241f; }
@@ -189,11 +213,11 @@ export const renderCertificateView = async (req, res) => {
 <body>
   <div class="certificate">
     <div class="brand">ParamSukh Total Wellness Gurukul</div>
-    <h1 class="title">Certificate of Completion</h1>
+    <h1 class="title">${escapeHtml(certificateTitle)}</h1>
     <div class="subtitle">This certificate is proudly presented to</div>
     <div class="recipient">${escapeHtml(certificate.issuedTo)}</div>
-    <p class="copy">for successfully completing</p>
-    <div class="course">${escapeHtml(certificate.courseName)}</div>
+    <p class="copy">${escapeHtml(certificateCopy)}</p>
+    <div class="course">${escapeHtml(certificateSubject)}</div>
     <div class="footer">
       <div class="footer-block">
         Date issued

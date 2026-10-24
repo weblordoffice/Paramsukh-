@@ -38,11 +38,28 @@ const offerSchema = new mongoose.Schema({
     default: 0,
     min: 0,
   },
+  purchaseTypes: {
+    type: [String],
+    default: ['shop'],
+    index: true,
+  },
   applicableOn: {
     type: String,
     enum: ['all', 'category', 'product', 'shop'],
     default: 'all',
   },
+  membershipPlanIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'MembershipPlan',
+  }],
+  eventIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Event',
+  }],
+  counselingServiceIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CounselingService',
+  }],
   categories: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category',

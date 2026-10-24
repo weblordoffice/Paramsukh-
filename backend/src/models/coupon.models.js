@@ -34,12 +34,30 @@ const couponSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  // Applicable to
+  // Applicable purchase surfaces
+  purchaseTypes: {
+    type: [String],
+    default: ['shop'],
+    index: true
+  },
+  // Applicable to shop items
   applicableOn: {
     type: String,
     enum: ['all', 'category', 'product', 'shop'],
     default: 'all'
   },
+  membershipPlanIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'MembershipPlan'
+  }],
+  eventIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Event'
+  }],
+  counselingServiceIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CounselingService'
+  }],
   categories: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Category'
@@ -72,14 +90,15 @@ const couponSchema = new mongoose.Schema({
   }], // If empty, applicable to all
   userRestriction: {
     type: String,
-    enum: ['all', 'specific', 'new', 'premium'],
+    enum: ['all', 'specific'],
     default: 'all'
   },
-  newUserDays: {
-    type: Number,
-    default: 30,
-    min: 1
-  },
+  // Users who have already received the "coupon assigned" push, so a coupon is
+  // never announced twice to the same user.
+  notifiedUsers: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
   // Validity
   startDate: {
     type: Date,
@@ -148,52 +167,6 @@ couponSchema.methods.canUserUse = async function(userId, orderValue) {
     }
   }
 
-  if (this.userRestriction === 'new' || this.userRestriction === 'premium') {
-    const User = mongoose.model('User');
-    const user = await User.findById(userId)
-      .select('createdAt subscriptionPlan subscriptionStatus subscriptionEndDate')
-      .lean();
-
-    if (!user) {
-      return { valid: false, message: 'User not found' };
-    }
-
-    if (this.userRestriction === 'new') {
-      const allowedDays = Number(this.newUserDays) || 30;
-      const accountAgeMs = Date.now() - new Date(user.createdAt).getTime();
-      if (accountAgeMs > allowedDays * 24 * 60 * 60 * 1000) {
-        return { valid: false, message: `Coupon is only valid for accounts created within ${allowedDays} days` };
-      }
-    }
-
-    if (this.userRestriction === 'premium') {
-      const isPremiumByUser =
-        String(user.subscriptionPlan || '').toLowerCase() !== 'free'
-        && String(user.subscriptionStatus || '').toLowerCase() === 'active'
-        && (!user.subscriptionEndDate || new Date(user.subscriptionEndDate) >= new Date());
-
-      let hasActiveMembership = false;
-      try {
-        const { UserMembership } = await import('./userMembership.models.js');
-        hasActiveMembership = Boolean(await UserMembership.exists({
-          userId,
-          status: 'active',
-          $or: [
-            { endDate: { $gte: new Date() } },
-            { endDate: null },
-            { endDate: { $exists: false } },
-          ],
-        }));
-      } catch {
-        hasActiveMembership = false;
-      }
-
-      if (!isPremiumByUser && !hasActiveMembership) {
-        return { valid: false, message: 'Coupon is only valid for premium members' };
-      }
-    }
-  }
-  
   // Check per-user usage limit
   const CouponUsage = mongoose.model('CouponUsage');
   const userUsageCount = await CouponUsage.countDocuments({

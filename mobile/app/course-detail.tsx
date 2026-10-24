@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -241,6 +241,38 @@ export default function CourseDetailScreen() {
     fontSize: 12,
     color: colors.textSecondary,
     fontWeight: '600',
+  },
+  assessmentCard: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  assessmentIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  assessmentInfo: {
+    flex: 1,
+  },
+  assessmentTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.text,
+  },
+  assessmentSub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 3,
   },
 
   /* ── Sections ── */
@@ -665,6 +697,31 @@ export default function CourseDetailScreen() {
           )}
 
           {/* ── Description ── */}
+          {token && !preview && (
+            <TouchableOpacity
+              style={styles.assessmentCard}
+              onPress={() => router.push({
+                pathname: '/course-assessment' as any,
+                params: {
+                  courseId,
+                  courseTitle: currentCourse?.title || 'Course',
+                  courseColor,
+                },
+              })}
+            >
+              <View style={[styles.assessmentIcon, { backgroundColor: `${courseColor}18` }]}>
+                <Ionicons name="ribbon-outline" size={22} color={courseColor} />
+              </View>
+              <View style={styles.assessmentInfo}>
+                <Text style={styles.assessmentTitle}>Certification Assessment</Text>
+                <Text style={styles.assessmentSub}>
+                  Complete your course, take the assessment, and earn a certificate
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+          )}
+
           {currentCourse?.description ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>About this Course</Text>

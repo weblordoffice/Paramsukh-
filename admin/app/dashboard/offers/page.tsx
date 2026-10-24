@@ -14,10 +14,14 @@ interface Offer {
     discountValue: number;
     maxDiscount?: number | null;
     minOrderValue?: number;
+    purchaseTypes?: Array<'shop' | 'membership' | 'event' | 'counseling'>;
     applicableOn: 'all' | 'category' | 'product' | 'shop';
     categories?: Array<{ _id: string; name: string }> | string[];
     products?: Array<{ _id: string; name: string }> | string[];
     shops?: Array<{ _id: string; name: string }> | string[];
+    membershipPlanIds?: string[];
+    eventIds?: string[];
+    counselingServiceIds?: string[];
     startDate: string;
     endDate: string;
     priority?: number;
@@ -38,10 +42,14 @@ type FormState = {
     discountValue: string;
     maxDiscount: string;
     minOrderValue: string;
+    purchaseTypes: Array<'shop' | 'membership' | 'event' | 'counseling'>;
     applicableOn: 'all' | 'category' | 'product' | 'shop';
     categories: string[];
     products: string[];
     shops: string[];
+    membershipPlanIds: string[];
+    eventIds: string[];
+    counselingServiceIds: string[];
     startDate: string;
     endDate: string;
     priority: string;
@@ -56,10 +64,14 @@ const emptyForm: FormState = {
     discountValue: '10',
     maxDiscount: '',
     minOrderValue: '',
+    purchaseTypes: ['shop'],
     applicableOn: 'all',
     categories: [],
     products: [],
     shops: [],
+    membershipPlanIds: [],
+    eventIds: [],
+    counselingServiceIds: [],
     startDate: '',
     endDate: '',
     priority: '0',
@@ -81,6 +93,9 @@ export default function OffersPage() {
     const [categories, setCategories] = useState<Option[]>([]);
     const [products, setProducts] = useState<Option[]>([]);
     const [shops, setShops] = useState<Option[]>([]);
+    const [membershipPlans, setMembershipPlans] = useState<Option[]>([]);
+    const [events, setEvents] = useState<Option[]>([]);
+    const [counselingServices, setCounselingServices] = useState<Option[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -107,8 +122,13 @@ export default function OffersPage() {
 
         const loadOptions = async () => {
             try {
-                const response = await apiClient.get('/api/products', { params: { limit: 200 } });
-                const productList = response.data?.data?.products || [];
+                const [productsRes, plansRes, eventsRes, counselingRes] = await Promise.all([
+                    apiClient.get('/api/products', { params: { limit: 200 } }),
+                    apiClient.get('/api/membership-plans').catch(() => ({ data: { data: [] } })),
+                    apiClient.get('/api/events/all', { params: { limit: 200 } }).catch(() => ({ data: { events: [] } })),
+                    apiClient.get('/api/counseling/admin/services').catch(() => ({ data: { data: { services: [] } } })),
+                ]);
+                const productList = productsRes.data?.data?.products || [];
                 setProducts(productList.map((product: any) => ({ _id: product._id, name: product.name })));
                 const categoryMap = new Map<string, Option>();
                 const shopMap = new Map<string, Option>();
@@ -128,6 +148,18 @@ export default function OffersPage() {
                 });
                 setCategories([...categoryMap.values()]);
                 setShops([...shopMap.values()]);
+                setMembershipPlans((plansRes.data?.data || []).map((plan: any) => ({
+                    _id: String(plan._id),
+                    name: plan.title || plan.slug,
+                })));
+                setEvents((eventsRes.data?.events || []).map((event: any) => ({
+                    _id: String(event._id),
+                    name: event.title,
+                })));
+                setCounselingServices((counselingRes.data?.data?.services || []).map((service: any) => ({
+                    _id: String(service._id),
+                    name: service.title,
+                })));
             } catch {
                 // Non-blocking
             }
@@ -152,10 +184,14 @@ export default function OffersPage() {
             discountValue: String(offer.discountValue ?? ''),
             maxDiscount: offer.maxDiscount != null ? String(offer.maxDiscount) : '',
             minOrderValue: offer.minOrderValue != null ? String(offer.minOrderValue) : '',
+            purchaseTypes: offer.purchaseTypes?.length ? offer.purchaseTypes : ['shop'],
             applicableOn: offer.applicableOn || 'all',
             categories: (offer.categories || []).map(idOf),
             products: (offer.products || []).map(idOf),
             shops: (offer.shops || []).map(idOf),
+            membershipPlanIds: (offer.membershipPlanIds || []).map(idOf),
+            eventIds: (offer.eventIds || []).map(idOf),
+            counselingServiceIds: (offer.counselingServiceIds || []).map(idOf),
             startDate: toLocalInput(offer.startDate),
             endDate: toLocalInput(offer.endDate),
             priority: String(offer.priority ?? 0),
@@ -164,7 +200,10 @@ export default function OffersPage() {
         setShowModal(true);
     };
 
-    const toggleArray = (key: 'categories' | 'products' | 'shops', id: string) => {
+    const toggleArray = (
+        key: 'categories' | 'products' | 'shops' | 'membershipPlanIds' | 'eventIds' | 'counselingServiceIds',
+        id: string
+    ) => {
         setForm((prev) => ({
             ...prev,
             [key]: prev[key].includes(id)
@@ -173,19 +212,32 @@ export default function OffersPage() {
         }));
     };
 
-    const uploadBanner = async (file: File | null) => {
+    const togglePurchaseType = (type: FormState['purchaseTypes'][number]) => {
+        setForm((prev) => {
+            const purchaseTypes = prev.purchaseTypes.includes(type)
+                ? prev.purchaseTypes.filter((item) => item !== type)
+                : [...prev.purchaseTypes, type];
+            return {
+                ...prev,
+                purchaseTypes: purchaseTypes.length > 0 ? purchaseTypes : ['shop'],
+            };
+        });
+    };
+
+    const uploadBanner = async (file: File | null, storage: 'cloudinary' | 'local' = 'cloudinary') => {
         if (!file) return;
         setUploading(true);
         try {
             const formData = new FormData();
             formData.append('image', file);
-            const response = await apiClient.post('/api/upload/image?folder=offers', formData, {
+            const storageQuery = storage === 'local' ? '&storage=local' : '';
+            const response = await apiClient.post(`/api/upload/image?folder=offers${storageQuery}`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' },
             });
             const url = response.data?.data?.url;
             if (!url) throw new Error('Upload did not return a URL');
             setForm((prev) => ({ ...prev, bannerImage: url }));
-            toast.success('Banner uploaded');
+            toast.success(storage === 'local' ? 'Banner saved locally' : 'Banner uploaded');
         } catch (error: any) {
             toast.error(error.response?.data?.message || 'Failed to upload banner');
         } finally {
@@ -207,10 +259,14 @@ export default function OffersPage() {
                 discountValue: Number(form.discountValue) || 0,
                 maxDiscount: form.maxDiscount ? Number(form.maxDiscount) : null,
                 minOrderValue: form.minOrderValue ? Number(form.minOrderValue) : 0,
+                purchaseTypes: form.purchaseTypes,
                 applicableOn: form.applicableOn,
-                categories: form.applicableOn === 'category' ? form.categories : [],
-                products: form.applicableOn === 'product' ? form.products : [],
-                shops: form.applicableOn === 'shop' ? form.shops : [],
+                categories: form.purchaseTypes.includes('shop') && form.applicableOn === 'category' ? form.categories : [],
+                products: form.purchaseTypes.includes('shop') && form.applicableOn === 'product' ? form.products : [],
+                shops: form.purchaseTypes.includes('shop') && form.applicableOn === 'shop' ? form.shops : [],
+                membershipPlanIds: form.purchaseTypes.includes('membership') ? form.membershipPlanIds : [],
+                eventIds: form.purchaseTypes.includes('event') ? form.eventIds : [],
+                counselingServiceIds: form.purchaseTypes.includes('counseling') ? form.counselingServiceIds : [],
                 startDate: new Date(form.startDate).toISOString(),
                 endDate: new Date(form.endDate).toISOString(),
                 priority: Number(form.priority) || 0,
@@ -258,7 +314,7 @@ export default function OffersPage() {
     };
 
     const renderOptionList = (
-        key: 'categories' | 'products' | 'shops',
+        key: 'categories' | 'products' | 'shops' | 'membershipPlanIds' | 'eventIds' | 'counselingServiceIds',
         options: Option[],
         emptyLabel: string
     ) => (
@@ -370,10 +426,15 @@ export default function OffersPage() {
                                 <div className="flex flex-wrap items-center gap-3">
                                     <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium cursor-pointer hover:bg-gray-50 ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
                                         <Upload className="w-4 h-4" />
-                                        {uploading ? 'Uploading...' : 'Upload banner'}
+                                        {uploading ? 'Uploading...' : 'Upload to cloud'}
                                         <input type="file" accept="image/*" className="hidden" onChange={(event) => uploadBanner(event.target.files?.[0] || null)} />
                                     </label>
-                                    <input type="url" value={form.bannerImage} onChange={(event) => setForm((prev) => ({ ...prev, bannerImage: event.target.value }))} placeholder="Or paste an image URL" className="flex-1 min-w-[220px] px-3 py-2.5 border border-gray-300 rounded-lg text-sm" />
+                                    <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium cursor-pointer hover:bg-gray-50 ${uploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                                        <Upload className="w-4 h-4" />
+                                        {uploading ? 'Uploading...' : 'Upload locally'}
+                                        <input type="file" accept="image/*" className="hidden" onChange={(event) => uploadBanner(event.target.files?.[0] || null, 'local')} />
+                                    </label>
+                                    <input type="text" value={form.bannerImage} onChange={(event) => setForm((prev) => ({ ...prev, bannerImage: event.target.value }))} placeholder="Or paste an image URL" className="flex-1 min-w-[220px] px-3 py-2.5 border border-gray-300 rounded-lg text-sm" />
                                 </div>
                             </div>
 
@@ -416,16 +477,64 @@ export default function OffersPage() {
 
                             <div>
                                 <label className="block text-sm font-semibold text-secondary mb-2">Applies to</label>
-                                <select value={form.applicableOn} onChange={(event) => setForm((prev) => ({ ...prev, applicableOn: event.target.value as FormState['applicableOn'] }))} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
-                                    <option value="all">All products</option>
-                                    <option value="category">Selected categories</option>
-                                    <option value="product">Selected products</option>
-                                    <option value="shop">Selected shops</option>
-                                </select>
-                                {form.applicableOn === 'category' && <div className="mt-2">{renderOptionList('categories', categories, 'No categories found.')}</div>}
-                                {form.applicableOn === 'product' && <div className="mt-2">{renderOptionList('products', products, 'No products found.')}</div>}
-                                {form.applicableOn === 'shop' && <div className="mt-2">{renderOptionList('shops', shops, 'No shops found.')}</div>}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                    {[
+                                        { id: 'shop', label: 'Shop' },
+                                        { id: 'membership', label: 'Membership plans' },
+                                        { id: 'event', label: 'Events' },
+                                        { id: 'counseling', label: 'Counseling' },
+                                    ].map((type) => (
+                                        <label key={type.id} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={form.purchaseTypes.includes(type.id as FormState['purchaseTypes'][number])}
+                                                onChange={() => togglePurchaseType(type.id as FormState['purchaseTypes'][number])}
+                                                className="w-4 h-4 accent-[#F1842D]"
+                                            />
+                                            {type.label}
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
+
+                            {form.purchaseTypes.includes('shop') && (
+                                <div>
+                                    <label className="block text-sm font-semibold text-secondary mb-2">Shop items</label>
+                                    <select value={form.applicableOn} onChange={(event) => setForm((prev) => ({ ...prev, applicableOn: event.target.value as FormState['applicableOn'] }))} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm">
+                                        <option value="all">All products</option>
+                                        <option value="category">Selected categories</option>
+                                        <option value="product">Selected products</option>
+                                        <option value="shop">Selected shops</option>
+                                    </select>
+                                    {form.applicableOn === 'category' && <div className="mt-2">{renderOptionList('categories', categories, 'No categories found.')}</div>}
+                                    {form.applicableOn === 'product' && <div className="mt-2">{renderOptionList('products', products, 'No products found.')}</div>}
+                                    {form.applicableOn === 'shop' && <div className="mt-2">{renderOptionList('shops', shops, 'No shops found.')}</div>}
+                                </div>
+                            )}
+
+                            {form.purchaseTypes.includes('membership') && (
+                                <div>
+                                    <label className="block text-sm font-semibold text-secondary mb-2">Membership plans</label>
+                                    <p className="text-xs text-gray-500 mb-2">Leave empty to apply to all plans.</p>
+                                    {renderOptionList('membershipPlanIds', membershipPlans, 'No membership plans found.')}
+                                </div>
+                            )}
+
+                            {form.purchaseTypes.includes('event') && (
+                                <div>
+                                    <label className="block text-sm font-semibold text-secondary mb-2">Events</label>
+                                    <p className="text-xs text-gray-500 mb-2">Leave empty to apply to all events.</p>
+                                    {renderOptionList('eventIds', events, 'No events found.')}
+                                </div>
+                            )}
+
+                            {form.purchaseTypes.includes('counseling') && (
+                                <div>
+                                    <label className="block text-sm font-semibold text-secondary mb-2">Counseling services</label>
+                                    <p className="text-xs text-gray-500 mb-2">Leave empty to apply to all counseling services.</p>
+                                    {renderOptionList('counselingServiceIds', counselingServices, 'No counseling services found.')}
+                                </div>
+                            )}
 
                             <label className="flex items-center gap-2 text-sm font-medium text-secondary">
                                 <input type="checkbox" checked={form.isActive} onChange={(event) => setForm((prev) => ({ ...prev, isActive: event.target.checked }))} className="w-4 h-4 accent-[#F1842D]" />

@@ -7,11 +7,13 @@ import {
     StyleSheet,
     ActivityIndicator,
     StatusBar,
+    TextInput,
     Modal,
     FlatList,
     Image,
     Platform,
     Alert,
+    RefreshControl,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -176,6 +178,23 @@ export default function MyMembershipScreen() {
 
     /* ── Section title ── */
     sectionTitle: { fontSize: 19, fontWeight: '700', color: colors.text, marginBottom: 14 },
+    couponBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        backgroundColor: colors.surface,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: colors.border,
+        paddingHorizontal: 12,
+        marginBottom: 14,
+    },
+    couponInput: {
+        flex: 1,
+        paddingVertical: 12,
+        fontSize: 14,
+        color: colors.text,
+    },
     noPlansCard: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -401,6 +420,8 @@ export default function MyMembershipScreen() {
     const [syncingPayment, setSyncingPayment] = useState(false);
     const [plans, setPlans] = useState<UIMembershipPlan[]>([]);
     const [plansLoading, setPlansLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [couponCode, setCouponCode] = useState('');
 
     // Included-courses sheet (entitlement plans have no picker)
     const [coursesSheetPlan, setCoursesSheetPlan] = useState<UIMembershipPlan | null>(null);
@@ -480,9 +501,14 @@ export default function MyMembershipScreen() {
 
     const loadPublicPlans = useCallback(async () => {
         setPlansLoading(true);
-        const dynamicPlans = await fetchPublicMembershipPlans();
-        setPlans(dynamicPlans);
-        setPlansLoading(false);
+        try {
+            const dynamicPlans = await fetchPublicMembershipPlans();
+            setPlans(dynamicPlans);
+        } catch {
+            // Keep the currently displayed plans when a refresh fails.
+        } finally {
+            setPlansLoading(false);
+        }
     }, []);
 
     const loadPurchases = useCallback(async () => {
@@ -500,6 +526,23 @@ export default function MyMembershipScreen() {
         }
     }, []);
 
+    const fetchActiveMembershipInfo = useCallback(async () => {
+        try {
+            const { data } = await apiClient.get('/membership/active');
+            if (data.success && data.hasActiveMembership) {
+                setActiveMembership({
+                    membershipId: data.membershipId,
+                    courseSelection: data.courseSelection,
+                });
+                return data.courseSelection;
+            }
+            setActiveMembership(null);
+        } catch (err: any) {
+            console.warn('Failed to load active membership:', err?.message || err);
+        }
+        return null;
+    }, []);
+
     useEffect(() => {
         if (token) {
             fetchCurrentSubscription();
@@ -510,23 +553,31 @@ export default function MyMembershipScreen() {
         }
 
         loadPublicPlans();
-    }, [token, fetchCurrentSubscription, loadPurchases, loadPublicPlans]);
+    }, [token, fetchCurrentSubscription, loadPurchases, loadPublicPlans, fetchActiveMembershipInfo]);
 
-    const fetchActiveMembershipInfo = async () => {
+    const handleRefresh = useCallback(async () => {
+        if (refreshing) return;
+        setRefreshing(true);
         try {
-            const { data } = await apiClient.get('/membership/active');
-            if (data.success && data.hasActiveMembership) {
-                setActiveMembership({
-                    membershipId: data.membershipId,
-                    courseSelection: data.courseSelection,
-                });
-                return data.courseSelection;
+            await loadPublicPlans();
+            if (token) {
+                await Promise.all([
+                    fetchCurrentSubscription(),
+                    loadPurchases(),
+                    fetchActiveMembershipInfo(),
+                ]);
             }
-        } catch (err: any) {
-            console.warn('Failed to load active membership:', err?.message || err);
+        } finally {
+            setRefreshing(false);
         }
-        return null;
-    };
+    }, [
+        refreshing,
+        token,
+        loadPublicPlans,
+        fetchCurrentSubscription,
+        loadPurchases,
+        fetchActiveMembershipInfo,
+    ]);
 
     // If user paid and came back later, confirm any pending payment link
     useEffect(() => {
@@ -623,7 +674,7 @@ export default function MyMembershipScreen() {
 
             // Preferred: native Razorpay SDK checkout (no WebView/browser)
             if (isRazorpayNativeAvailable()) {
-                const orderRes = await createMembershipOrder(plan.parentSlug, selectedCourseIds);
+                const orderRes = await createMembershipOrder(plan.parentSlug, selectedCourseIds, couponCode.trim() || undefined);
                 if (orderRes.success && orderRes.orderId && orderRes.keyId) {
                     const payResult = await payWithRazorpayNative(
                         {
@@ -683,6 +734,7 @@ export default function MyMembershipScreen() {
                 plan: plan.parentSlug,
                 variantSlug: plan.variantSlug || null,
                 amount: plan.price,
+                couponCode: couponCode.trim() || undefined,
                 callbackUrl,
                 selectedCourseIds,
             });
@@ -793,7 +845,20 @@ export default function MyMembershipScreen() {
                 <View style={{ width: 38 }} />
             </View>
 
-            <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: bottomTabHeight }]}>
+            <ScrollView
+                ref={scrollRef}
+                showsVerticalScrollIndicator={false}
+                alwaysBounceVertical
+                contentContainerStyle={[styles.scroll, { paddingBottom: bottomTabHeight }]}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        colors={[colors.primary]}
+                        tintColor={colors.primary}
+                    />
+                }
+            >
 
                 {/* ── Current status hero ── */}
                 {isLoading ? (
@@ -954,6 +1019,19 @@ export default function MyMembershipScreen() {
                 >
                     All Plans
                 </Text>
+
+                <View style={styles.couponBox}>
+                    <Ionicons name="pricetag-outline" size={18} color={colors.textSecondary} />
+                    <TextInput
+                        value={couponCode}
+                        onChangeText={setCouponCode}
+                        placeholder="Coupon code (optional)"
+                        placeholderTextColor={colors.textSecondary}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        style={styles.couponInput}
+                    />
+                </View>
 
                 {plansLoading ? (
                     <View style={styles.noPlansCard}>

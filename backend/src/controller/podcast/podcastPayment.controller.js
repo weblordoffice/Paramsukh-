@@ -147,6 +147,18 @@ export const confirmPodcastPayment = async (req, res) => {
                 message: 'Payment link does not belong to you',
             });
         }
+        if (!isRazorpayTestMode && String(notes?.podcastId || '') !== String(podcastId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Payment link does not belong to this podcast',
+            });
+        }
+        if (notes?.podcastId && String(notes.podcastId) !== String(podcastId)) {
+            return res.status(403).json({
+                success: false,
+                message: 'Payment link does not belong to this podcast',
+            });
+        }
 
         // Check if payment is completed
         if (status !== 'paid' && status !== 'captured') {
@@ -177,6 +189,13 @@ export const confirmPodcastPayment = async (req, res) => {
         const expectedPaise = Math.round((Number(podcast?.price) || 0) * 100);
         const paidPaise = Number(link?.amount || link?.amount_paid || 0);
 
+        if (!isRazorpayTestMode && expectedPaise > 0 && paidPaise !== expectedPaise) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment amount does not match podcast price',
+            });
+        }
+
         // Check if already purchased
         let purchase = await PodcastPurchase.findOne({
             userId,
@@ -189,6 +208,8 @@ export const confirmPodcastPayment = async (req, res) => {
                 podcastId,
                 paymentId,
                 orderId: paymentLinkId,
+                amount: Number(podcast.price) || 0,
+                currencyCode: podcast.currencyCode || 'INR',
                 purchasedAt: new Date(),
             });
 
@@ -405,6 +426,8 @@ export const verifyPodcastPayment = async (req, res) => {
                 podcastId,
                 paymentId: razorpay_payment_id,
                 orderId: razorpay_order_id,
+                amount: Number(podcast.price) || 0,
+                currencyCode: podcast.currencyCode || 'INR',
                 purchasedAt: new Date(),
             });
 
@@ -493,16 +516,39 @@ export const handlePodcastPaymentWebhook = async (req, res) => {
 
         // Handle different payment events
         if (event === 'payment_link.paid' || event === 'payment.captured') {
-            const notes = payload?.notes || {};
+            const entity = event === 'payment_link.paid'
+                ? payload?.payment_link?.entity
+                : payload?.payment?.entity;
+            const notes = entity?.notes || {};
+
             if (notes?.type === 'podcast') {
+                const paymentEntity = payload?.payment?.entity;
                 const userId = notes?.userId;
                 const podcastId = notes?.podcastId;
-                const paymentId = payload?.id;
+                const paymentId = paymentEntity?.id || entity?.id;
 
                 if (!userId || !podcastId) {
                     return res.status(400).json({
                         success: false,
                         message: 'Missing userId or podcastId in webhook notes',
+                    });
+                }
+
+                const podcast = await Podcast.findById(podcastId).select('title price accessType currencyCode').lean();
+                if (!podcast || podcast.accessType !== 'paid') {
+                    return res.status(200).json({
+                        success: true,
+                        message: 'Podcast webhook ignored: podcast is not paid',
+                    });
+                }
+
+                const expectedPaise = Math.round((Number(podcast.price) || 0) * 100);
+                const paidPaise = Number(entity?.amount || entity?.amount_paid || 0);
+                if (!isRazorpayTestMode && expectedPaise > 0 && paidPaise !== expectedPaise) {
+                    console.error(`Podcast webhook amount mismatch for podcast ${podcastId}: expected ${expectedPaise}, got ${paidPaise}`);
+                    return res.status(200).json({
+                        success: true,
+                        message: 'Podcast webhook ignored: amount mismatch',
                     });
                 }
 
@@ -513,12 +559,13 @@ export const handlePodcastPaymentWebhook = async (req, res) => {
                 });
 
                 if (!purchase) {
-                    const podcast = await Podcast.findById(podcastId).select('title price').lean();
                     purchase = await PodcastPurchase.create({
                         userId,
                         podcastId,
                         paymentId,
-                        orderId: payload?.payment_link_id || payload?.id || null,
+                        orderId: entity?.payment_link_id || entity?.order_id || entity?.id || null,
+                        amount: Number(podcast.price) || 0,
+                        currencyCode: podcast.currencyCode || 'INR',
                         purchasedAt: new Date(),
                     });
 

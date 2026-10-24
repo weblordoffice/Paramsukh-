@@ -103,11 +103,20 @@ type Achievement = {
 type CertificateItem = {
   _id: string;
   certificateId: string;
+  type?: string;
+  title?: string;
   courseName: string;
+  planName?: string;
   issuedTo: string;
   issuedAt: string;
   viewUrl?: string;
   verificationUrl?: string;
+};
+
+const certificateTypeLabel = (type?: string) => {
+  if (type === 'membership') return 'Membership';
+  if (type === 'course_assessment') return 'Assessment';
+  return 'Participation';
 };
 
 export default function MyProgressScreen() {
@@ -651,9 +660,11 @@ export default function MyProgressScreen() {
             certificates.map((cert) => (
               <View key={cert._id} style={s.certificateRow}>
                 <View style={s.certificateInfo}>
-                  <Text style={s.certificateTitle} numberOfLines={1}>{cert.courseName}</Text>
+                  <Text style={s.certificateTitle} numberOfLines={1}>
+                    {cert.type === 'membership' ? (cert.planName || cert.courseName) : cert.courseName}
+                  </Text>
                   <Text style={s.certificateMeta}>
-                    {cert.certificateId} · {formatDate(cert.issuedAt)}
+                    {certificateTypeLabel(cert.type)} · {cert.certificateId} · {formatDate(cert.issuedAt)}
                   </Text>
                 </View>
                 <View style={s.certificateActions}>

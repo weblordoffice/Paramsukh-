@@ -37,6 +37,16 @@ const isVideoFile = (url?: string): boolean => {
   return /\.(mp4|m4v|mov|webm|mkv|avi|flv|wmv|3gp)(\?|#|$)/i.test(url);
 };
 
+const currencySymbol = (code?: string) => {
+  const normalized = String(code || 'INR').toUpperCase();
+  if (normalized === 'USD') return '$';
+  if (normalized === 'EUR') return '€';
+  return '₹';
+};
+
+const formatPodcastPrice = (podcast: Pick<Podcast, 'price' | 'currencyCode'>) =>
+  `${currencySymbol(podcast.currencyCode)}${Number(podcast.price || 0).toLocaleString('en-IN')}`;
+
 interface Podcast {
   _id: string;
   title: string;
@@ -280,7 +290,18 @@ export default function PodcastsScreen() {
     }
   }, []);
 
-  const handleDownloadPodcast = async (podcast: Podcast) => {    if (!isPremiumMember) {
+  const handleDownloadPodcast = async (podcast: Podcast) => {
+    let hasPremiumAccess = isPremiumMember;
+    if (!hasPremiumAccess && user) {
+      try {
+        const response = await apiClient.get('/membership/active');
+        hasPremiumAccess = Boolean(response.data?.hasActiveMembership);
+      } catch {
+        hasPremiumAccess = false;
+      }
+    }
+
+    if (!hasPremiumAccess) {
       Alert.alert(
         'Premium Feature',
         'Offline downloads are available for premium members only.',
@@ -590,7 +611,7 @@ export default function PodcastsScreen() {
                   )}
                   {podcast.accessType === 'paid' && (
                     <View className="px-2 py-0.5 rounded-md bg-yellow-100">
-                      <Text className="text-[10px] font-semibold text-yellow-700">💰 ₹{podcast.price}</Text>
+                      <Text className="text-[10px] font-semibold text-yellow-700">💰 {formatPodcastPrice(podcast)}</Text>
                     </View>
                   )}
                 </View>
@@ -793,7 +814,7 @@ export default function PodcastsScreen() {
                   <View className="rounded-2xl px-5 py-4 mb-5 flex-row items-center justify-between" style={{ backgroundColor: colors.surfaceSecondary }}>
                     <View>
                       <Text className="text-xs mb-1" style={{ color: colors.textSecondary }}>One-time payment</Text>
-                      <Text className="text-3xl font-bold" style={{ color: colors.primary }}>₹{selectedPodcast.price}</Text>
+                      <Text className="text-3xl font-bold" style={{ color: colors.primary }}>{formatPodcastPrice(selectedPodcast)}</Text>
                     </View>
                     <View className="items-end">
                       <Ionicons name="infinite" size={22} color={colors.success} />

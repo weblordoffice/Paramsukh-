@@ -51,6 +51,25 @@ const enrollmentSchema = new mongoose.Schema({
   completedReflections: [{
     type: mongoose.Schema.Types.ObjectId
   }],
+  completedRequiredAssignments: [{
+    type: mongoose.Schema.Types.ObjectId
+  }],
+  assessmentUnlocked: {
+    type: Boolean,
+    default: false
+  },
+  assessmentUnlockedAt: {
+    type: Date,
+    default: null
+  },
+  lastEligibilityCheckAt: {
+    type: Date,
+    default: null
+  },
+  completionAwardedAt: {
+    type: Date,
+    default: null
+  },
   lastAccessedAt: {
     type: Date,
     default: Date.now
@@ -155,6 +174,17 @@ enrollmentSchema.methods.markReflectionComplete = function(reflectionId) {
   const reflectionStr = String(reflectionId);
   if (!this.completedReflections.some(id => String(id) === reflectionStr)) {
     this.completedReflections.push(reflectionId);
+  }
+  return this;
+};
+
+enrollmentSchema.methods.markRequiredAssignmentComplete = function(assignmentId) {
+  if (!Array.isArray(this.completedRequiredAssignments)) {
+    this.completedRequiredAssignments = [];
+  }
+  const assignmentStr = String(assignmentId);
+  if (!this.completedRequiredAssignments.some(id => String(id) === assignmentStr)) {
+    this.completedRequiredAssignments.push(assignmentId);
   }
   return this;
 };

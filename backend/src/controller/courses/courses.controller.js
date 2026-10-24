@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 
 import { getAdminFromRequest, isValidAdminApiKey } from '../../middleware/adminAuth.js';
 import { notifyNewCourse } from '../../services/notificationAutomation.service.js';
+import { sanitizeCourseForUser } from '../../services/courseContentSanitizer.service.js';
 
 const normalizePlanIdentifier = (value) => String(value || '').trim();
 const normalizeText = (value) => String(value || '').trim();
@@ -375,7 +376,8 @@ export const getCourseById = async (req, res) => {
                 message: "Course not found"
             })
         }
-        if (!(await isAdminRequest(req)) && course.status !== 'published') {
+        const adminView = await isAdminRequest(req);
+        if (!adminView && course.status !== 'published') {
             return res.status(404).json({
                 success: false,
                 message: "Course not found"
@@ -384,7 +386,7 @@ export const getCourseById = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Course fetched successfully",
-            course
+            course: adminView ? course : sanitizeCourseForUser(course)
         })
     } catch (error) {
         console.error("❌ Error in fetching course by ID:", error);
@@ -414,7 +416,8 @@ export const getCourseBySlug = async (req, res) => {
                 message: "Course not found"
             })
         }
-        if (!(await isAdminRequest(req)) && course.status !== 'published') {
+        const adminView = await isAdminRequest(req);
+        if (!adminView && course.status !== 'published') {
             return res.status(404).json({
                 success: false,
                 message: "Course not found"
@@ -423,7 +426,7 @@ export const getCourseBySlug = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: "Course fetched successfully",
-            course
+            course: adminView ? course : sanitizeCourseForUser(course)
         })
     } catch (error) {
         console.error("❌ Error in fetching course by slug:", error);

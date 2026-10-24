@@ -5,8 +5,11 @@ import { useTheme } from '../hooks/useTheme';
 
 interface CertificateData {
   certificateId: string;
+  type?: string;
+  title?: string;
   issuedTo: string;
   courseName: string;
+  planName?: string;
   issuedAt: string;
   viewUrl?: string;
   verificationUrl?: string;
@@ -204,13 +207,28 @@ export default function CertificateViewerModal({
 
   if (!certificate) return null;
 
+  const certificateType = certificate.type || 'course_participation';
+  const certificateTitle = certificate.title || (certificateType === 'membership'
+    ? 'Membership Certificate'
+    : certificateType === 'course_assessment'
+      ? 'Course Assessment Certificate'
+      : 'Certificate of Completion');
+  const certificateSubject = certificateType === 'membership'
+    ? (certificate.planName || certificate.courseName || 'ParamSukh Membership')
+    : certificate.courseName;
+  const certificateMessage = certificateType === 'membership'
+    ? 'for an active membership in'
+    : certificateType === 'course_assessment'
+      ? 'for successfully passing the course assessment for'
+      : 'for successfully completing the online wellness curriculum:';
+
   const handleShare = async () => {
     try {
       const verificationLine = certificate.verificationUrl
         ? `\nVerify: ${certificate.verificationUrl}`
         : '';
       await Share.share({
-        message: `I successfully completed "${certificate.courseName}" on ParamSukh Gurukul! Verifiable Certificate ID: ${certificate.certificateId}${verificationLine}`
+        message: `I earned a ${certificateTitle} for "${certificateSubject}" on ParamSukh Gurukul! Verifiable Certificate ID: ${certificate.certificateId}${verificationLine}`
       });
     } catch (error) {
       console.error('Error sharing certificate:', error);
@@ -258,17 +276,15 @@ export default function CertificateViewerModal({
 
               {/* Title Header */}
               <Text style={styles.title}>PARAMSUKH GURUKUL</Text>
-              <Text style={styles.subtitle}>Certificate of Completion</Text>
+              <Text style={styles.subtitle}>{certificateTitle}</Text>
 
               <View style={styles.divider} />
 
               <Text style={styles.presentText}>This is proudly presented to</Text>
               <Text style={styles.recipientName}>{certificate.issuedTo || 'Gurukul Disciple'}</Text>
 
-              <Text style={styles.bodyText}>
-                for successfully completing the online wellness curriculum:
-              </Text>
-              <Text style={styles.courseName}>{certificate.courseName}</Text>
+              <Text style={styles.bodyText}>{certificateMessage}</Text>
+              <Text style={styles.courseName}>{certificateSubject}</Text>
 
               <View style={styles.divider} />
 

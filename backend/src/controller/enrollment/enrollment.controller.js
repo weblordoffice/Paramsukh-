@@ -40,18 +40,6 @@ export const getEnrollmentCatalog = async (req, res) => {
       const courseId = String(course._id);
       const courseCategory = String(course.category || '').toLowerCase();
       const alreadyEnrolled = enrolledCourseIdSet.has(courseId);
-
-      if (alreadyEnrolled) {
-        return {
-          ...course.toObject(),
-          access: {
-            canEnroll: false,
-            canAccess: true,
-            reason: 'already_enrolled',
-          },
-        };
-      }
-
       const enrollmentsInSameCategory = enrolledCategories.filter((category) => category === courseCategory).length;
       const decision = await evaluateCourseEnrollmentAccess({
         userId,
@@ -61,6 +49,18 @@ export const getEnrollmentCatalog = async (req, res) => {
         isAlreadyUsingCourseCategory: enrolledCategories.includes(courseCategory),
         enrollmentsInSameCategory,
       });
+
+      if (alreadyEnrolled) {
+        return {
+          ...course.toObject(),
+          access: {
+            canEnroll: false,
+            canAccess: !!decision.allowed,
+            reason: decision.allowed ? 'already_enrolled' : decision.reason,
+            message: decision.allowed ? null : (decision.message || null),
+          },
+        };
+      }
 
       return {
         ...course.toObject(),

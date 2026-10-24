@@ -5,6 +5,11 @@ import { createRazorpayOrder, createRazorpayPaymentLink, verifyRazorpaySignature
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { recordTransaction } from '../../services/transaction.service.js';
 import { sendEventRegistrationEmail } from '../../services/emailService.js';
+import {
+  applyPurchaseDiscount,
+  createPurchaseDiscount,
+  resolvePurchaseDiscount,
+} from '../../services/purchaseDiscount.service.js';
 
 const evaluateEventAchievements = async (userId) => {
   try {
@@ -535,6 +540,13 @@ export const updatePaymentStatus = async (req, res) => {
 
     await registration.save();
 
+    if (paymentStatus === 'completed') {
+      await applyPurchaseDiscount({
+        referenceType: 'event',
+        referenceId: registration._id,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "Payment status updated",
@@ -559,7 +571,7 @@ export const createEventRegistrationOrder = async (req, res) => {
   try {
     const { eventId } = req.params;
     const userId = req.user._id;
-    const { name, email, phone, notes } = req.body;
+    const { name, email, phone, notes, couponCode } = req.body;
 
     const event = await Event.findById(eventId);
     if (!event) {
@@ -580,12 +592,27 @@ export const createEventRegistrationOrder = async (req, res) => {
       });
     }
 
-    const currentPrice = event.getCurrentPrice();
-    if (currentPrice <= 0) {
+    const basePrice = event.getCurrentPrice();
+    if (basePrice <= 0) {
       return res.status(400).json({
         success: false,
         message: "This event is free. Use the regular register endpoint."
       });
+    }
+
+    const discount = await resolvePurchaseDiscount({
+      userId,
+      purchaseType: 'event',
+      targetId: event._id,
+      amount: basePrice,
+      couponCode,
+    });
+    if (discount.error) {
+      return res.status(400).json({ success: false, message: discount.error });
+    }
+    const currentPrice = Number(discount.finalAmount || 0);
+    if (currentPrice <= 0) {
+      return res.status(400).json({ success: false, message: 'This discount makes the event free. Please contact support.' });
     }
 
     const participantName = name || req.user.displayName || '';
@@ -606,6 +633,11 @@ export const createEventRegistrationOrder = async (req, res) => {
       notes,
       isSimulatedPayment: false,
     });
+    registration.baseAmount = discount.baseAmount;
+    registration.discountAmount = discount.discountAmount;
+    registration.couponCode = discount.couponCode;
+    registration.offerId = discount.offer?._id || null;
+    registration.offerTitle = discount.offerTitle;
     registration.status = 'pending';
     registration.paymentStatus = 'pending';
     registration.paymentId = null;
@@ -632,12 +664,28 @@ export const createEventRegistrationOrder = async (req, res) => {
         type: 'event',
         eventId: eventId.toString(),
         registrationId: registration._id.toString(),
-        userId: userId.toString()
+        userId: userId.toString(),
+        baseAmount: String(discount.baseAmount),
+        discountAmount: String(discount.discountAmount),
+        finalAmount: String(discount.finalAmount),
+        couponCode: discount.couponCode || '',
+        offerId: discount.offer?._id ? String(discount.offer._id) : '',
       }
     });
 
     registration.razorpayOrderId = order.id;
     await registration.save();
+
+    await createPurchaseDiscount({
+      userId,
+      purchaseType: 'event',
+      targetId: event._id,
+      discount,
+      providerOrderId: order.id,
+      referenceType: 'event',
+      referenceId: registration._id,
+      metadata: { eventId: String(event._id), registrationId: String(registration._id) },
+    });
 
     return res.status(200).json({
       success: true,
@@ -647,6 +695,8 @@ export const createEventRegistrationOrder = async (req, res) => {
         razorpay: {
           orderId: order.id,
           amount: order.amount,
+          baseAmount: discount.baseAmount,
+          discountAmount: discount.discountAmount,
           currency: order.currency,
           keyId: process.env.RAZORPAY_KEY_ID || 'rzp_test_demo'
         }
@@ -753,6 +803,12 @@ export const confirmEventPayment = async (req, res) => {
     registration.status = 'confirmed';
     await registration.save();
 
+    await applyPurchaseDiscount({
+      providerOrderId: razorpay_order_id,
+      referenceType: 'event',
+      referenceId: registration._id,
+    });
+
     // Referral: reward the referrer when the paid registration is confirmed
     if (req.user?.referredBy) {
       const { fireTrigger } = await import('../../services/referral.service.js');
@@ -825,14 +881,27 @@ export const createEventRegistrationLink = async (req, res) => {
   try {
     const { eventId } = req.params;
     const userId = req.user._id;
-    const { name, email, phone, notes } = req.body;
+    const { name, email, phone, notes, couponCode } = req.body;
 
     const event = await Event.findById(eventId);
     if (!event) return res.status(404).json({ success: false, message: "Event not found" });
     if (!event.canRegister()) return res.status(400).json({ success: false, message: "Registration not available" });
 
-    const currentPrice = event.getCurrentPrice?.() ?? event.price ?? 0;
-    if (currentPrice <= 0) return res.status(400).json({ success: false, message: "Use free registration for this event" });
+    const basePrice = event.getCurrentPrice?.() ?? event.price ?? 0;
+    if (basePrice <= 0) return res.status(400).json({ success: false, message: "Use free registration for this event" });
+
+    const discount = await resolvePurchaseDiscount({
+      userId,
+      purchaseType: 'event',
+      targetId: event._id,
+      amount: basePrice,
+      couponCode,
+    });
+    if (discount.error) return res.status(400).json({ success: false, message: discount.error });
+    const currentPrice = Number(discount.finalAmount || 0);
+    if (currentPrice <= 0) {
+      return res.status(400).json({ success: false, message: 'This discount makes the event free. Please contact support.' });
+    }
 
     let registration = await EventRegistration.findOne({ userId, eventId });
     if (registration && ['confirmed', 'attended'].includes(registration.status)) {
@@ -857,6 +926,11 @@ export const createEventRegistrationLink = async (req, res) => {
       notes,
       isSimulatedPayment: false,
     });
+    registration.baseAmount = discount.baseAmount;
+    registration.discountAmount = discount.discountAmount;
+    registration.couponCode = discount.couponCode;
+    registration.offerId = discount.offer?._id || null;
+    registration.offerTitle = discount.offerTitle;
     registration.status = 'pending';
     registration.paymentStatus = 'pending';
     registration.paymentId = null;
@@ -908,7 +982,23 @@ export const createEventRegistrationLink = async (req, res) => {
         eventId: String(eventId),
         registrationId: String(registration._id),
         userId: String(userId),
+        baseAmount: String(discount.baseAmount),
+        discountAmount: String(discount.discountAmount),
+        finalAmount: String(discount.finalAmount),
+        couponCode: discount.couponCode || '',
+        offerId: discount.offer?._id ? String(discount.offer._id) : '',
       },
+    });
+
+    await createPurchaseDiscount({
+      userId,
+      purchaseType: 'event',
+      targetId: event._id,
+      discount,
+      providerPaymentLinkId: link.id,
+      referenceType: 'event',
+      referenceId: registration._id,
+      metadata: { eventId: String(event._id), registrationId: String(registration._id) },
     });
 
     registration.paymentLinkId = link.id;
@@ -965,6 +1055,11 @@ export const confirmEventPaymentByLink = async (req, res) => {
 
       await releaseEventSeat(eventId);
       await syncEventAttendeeCount(eventId);
+      await applyPurchaseDiscount({
+        providerPaymentLinkId: paymentLinkId,
+        referenceType: 'event',
+        referenceId: confirmed._id,
+      });
 
       return res.status(200).json({
         success: true,
@@ -1038,6 +1133,12 @@ export const confirmEventPaymentByLink = async (req, res) => {
     }
 
     await releaseEventSeat(eventId);
+
+    await applyPurchaseDiscount({
+      providerPaymentLinkId: paymentLinkId,
+      referenceType: 'event',
+      referenceId: confirmed._id,
+    });
 
     const event = await Event.findById(eventId).select('title');
 

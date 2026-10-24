@@ -2,7 +2,8 @@ import mongoose from 'mongoose';
 import Podcast from '../../models/podcast.model.js';
 import PodcastPurchase from '../../models/podcastPurchase.model.js';
 import PodcastFavorite from '../../models/podcastFavorite.model.js';
-import { UserMembership } from '../../models/userMembership.models.js';
+import { MembershipPlan } from '../../models/membershipPlan.models.js';
+import { getUserEntitlementContext } from '../../services/entitlement.service.js';
 import { notifyNewPodcast } from '../../services/notificationAutomation.service.js';
 
 const stripMediaUrls = (podcastDoc) => {
@@ -10,6 +11,21 @@ const stripMediaUrls = (podcastDoc) => {
     delete podcast.videoUrl;
     delete podcast.youtubeUrl;
     return podcast;
+};
+
+const getEntitledPlanIdSet = async (userId) => {
+    const entitlement = await getUserEntitlementContext(userId);
+    const planIds = new Set((entitlement?.planIds || []).map(String));
+
+    // Legacy users may only have plan slugs on the user document.
+    if (planIds.size === 0 && entitlement?.planSlugs?.length) {
+        const plans = await MembershipPlan.find({
+            slug: { $in: entitlement.planSlugs },
+        }).select('_id').lean();
+        plans.forEach((plan) => planIds.add(String(plan._id)));
+    }
+
+    return { entitlement, planIds };
 };
 
 // Utility function to check if user can access podcast
@@ -28,22 +44,18 @@ export const canUserAccessPodcast = async (userId, podcastId) => {
             return { canAccess: false, reason: 'Authentication required' };
         }
 
-        // Check membership access
+        // Check membership access, including inherited plans and multiple memberships.
         if (podcast.accessType === 'membership') {
-            const userMembership = await UserMembership.findOne({
-                userId,
-                status: 'active',
-                endDate: { $gte: new Date() }
-            }).populate('planId');
+            const { entitlement, planIds } = await getEntitledPlanIdSet(userId);
 
-            if (!userMembership || !userMembership.planId) {
+            if (!entitlement?.isPaid || planIds.size === 0) {
                 return { canAccess: false, reason: 'No active membership' };
             }
 
-            const planId = userMembership.planId._id.toString();
-            const hasPlan = podcast.requiredMemberships.some(
-                (id) => id.toString() === planId
-            );
+            const requiredPlanIds = (podcast.requiredMemberships || [])
+                .map((id) => String(id?._id || id || ''))
+                .filter(Boolean);
+            const hasPlan = requiredPlanIds.some((id) => planIds.has(id));
 
             if (!hasPlan) {
                 return { canAccess: false, reason: 'Membership plan does not include access' };
@@ -201,12 +213,8 @@ export const getUserAccessiblePodcasts = async (req, res) => {
             });
         }
 
-        // Get user's active membership
-        const userMembership = await UserMembership.findOne({
-            userId,
-            status: 'active',
-            endDate: { $gte: new Date() }
-        }).populate('planId');
+        // Get the user's full entitlement set, including inherited plans.
+        const { planIds } = await getEntitledPlanIdSet(userId);
 
         // Get user's purchased podcasts
         const userPurchases = await PodcastPurchase.find({ userId }).select('podcastId');
@@ -222,8 +230,6 @@ export const getUserAccessiblePodcasts = async (req, res) => {
             .populate('requiredMemberships', 'title slug')
             .sort({ createdAt: -1 });
 
-        const activePlanId = userMembership?.planId?._id?.toString();
-
         const catalog = podcasts.map((podcastDoc) => {
             const podcast = podcastDoc.toObject();
 
@@ -234,8 +240,10 @@ export const getUserAccessiblePodcasts = async (req, res) => {
                 canAccess = true;
                 accessReason = 'Free podcast';
             } else if (podcast.accessType === 'membership') {
-                const requiredPlanIds = (podcast.requiredMemberships || []).map((id) => id.toString());
-                const hasMembershipAccess = !!activePlanId && requiredPlanIds.includes(activePlanId);
+                const requiredPlanIds = (podcast.requiredMemberships || [])
+                    .map((id) => String(id?._id || id || ''))
+                    .filter(Boolean);
+                const hasMembershipAccess = requiredPlanIds.some((id) => planIds.has(id));
                 canAccess = hasMembershipAccess;
                 accessReason = hasMembershipAccess
                     ? 'Membership access'
@@ -373,14 +381,19 @@ export const updatePodcast = async (req, res) => {
             return res.status(400).json({ success: false, message: 'YouTube URL is required' });
         }
 
-        if (normalizedAccessType === 'membership' && (!requiredMemberships || requiredMemberships.length === 0)) {
+        const effectiveRequiredMemberships = requiredMemberships !== undefined
+            ? requiredMemberships
+            : (podcast.requiredMemberships || []).map(String);
+        const effectivePrice = price !== undefined ? price : podcast.price;
+
+        if (normalizedAccessType === 'membership' && (!effectiveRequiredMemberships || effectiveRequiredMemberships.length === 0)) {
             return res.status(400).json({
                 success: false,
                 message: 'At least one membership plan must be selected',
             });
         }
 
-        if (normalizedAccessType === 'paid' && !price) {
+        if (normalizedAccessType === 'paid' && !effectivePrice) {
             return res.status(400).json({
                 success: false,
                 message: 'Price is required for paid access type',
@@ -612,6 +625,35 @@ export const checkFavoriteStatus = async (req, res) => {
     } catch (error) {
         console.error('Check Favorite Status Error:', error);
         res.status(500).json({ success: false, message: 'Failed to check favorite status', error: error.message });
+    }
+};
+
+// Admin: get podcast purchases and revenue
+export const getAdminPodcastPurchases = async (req, res) => {
+    try {
+        const purchases = await PodcastPurchase.find({})
+            .populate('userId', 'displayName email phone')
+            .populate('podcastId', 'title accessType price currencyCode thumbnailUrl')
+            .sort({ purchasedAt: -1 })
+            .lean();
+
+        const totalRevenue = purchases.reduce((sum, purchase) => (
+            sum + Number(purchase.amount || purchase.podcastId?.price || 0)
+        ), 0);
+
+        res.status(200).json({
+            success: true,
+            count: purchases.length,
+            totalRevenue,
+            data: { purchases },
+        });
+    } catch (error) {
+        console.error('Get Admin Podcast Purchases Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to retrieve podcast purchases',
+            error: error.message,
+        });
     }
 };
 

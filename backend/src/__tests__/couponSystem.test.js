@@ -126,6 +126,7 @@ describe('Product Category Coupon System', () => {
         applicableOn: 'category',
         categories: [wellnessCategory._id.toString()],
         minOrderValue: 200,
+        applicableUsers: [user._id.toString()],
         startDate: new Date(Date.now() - 3600000),
         endDate: new Date(Date.now() + 86400000)
       });

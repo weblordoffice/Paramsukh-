@@ -1,5 +1,7 @@
+import mongoose from 'mongoose';
 import { Offer } from '../../models/offer.models.js';
 import { notifyNewOffer } from '../../services/notificationAutomation.service.js';
+import { normalizePurchaseTypes } from '../../services/purchaseDiscount.service.js';
 
 const ALLOWED_APPLICABLE_ON = new Set(['all', 'category', 'product', 'shop']);
 const ALLOWED_DISCOUNT_TYPES = new Set(['percentage', 'flat']);
@@ -29,6 +31,10 @@ const validateOfferPayload = (body, existing = null) => {
   const minOrderValue = body.minOrderValue !== undefined
     ? Number(body.minOrderValue)
     : Number(existing?.minOrderValue || 0);
+  const purchaseTypes = normalizePurchaseTypes(
+    body.purchaseTypes !== undefined ? body.purchaseTypes : existing?.purchaseTypes,
+    ['shop']
+  );
   const applicableOn = body.applicableOn !== undefined
     ? String(body.applicableOn || '').toLowerCase()
     : (existing?.applicableOn || 'all');
@@ -52,10 +58,26 @@ const validateOfferPayload = (body, existing = null) => {
   const categories = normalizeIds(body.categories !== undefined ? body.categories : existing?.categories);
   const products = normalizeIds(body.products !== undefined ? body.products : existing?.products);
   const shops = normalizeIds(body.shops !== undefined ? body.shops : existing?.shops);
+  const membershipPlanIds = normalizeIds(
+    body.membershipPlanIds !== undefined ? body.membershipPlanIds : existing?.membershipPlanIds
+  );
+  const eventIds = normalizeIds(body.eventIds !== undefined ? body.eventIds : existing?.eventIds);
+  const counselingServiceIds = normalizeIds(
+    body.counselingServiceIds !== undefined ? body.counselingServiceIds : existing?.counselingServiceIds
+  );
 
-  if (applicableOn === 'category' && categories.length === 0) return { error: 'Select at least one category' };
-  if (applicableOn === 'product' && products.length === 0) return { error: 'Select at least one product' };
-  if (applicableOn === 'shop' && shops.length === 0) return { error: 'Select at least one shop' };
+  if (purchaseTypes.includes('shop')) {
+    if (applicableOn === 'category' && categories.length === 0) return { error: 'Select at least one category' };
+    if (applicableOn === 'product' && products.length === 0) return { error: 'Select at least one product' };
+    if (applicableOn === 'shop' && shops.length === 0) return { error: 'Select at least one shop' };
+  }
+
+  const invalidTarget = [
+    ...membershipPlanIds,
+    ...eventIds,
+    ...counselingServiceIds,
+  ].find((id) => !mongoose.Types.ObjectId.isValid(id));
+  if (invalidTarget) return { error: 'Invalid target selected' };
 
   return {
     value: {
@@ -66,10 +88,14 @@ const validateOfferPayload = (body, existing = null) => {
       discountValue,
       maxDiscount,
       minOrderValue,
+      purchaseTypes,
       applicableOn,
-      categories: applicableOn === 'category' ? categories : [],
-      products: applicableOn === 'product' ? products : [],
-      shops: applicableOn === 'shop' ? shops : [],
+      categories: purchaseTypes.includes('shop') && applicableOn === 'category' ? categories : [],
+      products: purchaseTypes.includes('shop') && applicableOn === 'product' ? products : [],
+      shops: purchaseTypes.includes('shop') && applicableOn === 'shop' ? shops : [],
+      membershipPlanIds: purchaseTypes.includes('membership') ? membershipPlanIds : [],
+      eventIds: purchaseTypes.includes('event') ? eventIds : [],
+      counselingServiceIds: purchaseTypes.includes('counseling') ? counselingServiceIds : [],
       startDate,
       endDate,
       priority,
@@ -95,6 +121,13 @@ export const listActiveOffers = async (req, res) => {
       isActive: true,
       startDate: { $lte: now },
       endDate: { $gte: now },
+      $and: [{
+        $or: [
+          { purchaseTypes: 'shop' },
+          { purchaseTypes: { $exists: false } },
+          { purchaseTypes: { $size: 0 } },
+        ],
+      }],
     })
       .populate('categories', 'name')
       .populate('products', 'name')

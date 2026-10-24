@@ -15,7 +15,7 @@ interface Course {
     thumbnailUrl: string;
     bannerUrl: string;
     color: string;
-    duration: number;
+    duration: string;
     category?: string;
     tags: string[];
     status: string;
@@ -282,7 +282,7 @@ export default function CoursesPage() {
                                 <div className="flex items-center justify-between pt-4 border-t border-gray-100 text-sm">
                                     <div className="flex flex-col gap-1">
                                         <span className="font-medium text-secondary">
-                                            {course.duration} min
+                                            {course.duration || '—'}
                                         </span>
                                         <span className="text-gray-900">
                                             {course.totalVideos || course.videos?.length || 0} videos

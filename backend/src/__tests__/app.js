@@ -3,6 +3,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import apiRoutes from '../routes/index.js';
 import adminRoutes from '../routes/admin/adminRoute.js';
+import certificationAdminRoutes from '../routes/admin/certificationRoute.js';
 import userRoutes from '../routes/user/userRoute.js';
 import coursesRoutes from '../routes/courses/courseRoute.js';
 import enrollmentRoutes from '../routes/enrollment/enrollmentRoute.js';
@@ -22,8 +23,10 @@ import supportRoutes from '../routes/support/supportRoute.js';
 import assessmentRoutes from '../routes/assessment/assessmentRoute.js';
 import notificationsRoutes from '../routes/notifications/notificationsRoute.js';
 import membershipPlanRoutes from '../routes/membership/membershipPlanRoute.js';
+import counselingRoutes from '../routes/counseling/counselingRoute.js';
 import configRoutes from '../routes/config/configRoute.js';
 import adminCouponRoutes from '../routes/coupons/admin.coupons.routes.js';
+import userCouponRoutes from '../routes/coupons/user.coupons.routes.js';
 import liveSessionRoutes from '../routes/liveSessions/liveSessionRoute.js';
 import wellnessGoalRoutes from '../routes/wellness/wellnessGoalRoute.js';
 import certificateRoutes from '../routes/certificates/certificateRoute.js';
@@ -40,7 +43,9 @@ const createTestApp = () => {
 
   app.use('/api/auth', apiRoutes);
   app.use('/api/admin/coupons', adminCouponRoutes);
+  app.use('/api/coupons', userCouponRoutes);
   app.use('/api/admin/offers', adminOfferRoutes);
+  app.use('/api/admin', certificationAdminRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api/user', userRoutes);
   app.use('/api/courses', coursesRoutes);
@@ -65,6 +70,7 @@ const createTestApp = () => {
   app.use('/api/assessment', assessmentRoutes);
   app.use('/api/notifications', notificationsRoutes);
   app.use('/api/membership-plans', membershipPlanRoutes);
+  app.use('/api/counseling', counselingRoutes);
 
   app.use((err, req, res, _next) => {
     console.error('Test app error:', err.message);

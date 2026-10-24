@@ -34,6 +34,7 @@ export default function BookCounselingScreen() {
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+  const [couponCode, setCouponCode] = useState('');
 
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [fetchingSlots, setFetchingSlots] = useState(false);
@@ -92,6 +93,7 @@ export default function BookCounselingScreen() {
         bookingDate: selectedDate,
         bookingTime: selectedTime,
         userNotes: notes,
+        couponCode: couponCode.trim() || undefined,
         amount: free ? 0 : numericPrice
       });
 
@@ -122,7 +124,7 @@ export default function BookCounselingScreen() {
 
       // Preferred: native Razorpay SDK checkout (no WebView/browser)
       if (isRazorpayNativeAvailable()) {
-        const orderResult = await createBookingOrder(bookingId, numericPrice);
+        const orderResult = await createBookingOrder(bookingId);
         const rzpOrder = orderResult.data?.razorpay;
         if (orderResult.success && rzpOrder?.orderId && rzpOrder?.keyId) {
           const payResult = await payWithRazorpayNative(
@@ -350,6 +352,15 @@ export default function BookCounselingScreen() {
         {selectedTime && showPayment && (
           <View style={{ backgroundColor: colors.surface, borderRadius: 24, padding: 16, borderWidth: 1, borderColor: colors.surfaceSecondary }}>
             <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12 }}>Payment Summary</Text>
+            <TextInput
+              value={couponCode}
+              onChangeText={setCouponCode}
+              placeholder="Coupon code (optional)"
+              placeholderTextColor={colors.textSecondary}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              style={{ height: 48, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 14, fontSize: 14, color: colors.text, marginBottom: 14 }}
+            />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <Text style={{ fontSize: 14, fontWeight: '500', color: colors.textSecondary }}>Session Fee</Text>
               <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text }}>₹{price}</Text>

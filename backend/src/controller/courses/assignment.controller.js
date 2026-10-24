@@ -1,5 +1,6 @@
 import { Course, Assignment } from '../../models/course.models.js';
 import { notifyCourseContentAdded } from '../../services/notificationAutomation.service.js';
+import { sanitizeAssignmentForUser } from '../../services/courseContentSanitizer.service.js';
 
 /**
  * Add an assignment (standalone or linked to a video)
@@ -97,7 +98,7 @@ export const getCourseAssignments = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            assignments: course.assignments || []
+            assignments: (course.assignments || []).map(sanitizeAssignmentForUser)
         });
     } catch (error) {
         console.error("❌ Error in fetching assignments:", error);
@@ -137,7 +138,7 @@ export const getVideoAssignments = async (req, res) => {
 
         return res.status(200).json({
             success: true,
-            assignments: video.assignments || []
+            assignments: (video.assignments || []).map(sanitizeAssignmentForUser)
         });
     } catch (error) {
         console.error("❌ Error in fetching video assignments:", error);

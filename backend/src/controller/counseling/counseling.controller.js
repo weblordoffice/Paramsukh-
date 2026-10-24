@@ -8,6 +8,11 @@ import { sendCounselingBookingEmail, sendBookingCancellationEmail } from '../../
 import { sanitizeNotes } from '../../utils/sanitizeUtils.js';
 import { formatTime12h } from '../../utils/dateTime.js';
 import mongoose from 'mongoose';
+import {
+  applyPurchaseDiscount,
+  createPurchaseDiscount,
+  resolvePurchaseDiscount,
+} from '../../services/purchaseDiscount.service.js';
 
 const MAX_REFUND_STATUS_UPDATE_RETRIES = 3;
 const REFUND_STATUS_UPDATE_RETRY_DELAY = 1000;
@@ -192,7 +197,8 @@ export const bookCounseling = async (req, res) => {
       bookingTitle,
       bookingDate,
       bookingTime,
-      userNotes
+      userNotes,
+      couponCode
     } = req.body;
 
     // Validate required fields
@@ -286,15 +292,32 @@ export const bookCounseling = async (req, res) => {
 
     // Determine if booking is free or paid
     const servicePrice = Number(service.price) || 0;
-    const isFree = Boolean(service.isFree || servicePrice === 0);
-    const bookingAmount = isFree ? 0 : servicePrice;
-
-    // Security check: Validate that the client isn't forcing a 0 amount for a paid service
-    const clientAmount = Number(req.body.amount);
-    if (!isFree && (isNaN(clientAmount) || clientAmount < servicePrice)) {
+    const baseAmount = Boolean(service.isFree || servicePrice === 0) ? 0 : servicePrice;
+    const discount = await resolvePurchaseDiscount({
+      userId,
+      purchaseType: 'counseling',
+      targetId: service._id,
+      amount: baseAmount,
+      couponCode,
+    });
+    if (discount.error) {
+      return res.status(400).json({ success: false, message: discount.error });
+    }
+    if (baseAmount > 0 && Number(discount.finalAmount || 0) <= 0) {
       return res.status(400).json({
         success: false,
-        message: `Invalid amount. This service requires ₹${servicePrice}.`
+        message: 'This discount makes the service free. Please contact support.',
+      });
+    }
+    const isFree = baseAmount === 0;
+    const bookingAmount = isFree ? 0 : Number(discount.finalAmount || 0);
+
+    // Security check: Validate that the client isn't forcing a lower amount than the discounted price.
+    const clientAmount = Number(req.body.amount);
+    if (!isFree && Number.isFinite(clientAmount) && clientAmount > 0 && clientAmount < bookingAmount) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid amount. This service requires ₹${bookingAmount}.`
       });
     }
 
@@ -328,12 +351,29 @@ export const bookCounseling = async (req, res) => {
       userEmail: user.email || '',
       isFree,
       amount: bookingAmount,
+      baseAmount: discount.baseAmount,
+      discountAmount: discount.discountAmount,
+      couponCode: discount.couponCode,
+      offerId: discount.offer?._id || null,
+      offerTitle: discount.offerTitle,
       paymentStatus: isFree ? 'not_required' : 'pending',
       status: isFree ? 'confirmed' : 'pending'
     });
 
     try {
       await booking.save();
+
+      if (!isFree && discount.discountAmount > 0) {
+        await createPurchaseDiscount({
+          userId,
+          purchaseType: 'counseling',
+          targetId: service._id,
+          discount,
+          referenceType: 'counseling',
+          referenceId: booking._id,
+          metadata: { bookingId: String(booking._id), serviceId: String(service._id) },
+        });
+      }
     } catch (dbError) {
       if (dbError.code === 11000) {
         // Slot taken - offer waitlist option
@@ -1049,6 +1089,11 @@ export const updatePaymentStatus = async (req, res) => {
     booking.status = 'confirmed';
     booking.paidAt = new Date();
     await booking.save();
+
+    await applyPurchaseDiscount({
+      referenceType: 'counseling',
+      referenceId: booking._id,
+    });
 
     recordTransaction({
       userId: booking.user,

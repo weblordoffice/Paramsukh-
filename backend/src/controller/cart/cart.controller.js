@@ -65,6 +65,13 @@ const findBestOfferForCart = async (cart) => {
     isActive: true,
     startDate: { $lte: now },
     endDate: { $gte: now },
+    $and: [{
+      $or: [
+        { purchaseTypes: 'shop' },
+        { purchaseTypes: { $exists: false } },
+        { purchaseTypes: { $size: 0 } },
+      ],
+    }],
   })
     .sort({ priority: -1, createdAt: -1 })
     .lean();
@@ -94,7 +101,20 @@ export const recalculateCartTotals = async (cart) => {
   });
 
   if (cart.coupon && cart.coupon.code) {
-    const coupon = await Coupon.findOne({ code: cart.coupon.code.toUpperCase(), isActive: true });
+    const now = new Date();
+    const coupon = await Coupon.findOne({
+      code: cart.coupon.code.toUpperCase(),
+      isActive: true,
+      startDate: { $lte: now },
+      endDate: { $gte: now },
+      $and: [{
+        $or: [
+          { purchaseTypes: 'shop' },
+          { purchaseTypes: { $exists: false } },
+          { purchaseTypes: { $size: 0 } },
+        ],
+      }],
+    });
     if (coupon) {
       cart.calculateTotals(coupon);
       return cart;
@@ -351,7 +371,20 @@ export const applyCoupon = async (req, res) => {
       });
     }
 
-    const coupon = await Coupon.findOne({ code: code.toUpperCase(), isActive: true });
+    const now = new Date();
+    const coupon = await Coupon.findOne({
+      code: code.toUpperCase(),
+      isActive: true,
+      startDate: { $lte: now },
+      endDate: { $gte: now },
+      $and: [{
+        $or: [
+          { purchaseTypes: 'shop' },
+          { purchaseTypes: { $exists: false } },
+          { purchaseTypes: { $size: 0 } },
+        ],
+      }],
+    });
     if (!coupon) {
       return res.status(404).json({
         success: false,

@@ -1,6 +1,7 @@
 import { Enrollment } from '../../models/enrollment.models.js';
 import { Course } from '../../models/course.models.js';
 import { handleCourseCompletion } from '../../services/courseCompletion.service.js';
+import { recalculateAssessmentUnlock } from '../../services/certificationEligibility.service.js';
 
 /**
  * Update video progress for a user's enrollment
@@ -20,7 +21,14 @@ export const markVideoComplete = async (req, res) => {
             });
         }
 
-        // Atomic completion — prevents concurrent requests from losing data
+        if (!(course.videos || []).some((video) => String(video._id) === String(videoId))) {
+            return res.status(404).json({
+                success: false,
+                message: 'Video not found in this course'
+            });
+        }
+
+        // Atomic completion �?" prevents concurrent requests from losing data
         const updated = await Enrollment.findOneAndUpdate(
             { userId, courseId },
             {
@@ -53,6 +61,10 @@ export const markVideoComplete = async (req, res) => {
         );
 
         await updated.save();
+
+        await recalculateAssessmentUnlock(userId, courseId).catch((err) =>
+            console.error('Assessment unlock recalculation failed:', err.message)
+        );
 
         if (updated.isCompleted) {
             await handleCourseCompletion(userId, courseId).catch(err =>
@@ -95,7 +107,24 @@ export const markPdfComplete = async (req, res) => {
         const { courseId, pdfId } = req.params;
         const userId = req.user._id;
 
-        // Atomic completion — prevents concurrent requests from losing data
+        const course = await Course.findById(courseId)
+            .select('videos pdfs audioLessons reflections')
+            .lean();
+        if (!course) {
+            return res.status(404).json({
+                success: false,
+                message: 'Course not found'
+            });
+        }
+
+        if (!(course.pdfs || []).some((pdf) => String(pdf._id) === String(pdfId))) {
+            return res.status(404).json({
+                success: false,
+                message: 'PDF not found in this course'
+            });
+        }
+
+        // Atomic completion �?" prevents concurrent requests from losing data
         const updated = await Enrollment.findOneAndUpdate(
             { userId, courseId },
             {
@@ -112,14 +141,6 @@ export const markPdfComplete = async (req, res) => {
             });
         }
 
-        const course = await Course.findById(courseId);
-        if (!course) {
-            return res.status(404).json({
-                success: false,
-                message: 'Course not found'
-            });
-        }
-
         updated.updateProgress(
             course.videos ? course.videos.length : 0,
             course.pdfs ? course.pdfs.length : 0,
@@ -130,6 +151,10 @@ export const markPdfComplete = async (req, res) => {
         );
 
         await updated.save();
+
+        await recalculateAssessmentUnlock(userId, courseId).catch((err) =>
+            console.error('Assessment unlock recalculation failed:', err.message)
+        );
 
         if (updated.isCompleted) {
             await handleCourseCompletion(userId, courseId).catch(err =>
@@ -201,6 +226,10 @@ export const markAudioComplete = async (req, res) => {
             course.reflections.filter((reflection) => reflection.isRequired !== false).length
         );
         await enrollment.save();
+
+        await recalculateAssessmentUnlock(userId, courseId).catch((err) =>
+            console.error('Assessment unlock recalculation failed:', err.message)
+        );
 
         if (enrollment.isCompleted) {
             await handleCourseCompletion(userId, courseId).catch((err) =>

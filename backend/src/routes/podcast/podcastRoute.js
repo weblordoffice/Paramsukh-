@@ -10,6 +10,7 @@ import {
     getUserPodcastPurchases,
     checkPodcastPurchaseStatus,
     getAdminAllPodcasts,
+    getAdminPodcastPurchases,
     toggleFavorite,
     getUserFavorites,
     checkFavoriteStatus,
@@ -27,9 +28,16 @@ import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 
 const router = express.Router();
 
+const optionalUserAuth = (req, res, next) => {
+    if (!req.headers.authorization && !req.cookies?.token) {
+        return next();
+    }
+    return protectedRoutes(req, res, next);
+};
+
 // Public routes (free podcasts only)
 router.get('/', getAllPodcasts);
-router.get('/:id/details', getPodcastDetails);
+router.get('/:id/details', optionalUserAuth, getPodcastDetails);
 
 // Protected routes (authenticated users get free + membership + purchased)
 router.get('/user/accessible', protectedRoutes, getUserAccessiblePodcasts);
@@ -51,6 +59,7 @@ router.get('/:id/favorite-status', protectedRoutes, checkFavoriteStatus);
 
 // Admin routes
 router.get('/admin/all', adminAuth, requirePermission('manage_content'), getAdminAllPodcasts);
+router.get('/admin/purchases', adminAuth, requirePermission('manage_content'), getAdminPodcastPurchases);
 router.post('/admin/create', adminAuth, requirePermission('manage_content'), createPodcast);
 router.put('/admin/:id', adminAuth, requirePermission('manage_content'), updatePodcast);
 router.delete('/admin/:id', adminAuth, requirePermission('manage_content'), deletePodcast);

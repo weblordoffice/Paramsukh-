@@ -103,5 +103,12 @@ export const upsertActiveUserMembership = async ({
     }
   );
 
+  try {
+    const { issueMembershipCertificate } = await import('./certificate.service.js');
+    await issueMembershipCertificate(userId, membership._id);
+  } catch (certificateError) {
+    console.error('Membership certificate issuance failed:', certificateError.message);
+  }
+
   return membership;
 };

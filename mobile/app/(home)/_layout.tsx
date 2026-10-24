@@ -302,6 +302,12 @@ export default function HomeLayout() {
             href: null,
           }}
         />
+        <Tabs.Screen
+          name="my-coupons"
+          options={{
+            href: null,
+          }}
+        />
       </Tabs>
 
       {/* Menu Bottom Sheet Modal */}

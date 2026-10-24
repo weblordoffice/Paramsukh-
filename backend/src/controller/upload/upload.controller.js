@@ -6,7 +6,42 @@ import {
   isTestMode 
 } from '../../services/cloudinaryService.js';
 import { uploadVideo, deleteVideo, extractKeyFromUrl, getPresignedUploadUrl } from '../../services/r2Service.js';
+import crypto from 'node:crypto';
 import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const LOCAL_UPLOAD_ROOT = path.join(__dirname, '..', '..', '..', 'public', 'uploads');
+const LOCAL_IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp']);
+
+const sanitizeUploadFolder = (folder) => {
+  const parts = String(folder || 'general')
+    .split('/')
+    .map((part) => part.replace(/[^a-zA-Z0-9_-]/g, ''))
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join('/') : 'general';
+};
+
+const saveLocalImage = async (file, folder) => {
+  const safeFolder = sanitizeUploadFolder(folder);
+  const originalExtension = path.extname(file.originalname || '').toLowerCase();
+  const extension = LOCAL_IMAGE_EXTENSIONS.has(originalExtension) ? originalExtension : '.jpg';
+  const filename = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}${extension}`;
+  const directory = path.join(LOCAL_UPLOAD_ROOT, safeFolder);
+
+  await fs.mkdir(directory, { recursive: true });
+  await fs.writeFile(path.join(directory, filename), file.buffer);
+
+  return {
+    success: true,
+    url: `/uploads/${safeFolder}/${filename}`,
+    publicId: `local:${safeFolder}/${filename}`,
+    bytes: file.size,
+    storage: 'local',
+    testMode: false,
+  };
+};
 
 const ALLOWED_VIDEO_MIME = [
   'video/mp4',
@@ -33,14 +68,17 @@ export const uploadSingleImage = async (req, res) => {
 
     const folder = req.query.folder || 'general';
     const filename = req.file.originalname;
+    const useLocalStorage = String(req.query.storage || '').toLowerCase() === 'local';
 
-    const result = await uploadImage(req.file.buffer, folder, filename);
+    const result = useLocalStorage
+      ? await saveLocalImage(req.file, folder)
+      : await uploadImage(req.file.buffer, folder, filename);
 
-    console.log(`✅ Image uploaded: ${result.url}`);
+    console.log(`Image uploaded (${result.storage || 'cloudinary'}): ${result.url}`);
 
     return res.status(200).json({
       success: true,
-      message: 'Image uploaded successfully',
+      message: useLocalStorage ? 'Image saved locally' : 'Image uploaded successfully',
       data: {
         url: result.url,
         publicId: result.publicId,
@@ -48,6 +86,7 @@ export const uploadSingleImage = async (req, res) => {
         height: result.height,
         size: result.bytes,
         format: result.format,
+        storage: result.storage || 'cloudinary',
         testMode: result.testMode || false
       }
     });

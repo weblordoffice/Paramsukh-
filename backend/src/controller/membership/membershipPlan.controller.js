@@ -175,6 +175,7 @@ export const createMembershipPlan = async (req, res) => {
       planKind: payload.planKind,
       inheritedPlanIds: payload.access?.inheritedPlanIds || [],
       planId: null,
+      tierLevel: payload.tierLevel ?? 0,
     });
     if (!relationship.valid) {
       return res.status(400).json({ success: false, message: relationship.message });
@@ -304,11 +305,13 @@ export const updateMembershipPlan = async (req, res) => {
     const effectiveInherited = inheritedProvided
       ? (payload.access?.inheritedPlanIds || [])
       : (existingPlan.access?.inheritedPlanIds || []).map(String);
+    const effectiveTierLevel = payload.tierLevel ?? existingPlan.tierLevel ?? 0;
 
     const relationship = await validatePlanRelationships({
       planKind: effectivePlanKind,
       inheritedPlanIds: effectiveInherited,
       planId: id,
+      tierLevel: effectiveTierLevel,
     });
     if (!relationship.valid) {
       return res.status(400).json({ success: false, message: relationship.message });

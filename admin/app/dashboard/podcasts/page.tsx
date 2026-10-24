@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { Search, Plus, Edit, Trash2, Mic, PlayCircle } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Mic, PlayCircle, ShoppingBag, IndianRupee } from 'lucide-react';
 import Image from 'next/image';
 import PodcastModal from '@/components/PodcastModal';
 
@@ -25,8 +25,28 @@ interface Podcast {
     createdAt: string;
 }
 
+interface PodcastPurchase {
+    _id: string;
+    amount?: number;
+    currencyCode?: string;
+    purchasedAt: string;
+    paymentId?: string;
+    userId?: {
+        displayName?: string;
+        email?: string;
+        phone?: string;
+    } | null;
+    podcastId?: {
+        title?: string;
+        price?: number;
+        currencyCode?: string;
+    } | null;
+}
+
 export default function PodcastsPage() {
     const [podcasts, setPodcasts] = useState<Podcast[]>([]);
+    const [purchases, setPurchases] = useState<PodcastPurchase[]>([]);
+    const [totalRevenue, setTotalRevenue] = useState(0);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,6 +55,7 @@ export default function PodcastsPage() {
 
     useEffect(() => {
         fetchPodcasts();
+        fetchPurchases();
     }, []);
 
     const fetchPodcasts = async () => {
@@ -48,6 +69,18 @@ export default function PodcastsPage() {
             toast.error('Failed to fetch podcasts');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchPurchases = async () => {
+        try {
+            const response = await apiClient.get('/api/podcasts/admin/purchases');
+            if (response.data?.success) {
+                setPurchases(response.data.data?.purchases || []);
+                setTotalRevenue(Number(response.data.totalRevenue) || 0);
+            }
+        } catch (error) {
+            console.error('Error fetching podcast purchases:', error);
         }
     };
 
@@ -179,7 +212,7 @@ export default function PodcastsPage() {
                                         )}
                                         {podcast.accessType === 'paid' && (
                                             <span className="inline-block px-2 py-1 rounded-md text-xs font-semibold bg-yellow-100 text-yellow-700 whitespace-nowrap">
-                                                💰 ₹{podcast.price}
+                                                💰 {podcast.currencyCode === 'USD' ? '$' : podcast.currencyCode === 'EUR' ? '€' : '₹'}{podcast.price}
                                             </span>
                                         )}
                                     </div>
@@ -216,6 +249,63 @@ export default function PodcastsPage() {
                             </div>
                         </div>
                     ))
+                )}
+            </div>
+
+            {/* Purchases */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="flex items-center justify-between gap-3 p-5 border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                        <ShoppingBag className="w-5 h-5 text-blue-600" />
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-800">Podcast Purchases</h2>
+                            <p className="text-sm text-gray-500">{purchases.length} purchase(s)</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-1 rounded-lg bg-emerald-50 px-3 py-2 text-emerald-700">
+                        <IndianRupee className="w-4 h-4" />
+                        <span className="font-bold">{totalRevenue.toLocaleString('en-IN')}</span>
+                    </div>
+                </div>
+
+                {purchases.length === 0 ? (
+                    <div className="p-8 text-center text-sm text-gray-500">
+                        No podcast purchases yet.
+                    </div>
+                ) : (
+                    <div className="divide-y divide-gray-100">
+                        {purchases.map((purchase) => (
+                            <div key={purchase._id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                                <div className="min-w-0 flex-1">
+                                    <p className="font-semibold text-gray-800 truncate">
+                                        {purchase.podcastId?.title || 'Deleted podcast'}
+                                    </p>
+                                    <p className="text-xs text-gray-500 truncate">
+                                        {purchase.userId?.displayName || 'Unknown user'}
+                                        {purchase.userId?.email ? ` · ${purchase.userId.email}` : ''}
+                                        {purchase.userId?.phone ? ` · ${purchase.userId.phone}` : ''}
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="font-bold text-gray-800">
+                                        {(purchase.currencyCode || purchase.podcastId?.currencyCode) === 'USD'
+                                            ? '$'
+                                            : (purchase.currencyCode || purchase.podcastId?.currencyCode) === 'EUR'
+                                                ? '€'
+                                                : '₹'}
+                                        {Number(purchase.amount ?? purchase.podcastId?.price ?? 0).toLocaleString('en-IN')}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                        {new Date(purchase.purchasedAt).toLocaleDateString('en-IN', {
+                                            day: 'numeric',
+                                            month: 'short',
+                                            year: 'numeric',
+                                        })}
+                                    </p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
                 )}
             </div>
 

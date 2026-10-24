@@ -5,13 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Video, FileText, Calendar, HelpCircle, Headphones, PenLine } from 'lucide-react';
+import { ArrowLeft, Video, FileText, Calendar, HelpCircle, Headphones, PenLine, ClipboardCheck } from 'lucide-react';
 import VideosTab from './VideosTab';
 import PDFsTab from './PDFsTab';
 import LiveSessionsTab from './LiveSessionsTab';
 import AssignmentsTab from './AssignmentsTab';
 import AudioLessonsTab from './AudioLessonsTab';
 import ReflectionsTab from './ReflectionsTab';
+import AssessmentTab from './AssessmentTab';
 
 interface Course {
     _id: string;
@@ -20,7 +21,7 @@ interface Course {
     thumbnailUrl: string;
     bannerUrl: string;
     color: string;
-    duration: number;
+    duration: string;
     category?: string;
     tags: string[];
     status: string;
@@ -32,7 +33,7 @@ interface Course {
     assignments?: any[];
 }
 
-type TabType = 'videos' | 'pdfs' | 'audio' | 'reflections' | 'sessions' | 'assignments';
+type TabType = 'videos' | 'pdfs' | 'audio' | 'reflections' | 'sessions' | 'assignments' | 'assessment';
 
 export default function CourseDetailsPage() {
     const params = useParams();
@@ -96,6 +97,7 @@ export default function CourseDetailsPage() {
         { id: 'reflections' as TabType, label: 'Reflections', icon: PenLine, count: course.reflections?.length || 0 },
         { id: 'sessions' as TabType, label: 'Live Sessions', icon: Calendar, count: course.liveSessions?.length || 0 },
         { id: 'assignments' as TabType, label: 'Assignments', icon: HelpCircle, count: course.assignments?.length || 0 },
+        { id: 'assessment' as TabType, label: 'Assessment', icon: ClipboardCheck, count: undefined },
     ];
 
     return (
@@ -126,7 +128,7 @@ export default function CourseDetailsPage() {
                         <div className="flex-1">
                             <h1 className="text-2xl font-bold text-gray-900 mb-2">{course.title}</h1>
                             <p className="text-gray-600 mb-3">{course.description}</p>
-                            <div className="flex items-center gap-4 text-sm">
+                            <div className="flex flex-wrap items-center gap-3 text-sm">
                                 {course.category && (
                                     <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full font-medium text-xs uppercase tracking-wider">
                                         {course.category}
@@ -135,12 +137,16 @@ export default function CourseDetailsPage() {
                                 <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full">
                                     {course.status}
                                 </span>
-                                <span className="text-gray-500">
-                                    {course.duration} mins
-                                </span>
-                                <span className="text-gray-500">
-                                    {course.tags?.join(', ')}
-                                </span>
+                                {course.duration && (
+                                    <span className="text-gray-500">
+                                        {course.duration}
+                                    </span>
+                                )}
+                                {course.tags?.length > 0 && (
+                                    <span className="text-gray-500">
+                                        {course.tags.join(', ')}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -149,29 +155,32 @@ export default function CourseDetailsPage() {
 
             {/* Tabs */}
             <div className="bg-white rounded-lg shadow-sm">
-                <div className="border-b border-gray-200">
-                    <div className="flex gap-8 px-6">
+                <div className="overflow-x-auto border-b border-gray-200">
+                    <div className="flex w-max min-w-full items-center gap-4 px-4 sm:gap-6 sm:px-6">
                         {tabs.map((tab) => {
                             const Icon = tab.icon;
                             return (
                                 <button
                                     key={tab.id}
+                                    type="button"
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center gap-2 py-4 border-b-2 transition-colors ${
+                                    className={`flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 py-4 transition-colors ${
                                         activeTab === tab.id
                                             ? 'border-blue-600 text-blue-600'
                                             : 'border-transparent text-gray-600 hover:text-gray-900'
                                     }`}
                                 >
-                                    <Icon className="w-5 h-5" />
+                                    <Icon className="h-5 w-5 shrink-0" />
                                     <span className="font-medium">{tab.label}</span>
-                                    <span className={`px-2 py-0.5 rounded-full text-xs ${
-                                        activeTab === tab.id
-                                            ? 'bg-blue-100 text-blue-700'
-                                            : 'bg-gray-100 text-gray-600'
-                                    }`}>
-                                        {tab.count}
-                                    </span>
+                                    {tab.count !== undefined && (
+                                        <span className={`rounded-full px-2 py-0.5 text-xs ${
+                                            activeTab === tab.id
+                                                ? 'bg-blue-100 text-blue-700'
+                                                : 'bg-gray-100 text-gray-600'
+                                        }`}>
+                                            {tab.count}
+                                        </span>
+                                    )}
                                 </button>
                             );
                         })}
@@ -197,6 +206,9 @@ export default function CourseDetailsPage() {
                     )}
                     {activeTab === 'assignments' && (
                         <AssignmentsTab courseId={courseId} assignments={course.assignments || []} onUpdate={refreshCourse} />
+                    )}
+                    {activeTab === 'assessment' && (
+                        <AssessmentTab courseId={courseId} />
                     )}
                 </div>
             </div>

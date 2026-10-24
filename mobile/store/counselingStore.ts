@@ -52,7 +52,7 @@ interface CounselingState {
     fetchCounselingTypes: () => Promise<void>;
     checkAvailability: (date: string, counselorType: string) => Promise<string[]>;
     bookSession: (bookingData: any) => Promise<{ success: boolean; message?: string; bookingId?: string }>;
-    createBookingOrder: (bookingId: string, amount: number) => Promise<{ success: boolean; data?: { razorpay: { orderId: string; amount: number; currency: string; keyId: string } }; message?: string }>;
+    createBookingOrder: (bookingId: string, amount?: number) => Promise<{ success: boolean; data?: { razorpay: { orderId: string; amount: number; currency: string; keyId: string } }; message?: string }>;
     createBookingPaymentLink: (bookingId: string) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; expiresAt?: string; message?: string }>;
     confirmBookingPaymentLink: (paymentLinkId: string, bookingId: string) => Promise<{ success: boolean; message?: string }>;
     verifyCounselingPayment: (bookingId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => Promise<{ success: boolean; message?: string }>;
@@ -134,11 +134,11 @@ export const useCounselingStore = create<CounselingState>((set) => ({
         }
     },
 
-    createBookingOrder: async (bookingId: string, amount: number) => {
+    createBookingOrder: async (bookingId: string, amount?: number) => {
         try {
             const response = await apiClient.post(
                 `${API_URL}/payments/create-booking-order`,
-                { bookingId, amount }
+                amount === undefined ? { bookingId } : { bookingId, amount }
             );
             if (response.data?.success && response.data?.data) {
                 const d = response.data?.data;

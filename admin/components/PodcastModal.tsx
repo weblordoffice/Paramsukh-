@@ -38,6 +38,8 @@ interface PodcastModalProps {
 
 const CATEGORIES = ['Meditation', 'Discourse', 'Scripture', 'Mindfulness', 'Mantra', 'Other'];
 
+const idOf = (value: any) => String(typeof value === 'object' ? value?._id : value || '').trim();
+
 export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: PodcastModalProps) {
     const [loading, setLoading] = useState(false);
     const [uploadingVideo, setUploadingVideo] = useState(false);
@@ -80,7 +82,9 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
                 ...podcast,
                 source: normalizedSource,
                 accessType: isYoutube ? 'free' : (podcast.accessType || 'free'),
-                requiredMemberships: isYoutube ? [] : (podcast.requiredMemberships || []),
+                requiredMemberships: isYoutube
+                    ? []
+                    : (podcast.requiredMemberships || []).map(idOf).filter(Boolean),
                 price: isYoutube ? 0 : (podcast.price || 0),
                 currencyCode: podcast.currencyCode || 'INR',
             });
@@ -110,9 +114,9 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
     const fetchMemberships = async () => {
         setLoadingMemberships(true);
         try {
-            const response = await apiClient.get('/api/membership-plans');
+            const response = await apiClient.get('/api/membership-plans/public');
             if (response.data?.success) {
-                setMemberships(response.data.data.plans || []);
+                setMemberships(response.data.data || []);
             }
         } catch (error) {
             console.error('Error fetching memberships:', error);
@@ -167,10 +171,9 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
         } else {
             setUploadingImage(true);
             formDataObj.append('image', file);
-            formDataObj.append('folder', 'podcasts/thumbnails');
 
             try {
-                const response = await apiClient.post('/api/upload/image', formDataObj, {
+                const response = await apiClient.post('/api/upload/image?folder=podcasts/thumbnails', formDataObj, {
                     headers: { 'Content-Type': 'multipart/form-data' }
                 });
 
@@ -195,7 +198,10 @@ export default function PodcastModal({ isOpen, onClose, podcast, onSuccess }: Po
         setLoading(true);
 
         try {
-            const payload: Podcast = { ...formData };
+            const payload: Podcast = {
+                ...formData,
+                requiredMemberships: (formData.requiredMemberships || []).map(idOf).filter(Boolean),
+            };
 
             // YouTube podcasts are always free.
             if (payload.source === 'youtube') {

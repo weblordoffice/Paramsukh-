@@ -50,6 +50,7 @@ const notificationSchema = new mongoose.Schema({
       'shop_product',
       'shop_order',
       'offer_alert',
+      'coupon',
       // Podcast notifications
       'podcast',
       'podcast_episode',
@@ -78,7 +79,7 @@ const notificationSchema = new mongoose.Schema({
   },
   relatedType: {
     type: String,
-    enum: ['course', 'event', 'post', 'booking', 'enrollment', 'comment', 'membership', 'support', 'order', 'podcast', 'donation']
+    enum: ['course', 'event', 'post', 'booking', 'enrollment', 'comment', 'membership', 'support', 'order', 'podcast', 'donation', 'coupon']
   },
   // Notification metadata
   actionUrl: {

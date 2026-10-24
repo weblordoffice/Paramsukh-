@@ -16,7 +16,18 @@ const couponUsageSchema = new mongoose.Schema({
   order: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Order',
-    required: true,
+    default: null,
+    index: true
+  },
+  referenceType: {
+    type: String,
+    enum: ['order', 'membership', 'event', 'counseling'],
+    default: 'order',
+    index: true
+  },
+  referenceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    default: null,
     index: true
   },
   discountAmount: {
@@ -33,6 +44,10 @@ const couponUsageSchema = new mongoose.Schema({
 });
 
 couponUsageSchema.index({ coupon: 1, user: 1 });
+couponUsageSchema.index(
+  { coupon: 1, referenceType: 1, referenceId: 1 },
+  { unique: true, partialFilterExpression: { referenceId: { $type: 'objectId' } } }
+);
 
 const CouponUsage = mongoose.model('CouponUsage', couponUsageSchema);
 

@@ -87,6 +87,10 @@ const assignmentSchema = new mongoose.Schema({
   isStandalone: {
     type: Boolean,
     default: true
+  },
+  requiredForAssessment: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

@@ -19,6 +19,7 @@ import {
   generateCertificate
 } from '../../controller/user/certificate.controller.js';
 import { getUserAchievements } from '../../controller/user/achievement.controller.js';
+import { getUserVivaApplications } from '../../controller/courses/courseAssessment.controller.js';
 import { getUserAnalytics } from '../../controller/user/analytics.controller.js';
 import {
   getUserReferralDashboard, getPointsHistory, handleRedeemPoints,
@@ -74,6 +75,7 @@ router.get('/analytics', protectedRoutes, getUserAnalytics);
 router.get('/achievements', protectedRoutes, getUserAchievements);
 router.get('/profile/certificates', protectedRoutes, getUserCertificates);
 router.post('/profile/certificates/claim/:courseId', protectedRoutes, generateCertificate);
+router.get('/viva', protectedRoutes, getUserVivaApplications);
 router.get('/profile/referrals', protectedRoutes, getUserReferralDashboard);
 router.get('/profile/referrals/history', protectedRoutes, getPointsHistory);
 router.post('/profile/referrals/redeem', protectedRoutes, handleRedeemPoints);

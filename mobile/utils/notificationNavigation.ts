@@ -28,6 +28,7 @@ const KNOWN_PATHS = new Set([
   '/(home)/live-sessions',
   '/(home)/podcasts',
   '/(home)/offers',
+  '/(home)/my-coupons',
   '/(home)/my-progress',
   '/(home)/courses',
   '/(home)/events',
@@ -96,6 +97,10 @@ export function resolveNotificationRoute(item: NotificationTarget): ResolvedRout
 
   if (item.type === 'mentor_assigned') {
     return '/(home)/mentor-corner';
+  }
+
+  if (item.type === 'coupon' || item.relatedType === 'coupon') {
+    return '/(home)/my-coupons';
   }
 
   const { relatedType, relatedId } = item;

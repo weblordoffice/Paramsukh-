@@ -43,6 +43,31 @@ const eventRegistrationSchema = new mongoose.Schema({
     default: 0,
     min: 0
   },
+  baseAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  discountAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  couponCode: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  offerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Offer',
+    default: null
+  },
+  offerTitle: {
+    type: String,
+    default: null,
+    trim: true
+  },
   paymentId: {
     type: String,
     default: null

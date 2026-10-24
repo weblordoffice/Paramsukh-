@@ -1364,6 +1364,15 @@ export default function HomeTab() {
             />
             <View style={styles.divider} />
             <QuickAccessItem
+              icon="ticket-outline"
+              title="My Coupons"
+              description="Personal coupons sent to you"
+              iconBg="rgba(241, 132, 45, 0.12)"
+              iconColor="#F1842D"
+              onPress={() => router.push('/(home)/my-coupons' as any)}
+            />
+            <View style={styles.divider} />
+            <QuickAccessItem
               icon="pricetags"
               title="Offers & Deals"
               description="Active discounts and festive offers"

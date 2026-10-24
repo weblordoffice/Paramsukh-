@@ -13,6 +13,7 @@ import { redeemPoints, reverseRedeemedPoints } from '../../services/referral.ser
 import ReferralConfig from '../../models/referralConfig.models.js';
 import { User } from '../../models/user.models.js';
 import { logPaymentAudit } from '../../services/paymentAudit.service.js';
+import { generateOrderInvoicePdf } from '../../services/invoicePdf.service.js';
 
 
 // @desc    Create order from cart
@@ -36,7 +37,20 @@ export const createOrder = async (req, res) => {
     let dbCoupon = null;
     if (cart.coupon && cart.coupon.code) {
       const { default: Coupon } = await import('../../models/coupon.models.js');
-      dbCoupon = await Coupon.findOne({ code: cart.coupon.code.toUpperCase(), isActive: true });
+      const now = new Date();
+      dbCoupon = await Coupon.findOne({
+        code: cart.coupon.code.toUpperCase(),
+        isActive: true,
+        startDate: { $lte: now },
+        endDate: { $gte: now },
+        $and: [{
+          $or: [
+            { purchaseTypes: 'shop' },
+            { purchaseTypes: { $exists: false } },
+            { purchaseTypes: { $size: 0 } },
+          ],
+        }],
+      });
       if (!dbCoupon) {
         return res.status(400).json({
           success: false,
@@ -806,6 +820,7 @@ export const getInvoice = async (req, res) => {
     const { id } = req.params;
 
     const order = await getOrderQuery(id, userId)
+      .populate('user', 'displayName email phone')
       .populate('items.product', 'name')
       .populate('items.shop', 'name address gstNumber');
 
@@ -816,25 +831,43 @@ export const getInvoice = async (req, res) => {
       });
     }
 
-    // In a real app, you'd generate a PDF invoice here
-    res.status(200).json({
-      success: true,
-      data: {
-        invoice: {
-          orderNumber: order.orderNumber,
-          invoiceNumber: order.invoiceNumber || `INV${order.orderNumber}`,
-          date: order.createdAt,
-          customer: order.deliveryAddress,
-          items: order.items,
-          pricing: order.pricing
+    if (!order.invoiceNumber) {
+      order.invoiceNumber = `INV${String(order.orderNumber || order._id).replace(/^ORD/, '')}`;
+      await order.save();
+    }
+
+    if (req.query.format === 'json') {
+      return res.status(200).json({
+        success: true,
+        data: {
+          invoice: {
+            orderNumber: order.orderNumber,
+            invoiceNumber: order.invoiceNumber,
+            date: order.createdAt,
+            customer: order.deliveryAddress,
+            items: order.items,
+            pricing: order.pricing,
+            payment: order.payment,
+            status: order.status,
+            downloadUrl: `/api/orders/${order._id}/invoice`
+          }
         }
-      }
-    });
+      });
+    }
+
+    const pdf = await generateOrderInvoicePdf(order);
+    const filename = `Invoice-${String(order.invoiceNumber).replace(/[^A-Za-z0-9._-]/g, '-')}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', pdf.length);
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.status(200).send(pdf);
   } catch (error) {
     console.error('Get Invoice Error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to get invoice',
+      message: 'Failed to generate invoice',
       error: error.message
     });
   }

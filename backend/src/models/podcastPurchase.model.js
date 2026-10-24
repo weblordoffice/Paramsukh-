@@ -19,6 +19,17 @@ const podcastPurchaseSchema = new mongoose.Schema({
         type: String,
         // Razorpay payment ID
     },
+    amount: {
+        type: Number,
+        default: 0,
+        min: 0,
+    },
+    currencyCode: {
+        type: String,
+        default: 'INR',
+        uppercase: true,
+        trim: true,
+    },
     purchasedAt: {
         type: Date,
         default: Date.now,

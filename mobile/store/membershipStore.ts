@@ -38,7 +38,7 @@ interface MembershipState {
 
     fetchCurrentSubscription: () => Promise<void>;
     purchaseMembership: (planId: string, paymentId: string) => Promise<boolean>;
-    createMembershipOrder: (plan: string, selectedCourseIds?: string[]) => Promise<{
+    createMembershipOrder: (plan: string, selectedCourseIds?: string[], couponCode?: string) => Promise<{
         success: boolean;
         orderId?: string;
         amount?: number;
@@ -97,9 +97,9 @@ export const useMembershipStore = create<MembershipState>((set) => ({
         return false;
     },
 
-    createMembershipOrder: async (plan: string, selectedCourseIds?: string[]) => {
+    createMembershipOrder: async (plan: string, selectedCourseIds?: string[], couponCode?: string) => {
         try {
-            const response = await apiClient.post('/payments/create-order', { plan, selectedCourseIds });
+            const response = await apiClient.post('/payments/create-order', { plan, selectedCourseIds, couponCode });
             if (response.data?.success && response.data?.data) {
                 const d = response.data.data;
                 return {

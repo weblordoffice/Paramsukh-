@@ -44,7 +44,8 @@ export default function EventDetailScreen() {
   const [form, setForm] = useState({
     name: '',
     email: '',
-    phone: ''
+    phone: '',
+    couponCode: ''
   });
 
   useEffect(() => {
@@ -83,11 +84,12 @@ export default function EventDetailScreen() {
   useEffect(() => {
     if (!isMountedRef.current) return;
     if (user) {
-      setForm({
+      setForm((prev) => ({
+        ...prev,
         name: user.displayName || '',
         email: user.email || '',
         phone: user.phone || ''
-      });
+      }));
     }
   }, [user]);
 
@@ -206,7 +208,8 @@ export default function EventDetailScreen() {
         const orderResult = await createEventOrder(eventId, {
           name: form.name.trim(),
           email: form.email.trim(),
-          phone: form.phone.trim()
+          phone: form.phone.trim(),
+          couponCode: form.couponCode.trim() || undefined
         });
         const rzpOrder = orderResult.data?.razorpay;
         if (__DEV__) {
@@ -279,7 +282,8 @@ export default function EventDetailScreen() {
       const linkResult = await createEventPaymentLink(eventId, {
         name: form.name.trim(),
         email: form.email.trim(),
-        phone: form.phone.trim()
+        phone: form.phone.trim(),
+        couponCode: form.couponCode.trim() || undefined
       });
       if (!linkResult.success || !linkResult.url || !linkResult.paymentLinkId) {
         Alert.alert('Error', linkResult.message || 'Could not create payment.');
@@ -800,6 +804,15 @@ export default function EventDetailScreen() {
             <View style={{ marginTop: 32 }}>
               {event.isPaid ? (
                 <>
+                  <TextInput
+                    value={form.couponCode}
+                    onChangeText={(text) => setForm({ ...form, couponCode: text })}
+                    placeholder="Coupon code (optional)"
+                    placeholderTextColor={colors.textSecondary}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    style={{ width: '100%', height: 52, backgroundColor: colors.background, borderWidth: 1, borderColor: colors.surfaceSecondary, borderRadius: 14, paddingHorizontal: 16, fontSize: 15, color: colors.text, marginBottom: 16 }}
+                  />
                   <View style={{ backgroundColor: colors.surfaceSecondary, padding: 12, borderRadius: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center' }}>
                     <Ionicons name="information-circle" size={18} color={colors.warning} style={{ marginRight: 8 }} />
                     <Text style={{ fontSize: 12, color: colors.text, fontWeight: '600' }}>

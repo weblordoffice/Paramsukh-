@@ -280,7 +280,12 @@ export const isPlanCoveredByUser = async (userId, planSlug) => {
  * - standalone plans cannot include other plans
  * - tiered plans may only include other tiered plans, with no cycles/self-reference
  */
-export const validatePlanRelationships = async ({ planKind, inheritedPlanIds = [], planId = null }) => {
+export const validatePlanRelationships = async ({
+  planKind,
+  inheritedPlanIds = [],
+  planId = null,
+  tierLevel = 0,
+}) => {
   const kind = planKind === 'tiered' ? 'tiered' : 'standalone';
   const uniqueIds = [...new Set(
     (Array.isArray(inheritedPlanIds) ? inheritedPlanIds : [])
@@ -304,7 +309,7 @@ export const validatePlanRelationships = async ({ planKind, inheritedPlanIds = [
   }
 
   const included = await MembershipPlan.find({ _id: { $in: uniqueIds } })
-    .select('_id slug planKind access.inheritedPlanIds')
+    .select('_id slug planKind tierLevel access.inheritedPlanIds')
     .lean();
 
   if (included.length !== uniqueIds.length) {
@@ -319,6 +324,23 @@ export const validatePlanRelationships = async ({ planKind, inheritedPlanIds = [
       valid: false,
       message: `Only tiered plans can be included. Not tiered: ${nonTiered.map((p) => p.slug).join(', ')}`,
     };
+  }
+
+  const currentTierLevel = Number(tierLevel || 0);
+  if (currentTierLevel > 0) {
+    const notLowerTier = included.filter((p) => {
+      const includedTierLevel = Number(p.tierLevel || 0);
+      // Treat unset tier levels as legacy/unknown rather than invalid.
+      return includedTierLevel > 0 && includedTierLevel >= currentTierLevel;
+    });
+    if (notLowerTier.length > 0) {
+      return {
+        valid: false,
+        message: `A plan can only include lower-tier plans. Invalid includes: ${notLowerTier
+          .map((p) => `${p.slug} (tier ${p.tierLevel})`)
+          .join(', ')}`,
+      };
+    }
   }
 
   if (planId) {

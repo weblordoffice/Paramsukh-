@@ -150,10 +150,16 @@ export default function MembershipPlansPage() {
     [plans, selectedPlanId]
   );
 
-  const otherTieredPlans = useMemo(
-    () => plans.filter((plan) => plan.planKind === "tiered" && plan._id !== selectedPlanId),
-    [plans, selectedPlanId]
-  );
+  const otherTieredPlans = useMemo(() => {
+    const currentTierLevel = Number(form.tierLevel || 0);
+    return plans.filter((plan) => {
+      if (plan.planKind !== "tiered" || plan._id === selectedPlanId) {
+        return false;
+      }
+      const candidateTierLevel = Number(plan.tierLevel || 0);
+      return candidateTierLevel > 0 && candidateTierLevel < currentTierLevel;
+    });
+  }, [plans, selectedPlanId, form.tierLevel]);
 
   const filteredPlans = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();

@@ -197,8 +197,8 @@ const orderSchema = new mongoose.Schema({
 orderSchema.index({ user: 1, createdAt: -1 });
 orderSchema.index({ 'payment.status': 1 });
 
-// Generate order number
-orderSchema.pre('save', async function (next) {
+// Generate order number and invoice number
+orderSchema.pre('validate', function (next) {
   if (!this.orderNumber) {
     const date = new Date();
     const year = date.getFullYear().toString().slice(-2);
@@ -206,6 +206,11 @@ orderSchema.pre('save', async function (next) {
     const random = Math.floor(100000 + Math.random() * 900000);
     this.orderNumber = `ORD${year}${month}${random}`;
   }
+
+  if (!this.invoiceNumber) {
+    this.invoiceNumber = `INV${this.orderNumber.replace(/^ORD/, '')}`;
+  }
+
   next();
 });
 

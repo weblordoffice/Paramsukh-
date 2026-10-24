@@ -2,7 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { useOrderStore } from '../store/orderStore';
+import { useAuthStore } from '../store/authStore';
+import { API_URL } from '../config/api';
 import { useTheme } from '../hooks/useTheme';
 
 export default function OrderDetailScreen() {
@@ -67,6 +71,23 @@ export default function OrderDetailScreen() {
     statusText: {
         color: colors.surface,
         fontSize: 12,
+        fontWeight: '700',
+    },
+    invoiceButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.primary,
+        borderRadius: 12,
+        paddingVertical: 16,
+        marginTop: 8,
+    },
+    invoiceButtonText: {
+        color: colors.primary,
+        fontSize: 16,
         fontWeight: '700',
     },
     cancelButton: {
@@ -167,7 +188,9 @@ export default function OrderDetailScreen() {
     const { orderId } = useLocalSearchParams();
     const router = useRouter();
     const { currentOrder, fetchOrderDetails, cancelOrder, isLoading } = useOrderStore();
+    const { token } = useAuthStore();
     const [isCancelling, setIsCancelling] = useState(false);
+    const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false);
 
     useEffect(() => {
         if (orderId) {
@@ -184,6 +207,44 @@ export default function OrderDetailScreen() {
             case 'cancelled': return '#EF4444';
             case 'returned': return '#F59E0B';
             default: return '#F59E0B'; // pending
+        }
+    };
+
+    const handleDownloadInvoice = async () => {
+        if (!token || !currentOrder) {
+            Alert.alert('Login Required', 'Please sign in again to download your invoice.');
+            return;
+        }
+
+        setIsDownloadingInvoice(true);
+        const invoiceName = currentOrder.invoiceNumber || currentOrder.orderNumber;
+        const fileUri = `${FileSystem.documentDirectory || ''}${invoiceName}-invoice.pdf`;
+
+        try {
+            const result = await FileSystem.downloadAsync(
+                `${API_URL}/orders/${currentOrder._id}/invoice`,
+                fileUri,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (result.status !== 200) {
+                await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => {});
+                throw new Error(`Invoice download failed (${result.status}).`);
+            }
+
+            if (await Sharing.isAvailableAsync()) {
+                await Sharing.shareAsync(result.uri, {
+                    mimeType: 'application/pdf',
+                    dialogTitle: 'Order Invoice',
+                    UTI: 'com.adobe.pdf',
+                });
+            } else {
+                Alert.alert('Invoice Saved', `Your invoice is saved at ${result.uri}`);
+            }
+        } catch (error: any) {
+            Alert.alert('Could Not Download Invoice', error?.message || 'Please try again.');
+        } finally {
+            setIsDownloadingInvoice(false);
         }
     };
 
@@ -301,6 +362,21 @@ export default function OrderDetailScreen() {
                         </View>
                     </View>
                 </View>
+
+                <TouchableOpacity
+                    style={styles.invoiceButton}
+                    onPress={handleDownloadInvoice}
+                    disabled={isDownloadingInvoice}
+                >
+                    {isDownloadingInvoice ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                        <>
+                            <Ionicons name="document-text-outline" size={20} color={colors.primary} />
+                            <Text style={styles.invoiceButtonText}>Download Invoice PDF</Text>
+                        </>
+                    )}
+                </TouchableOpacity>
 
                 {/* Cancel Order (only for pending / confirmed orders) */}
                 {['pending', 'confirmed'].includes(currentOrder.status) && (

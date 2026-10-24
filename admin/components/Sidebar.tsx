@@ -21,7 +21,9 @@ import {
     Brain,
     Video,
     TicketPercent,
-    Sparkles
+    Sparkles,
+    BadgeCheck,
+    Award
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -52,6 +54,8 @@ const menuItems: MenuItem[] = [
     { icon: Crown, label: 'Memberships', href: '/dashboard/memberships', permission: 'manage_users' },
     { icon: Crown, label: 'Plans', href: '/dashboard/plans', permission: 'manage_users' },
     { icon: BookOpen, label: 'Courses', href: '/dashboard/courses', permission: 'manage_courses' },
+    { icon: BadgeCheck, label: 'Viva Applications', href: '/dashboard/viva', permission: 'manage_courses' },
+    { icon: Award, label: 'Certificates', href: '/dashboard/certificates', permission: 'manage_users' },
     { icon: Video, label: 'Live Sessions', href: '/dashboard/live-sessions', permission: 'manage_courses' },
     { icon: Mic, label: 'Podcasts', href: '/dashboard/podcasts', permission: 'manage_content' },
     { icon: FileText, label: 'Blogs', href: '/dashboard/blogs', permission: 'manage_content' },

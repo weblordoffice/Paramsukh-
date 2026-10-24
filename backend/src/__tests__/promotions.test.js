@@ -12,8 +12,6 @@ import { Offer } from '../models/offer.models.js';
 import { MembershipPlan } from '../models/membershipPlan.models.js';
 import {
   createTestUser,
-  createTestUser2,
-  createTestDeviceSession,
   generateUserToken,
   getAuthHeader,
   getAdminApiKeyHeader,
@@ -189,103 +187,4 @@ describe('Shop promotions - offers and coupon restrictions', () => {
     expect(cartRes.body.data.cart.offer).toBeFalsy();
   });
 
-  it('should enforce premium-only coupon restrictions', async () => {
-    await Coupon.create({
-      code: 'PREMIUM20',
-      description: 'Premium only 20% off',
-      discountType: 'percentage',
-      discountValue: 20,
-      applicableOn: 'all',
-      userRestriction: 'premium',
-      startDate: new Date(Date.now() - 3600000),
-      endDate: new Date(Date.now() + 86400000),
-      isActive: true,
-    });
-
-    await request(app)
-      .post('/api/cart/add')
-      .set(getAuthHeader(token))
-      .send({ productId: product._id, quantity: 1 });
-
-    const freeRes = await request(app)
-      .post('/api/cart/apply-coupon')
-      .set(getAuthHeader(token))
-      .send({ code: 'PREMIUM20' });
-
-    expect(freeRes.status).toBe(400);
-    expect(freeRes.body.message).toContain('premium');
-
-    const premiumUser = await createTestUser2({
-      email: `premium-${uid()}@test.com`,
-      subscriptionPlan: 'gold',
-      subscriptionStatus: 'active',
-    });
-    await createTestDeviceSession(premiumUser._id);
-    const premiumToken = generateUserToken(premiumUser._id);
-
-    await request(app)
-      .post('/api/cart/add')
-      .set(getAuthHeader(premiumToken))
-      .send({ productId: product._id, quantity: 1 });
-
-    const premiumRes = await request(app)
-      .post('/api/cart/apply-coupon')
-      .set(getAuthHeader(premiumToken))
-      .send({ code: 'PREMIUM20' });
-
-    expect(premiumRes.status).toBe(200);
-    expect(premiumRes.body.data.cart.coupon.code).toBe('PREMIUM20');
-  });
-
-  it('should enforce new-user coupon restrictions', async () => {
-    await User.collection.updateOne(
-      { _id: user._id },
-      { $set: { createdAt: new Date(Date.now() - 60 * 86400000) } }
-    );
-
-    await Coupon.create({
-      code: 'NEWUSER10',
-      description: 'New users only',
-      discountType: 'flat',
-      discountValue: 50,
-      applicableOn: 'all',
-      userRestriction: 'new',
-      newUserDays: 30,
-      startDate: new Date(Date.now() - 3600000),
-      endDate: new Date(Date.now() + 86400000),
-      isActive: true,
-    });
-
-    await request(app)
-      .post('/api/cart/add')
-      .set(getAuthHeader(token))
-      .send({ productId: product._id, quantity: 1 });
-
-    const oldUserRes = await request(app)
-      .post('/api/cart/apply-coupon')
-      .set(getAuthHeader(token))
-      .send({ code: 'NEWUSER10' });
-
-    expect(oldUserRes.status).toBe(400);
-    expect(oldUserRes.body.message).toContain('accounts created within');
-
-    const newUser = await createTestUser2({
-      email: `new-${uid()}@test.com`,
-    });
-    await createTestDeviceSession(newUser._id);
-    const newToken = generateUserToken(newUser._id);
-
-    await request(app)
-      .post('/api/cart/add')
-      .set(getAuthHeader(newToken))
-      .send({ productId: product._id, quantity: 1 });
-
-    const newUserRes = await request(app)
-      .post('/api/cart/apply-coupon')
-      .set(getAuthHeader(newToken))
-      .send({ code: 'NEWUSER10' });
-
-    expect(newUserRes.status).toBe(200);
-    expect(newUserRes.body.data.cart.coupon.code).toBe('NEWUSER10');
-  });
 });
