@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Loader2, Check } from 'lucide-react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
@@ -36,6 +36,7 @@ interface CounselingService {
     counselorName: string;
     intervalMinutes?: number;
     businessHours?: BusinessHours;
+    timezone?: string;
 }
 
 interface CounselingServiceForm {
@@ -51,6 +52,7 @@ interface CounselingServiceForm {
     counselorName: string;
     intervalMinutes: number;
     businessHours: BusinessHours;
+    timezone: string;
 }
 
 interface ServiceModalProps {
@@ -88,6 +90,7 @@ const ICONS = ['help-buoy', 'heart', 'briefcase', 'people', 'school', 'medical',
 
 export default function CounselingServiceModal({ isOpen, onClose, service, onSuccess }: ServiceModalProps) {
     const [loading, setLoading] = useState(false);
+    const lastPaidPrice = useRef(999);
 
     const [formData, setFormData] = useState<CounselingServiceForm>({
         title: '',
@@ -100,7 +103,8 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
         icon: 'help-buoy',
         counselorName: 'Expert Counselor',
         intervalMinutes: 60,
-        businessHours: INITIAL_BUSINESS_HOURS
+        businessHours: INITIAL_BUSINESS_HOURS,
+        timezone: 'Asia/Kolkata'
     });
 
     useEffect(() => {
@@ -108,8 +112,12 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
             setFormData({
                 ...service,
                 intervalMinutes: service.intervalMinutes ?? 60,
-                businessHours: service.businessHours ?? INITIAL_BUSINESS_HOURS
+                businessHours: service.businessHours ?? INITIAL_BUSINESS_HOURS,
+                timezone: service.timezone || 'Asia/Kolkata'
             });
+            if (!service.isFree && service.price > 0) {
+                lastPaidPrice.current = service.price;
+            }
         } else {
             setFormData({
                 title: '',
@@ -122,7 +130,8 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
                 icon: 'help-buoy',
                 counselorName: 'Expert Counselor',
                 intervalMinutes: 60,
-                businessHours: INITIAL_BUSINESS_HOURS
+                businessHours: INITIAL_BUSINESS_HOURS,
+                timezone: 'Asia/Kolkata'
             });
         }
     }, [service, isOpen]);
@@ -167,14 +176,62 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        const durationMinutes = Number(String(formData.duration).match(/(\d+)/)?.[1] || 0);
+        if (durationMinutes && formData.intervalMinutes > durationMinutes) {
+            toast.error('Slot interval cannot exceed the session duration');
+            return;
+        }
+        for (const day of DAYS) {
+            const hours = formData.businessHours[day];
+            if (!hours.isActive) continue;
+            if (!hours.start || !hours.end || hours.end <= hours.start) {
+                toast.error(`${day}: end time must be after start time`);
+                return;
+            }
+            if (hours.breakStart || hours.breakEnd) {
+                if (!hours.breakStart || !hours.breakEnd || hours.breakEnd <= hours.breakStart) {
+                    toast.error(`${day}: break end must be after break start`);
+                    return;
+                }
+                if (hours.breakStart < hours.start || hours.breakEnd > hours.end) {
+                    toast.error(`${day}: break must be inside the working hours`);
+                    return;
+                }
+            }
+        }
+
         setLoading(true);
 
         try {
+            const payload = {
+                title: formData.title.trim(),
+                description: formData.description,
+                duration: formData.duration,
+                price: formData.isFree ? 0 : Number(formData.price) || 0,
+                isFree: formData.isFree,
+                color: formData.color,
+                bgColor: formData.bgColor,
+                icon: formData.icon,
+                counselorName: formData.counselorName,
+                intervalMinutes: formData.intervalMinutes,
+                businessHours: formData.businessHours,
+                timezone: formData.timezone || 'Asia/Kolkata',
+            };
+
             if (service?._id) {
-                await apiClient.put(`/api/counseling/admin/services/${service._id}`, formData);
+                const response = await apiClient.put(`/api/counseling/admin/services/${service._id}`, payload);
+                if (response.data?.success === false) {
+                    toast.error(response.data.message || 'Failed to update service');
+                    return;
+                }
                 toast.success('Service updated successfully');
             } else {
-                await apiClient.post('/api/counseling/admin/services', formData);
+                const response = await apiClient.post('/api/counseling/admin/services', payload);
+                if (response.data?.success === false) {
+                    toast.error(response.data.message || 'Failed to create service');
+                    return;
+                }
                 toast.success('Service created successfully');
             }
             onSuccess();
@@ -270,12 +327,38 @@ export default function CounselingServiceModal({ isOpen, onClose, service, onSuc
                             />
                         </div>
 
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Timezone</label>
+                            <select
+                                value={formData.timezone}
+                                onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-gray-900"
+                            >
+                                <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                                <option value="Asia/Dubai">Asia/Dubai</option>
+                                <option value="Europe/London">Europe/London</option>
+                                <option value="America/New_York">America/New_York</option>
+                                <option value="America/Los_Angeles">America/Los_Angeles</option>
+                                <option value="UTC">UTC</option>
+                            </select>
+                        </div>
+
                         <div className="flex items-center pt-8">
                             <input
                                 type="checkbox"
                                 id="isFree"
                                 checked={formData.isFree}
-                                onChange={(e) => setFormData({ ...formData, isFree: e.target.checked, price: e.target.checked ? 0 : formData.price || 999 })}
+                                onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    if (checked) {
+                                        lastPaidPrice.current = formData.price > 0 ? formData.price : lastPaidPrice.current;
+                                    }
+                                    setFormData({
+                                        ...formData,
+                                        isFree: checked,
+                                        price: checked ? 0 : (lastPaidPrice.current || 999)
+                                    });
+                                }}
                                 className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                             />
                             <label htmlFor="isFree" className="ml-2 block text-sm text-gray-900 font-medium">

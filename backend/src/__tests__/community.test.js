@@ -517,6 +517,19 @@ describe('Community Module - /api/community', () => {
       expect(resolve.status).toBe(200);
       expect(resolve.body.data.isResolved).toBe(false);
     });
+
+    it('should return 400 for an invalid answer id when an admin accepts', async () => {
+      const created = await createQuestion();
+      const questionId = created.body.post._id;
+
+      const res = await request(app)
+        .patch(`/api/community/admin/posts/${questionId}/accept-answer`)
+        .set(getAdminApiKeyHeader())
+        .send({ commentId: 'not-an-object-id' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+    });
   });
 
   describe('Community Leaderboard', () => {
@@ -1035,6 +1048,54 @@ describe('Community Module - /api/community', () => {
 
       expect(res.status).toBe(403);
       expect(res.body.code).toBe('POSTING_BLOCKED');
+    });
+
+    it('should block comments, likes and votes from a blocked user', async () => {
+      const discussion = await Post.create({
+        groupId: group._id,
+        userId: user._id,
+        content: 'Discussion for engagement checks.',
+      });
+      const question = await Post.create({
+        groupId: group._id,
+        userId: user._id,
+        content: 'Question for vote checks.',
+        title: 'Vote check question',
+        postType: 'question',
+      });
+      const comment = await Comment.create({
+        postId: discussion._id,
+        userId: user._id,
+        content: 'Comment for like checks.',
+      });
+
+      user.communityPostingBlocked = true;
+      await user.save();
+
+      const commentRes = await request(app)
+        .post(`/api/community/posts/${discussion._id}/comments`)
+        .set(getAuthHeader(token))
+        .send({ content: 'Blocked comment' });
+      expect(commentRes.status).toBe(403);
+      expect(commentRes.body.code).toBe('POSTING_BLOCKED');
+
+      const likeRes = await request(app)
+        .post(`/api/community/posts/${discussion._id}/like`)
+        .set(getAuthHeader(token));
+      expect(likeRes.status).toBe(403);
+      expect(likeRes.body.code).toBe('POSTING_BLOCKED');
+
+      const commentLikeRes = await request(app)
+        .post(`/api/community/comments/${comment._id}/like`)
+        .set(getAuthHeader(token));
+      expect(commentLikeRes.status).toBe(403);
+      expect(commentLikeRes.body.code).toBe('POSTING_BLOCKED');
+
+      const voteRes = await request(app)
+        .post(`/api/community/posts/${question._id}/vote`)
+        .set(getAuthHeader(token));
+      expect(voteRes.status).toBe(403);
+      expect(voteRes.body.code).toBe('POSTING_BLOCKED');
     });
 
     it('should let an admin block a user from posting', async () => {

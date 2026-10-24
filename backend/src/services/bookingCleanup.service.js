@@ -1,70 +1,44 @@
 import Booking from '../models/booking.models.js';
 import { sendNotification } from '../controller/notifications/notifications.controller.js';
+import {
+  releaseBookingSlot,
+  revertDiscountForBooking,
+} from './counselingBooking.service.js';
+import { zonedDateTimeToUtc } from '../utils/timezone.js';
 
 const BATCH_SIZE = 50;
 
-function resolveBookingDateTime(bookingDate, bookingTime) {
-  const date = new Date(bookingDate);
-  if (!bookingTime) return date;
-  const match = String(bookingTime).match(/^(\d{1,2}):(\d{2})$/);
-  if (match) date.setHours(parseInt(match[1]), parseInt(match[2]), 0, 0);
-  return date;
+function resolveBookingDateTime(booking) {
+  return zonedDateTimeToUtc(
+    booking.bookingDate,
+    booking.bookingTime,
+    booking.timezone || 'Asia/Kolkata'
+  ) || new Date(booking.bookingDate);
 }
 
 /**
- * Cleanup unpaid bookings that have exceeded the payment timeout
- * Run this every 5-10 minutes via cron job
- * Uses aggregation pipeline to avoid loading all bookings into memory
+ * Cancel unpaid/promoted-expired bookings, release their slots, revert the
+ * discount ledger, and promote the next waitlisted user.
  */
 export const cleanupExpiredBookings = async () => {
   try {
     console.log('🧹 Starting cleanup of expired unpaid bookings...');
 
     const DEFAULT_TIMEOUT_MINUTES = 30;
-    const timeoutThreshold = new Date(Date.now() - DEFAULT_TIMEOUT_MINUTES * 60 * 1000);
+    const now = new Date();
+    const timeoutThreshold = new Date(now.getTime() - DEFAULT_TIMEOUT_MINUTES * 60 * 1000);
 
-    // Use aggregation to find expired bookings efficiently without loading all into memory
-    const expiredPipeline = [
-      {
-        $match: {
-          status: 'pending',
-          paymentStatus: 'pending',
-          isFree: false
-        }
-      },
-      {
-        $addFields: {
-          linkExpiryDate: { $ifNull: ['$paymentLinkExpiresAt', null] }
-        }
-      },
-      {
-        $match: {
-          $or: [
-            {
-              linkExpiryDate: null,
-              createdAt: { $lt: timeoutThreshold }
-            },
-            {
-              linkExpiryDate: { $ne: null, $lt: timeoutThreshold }
-            }
-          ]
-        }
-      },
-      {
-        $project: {
-          _id: 1,
-          user: 1,
-          bookingTitle: 1,
-          bookingDate: 1,
-          bookingTime: 1
-        }
-      },
-      {
-        $limit: BATCH_SIZE
-      }
-    ];
-
-    const expiredBookings = await Booking.aggregate(expiredPipeline);
+    const expiredBookings = await Booking.find({
+      status: 'pending',
+      isFree: false,
+      $or: [
+        {
+          paymentStatus: { $in: ['pending', 'failed'] },
+          createdAt: { $lt: timeoutThreshold },
+        },
+        { paymentDueAt: { $ne: null, $lt: now } },
+      ],
+    }).limit(BATCH_SIZE);
 
     if (expiredBookings.length === 0) {
       console.log('✅ No expired bookings to clean up');
@@ -74,32 +48,46 @@ export const cleanupExpiredBookings = async () => {
     console.log(`🗑️ Found ${expiredBookings.length} expired bookings to cancel (batch size: ${BATCH_SIZE})`);
 
     let cleanedCount = 0;
-    for (const bookingData of expiredBookings) {
+    for (const booking of expiredBookings) {
       try {
-        await Booking.findByIdAndUpdate(bookingData._id, {
-          status: 'cancelled',
-          cancelledAt: new Date(),
-          cancellationReason: 'Payment timeout - booking automatically cancelled',
-          cancelledBy: 'system'
-        });
+        const cancelled = await Booking.findOneAndUpdate(
+          { _id: booking._id, status: 'pending' },
+          {
+            $set: {
+              status: 'cancelled',
+              cancelledAt: new Date(),
+              cancellationReason: 'Payment timeout - booking automatically cancelled',
+              cancelledBy: 'system',
+              paymentStatus: booking.paymentStatus === 'paid' ? 'paid' : 'failed',
+              paymentDueAt: null,
+            }
+          },
+          { new: true }
+        );
+
+        if (!cancelled) continue;
+
+        await releaseBookingSlot(cancelled);
+        await revertDiscountForBooking(cancelled);
 
         try {
-          await sendNotification(bookingData.user, {
+          await sendNotification(cancelled.user, {
             type: 'counseling_cancelled',
             title: 'Booking Cancelled - Payment Timeout',
-            message: `Your booking for ${bookingData.bookingTitle} on ${new Date(bookingData.bookingDate).toLocaleDateString()} was cancelled due to payment timeout.`,
+            message: `Your booking for ${cancelled.bookingTitle} was cancelled due to payment timeout.`,
             icon: '⏰',
             priority: 'medium',
-            relatedId: bookingData._id,
-            relatedType: 'booking'
+            relatedId: cancelled._id,
+            relatedType: 'booking',
+            actionUrl: `/counseling-detail?bookingId=${cancelled._id}`
           });
         } catch (error) {
-          console.error(`⚠️ Failed to send notification for booking ${bookingData._id}:`, error.message);
+          console.error(`⚠️ Failed to send notification for booking ${cancelled._id}:`, error.message);
         }
 
         cleanedCount++;
       } catch (error) {
-        console.error(`⚠️ Failed to cancel booking ${bookingData._id}:`, error.message);
+        console.error(`⚠️ Failed to cancel booking ${booking._id}:`, error.message);
       }
     }
 
@@ -112,9 +100,7 @@ export const cleanupExpiredBookings = async () => {
 };
 
 /**
- * Auto-complete past bookings that haven't been marked as completed
- * Run this daily at midnight
- * Uses streaming aggregation to avoid memory issues with large datasets
+ * Auto-complete past bookings based on the session end in the service timezone.
  */
 export const autoCompletePastBookings = async () => {
   try {
@@ -127,13 +113,11 @@ export const autoCompletePastBookings = async () => {
     let hasMore = true;
 
     while (hasMore) {
-      // Query only confirmed bookings that might be past
-      // Add buffer: booking is past if bookingDate + bookingTime < now
       const pastBookings = await Booking.find({
         status: 'confirmed',
         paymentStatus: { $in: ['paid', 'not_required'] },
-        bookingDate: { $lt: now }
-      }).select('_id').limit(BATCH_COMPLETE_SIZE);
+        bookingDate: { $lt: new Date(now.getTime() + 24 * 60 * 60 * 1000) }
+      }).select('_id bookingDate bookingTime timezone duration').limit(BATCH_COMPLETE_SIZE);
 
       if (pastBookings.length === 0) {
         hasMore = false;
@@ -142,8 +126,9 @@ export const autoCompletePastBookings = async () => {
 
       const eligibleIds = [];
       for (const booking of pastBookings) {
-        const bookingDateTime = resolveBookingDateTime(booking.bookingDate, booking.bookingTime);
-        if (bookingDateTime < now) {
+        const start = resolveBookingDateTime(booking);
+        const end = new Date(start.getTime() + (Number(booking.duration) || 60) * 60 * 1000);
+        if (end < now) {
           eligibleIds.push(booking._id);
         }
       }

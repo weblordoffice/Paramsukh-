@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, StyleSheet, Image, RefreshControl, Animated, Platform, Dimensions, Linking } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, StyleSheet, Image, RefreshControl, Animated, Platform, Dimensions, Linking, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -431,7 +431,7 @@ export default function EventsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<EventTab>('upcoming');
-  const { events, fetchEvents, isLoading, error } = useEventStore();
+  const { events, fetchEvents, isLoading, error, fetchMeetingLink, checkRegistrationStatus } = useEventStore();
   const [ticketModal, setTicketModal] = useState<{ visible: boolean; event: any }>({
     visible: false,
     event: null
@@ -481,8 +481,25 @@ export default function EventsScreen() {
     return event?.price ?? 0;
   };
 
-  const showTicket = (event: any) => {
+  const showTicket = async (event: any) => {
     setTicketModal({ visible: true, event });
+    // Refresh the pass so ticket/status data is current.
+    await checkRegistrationStatus(event._id);
+    const updated = useEventStore.getState().events.find((item) => item._id === event._id);
+    if (updated) {
+      setTicketModal({ visible: true, event: updated });
+    }
+  };
+
+  const openTicketMeeting = async (eventId: string) => {
+    const result = await fetchMeetingLink(eventId);
+    if (result.success && result.url) {
+      Linking.openURL(result.url).catch(() => {
+        Alert.alert('Meeting', 'Could not open the meeting link.');
+      });
+      return;
+    }
+    Alert.alert('Meeting link', result.message || 'The meeting link is not available yet.');
   };
 
   const viewEventDetails = (eventId: string) => {
@@ -498,14 +515,19 @@ export default function EventsScreen() {
     const hasAttended = !!event.hasAttended;
     const isPending = isRegistered && event.paymentStatus === 'pending';
     const isOpenEvent = event.registrationRequired === false;
-    const isFull = event.maxAttendees != null && (event.currentAttendees || 0) >= event.maxAttendees;
+    const isCancelled = event.status === 'cancelled';
+    const isFull = event.maxAttendees != null && (event.currentAttendees || 0) + (event.reservedSeats || 0) >= event.maxAttendees;
     const deadlinePassed = event.registrationDeadline ? new Date(event.registrationDeadline) < new Date() : false;
-    const isClosed = !isRegistered && !isPast && !isOpenEvent && (isFull || deadlinePassed);
+    const isClosed = !isRegistered && !isPast && !isOpenEvent && (isCancelled || isFull || deadlinePassed);
     const effectivePrice = getEffectivePrice(event);
     const cardColor = event.color || '#8B5CF6';
 
     const handlePress = () => {
       if (isPast) {
+        if (isRegistered) {
+          showTicket(event);
+          return;
+        }
         if (event.hasRecording || event.imageCount > 0) {
           router.push({
             pathname: '/event-media',
@@ -564,6 +586,12 @@ export default function EventsScreen() {
                   <Text style={styles.registeredBadgeText}>{hasAttended ? 'Attended' : isPending ? 'Payment Due' : 'Registered'}</Text>
                 </View>
               )}
+              {isCancelled && (
+                <View style={[styles.registeredBadge, { backgroundColor: '#EF4444' }]}>
+                  <Ionicons name="close-circle" size={14} color={colors.surface} />
+                  <Text style={styles.registeredBadgeText}>Cancelled</Text>
+                </View>
+              )}
             </View>
 
             {event.isPaid && (!isRegistered || isPending) && (
@@ -619,7 +647,8 @@ export default function EventsScreen() {
                 disabled={isClosed}
               >
                 <Text style={styles.cardActionBtnText}>
-                  {isPending ? 'Pay Now'
+                  {isCancelled ? 'Cancelled'
+                    : isPending ? 'Pay Now'
                     : isRegistered ? (hasAttended ? 'View Pass' : 'View Ticket')
                     : isPast ? 'Details'
                     : isClosed ? 'Closed'
@@ -627,7 +656,7 @@ export default function EventsScreen() {
                     : 'Register'}
                 </Text>
                 <Ionicons 
-                  name={isPending ? 'card' : isRegistered ? 'qr-code' : isPast ? 'chevron-forward' : 'arrow-forward'} 
+                  name={isCancelled ? 'close-circle' : isPending ? 'card' : isRegistered ? 'qr-code' : isPast ? 'chevron-forward' : 'arrow-forward'} 
                   size={14} 
                   color={colors.surface} 
                 />
@@ -778,18 +807,18 @@ export default function EventsScreen() {
 
                 {/* Online join link / physical directions */}
                 {ticketModal.event?.locationType === 'online' ? (
-                  ticketModal.event?.onlineMeetingLink ? (
+                  (ticketModal.event?.paymentStatus === 'completed' || !ticketModal.event?.isPaid) ? (
                     <TouchableOpacity
                       style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: ticketModal.event?.color || '#F1842D' }}
-                      onPress={() => Linking.openURL(ticketModal.event.onlineMeetingLink).catch(() => {})}
+                      onPress={() => openTicketMeeting(ticketModal.event?._id)}
                     >
                       <Ionicons name="videocam" size={18} color="#FFF" />
                       <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Join Online Meeting</Text>
                     </TouchableOpacity>
                   ) : (
                     <View style={{ marginTop: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border }}>
-                      <Ionicons name="videocam-off" size={18} color={colors.textSecondary} />
-                      <Text style={{ color: colors.textSecondary, fontWeight: '600', fontSize: 14 }}>Meeting link not available yet</Text>
+                      <Ionicons name="lock-closed" size={18} color={colors.textSecondary} />
+                      <Text style={{ color: colors.textSecondary, fontWeight: '600', fontSize: 14 }}>Complete payment to unlock the link</Text>
                     </View>
                   )
                 ) : (
@@ -817,7 +846,9 @@ export default function EventsScreen() {
                    <View style={styles.qrPlaceholder}>
                       <Ionicons name="qr-code" size={140} color={colors.text} />
                    </View>
-                   <Text style={styles.qrCodeText}>EVT-{ticketModal.event?._id?.slice(-8).toUpperCase()}</Text>
+                   <Text style={styles.qrCodeText}>
+                     {ticketModal.event?.ticketId || `EVT-${ticketModal.event?._id?.slice(-8).toUpperCase() || ''}`}
+                   </Text>
                 </View>
              </View>
 

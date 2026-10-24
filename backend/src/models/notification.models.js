@@ -36,6 +36,11 @@ const notificationSchema = new mongoose.Schema({
       'counseling_booked',
       'counseling_reminder',
       'counseling_cancelled',
+      'counseling_waitlist',
+      'counseling_rescheduled',
+      'reschedule_request',
+      'reschedule_approved',
+      'reschedule_denied',
       // Membership notifications
       'membership_activated',
       'membership_expired',

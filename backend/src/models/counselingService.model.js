@@ -68,6 +68,10 @@ const counselingServiceSchema = new mongoose.Schema({
         type: String,
         default: 'Expert Counselor'
     },
+    timezone: {
+        type: String,
+        default: 'Asia/Kolkata'
+    },
     businessHours: {
         monday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true }, breakStart: { type: String, default: null }, breakEnd: { type: String, default: null } },
         tuesday: { start: { type: String, default: "09:00" }, end: { type: String, default: "18:00" }, isActive: { type: Boolean, default: true }, breakStart: { type: String, default: null }, breakEnd: { type: String, default: null } },

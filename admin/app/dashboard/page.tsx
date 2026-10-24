@@ -67,7 +67,7 @@ export default function DashboardPage() {
             const [usersRes, coursesRes, eventsRes, productsRes, ordersRes, bookingsRes, revenueRes] = await Promise.allSettled([
                 apiClient.get('/api/user/all').catch(() => ({ data: { users: [] } })),
                 apiClient.get('/api/courses/all').catch(() => ({ data: { courses: [] } })),
-                apiClient.get('/api/events/all').catch(() => ({ data: { events: [] } })),
+                apiClient.get('/api/events/all', { params: { limit: 1 } }).catch(() => ({ data: { events: [] } })),
                 apiClient.get('/api/products').catch(() => ({ data: { products: [] } })),
                 apiClient.get('/api/orders/all').catch(() => ({ data: { data: { orders: [] } } })),
                 apiClient.get('/api/counseling/all').catch(() => ({ data: { data: { bookings: [] } } })),
@@ -80,7 +80,7 @@ export default function DashboardPage() {
             setStats({
                 users: usersRes.status === 'fulfilled' ? (usersRes.value.data.users?.length || 0) : 0,
                 courses: coursesRes.status === 'fulfilled' ? (coursesRes.value.data.courses?.length || 0) : 0,
-                events: eventsRes.status === 'fulfilled' ? (eventsRes.value.data.events?.length || 0) : 0,
+                events: eventsRes.status === 'fulfilled' ? (eventsRes.value.data.pagination?.totalEvents || eventsRes.value.data.events?.length || 0) : 0,
                 products: productsRes.status === 'fulfilled' ? (productsRes.value.data.products?.length || 0) : 0,
                 orders: ordersRes.status === 'fulfilled' ? (ordersRes.value.data.data?.orders?.length || 0) : 0,
                 bookings: bookingsRes.status === 'fulfilled' ? (bookingsRes.value.data.data?.bookings?.length || 0) : 0,

@@ -1,10 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { Search, Calendar, Clock, User, Phone, Mail, X, Trash2, Video, ExternalLink } from 'lucide-react';
-import { formatTime12h } from '@/lib/dateTime';
+import { formatTime12h, toDateInput } from '@/lib/dateTime';
+import { useAuthStore } from '@/lib/store/authStore';
 
 interface Booking {
     _id: string;
@@ -18,6 +20,8 @@ interface Booking {
     userNotes?: string;
     amount: number;
     paymentStatus: string;
+    refundStatus?: 'pending' | 'processed' | 'failed' | null;
+    refundAmount?: number;
     meetingLink?: string;
     meetingId?: string;
     meetingPassword?: string;
@@ -34,9 +38,22 @@ interface Booking {
 }
 
 export default function BookingsPage() {
+    const router = useRouter();
+    const user = useAuthStore((state) => state.user);
+    const hasPermission = useAuthStore((state) => state.hasPermission);
     const [bookings, setBookings] = useState<Booking[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState('all');
+    const [refunding, setRefunding] = useState(false);
+    const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (user && !hasPermission('manage_content')) {
+            toast.error('You do not have permission to manage bookings');
+            router.replace('/dashboard');
+        }
+    }, [user, hasPermission, router]);
     const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
     const [isUpdating, setIsUpdating] = useState(false);
     const [meetingForm, setMeetingForm] = useState({
@@ -61,39 +78,24 @@ export default function BookingsPage() {
     }, [selectedBooking]);
 
     useEffect(() => {
+        setLoading(true);
         fetchBookings();
-    }, []);
+    }, [filterStatus]);
 
     const fetchBookings = async () => {
         try {
-            const response = await apiClient.get('/api/counseling/all', {
-                params: { status: 'confirmed', limit: 500 }
-            });
+            const params: Record<string, any> = { limit: 50 };
+            if (filterStatus !== 'all') params.status = filterStatus;
+
+            const response = await apiClient.get('/api/counseling/all', { params });
 
             const rawBookings: Booking[] = response.data.data?.bookings || response.data.bookings || response.data || [];
-
-            // Keep only one card for the same slot/person/service combination.
-            const unique = new Map<string, Booking>();
-            for (const booking of rawBookings) {
-                const slotDate = new Date(booking.bookingDate).toISOString().slice(0, 10);
-                const key = [
-                    booking.user?._id || booking.user?.email || booking.user?.displayName || 'unknown-user',
-                    booking.bookingTitle || '',
-                    booking.counselorName || '',
-                    slotDate,
-                    booking.bookingTime || ''
-                ].join('|');
-
-                if (!unique.has(key)) {
-                    unique.set(key, booking);
-                }
-            }
-
-            setBookings(Array.from(unique.values()));
+            setBookings(rawBookings);
         } catch (error: any) {
             if (error.response?.status !== 404) {
                 console.error('Error fetching bookings:', error);
             }
+            toast.error(error.response?.data?.message || 'Failed to load bookings');
             setBookings([]);
         } finally {
             setLoading(false);
@@ -102,17 +104,39 @@ export default function BookingsPage() {
 
     const handleStatusUpdate = async (status: string) => {
         if (!selectedBooking) return;
+        if (status === 'cancelled' && !confirm('Cancel this booking? Paid bookings will be refunded.')) return;
         setIsUpdating(true);
         try {
-            await apiClient.patch(`/api/counseling/admin/${selectedBooking._id}/status`, { status });
-            toast.success(`Booking marked as ${status}`);
+            const response = await apiClient.patch(`/api/counseling/admin/${selectedBooking._id}/status`, { status });
+            toast.success(response.data?.data?.refundStatus === 'failed'
+                ? 'Booking cancelled, but the refund failed'
+                : response.data?.message || `Booking marked as ${status}`);
             setSelectedBooking(prev => prev ? { ...prev, status } : null);
             fetchBookings();
         } catch (error: any) {
             console.error('Error updating booking:', error);
-            toast.error('Failed to update status');
+            toast.error(error.response?.data?.message || 'Failed to update status');
         } finally {
             setIsUpdating(false);
+        }
+    };
+
+    const handleRefund = async () => {
+        if (!selectedBooking) return;
+        if (!confirm('Refund this booking?')) return;
+        setRefunding(true);
+        try {
+            const response = await apiClient.post(
+                `/api/counseling/admin/${selectedBooking._id}/refund`,
+                { reason: 'Refunded by admin' }
+            );
+            toast.success(response.data?.message || 'Refund processed');
+            setSelectedBooking(prev => prev ? { ...prev, paymentStatus: 'refunded', refundStatus: 'processed' } : null);
+            fetchBookings();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to refund booking');
+        } finally {
+            setRefunding(false);
         }
     };
 
@@ -132,9 +156,20 @@ export default function BookingsPage() {
 
     const handleSaveMeeting = async () => {
         if (!selectedBooking) return;
+        if (meetingForm.meetingLink && !/^https?:\/\//i.test(meetingForm.meetingLink.trim())) {
+            toast.error('Meeting link must start with http:// or https://');
+            return;
+        }
         setSavingMeeting(true);
         try {
-            await apiClient.patch(`/api/counseling/admin/${selectedBooking._id}/meeting`, meetingForm);
+            const response = await apiClient.patch(`/api/counseling/admin/${selectedBooking._id}/meeting`, {
+                ...meetingForm,
+                meetingLink: meetingForm.meetingLink.trim()
+            });
+            if (response.data?.success === false) {
+                toast.error(response.data.message || 'Failed to save meeting details');
+                return;
+            }
             toast.success('Meeting details saved. User will be notified if a link was added.');
             setSelectedBooking(prev => prev ? { ...prev, ...meetingForm } : null);
             fetchBookings();
@@ -205,6 +240,19 @@ export default function BookingsPage() {
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-gray-900 placeholder:text-gray-400"
                     />
                 </div>
+                <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-gray-900"
+                >
+                    <option value="all">All statuses</option>
+                    <option value="pending">Pending payment</option>
+                    <option value="confirmed">Confirmed</option>
+                    <option value="waitlisted">Waitlisted</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                    <option value="no_show">No show</option>
+                </select>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -245,7 +293,7 @@ export default function BookingsPage() {
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <Calendar className="w-4 h-4 text-accent" />
-                                        <span>{new Date(booking.bookingDate).toLocaleDateString()}</span>
+                                        <span>{toDateInput(booking.bookingDate)}</span>
                                     </div>
                                     <div className="flex items-center space-x-2">
                                         <Clock className="w-4 h-4 text-accent" />
@@ -286,12 +334,15 @@ export default function BookingsPage() {
                                     <div>
                                         <p className="text-gray-500">Date & Time</p>
                                         <p className="font-medium">
-                                            {new Date(selectedBooking.bookingDate).toLocaleDateString()} at {formatTime12h(selectedBooking.bookingTime)}
+                                            {toDateInput(selectedBooking.bookingDate)} at {formatTime12h(selectedBooking.bookingTime)}
                                         </p>
                                     </div>
                                     <div>
                                         <p className="text-gray-500">Amount</p>
-                                        <p className="font-medium">₹{selectedBooking.amount} ({selectedBooking.paymentStatus})</p>
+                                        <p className="font-medium">
+                                            ₹{selectedBooking.amount} ({selectedBooking.paymentStatus})
+                                            {selectedBooking.refundStatus ? ` · refund: ${selectedBooking.refundStatus}` : ''}
+                                        </p>
                                     </div>
                                     <div>
                                         <p className="text-gray-500">Current Status</p>
@@ -319,13 +370,13 @@ export default function BookingsPage() {
                                         <div>
                                             <p className="text-gray-500">Current</p>
                                             <p className="font-medium">
-                                                {new Date(selectedBooking.bookingDate).toLocaleDateString()} at {formatTime12h(selectedBooking.bookingTime)}
+                                                {toDateInput(selectedBooking.bookingDate)} at {formatTime12h(selectedBooking.bookingTime)}
                                             </p>
                                         </div>
                                         <div>
                                             <p className="text-gray-500">Requested New</p>
                                             <p className="font-medium text-primary">
-                                                {selectedBooking.rescheduleRequest.requestedNewDate ? new Date(selectedBooking.rescheduleRequest.requestedNewDate).toLocaleDateString() : '—'} at {selectedBooking.rescheduleRequest.requestedNewTime ? formatTime12h(selectedBooking.rescheduleRequest.requestedNewTime) : '—'}
+                                                {selectedBooking.rescheduleRequest.requestedNewDate ? toDateInput(selectedBooking.rescheduleRequest.requestedNewDate) : '—'} at {selectedBooking.rescheduleRequest.requestedNewTime ? formatTime12h(selectedBooking.rescheduleRequest.requestedNewTime) : '—'}
                                             </p>
                                         </div>
                                     </div>
@@ -463,7 +514,7 @@ export default function BookingsPage() {
                             <div className="border-t pt-6">
                                 <h3 className="font-semibold text-gray-900 mb-4">Manage Booking</h3>
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    {['confirmed', 'rescheduled', 'completed', 'cancelled'].map(status => (
+                                    {['confirmed', 'completed', 'cancelled', 'no_show'].map(status => (
                                         <button
                                             key={status}
                                             onClick={() => handleStatusUpdate(status)}
@@ -482,7 +533,18 @@ export default function BookingsPage() {
                                 <p className="text-sm text-gray-500 mt-2">
                                     After the session, mark the booking as <strong>Completed</strong>.
                                 </p>
-                                <div className="mt-6 pt-4 border-t flex justify-end">
+                                <div className="mt-6 pt-4 border-t flex flex-wrap justify-between gap-3">
+                                    <div className="flex gap-2">
+                                        {!selectedBooking.paymentStatus?.includes('refunded') && selectedBooking.refundStatus !== 'processed' && (
+                                            <button
+                                                onClick={handleRefund}
+                                                disabled={refunding || selectedBooking.paymentStatus !== 'paid'}
+                                                className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+                                            >
+                                                {refunding ? 'Refunding...' : 'Refund'}
+                                            </button>
+                                        )}
+                                    </div>
                                     <button
                                         onClick={handleDelete}
                                         className="flex items-center space-x-2 text-red-600 hover:bg-red-50 px-4 py-2 rounded-lg transition"

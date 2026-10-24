@@ -3,6 +3,7 @@ import {
   createEvent,
   getAllEvents,
   getEventById,
+  getEventByIdAdmin,
   getEventBySlug,
   updateEvent,
   deleteEvent,
@@ -18,6 +19,9 @@ import {
 import {
   registerForEvent,
   cancelRegistration,
+  cancelRegistrationAdmin,
+  refundRegistrationAdmin,
+  getMeetingLink,
   getMyRegistrations,
   getRegistrationStatus,
   getEventRegistrations,
@@ -31,7 +35,7 @@ import {
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
 import { requirePermission } from '../../middleware/requirePermission.js';
-import { validateCreateEvent } from '../../middleware/validators.js';
+import { validateCreateEvent, validateUpdateEvent } from '../../middleware/validators.js';
 
 const router = express.Router();
 
@@ -60,6 +64,10 @@ router.get('/past', getPastEvents);
 // GET /api/events/slug/:slug
 router.get('/slug/:slug', getEventBySlug);
 
+// Get a full event for the admin editor (must be before /:id)
+// GET /api/events/admin/:id
+router.get('/admin/:id', adminAuth, requirePermission('manage_events'), getEventByIdAdmin);
+
 // Get user's event registrations (must be before /:id)
 // GET /api/events/my-registrations
 router.get('/my-registrations', protectedRoutes, getMyRegistrations);
@@ -73,7 +81,7 @@ router.get('/:id', getEventById);
 
 // Update event
 // PUT /api/events/:id
-router.put('/:id', adminAuth, requirePermission('manage_events'), updateEvent);
+router.put('/:id', adminAuth, requirePermission('manage_events'), validateUpdateEvent, updateEvent);
 
 // Delete event
 // DELETE /api/events/:id
@@ -127,17 +135,29 @@ router.post('/:eventId/register', protectedRoutes, registerForEvent);
 // DELETE /api/events/:eventId/register
 router.delete('/:eventId/register', protectedRoutes, cancelRegistration);
 
-// Check registration status
+// Get registration status
 // GET /api/events/:eventId/registration-status
 router.get('/:eventId/registration-status', protectedRoutes, getRegistrationStatus);
+
+// Get the online meeting link (confirmed + paid registrations only)
+// GET /api/events/:eventId/meeting-link
+router.get('/:eventId/meeting-link', protectedRoutes, getMeetingLink);
 
 // Get all registrations for an event (admin only)
 // GET /api/events/:eventId/registrations
 router.get('/:eventId/registrations', adminAuth, requirePermission('manage_events'), getEventRegistrations);
 
-// Check-in user at event
+// Check-in user at event (or mark no-show with { status: 'no-show' })
 // PATCH /api/events/:eventId/registrations/:registrationId/checkin
 router.patch('/:eventId/registrations/:registrationId/checkin', adminAuth, requirePermission('manage_events'), checkInUser);
+
+// Refund a paid registration (admin)
+// POST /api/events/:eventId/registrations/:registrationId/refund
+router.post('/:eventId/registrations/:registrationId/refund', adminAuth, requirePermission('manage_events'), refundRegistrationAdmin);
+
+// Cancel a registration (admin)
+// DELETE /api/events/:eventId/registrations/:registrationId
+router.delete('/:eventId/registrations/:registrationId', adminAuth, requirePermission('manage_events'), cancelRegistrationAdmin);
 
 // Update payment status
 // PATCH /api/events/:eventId/registrations/:registrationId/payment

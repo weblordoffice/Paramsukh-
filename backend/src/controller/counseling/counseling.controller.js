@@ -7,6 +7,17 @@ import { recordTransaction } from '../../services/transaction.service.js';
 import { sendCounselingBookingEmail, sendBookingCancellationEmail } from '../../services/emailService.js';
 import { sanitizeNotes } from '../../utils/sanitizeUtils.js';
 import { formatTime12h } from '../../utils/dateTime.js';
+import {
+  formatInZone,
+  normalizeTimeToHHmm,
+  startOfUtcDay,
+  toDateKey,
+  zonedDateTimeToUtc,
+} from '../../utils/timezone.js';
+import {
+  releaseBookingSlot,
+  validateRescheduleTarget,
+} from '../../services/counselingBooking.service.js';
 import mongoose from 'mongoose';
 import {
   applyPurchaseDiscount,
@@ -30,6 +41,40 @@ async function updateRefundStatusWithRetry(bookingId, updateData, retries = 0) {
     throw error;
   }
 }
+
+const parseClockMinutes = (value) => {
+  const [hours, minutes] = String(value || '').split(':').map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+};
+
+const validateServiceSchedule = (businessHours) => {
+  if (!businessHours || typeof businessHours !== 'object') return null;
+  for (const [day, hours] of Object.entries(businessHours)) {
+    if (!hours || hours.isActive === false) continue;
+    const start = parseClockMinutes(hours.start);
+    const end = parseClockMinutes(hours.end);
+    if (start == null || end == null || end <= start) {
+      return `${day}: end time must be after start time`;
+    }
+    if (hours.breakStart || hours.breakEnd) {
+      const breakStart = parseClockMinutes(hours.breakStart);
+      const breakEnd = parseClockMinutes(hours.breakEnd);
+      if (breakStart == null || breakEnd == null || breakEnd <= breakStart) {
+        return `${day}: break end must be after break start`;
+      }
+      if (breakStart < start || breakEnd > end) {
+        return `${day}: break must be inside the working hours`;
+      }
+    }
+  }
+  return null;
+};
+
+const parseDurationMinutes = (duration) => {
+  const match = String(duration || '').match(/(\d+)/);
+  return match ? Number(match[1]) : null;
+};
 
 export const getAllServices = async (req, res) => {
   try {
@@ -75,11 +120,52 @@ export const getAllServicesAdmin = async (req, res) => {
 
 export const createService = async (req, res) => {
   try {
-    const { title, description, counselorName, counselorImage, category, duration, price, currencyCode, isActive, onlineMeetingLink, meetingPlatform, meetingPassword, availableSlots, businessHours, intervalMinutes } = req.body;
+    const { title, description, counselorName, counselorImage, category, duration, price, currencyCode, isActive, onlineMeetingLink, meetingPlatform, meetingPassword, availableSlots, businessHours, intervalMinutes, timezone } = req.body;
+
+    if (!String(title || '').trim()) {
+      return res.status(400).json({ success: false, message: 'Service title is required' });
+    }
+    const duplicate = await CounselingService.findOne({
+      title: { $regex: `^${String(title).trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' }
+    });
+    if (duplicate) {
+      return res.status(409).json({ success: false, message: 'A service with this title already exists' });
+    }
+
+    const numericPrice = Number(price) || 0;
+    if (numericPrice < 0) {
+      return res.status(400).json({ success: false, message: 'Price cannot be negative' });
+    }
+
+    const scheduleError = validateServiceSchedule(businessHours);
+    if (scheduleError) {
+      return res.status(400).json({ success: false, message: scheduleError });
+    }
+
+    const slotLength = Number(intervalMinutes) || 60;
+    const durationMinutes = parseDurationMinutes(duration);
+    if (slotLength < 5 || slotLength > 240) {
+      return res.status(400).json({ success: false, message: 'Slot interval must be between 5 and 240 minutes' });
+    }
+    if (durationMinutes && slotLength > durationMinutes) {
+      return res.status(400).json({ success: false, message: 'Slot interval cannot exceed the session duration' });
+    }
+    if (timezone) {
+      try {
+        new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date());
+      } catch {
+        return res.status(400).json({ success: false, message: 'Invalid timezone' });
+      }
+    }
+
     const service = await CounselingService.create({
-      title, description, counselorName, counselorImage, category, duration, price, currencyCode: currencyCode || 'INR',
+      title, description, counselorName, counselorImage, category, duration,
+      price: numericPrice > 0 ? numericPrice : 0,
+      currencyCode: currencyCode || 'INR',
       isActive: typeof isActive === 'boolean' ? isActive : true,
-      onlineMeetingLink, meetingPlatform, meetingPassword, availableSlots, businessHours, intervalMinutes,
+      onlineMeetingLink, meetingPlatform, meetingPassword, businessHours,
+      intervalMinutes: slotLength,
+      timezone: timezone || 'Asia/Kolkata',
     });
     res.status(201).json({
       success: true,
@@ -97,11 +183,50 @@ export const createService = async (req, res) => {
 
 export const updateService = async (req, res) => {
   try {
-    const allowed = ['title', 'description', 'counselorName', 'counselorImage', 'category', 'duration', 'price', 'currencyCode', 'isActive', 'onlineMeetingLink', 'meetingPlatform', 'meetingPassword', 'availableSlots', 'businessHours', 'intervalMinutes'];
+    const allowed = ['title', 'description', 'counselorName', 'counselorImage', 'category', 'duration', 'price', 'currencyCode', 'isActive', 'onlineMeetingLink', 'meetingPlatform', 'meetingPassword', 'businessHours', 'intervalMinutes', 'timezone'];
     const update = {};
     for (const key of allowed) {
       if (req.body[key] !== undefined) update[key] = req.body[key];
     }
+
+    if (update.title !== undefined) {
+      update.title = String(update.title).trim();
+      if (!update.title) {
+        return res.status(400).json({ success: false, message: 'Service title cannot be empty' });
+      }
+      const duplicate = await CounselingService.findOne({
+        _id: { $ne: req.params.id },
+        title: { $regex: `^${update.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' }
+      });
+      if (duplicate) {
+        return res.status(409).json({ success: false, message: 'A service with this title already exists' });
+      }
+    }
+
+    if (update.price !== undefined && Number(update.price) < 0) {
+      return res.status(400).json({ success: false, message: 'Price cannot be negative' });
+    }
+
+    const scheduleError = validateServiceSchedule(update.businessHours);
+    if (scheduleError) {
+      return res.status(400).json({ success: false, message: scheduleError });
+    }
+
+    if (update.intervalMinutes !== undefined) {
+      const slotLength = Number(update.intervalMinutes);
+      if (!Number.isFinite(slotLength) || slotLength < 5 || slotLength > 240) {
+        return res.status(400).json({ success: false, message: 'Slot interval must be between 5 and 240 minutes' });
+      }
+    }
+
+    if (update.timezone !== undefined) {
+      try {
+        new Intl.DateTimeFormat('en-US', { timeZone: update.timezone }).format(new Date());
+      } catch {
+        return res.status(400).json({ success: false, message: 'Invalid timezone' });
+      }
+    }
+
     const service = await CounselingService.findByIdAndUpdate(req.params.id, update, {
       new: true,
       runValidators: true
@@ -131,15 +256,26 @@ export const deleteService = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid service id' });
     }
 
-    const deleted = await CounselingService.findByIdAndDelete(id);
+    const service = await CounselingService.findById(id);
+    if (!service) {
+      return res.status(200).json({ success: true, message: 'Service already deleted' });
+    }
 
-    // Idempotent delete: if already removed, still return success to avoid duplicate-click 404s.
-    if (!deleted) {
-      return res.status(200).json({
-        success: true,
-        message: 'Service already deleted',
+    const activeBookings = await Booking.countDocuments({
+      $or: [
+        { serviceId: service._id },
+        { counselorType: service.title },
+      ],
+      status: { $in: ['pending', 'confirmed', 'waitlisted'] },
+    });
+    if (activeBookings > 0) {
+      return res.status(409).json({
+        success: false,
+        message: `This service has ${activeBookings} active booking(s). Deactivate it instead of deleting.`
       });
     }
+
+    await CounselingService.findByIdAndDelete(id);
 
     res.status(200).json({
       success: true,
@@ -159,14 +295,19 @@ export const getAvailability = async (req, res) => {
   try {
     const { date, counselorType } = req.query;
 
-    if (!date) {
+    if (!date || !counselorType) {
       return res.status(400).json({
         success: false,
-        message: 'Date is required'
+        message: 'Date and counselorType are required'
       });
     }
 
-    const availableSlots = await Booking.getAvailableSlots(date, counselorType || 'general');
+    const dateKey = toDateKey(date);
+    if (!dateKey) {
+      return res.status(400).json({ success: false, message: 'Invalid date' });
+    }
+
+    const availableSlots = await Booking.getAvailableSlots(dateKey, counselorType);
 
     res.status(200).json({
       success: true,
@@ -209,50 +350,13 @@ export const bookCounseling = async (req, res) => {
       });
     }
 
-    // PAST DATE VALIDATION: Prevent booking dates in the past
-    const requestedDate = new Date(bookingDate);
-    const now = new Date();
-    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds()));
-    const requestedDay = new Date(Date.UTC(requestedDate.getUTCFullYear(), requestedDate.getUTCMonth(), requestedDate.getUTCDate()));
-
-    // Check if the day has passed
-    if (requestedDay < today) {
+    // Validate the calendar date/time shape first
+    const dateKey = toDateKey(bookingDate);
+    const normalizedTime = normalizeTimeToHHmm(bookingTime);
+    if (!dateKey || !normalizedTime) {
       return res.status(400).json({
         success: false,
-        message: 'Cannot book sessions for past dates'
-      });
-    }
-
-    // For same-day bookings, also check if the specific time has passed in UTC
-    if (requestedDay.getTime() === today.getTime() && bookingTime) {
-      const timeMatch = String(bookingTime).match(/^(\d{1,2}):(\d{2})$/);
-      if (timeMatch) {
-        const [hours, minutes] = [parseInt(timeMatch[1]), parseInt(timeMatch[2])];
-        const slotTimeUTC = new Date(Date.UTC(requestedDate.getUTCFullYear(), requestedDate.getUTCMonth(), requestedDate.getUTCDate(), hours, minutes, 0, 0));
-        const bufferMinutes = 5;
-        const nowWithBuffer = new Date(today.getTime() + bufferMinutes * 60 * 1000);
-        if (slotTimeUTC < nowWithBuffer) {
-          return res.status(400).json({
-            success: false,
-            message: `Cannot book a slot that has already passed. Current time is ${formatTime12h(now)}.`
-          });
-        }
-      }
-    }
-
-    // BOOKING LIMIT: Check if user has too many pending/confirmed bookings
-    const userBookingCount = await Booking.countDocuments({
-      user: userId,
-      status: { $in: ['pending', 'confirmed'] },
-      bookingDate: { $gte: today }
-    });
-
-    const MAX_ACTIVE_BOOKINGS = 5; // Max 5 active bookings per user
-    if (userBookingCount >= MAX_ACTIVE_BOOKINGS) {
-      return res.status(400).json({
-        success: false,
-        message: `You have reached the maximum limit of ${MAX_ACTIVE_BOOKINGS} active bookings. Please cancel or complete some bookings before creating new ones.`,
-        currentBookings: userBookingCount
+        message: 'Booking date and time must be valid (date: YYYY-MM-DD, time: HH:mm)'
       });
     }
 
@@ -276,6 +380,42 @@ export const bookCounseling = async (req, res) => {
       });
     }
 
+    const timezone = service.timezone || 'Asia/Kolkata';
+    const slotInstant = zonedDateTimeToUtc(dateKey, normalizedTime, timezone);
+    if (!slotInstant || slotInstant < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot book a slot that has already passed.'
+      });
+    }
+
+    // BOOKING LIMIT: pending/confirmed bookings only (waitlisted does not count)
+    const userBookingCount = await Booking.countDocuments({
+      user: userId,
+      status: { $in: ['pending', 'confirmed'] },
+      bookingDate: { $gte: startOfUtcDay(new Date()) }
+    });
+
+    const MAX_ACTIVE_BOOKINGS = 5;
+    if (userBookingCount >= MAX_ACTIVE_BOOKINGS) {
+      return res.status(400).json({
+        success: false,
+        message: `You have reached the maximum limit of ${MAX_ACTIVE_BOOKINGS} active bookings. Please cancel or complete some bookings before creating new ones.`,
+        currentBookings: userBookingCount
+      });
+    }
+
+    // Slot must exist in the schedule (business hours, break, exceptions, future).
+    // A valid-but-taken slot is allowed through so it can become a waitlist entry.
+    const slotIsValid = await Booking.isValidSlot(dateKey, service._id, normalizedTime);
+    if (!slotIsValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'This time is outside the counselor availability. Please select another slot.',
+        availableSlots: await Booking.getAvailableSlots(dateKey, service._id)
+      });
+    }
+
     const finalCounselorType = service.title;
     const finalCounselorName = service.counselorName || counselorName || 'Expert Counselor';
     const finalBookingType = bookingType || service.title;
@@ -290,7 +430,7 @@ export const bookCounseling = async (req, res) => {
       });
     }
 
-    // Determine if booking is free or paid
+    // Determine if booking is free or paid (server-side pricing)
     const servicePrice = Number(service.price) || 0;
     const baseAmount = Boolean(service.isFree || servicePrice === 0) ? 0 : servicePrice;
     const discount = await resolvePurchaseDiscount({
@@ -303,49 +443,29 @@ export const bookCounseling = async (req, res) => {
     if (discount.error) {
       return res.status(400).json({ success: false, message: discount.error });
     }
-    if (baseAmount > 0 && Number(discount.finalAmount || 0) <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'This discount makes the service free. Please contact support.',
-      });
-    }
-    const isFree = baseAmount === 0;
+
+    const isFree = baseAmount === 0 || Number(discount.finalAmount || 0) <= 0;
     const bookingAmount = isFree ? 0 : Number(discount.finalAmount || 0);
 
-    // Security check: Validate that the client isn't forcing a lower amount than the discounted price.
+    // The client amount is advisory only; the server price is authoritative.
     const clientAmount = Number(req.body.amount);
-    if (!isFree && Number.isFinite(clientAmount) && clientAmount > 0 && clientAmount < bookingAmount) {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid amount. This service requires ₹${bookingAmount}.`
-      });
+    if (Number.isFinite(clientAmount) && clientAmount > 0 && Math.abs(clientAmount - bookingAmount) > 0.01) {
+      console.warn(`[Counseling] Client amount ${clientAmount} differs from server amount ${bookingAmount} for user ${userId}`);
     }
 
-    // Check if slot is available (pending/confirmed booking exists)
-    const bookingDateObj = new Date(bookingDate);
-    const existingActiveBooking = await Booking.findOne({
-      bookingDate: bookingDateObj,
-      bookingTime,
-      counselorType: finalCounselorType,
-      status: { $in: ['pending', 'confirmed'] }
-    });
-
-    if (existingActiveBooking) {
-      return res.status(400).json({
-        success: false,
-        message: 'This time slot is already booked. Please select another time.'
-      });
-    }
+    const bookingDateObj = startOfUtcDay(dateKey);
 
     // Try to create booking - unique index will prevent race conditions
     const booking = new Booking({
       user: userId,
+      serviceId: service._id,
+      timezone,
       counselorType: finalCounselorType,
       counselorName: finalCounselorName,
       bookingType: finalBookingType,
       bookingTitle: finalBookingTitle,
       bookingDate: bookingDateObj,
-      bookingTime,
+      bookingTime: normalizedTime,
       userNotes: sanitizeNotes(userNotes),
       userPhone: user.phone || 'N/A',
       userEmail: user.email || '',
@@ -376,37 +496,53 @@ export const bookCounseling = async (req, res) => {
       }
     } catch (dbError) {
       if (dbError.code === 11000) {
-        // Slot taken - offer waitlist option
+        // Slot taken — create a waitlist entry (does not hold the slot).
         const waitlistCount = await Booking.countDocuments({
-          counselorType: finalCounselorType,
+          serviceId: service._id,
           bookingDate: bookingDateObj,
-          bookingTime,
-          status: 'pending',
-          waitlistRank: { $ne: null }
+          bookingTime: normalizedTime,
+          status: 'waitlisted',
         });
 
         const waitlistRank = waitlistCount + 1;
 
-        // Create booking as waitlisted
         const waitlistedBooking = new Booking({
           user: userId,
+          serviceId: service._id,
+          timezone,
           counselorType: finalCounselorType,
           counselorName: finalCounselorName,
           bookingType: finalBookingType,
           bookingTitle: finalBookingTitle,
           bookingDate: bookingDateObj,
-          bookingTime,
+          bookingTime: normalizedTime,
           userNotes: sanitizeNotes(userNotes),
           userPhone: user.phone || 'N/A',
           userEmail: user.email || '',
           isFree,
           amount: bookingAmount,
+          baseAmount: discount.baseAmount,
+          discountAmount: discount.discountAmount,
+          couponCode: discount.couponCode,
+          offerId: discount.offer?._id || null,
+          offerTitle: discount.offerTitle,
           paymentStatus: isFree ? 'not_required' : 'pending',
-          status: 'pending',
+          status: 'waitlisted',
           waitlistRank
         });
 
         await waitlistedBooking.save();
+
+        await sendNotification(userId, {
+          type: 'counseling_waitlist',
+          title: 'Added to Waitlist',
+          message: `You are #${waitlistRank} on the waitlist for ${finalBookingTitle} on ${formatInZone(slotInstant, timezone)}. We'll notify you when a spot opens.`,
+          icon: '📅',
+          priority: 'medium',
+          relatedId: waitlistedBooking._id,
+          relatedType: 'booking',
+          actionUrl: `/counseling-detail?bookingId=${waitlistedBooking._id}`,
+        }).catch(() => {});
 
         return res.status(200).json({
           success: true,
@@ -421,25 +557,29 @@ export const bookCounseling = async (req, res) => {
       throw dbError;
     }
 
-    // Send confirmation email (non-blocking)
-    try {
-      const emailPromise = sendCounselingBookingEmail(user, booking);
-      if (emailPromise && typeof emailPromise.catch === 'function') {
-        emailPromise.catch((err) =>
-          console.error('[Email] Booking confirmation email failed:', err?.message || err)
-        );
+    // Send the confirmation email only for confirmed (free) bookings.
+    if (booking.status === 'confirmed') {
+      try {
+        const emailPromise = sendCounselingBookingEmail(user, booking);
+        if (emailPromise && typeof emailPromise.catch === 'function') {
+          emailPromise.catch((err) =>
+            console.error('[Email] Booking confirmation email failed:', err?.message || err)
+          );
+        }
+      } catch (emailErr) {
+        console.error('[Email] Booking confirmation email threw synchronously:', emailErr?.message || emailErr);
       }
-    } catch (emailErr) {
-      console.error('[Email] Booking confirmation email threw synchronously:', emailErr?.message || emailErr);
     }
+
+    const slotLabel = formatInZone(slotInstant, timezone);
 
     // Send notification to user
     await sendNotification(userId, {
       type: 'counseling_booked',
       title: isFree ? 'Counseling Session Booked' : 'Booking Awaiting Payment',
       message: isFree
-        ? `Your ${bookingTitle} session is scheduled for ${new Date(bookingDate).toLocaleDateString()} at ${formatTime12h(bookingTime)}`
-        : `Your ${bookingTitle} session is reserved. Complete payment to confirm your booking.`,
+        ? `Your ${finalBookingTitle} session is scheduled for ${slotLabel}`
+        : `Your ${finalBookingTitle} session is reserved for ${slotLabel}. Complete payment to confirm your booking.`,
       icon: isFree ? '📅' : '💳',
       priority: 'high',
       relatedId: booking._id,
@@ -463,8 +603,8 @@ export const bookCounseling = async (req, res) => {
           type: 'counseling_booked',
           title: isFree ? 'New Booking Received' : 'New Booking Request (Payment Pending)',
           message: isFree
-            ? `${user.displayName} booked ${bookingTitle} on ${new Date(bookingDate).toLocaleDateString()} at ${formatTime12h(bookingTime)}`
-            : `${user.displayName} requested ${bookingTitle} on ${new Date(bookingDate).toLocaleDateString()} at ${formatTime12h(bookingTime)} — awaiting payment`,
+            ? `${user.displayName} booked ${finalBookingTitle} on ${slotLabel}`
+            : `${user.displayName} requested ${finalBookingTitle} on ${slotLabel} — awaiting payment`,
           icon: isFree ? '🔔' : '💳',
           priority: 'high',
           relatedId: booking._id,
@@ -515,8 +655,8 @@ export const getMyBookings = async (req, res) => {
     }
 
     if (upcoming === 'true') {
-      query.bookingDate = { $gte: new Date() };
-      query.status = { $in: ['pending', 'confirmed'] };
+      query.bookingDate = { $gte: startOfUtcDay(new Date()) };
+      query.status = { $in: ['pending', 'confirmed', 'waitlisted'] };
     }
 
     const bookings = await Booking.find(query)
@@ -583,66 +723,93 @@ export const cancelBooking = async (req, res) => {
     const { bookingId } = req.params;
     const { reason } = req.body;
 
-    // Atomic cancellation — prevents race conditions on concurrent cancels
-    const booking = await Booking.findOneAndUpdate(
-      { _id: bookingId, user: userId, status: { $nin: ['cancelled', 'completed'] } },
+    const booking = await Booking.findOne({ _id: bookingId, user: userId });
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({ success: false, message: 'Booking is already cancelled' });
+    }
+    if (!['pending', 'confirmed', 'waitlisted'].includes(booking.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot cancel a ${booking.status} booking`
+      });
+    }
+
+    // The 24h window applies to confirmed sessions only. Pending/waitlisted
+    // bookings can be released immediately.
+    if (booking.status === 'confirmed' && !booking.canBeCancelled()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bookings can only be cancelled at least 24 hours in advance'
+      });
+    }
+
+    const shouldRefund = Boolean(
+      !booking.isFree
+      && booking.paymentStatus === 'paid'
+      && booking.paymentId
+      && !['processed', 'pending'].includes(booking.refundStatus)
+    );
+
+    const cancelled = await Booking.findOneAndUpdate(
+      { _id: bookingId, user: userId, status: booking.status },
       {
         $set: {
           status: 'cancelled',
           cancelledAt: new Date(),
           cancellationReason: reason || 'User requested cancellation',
           cancelledBy: 'user',
-          refundStatus: 'pending'
+          refundStatus: shouldRefund ? 'pending' : (booking.refundStatus || null)
         }
       },
-      { new: false } // return the old document for refund processing
+      { new: true }
     );
 
-    if (!booking) {
-      const existing = await Booking.findById(bookingId).select('status').lean();
-      if (!existing) return res.status(404).json({ success: false, message: 'Booking not found' });
-      if (existing.status === 'cancelled') return res.status(400).json({ success: false, message: 'Booking is already cancelled' });
-      return res.status(400).json({ success: false, message: 'Cannot cancel this booking' });
+    if (!cancelled) {
+      return res.status(409).json({
+        success: false,
+        message: 'This booking changed while you were cancelling it. Please refresh and try again.'
+      });
     }
 
-    if (!booking.canBeCancelled()) {
-      // Revert the cancellation
-      await Booking.findByIdAndUpdate(bookingId, { $set: { status: booking.status, cancelledAt: null, cancellationReason: null, cancelledBy: null, refundStatus: null } });
-      return res.status(400).json({ success: false, message: 'Bookings can only be cancelled at least 24 hours in advance' });
-    }
+    let refundStatus = cancelled.refundStatus;
 
-    booking.status = 'cancelled';
-    booking.cancelledAt = Date.now();
-    booking.cancellationReason = reason || 'User requested cancellation';
-    booking.cancelledBy = 'user';
-
-    await booking.save();
-
-    // REFUND PROCESSING: If booking was paid, initiate refund
-    // Update refund status atomically with booking cancellation
-    if (!booking.isFree && booking.paymentStatus === 'paid' && booking.paymentId) {
+    if (shouldRefund) {
       try {
-        console.log(`💰 Processing refund for booking ${booking._id}, payment ${booking.paymentId}`);
+        // createRefund expects rupees and converts to paise internally.
         const refund = await createRefund(
-          booking.paymentId,
-          Math.round(booking.amount * 100), // Convert to paise
+          cancelled.paymentId,
+          cancelled.amount,
           {
-            booking_id: booking._id.toString(),
+            type: 'counseling',
+            bookingId: cancelled._id.toString(),
+            userId: userId.toString(),
             reason: reason || 'User cancellation',
             cancelled_by: 'user'
           }
         );
 
-        // Update with retry logic for idempotency
         await updateRefundStatusWithRetry(bookingId, {
           refundId: refund.id,
-          refundAmount: booking.amount,
+          refundAmount: cancelled.amount,
           refundStatus: 'processed',
-          refundProcessedAt: new Date()
+          refundProcessedAt: new Date(),
+          refundError: null,
+          paymentStatus: 'refunded'
         });
+        refundStatus = 'processed';
+
+        const { recordRefund } = await import('../../services/transaction.service.js');
+        recordRefund({ sourceId: cancelled._id.toString(), refundAmount: cancelled.amount }).catch((err) =>
+          console.error('Refund recording failed:', err.message)
+        );
+
         console.log(`✅ Refund processed: ${refund.id}`);
       } catch (refundError) {
         console.error('❌ Refund processing failed:', refundError.message);
+        refundStatus = 'failed';
         await updateRefundStatusWithRetry(bookingId, {
           refundStatus: 'failed',
           refundError: refundError.message
@@ -650,60 +817,41 @@ export const cancelBooking = async (req, res) => {
       }
     }
 
-    const { recordRefund } = await import('../../services/transaction.service.js');
-    recordRefund({ sourceId: booking._id.toString(), refundAmount: booking.amount }).catch(err =>
-      console.error('Refund recording failed:', err.message)
-    );
-
-    // NOTIFY WAITLISTED USERS: Slot is now available
-    const nextWaitlisted = await Booking.findOneAndUpdate(
-      {
-        counselorType: booking.counselorType,
-        bookingDate: booking.bookingDate,
-        bookingTime: booking.bookingTime,
-        status: 'pending',
-        waitlistRank: { $ne: null }
-      },
-      {
-        $set: { waitlistRank: null },
-        $unset: { waitlistRank: 1 }
-      },
-      { new: true, sort: { waitlistRank: 1 } }
-    );
-
-    if (nextWaitlisted) {
-      await sendNotification(nextWaitlisted.user, {
-        type: 'counseling_waitlist',
-        title: 'Slot Available! 🎉',
-        message: `A spot has opened up for ${booking.bookingTitle} on ${new Date(booking.bookingDate).toLocaleDateString()} at ${formatTime12h(booking.bookingTime)}. Complete your booking now!`,
-        icon: '📅',
-        priority: 'high',
-        relatedId: nextWaitlisted._id,
-        relatedType: 'booking'
-      });
+    // Free the slot and promote the next waitlisted user. A waitlisted booking
+    // never held the slot, so cancelling it must not promote anyone.
+    if (booking.status !== 'waitlisted') {
+      await releaseBookingSlot(cancelled);
     }
 
     // Send notification
     await sendNotification(userId, {
-      type: 'system',
+      type: 'counseling_cancelled',
       title: 'Booking Cancelled',
-      message: `Your counseling session scheduled for ${booking.bookingDate.toLocaleDateString()} has been cancelled`,
+      message: refundStatus === 'processed'
+        ? `Your counseling session was cancelled and ₹${cancelled.amount} has been refunded.`
+        : 'Your counseling session has been cancelled.',
       icon: '❌',
-      priority: 'medium'
-    });
+      priority: 'medium',
+      relatedId: cancelled._id,
+      relatedType: 'booking',
+      actionUrl: `/counseling-detail?bookingId=${cancelled._id}`
+    }).catch(() => {});
 
     // Send cancellation email
     try {
       const bookingUser = await User.findById(userId).select('email displayName');
-      if (bookingUser) sendBookingCancellationEmail(bookingUser, booking);
+      if (bookingUser) sendBookingCancellationEmail(bookingUser, cancelled);
     } catch (emailErr) {
       console.error('Booking cancellation email failed:', emailErr?.message || emailErr);
     }
 
     res.status(200).json({
       success: true,
-      message: 'Booking cancelled successfully',
-      data: { booking }
+      message: refundStatus === 'failed'
+        ? 'Booking cancelled, but the refund could not be processed automatically.'
+        : 'Booking cancelled successfully',
+      refundStatus,
+      data: { booking: { ...cancelled.toObject(), refundStatus }, refundStatus }
     });
   } catch (error) {
     console.error('Cancel Booking Error:', error);
@@ -745,26 +893,24 @@ export const requestReschedule = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Please complete payment before requesting a reschedule' });
     }
 
+    if (!booking.canBeRescheduled()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Bookings can only be rescheduled at least 48 hours in advance'
+      });
+    }
+
     const user = await User.findById(userId);
-
-    // Check if new slot is available
-    const conflict = await Booking.findOne({
-      _id: { $ne: bookingId },
-      counselorType: booking.counselorType,
-      bookingDate: new Date(newDate),
-      bookingTime: newTime,
-      status: { $in: ['pending', 'confirmed'] }
-    });
-
-    if (conflict) {
-      return res.status(409).json({ success: false, message: 'The requested time slot is already booked' });
+    const target = await validateRescheduleTarget(booking, newDate, newTime);
+    if (target.error) {
+      return res.status(target.conflict ? 409 : 400).json({ success: false, message: target.error });
     }
 
     booking.rescheduleRequest = {
       status: 'pending',
       requestedBy: 'user',
-      requestedNewDate: new Date(newDate),
-      requestedNewTime: newTime,
+      requestedNewDate: target.bookingDate,
+      requestedNewTime: target.time,
       reason: reason || 'User requested reschedule',
       respondedAt: null,
       responseNote: null
@@ -778,12 +924,12 @@ export const requestReschedule = async (req, res) => {
         await sendNotification(admin._id, {
           type: 'reschedule_request',
           title: 'Reschedule Request',
-          message: `User ${user?.displayName || 'A user'} requested to reschedule "${booking.bookingTitle}" from ${new Date(booking.bookingDate).toLocaleDateString()} ${formatTime12h(booking.bookingTime)} to ${new Date(newDate).toLocaleDateString()} ${formatTime12h(newTime)}`,
+          message: `User ${user?.displayName || 'A user'} requested to reschedule "${booking.bookingTitle}" from ${formatInZone(booking.bookingDate, booking.timezone)} ${formatTime12h(booking.bookingTime)} to ${formatInZone(target.bookingDate, booking.timezone)} ${formatTime12h(target.time)}`,
           icon: '📅',
           priority: 'high',
           relatedId: booking._id,
           relatedType: 'booking',
-          actionUrl: `/counseling/admin/${booking._id}`
+          actionUrl: `/counseling-detail?bookingId=${booking._id}`
         });
       }
     } catch (notifErr) {
@@ -827,59 +973,112 @@ export const respondToReschedule = async (req, res) => {
       return res.status(400).json({ success: false, message: 'This reschedule request is not from admin' });
     }
 
-    booking.rescheduleRequest.respondedAt = new Date();
-    booking.rescheduleRequest.responseNote = responseNote || null;
-
     if (action === 'approve') {
-      const oldDate = booking.bookingDate;
-      const oldTime = booking.bookingTime;
-      booking.rescheduledFrom = oldDate;
-      booking.bookingDate = booking.rescheduleRequest.requestedNewDate;
-      booking.bookingTime = booking.rescheduleRequest.requestedNewTime;
-      booking.rescheduledReason = responseNote || 'Admin proposed reschedule accepted by user';
-      booking.rescheduledBy = 'admin';
-      booking.rescheduleRequest.status = 'approved';
-      booking.status = 'confirmed';
+      const target = await validateRescheduleTarget(
+        booking,
+        booking.rescheduleRequest.requestedNewDate,
+        booking.rescheduleRequest.requestedNewTime
+      );
+      if (target.error) {
+        return res.status(target.conflict ? 409 : 400).json({
+          success: false,
+          message: target.error
+        });
+      }
 
-      await booking.save();
+      let moved;
+      try {
+        moved = await Booking.findOneAndUpdate(
+          {
+            _id: bookingId,
+            user: userId,
+            status: booking.status,
+            'rescheduleRequest.status': 'pending'
+          },
+          {
+            $set: {
+              bookingDate: target.bookingDate,
+              bookingTime: target.time,
+              rescheduledFrom: booking.bookingDate,
+              rescheduledReason: responseNote || 'Admin proposed reschedule accepted by user',
+              rescheduledBy: 'admin',
+              'rescheduleRequest.status': 'approved',
+              'rescheduleRequest.respondedAt': new Date(),
+              'rescheduleRequest.responseNote': responseNote || null,
+              reminder24SentAt: null,
+              reminder1SentAt: null,
+              reminderSent: false,
+              reminderSentAt: null,
+              paymentDueAt: null
+            }
+          },
+          { new: true }
+        );
+      } catch (moveError) {
+        if (moveError.code === 11000) {
+          return res.status(409).json({
+            success: false,
+            message: 'The requested time slot has just been taken. Please choose another time.'
+          });
+        }
+        throw moveError;
+      }
 
-      // Notify admins
+      if (!moved) {
+        return res.status(409).json({
+          success: false,
+          message: 'This reschedule request changed while you were responding. Please refresh.'
+        });
+      }
+
       await sendNotificationToAdmins({
         type: 'reschedule_approved',
         title: 'Reschedule Approved',
-        message: `User accepted the reschedule for "${booking.bookingTitle}". New time: ${new Date(booking.bookingDate).toLocaleDateString()} ${formatTime12h(booking.bookingTime)}`,
+        message: `User accepted the reschedule for "${moved.bookingTitle}". New time: ${formatInZone(moved.bookingDate, moved.timezone)} ${formatTime12h(moved.bookingTime)}`,
         icon: '✅',
         priority: 'high',
-        relatedId: booking._id,
+        relatedId: moved._id,
         relatedType: 'booking'
-      });
+      }).catch(() => {});
 
-      res.status(200).json({
+      return res.status(200).json({
         success: true,
         message: 'Reschedule approved. Your session has been moved.',
-        data: { booking }
-      });
-    } else {
-      booking.rescheduleRequest.status = 'denied';
-      await booking.save();
-
-      // Notify admins
-      await sendNotificationToAdmins({
-        type: 'reschedule_denied',
-        title: 'Reschedule Declined',
-        message: `User declined the reschedule for "${booking.bookingTitle}". Original time remains: ${new Date(booking.bookingDate).toLocaleDateString()} ${formatTime12h(booking.bookingTime)}`,
-        icon: '❌',
-        priority: 'medium',
-        relatedId: booking._id,
-        relatedType: 'booking'
-      });
-
-      res.status(200).json({
-        success: true,
-        message: 'Reschedule declined. Your original booking time is unchanged.',
-        data: { booking }
+        data: { booking: moved }
       });
     }
+
+    const denied = await Booking.findOneAndUpdate(
+      { _id: bookingId, user: userId, 'rescheduleRequest.status': 'pending' },
+      {
+        $set: {
+          'rescheduleRequest.status': 'denied',
+          'rescheduleRequest.respondedAt': new Date(),
+          'rescheduleRequest.responseNote': responseNote || null
+        }
+      },
+      { new: true }
+    );
+
+    if (!denied) {
+      return res.status(409).json({ success: false, message: 'No pending reschedule request to decline' });
+    }
+
+    await sendNotificationToAdmins({
+      type: 'reschedule_denied',
+      title: 'Reschedule Declined',
+      message: `User declined the reschedule for "${denied.bookingTitle}". Original time remains: ${formatInZone(denied.bookingDate, denied.timezone)} ${formatTime12h(denied.bookingTime)}`,
+      icon: '❌',
+      priority: 'medium',
+      relatedId: denied._id,
+      relatedType: 'booking'
+    }).catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      message: 'Reschedule declined. Your original booking time is unchanged.',
+      data: { booking: denied }
+    });
   } catch (error) {
     console.error('Respond to Reschedule Error:', error);
     res.status(500).json({ success: false, message: 'Failed to respond to reschedule', error: error.message });
@@ -909,13 +1108,6 @@ export const rescheduleBooking = async (req, res) => {
 
     if (!newDate || !newTime) {
       return res.status(400).json({ success: false, message: 'New date and time are required' });
-    }
-    const newDateUTC = new Date(newDate);
-    const nowUTC = new Date();
-    const newDateDayUTC = new Date(Date.UTC(newDateUTC.getUTCFullYear(), newDateUTC.getUTCMonth(), newDateUTC.getUTCDate()));
-    const todayUTC = new Date(Date.UTC(nowUTC.getUTCFullYear(), nowUTC.getUTCMonth(), nowUTC.getUTCDate()));
-    if (newDateDayUTC < todayUTC) {
-      return res.status(400).json({ success: false, message: 'New date must be today or in the future' });
     }
 
     const booking = await Booking.findOne({
@@ -947,50 +1139,64 @@ export const rescheduleBooking = async (req, res) => {
       });
     }
 
-    // Check if new slot is available
-    const existingBooking = await Booking.findOne({
-      bookingDate: new Date(newDate),
-      bookingTime: newTime,
-      counselorType: booking.counselorType,
-      status: { $in: ['pending', 'confirmed'] },
-      _id: { $ne: bookingId }
-    });
+    const target = await validateRescheduleTarget(booking, newDate, newTime);
+    if (target.error) {
+      return res.status(target.conflict ? 409 : 400).json({ success: false, message: target.error });
+    }
 
-    if (existingBooking) {
-      return res.status(400).json({
+    let updated;
+    try {
+      updated = await Booking.findOneAndUpdate(
+        { _id: bookingId, user: userId, status: booking.status },
+        {
+          $set: {
+            bookingDate: target.bookingDate,
+            bookingTime: target.time,
+            rescheduledFrom: booking.bookingDate,
+            rescheduledReason: sanitizeNotes(reason) || 'User requested reschedule',
+            rescheduledBy: 'user',
+            reminder24SentAt: null,
+            reminder1SentAt: null,
+            reminderSent: false,
+            reminderSentAt: null,
+            paymentDueAt: null
+          }
+        },
+        { new: true }
+      );
+    } catch (moveError) {
+      if (moveError.code === 11000) {
+        return res.status(409).json({
+          success: false,
+          message: 'The new time slot has just been taken. Please select another time.'
+        });
+      }
+      throw moveError;
+    }
+
+    if (!updated) {
+      return res.status(409).json({
         success: false,
-        message: 'The new time slot is already booked. Please select another time.'
+        message: 'This booking changed while you were rescheduling. Please refresh and try again.'
       });
     }
 
-    // Update booking
-    booking.rescheduledFrom = booking.bookingDate;
-    booking.bookingDate = new Date(newDate);
-    booking.bookingTime = newTime;
-    booking.rescheduledReason = sanitizeNotes(reason) || 'User requested reschedule';
-    booking.rescheduledBy = 'user';
-    // Only set to confirmed if already confirmed; preserve pending/awaiting_payment status
-    if (booking.status === 'confirmed') {
-      booking.status = 'confirmed';
-    }
-
-    await booking.save();
-
     // Send notification
     await sendNotification(userId, {
-      type: 'system',
+      type: 'counseling_rescheduled',
       title: 'Booking Rescheduled',
-      message: `Your counseling session has been rescheduled to ${new Date(newDate).toLocaleDateString()} at ${formatTime12h(newTime)}`,
+      message: `Your counseling session has been rescheduled to ${formatInZone(updated.bookingDate, updated.timezone)} at ${formatTime12h(updated.bookingTime)}`,
       icon: '📅',
       priority: 'high',
-      relatedId: booking._id,
-      relatedType: 'booking'
-    });
+      relatedId: updated._id,
+      relatedType: 'booking',
+      actionUrl: `/counseling-detail?bookingId=${updated._id}`
+    }).catch(() => {});
 
     res.status(200).json({
       success: true,
       message: 'Booking rescheduled successfully',
-      data: { booking }
+      data: { booking: updated }
     });
   } catch (error) {
     console.error('Reschedule Booking Error:', error);
@@ -1041,8 +1247,8 @@ export const updatePaymentStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Razorpay payment details required' });
     }
 
-    // Bind payment to this booking
-    if (booking.razorpayOrderId && booking.razorpayOrderId !== razorpay_order_id) {
+    // Bind payment to this booking. The order must have been created for it.
+    if (!booking.razorpayOrderId || booking.razorpayOrderId !== razorpay_order_id) {
       return res.status(400).json({ success: false, message: 'Payment does not belong to this booking' });
     }
 
@@ -1064,7 +1270,7 @@ export const updatePaymentStatus = async (req, res) => {
         if (paymentDetails.order_id !== razorpay_order_id) {
           return res.status(400).json({ success: false, message: 'Payment order mismatch' });
         }
-        if (Number(paymentDetails.amount) !== Number(booking.amount * 100)) {
+        if (Number(paymentDetails.amount) !== Math.round(Number(booking.amount) * 100)) {
           return res.status(400).json({ success: false, message: 'Payment amount mismatch' });
         }
       }
@@ -1082,41 +1288,68 @@ export const updatePaymentStatus = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Payment already used for another booking' });
     }
 
-    booking.paymentId = razorpay_payment_id;
-    booking.razorpayOrderId = razorpay_order_id;
-    booking.paymentMethod = 'razorpay';
-    booking.paymentStatus = 'paid';
-    booking.status = 'confirmed';
-    booking.paidAt = new Date();
-    await booking.save();
+    // Atomic confirmation — a retry cannot confirm twice or resurrect a cancelled booking.
+    const confirmed = await Booking.findOneAndUpdate(
+      { _id: bookingId, user: userId, status: 'pending', paymentStatus: { $ne: 'paid' } },
+      {
+        $set: {
+          paymentId: razorpay_payment_id,
+          razorpayOrderId: razorpay_order_id,
+          paymentMethod: 'razorpay',
+          paymentStatus: 'paid',
+          status: 'confirmed',
+          paidAt: new Date(),
+          paymentDueAt: null
+        }
+      },
+      { new: true }
+    );
+
+    if (!confirmed) {
+      const latest = await Booking.findById(bookingId);
+      if (latest?.status === 'confirmed' && latest.paymentStatus === 'paid') {
+        return res.status(200).json({
+          success: true,
+          message: 'Booking already confirmed',
+          data: { booking: latest }
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: latest?.status === 'cancelled'
+          ? 'This booking has been cancelled and cannot be activated'
+          : 'This booking is not awaiting payment'
+      });
+    }
 
     await applyPurchaseDiscount({
       referenceType: 'counseling',
-      referenceId: booking._id,
+      referenceId: confirmed._id,
     });
 
     recordTransaction({
-      userId: booking.user,
+      userId: confirmed.user,
       source: 'counseling',
-      sourceId: booking._id.toString(),
-      amount: booking.amount || 0,
+      sourceId: confirmed._id.toString(),
+      amount: confirmed.amount || 0,
       provider: 'razorpay',
-      providerRef: booking.paymentId,
-      metadata: { paymentId: booking.paymentId },
+      providerRef: confirmed.paymentId,
+      metadata: { paymentId: confirmed.paymentId },
     }).catch(err => console.error('Transaction recording failed:', err.message));
 
     await sendNotification(userId, {
-      type: 'system',
+      type: 'counseling_booked',
       title: 'Payment Confirmed',
-      message: `Payment of ₹${booking.amount} received. Your counseling session is confirmed for ${booking.bookingDate.toLocaleDateString()}`,
+      message: `Payment of ₹${confirmed.amount} received. Your counseling session is confirmed for ${formatInZone(confirmed.bookingDate, confirmed.timezone)} at ${formatTime12h(confirmed.bookingTime)}`,
       icon: '✅',
       priority: 'high',
-      relatedId: booking._id,
-      relatedType: 'booking'
-    });
+      relatedId: confirmed._id,
+      relatedType: 'booking',
+      actionUrl: `/counseling-detail?bookingId=${confirmed._id}`
+    }).catch(() => {});
 
     try {
-      await sendCounselingBookingEmail(req.user, booking);
+      await sendCounselingBookingEmail(req.user, confirmed);
     } catch (emailErr) {
       console.error('Counseling booking email failed:', emailErr?.message || emailErr);
     }
@@ -1124,7 +1357,7 @@ export const updatePaymentStatus = async (req, res) => {
     res.status(200).json({
       success: true,
       message: 'Payment status updated successfully',
-      data: { booking }
+      data: { booking: confirmed }
     });
   } catch (error) {
     console.error('Update Payment Status Error:', error);
@@ -1145,7 +1378,8 @@ export const submitFeedback = async (req, res) => {
     const { bookingId } = req.params;
     const { rating, feedback } = req.body;
 
-    if (!rating || rating < 1 || rating > 5) {
+    const numericRating = Number(rating);
+    if (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 5) {
       return res.status(400).json({
         success: false,
         message: 'Valid rating (1-5) is required'
@@ -1179,7 +1413,7 @@ export const submitFeedback = async (req, res) => {
       });
     }
 
-    booking.userRating = rating;
+    booking.userRating = numericRating;
     booking.userFeedback = feedback || '';
     booking.feedbackSubmittedAt = Date.now();
 

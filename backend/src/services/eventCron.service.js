@@ -1,49 +1,92 @@
 import cron from 'node-cron';
 import { EventRegistration } from '../models/eventRegistration.models.js';
 import { Event } from '../models/event.models.js';
+import { cancelRegistrationWithSideEffects } from './eventRegistration.service.js';
 
 const DEFAULT_SCHEDULE = '0 * * * *';
+const DEFAULT_TIMEOUT_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * Cancel pending registrations whose payment never completed, release their
+ * seats, and revert any coupon/offer ledger entries.
+ */
+export const expireAbandonedRegistrations = async ({ olderThanMs = DEFAULT_TIMEOUT_MS } = {}) => {
+  const cutoff = new Date(Date.now() - olderThanMs);
+
+  const pending = await EventRegistration.find({
+    status: 'pending',
+    updatedAt: { $lt: cutoff },
+  });
+
+  let cancelled = 0;
+
+  for (const registration of pending) {
+    try {
+      const result = await cancelRegistrationWithSideEffects(registration, {
+        cancelledBy: 'system',
+        reason: 'Automatically cancelled due to payment timeout',
+        refund: false,
+      });
+      if (registration.status === 'cancelled') {
+        cancelled += 1;
+      }
+      if (result.seatReleased) {
+        console.log(`[CRON] Released seat for abandoned registration ${registration._id}`);
+      }
+    } catch (error) {
+      console.error(`[CRON] Failed to expire registration ${registration._id}:`, error.message);
+    }
+  }
+
+  if (cancelled > 0) {
+    console.log(`🧹 Cron: Cancelled ${cancelled} abandoned pending event registrations.`);
+  }
+
+  return { cancelled };
+};
+
+/**
+ * Keep Event.status in sync with the clock (cancelled events are never touched).
+ */
+export const refreshEventStatuses = async () => {
+  const now = new Date();
+
+  const [pastResult, upcomingResult, ongoingResult] = await Promise.all([
+    Event.updateMany(
+      { status: { $ne: 'cancelled' }, endTime: { $ne: null, $lt: now } },
+      { $set: { status: 'past' } }
+    ),
+    Event.updateMany(
+      { status: { $ne: 'cancelled' }, startTime: { $gt: now } },
+      { $set: { status: 'upcoming' } }
+    ),
+    Event.updateMany(
+      {
+        status: { $ne: 'cancelled' },
+        startTime: { $lte: now },
+        $or: [{ endTime: null }, { endTime: { $gte: now } }],
+      },
+      { $set: { status: 'ongoing' } }
+    ),
+  ]);
+
+  return {
+    past: pastResult.modifiedCount,
+    upcoming: upcomingResult.modifiedCount,
+    ongoing: ongoingResult.modifiedCount,
+  };
+};
 
 export const setupEventCrons = () => {
-  // Run every hour to clean up pending registrations older than 2 hours
   const job = cron.schedule(process.env.EVENT_CRON_SCHEDULE || DEFAULT_SCHEDULE, async () => {
     try {
-      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
-
-      // Find pending registrations that will be cancelled
-      const pending = await EventRegistration.find({
-        status: 'pending',
-        registeredAt: { $lt: twoHoursAgo }
-      }).select('eventId');
-
-      if (pending.length === 0) return;
-
-      const result = await EventRegistration.updateMany({
-        _id: { $in: pending.map(r => r._id) },
-        status: 'pending',
-        registeredAt: { $lt: twoHoursAgo }
-      }, {
-        $set: { status: 'cancelled', notes: 'Automatically marked cancelled due to payment timeout' }
-      });
-
-      if (result.modifiedCount > 0) {
-        console.log(`🧹 Cron: Cancelled ${result.modifiedCount} abandoned pending event registrations.`);
-
-        // Release reserved seats per event
-        const eventCounts = {};
-        for (const reg of pending) {
-          const eid = reg.eventId.toString();
-          eventCounts[eid] = (eventCounts[eid] || 0) + 1;
-        }
-        for (const [eventId, count] of Object.entries(eventCounts)) {
-          await Event.findByIdAndUpdate(eventId, { $inc: { reservedSeats: -count } });
-        }
-        console.log(`🧹 Cron: Released reserved seats for ${Object.keys(eventCounts).length} event(s).`);
-      }
+      await expireAbandonedRegistrations();
+      await refreshEventStatuses();
     } catch (error) {
       console.error('❌ Cron Error in Event Cleanup:', error);
     }
   });
 
+  console.log('[CRON] Event cleanup and status refresh scheduled');
   return job;
 };

@@ -21,6 +21,7 @@ const sendReminder = async (registration, event, hoursUntil) => {
     message,
     relatedId: event._id,
     relatedType: 'event',
+    actionUrl: `/event-detail?eventId=${event._id}`,
     icon: event.emoji || '📅',
   });
 
@@ -31,6 +32,7 @@ const sendReminder = async (registration, event, hoursUntil) => {
       type: 'event_reminder',
       relatedId: String(event._id),
       relatedType: 'event',
+      actionUrl: `/event-detail?eventId=${event._id}`,
       eventId: String(event._id),
     },
   });
@@ -71,28 +73,47 @@ export const sendEventReminders = async () => {
     if (hoursUntil <= 0) continue;
 
     if (hoursUntil <= 1 && !registration.reminder1SentAt) {
+      // Claim atomically before sending so overlapping runs cannot double-send.
+      const claimed = await EventRegistration.findOneAndUpdate(
+        { _id: registration._id, reminder1SentAt: null },
+        { $set: { reminder1SentAt: new Date() } },
+        { new: true }
+      );
+      if (!claimed) continue;
+
       try {
         await sendReminder(registration, event, hoursUntil);
         await EventRegistration.updateOne(
           { _id: registration._id },
-          { $set: { reminder1SentAt: new Date(), reminder24SentAt: registration.reminder24SentAt || new Date() } }
+          { $set: { reminder24SentAt: claimed.reminder24SentAt || new Date() } }
         );
         sent += 1;
       } catch (error) {
+        await EventRegistration.updateOne(
+          { _id: registration._id },
+          { $set: { reminder1SentAt: null } }
+        );
         console.error('Event 1h reminder failed:', error?.message);
       }
       continue;
     }
 
     if (hoursUntil <= 24 && !registration.reminder24SentAt) {
+      const claimed = await EventRegistration.findOneAndUpdate(
+        { _id: registration._id, reminder24SentAt: null },
+        { $set: { reminder24SentAt: new Date() } },
+        { new: true }
+      );
+      if (!claimed) continue;
+
       try {
         await sendReminder(registration, event, hoursUntil);
-        await EventRegistration.updateOne(
-          { _id: registration._id },
-          { $set: { reminder24SentAt: new Date() } }
-        );
         sent += 1;
       } catch (error) {
+        await EventRegistration.updateOne(
+          { _id: registration._id },
+          { $set: { reminder24SentAt: null } }
+        );
         console.error('Event 24h reminder failed:', error?.message);
       }
     }

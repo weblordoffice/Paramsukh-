@@ -175,6 +175,12 @@ const evaluateCommunityAchievements = (userId) => {
     .catch((error) => console.error('Community badge evaluation failed:', error?.message));
 };
 
+const rejectBlockedUser = (res) => res.status(403).json({
+  success: false,
+  code: 'POSTING_BLOCKED',
+  message: "You have been blocked from posting in the community by an administrator."
+});
+
 const notifyCommunityUser = async ({
   userId,
   type,
@@ -1045,11 +1051,7 @@ export const createPost = async (req, res) => {
     }
 
     if (req.user?.communityPostingBlocked) {
-      return res.status(403).json({
-        success: false,
-        code: 'POSTING_BLOCKED',
-        message: "You have been blocked from posting in the community by an administrator."
-      });
+      return rejectBlockedUser(res);
     }
 
     if (!content || content.trim().length === 0) {
@@ -1184,6 +1186,10 @@ export const togglePostLike = async (req, res) => {
     const userId = req.user._id;
     const { postId } = req.params;
 
+    if (req.user?.communityPostingBlocked) {
+      return rejectBlockedUser(res);
+    }
+
     const post = await Post.findById(postId);
     if (!post) {
       return res.status(404).json({
@@ -1257,6 +1263,10 @@ export const togglePostVote = async (req, res) => {
   try {
     const userId = req.user._id;
     const { postId } = req.params;
+
+    if (req.user?.communityPostingBlocked) {
+      return rejectBlockedUser(res);
+    }
 
     const post = await Post.findById(postId);
     if (!post) {
@@ -1550,6 +1560,10 @@ export const addComment = async (req, res) => {
     const { postId } = req.params;
     const { content, parentCommentId } = req.body;
 
+    if (req.user?.communityPostingBlocked) {
+      return rejectBlockedUser(res);
+    }
+
     if (!content || content.trim().length === 0) {
       return res.status(400).json({
         success: false,
@@ -1689,6 +1703,10 @@ export const toggleCommentLike = async (req, res) => {
   try {
     const userId = req.user._id;
     const { commentId } = req.params;
+
+    if (req.user?.communityPostingBlocked) {
+      return rejectBlockedUser(res);
+    }
 
     const comment = await Comment.findById(commentId);
     if (!comment) {

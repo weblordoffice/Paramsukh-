@@ -2,7 +2,7 @@ import cron from 'node-cron';
 import Booking from '../models/booking.models.js';
 import { sendNotification } from '../controller/notifications/notifications.controller.js';
 import { cleanupExpiredBookings, autoCompletePastBookings } from '../services/bookingCleanup.service.js';
-import { formatTime12h } from '../utils/dateTime.js';
+import { formatInZone, zonedDateTimeToUtc } from '../utils/timezone.js';
 
 // Configurable reminder thresholds (in hours before booking)
 const DEFAULT_REMINDER_THRESHOLDS = [24, 1];
@@ -17,39 +17,64 @@ const getReminderThresholds = () => {
  * Send booking reminders at configured intervals
  * Cron: Every 30 minutes
  */
-const sendBookingReminders = async () => {
-  const thresholdsHours = getReminderThresholds();
+export const sendBookingReminders = async () => {
+  const thresholdsHours = getReminderThresholds()
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0);
 
-  for (const hours of thresholdsHours) {
-    const now = new Date();
-    const targetTime = new Date(now.getTime() + hours * 60 * 60 * 1000);
-    const windowStart = new Date(targetTime.getTime() - 15 * 60 * 1000); // 15 min window
-    const windowEnd = new Date(targetTime.getTime() + 15 * 60 * 1000);
+  const now = new Date();
+  const nowMs = now.getTime();
+  const HOUR_MS = 60 * 60 * 1000;
 
-    const bookings = await Booking.find({
-      status: 'confirmed',
-      reminderSentAt: { $exists: false },
-      bookingDate: {
-        $gte: windowStart,
-        $lte: windowEnd
-      }
-    }).select('_id user bookingTitle bookingDate bookingTime reminderSentAt');
+  // Fetch a 3-day window, then compute the exact slot instant per booking.
+  const candidates = await Booking.find({
+    status: 'confirmed',
+    bookingDate: {
+      $gte: new Date(nowMs - 24 * HOUR_MS),
+      $lte: new Date(nowMs + 48 * HOUR_MS),
+    },
+    $or: [
+      { reminder24SentAt: null },
+      { reminder1SentAt: null },
+    ],
+  }).select('_id user bookingTitle bookingDate bookingTime timezone reminder24SentAt reminder1SentAt');
 
-    for (const booking of bookings) {
+  for (const booking of candidates) {
+    const slotAt = zonedDateTimeToUtc(booking.bookingDate, booking.bookingTime, booking.timezone || 'Asia/Kolkata');
+    if (!slotAt) continue;
+
+    const hoursUntil = (slotAt.getTime() - nowMs) / HOUR_MS;
+    if (hoursUntil <= 0) continue;
+
+    for (const hours of thresholdsHours.sort((a, b) => a - b)) {
+      // 1-hour delivery window per threshold.
+      if (hoursUntil > hours || hoursUntil <= hours - 1) continue;
+
+      const field = hours === 1 ? 'reminder1SentAt' : (hours === 24 ? 'reminder24SentAt' : 'reminderSentAt');
+      if (booking[field]) continue;
+
+      const claimed = await Booking.findOneAndUpdate(
+        { _id: booking._id, [field]: null },
+        { $set: { [field]: new Date() } },
+        { new: true }
+      );
+      if (!claimed) continue;
+
       try {
         await sendNotification(booking.user, {
           type: 'counseling_reminder',
           title: `Reminder: ${hours}h until your session`,
-          message: `Your ${booking.bookingTitle} session is in ${hours} hour(s) at ${formatTime12h(booking.bookingTime)}`,
+          message: `Your ${booking.bookingTitle} session is in ${hours} hour(s) at ${formatInZone(slotAt, booking.timezone || 'Asia/Kolkata')}.`,
           icon: '⏰',
           priority: hours <= 1 ? 'high' : 'medium',
           relatedId: booking._id,
-          relatedType: 'booking'
+          relatedType: 'booking',
+          actionUrl: `/counseling-detail?bookingId=${booking._id}`
         });
 
-        booking.reminderSentAt = new Date();
-        await booking.save();
+        booking[field] = new Date();
       } catch (error) {
+        await Booking.updateOne({ _id: booking._id }, { $set: { [field]: null } });
         console.error(`Failed to send reminder for booking ${booking._id}:`, error.message);
       }
     }

@@ -19,6 +19,12 @@ const eventRegistrationSchema = new mongoose.Schema({
     sparse: true,
     unique: true
   },
+  // True while this registration holds one seat in Event.reservedSeats.
+  seatReserved: {
+    type: Boolean,
+    default: false,
+    index: true
+  },
   
   // Registration status
   registeredAt: {
@@ -88,6 +94,11 @@ const eventRegistrationSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  paymentLinkAmount: {
+    type: Number,
+    default: null,
+    min: 0
+  },
   paidAt: {
     type: Date,
     default: null
@@ -122,6 +133,44 @@ const eventRegistrationSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  // Cancellation
+  cancelledAt: {
+    type: Date,
+    default: null
+  },
+  cancelledBy: {
+    type: String,
+    enum: ['user', 'admin', 'system', null],
+    default: null
+  },
+  cancellationReason: {
+    type: String,
+    trim: true,
+    default: null
+  },
+  // Refunds
+  refundId: {
+    type: String,
+    default: null
+  },
+  refundAmount: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  refundStatus: {
+    type: String,
+    enum: ['pending', 'processed', 'failed', null],
+    default: null
+  },
+  refundProcessedAt: {
+    type: Date,
+    default: null
+  },
+  refundError: {
+    type: String,
+    default: null
+  },
   // Reminder tracking (set by the event reminder cron)
   reminder24SentAt: {
     type: Date,
@@ -140,11 +189,39 @@ eventRegistrationSchema.index({ userId: 1, eventId: 1 }, { unique: true });
 eventRegistrationSchema.index({ eventId: 1, status: 1 });
 eventRegistrationSchema.index({ userId: 1, status: 1 });
 eventRegistrationSchema.index({ registeredAt: -1 });
+eventRegistrationSchema.index({ status: 1, updatedAt: 1 });
+
+const generateTicketId = () => {
+  const unique = crypto.randomBytes(6).toString('hex').toUpperCase().slice(0, 8);
+  return `EVT-${unique}`;
+};
+
+eventRegistrationSchema.statics.generateTicketId = generateTicketId;
+
+/**
+ * Generate a ticket id for registrations confirmed through an atomic
+ * findOneAndUpdate (webhook / payment-link paths) where pre('save') never runs.
+ */
+eventRegistrationSchema.statics.ensureTicketId = async function(registration) {
+  if (!registration || registration.ticketId || registration.status !== 'confirmed') {
+    return registration;
+  }
+  const ticketId = generateTicketId();
+  const updated = await this.findOneAndUpdate(
+    { _id: registration._id, ticketId: null },
+    { $set: { ticketId } },
+    { new: true }
+  );
+  if (updated) {
+    registration.ticketId = updated.ticketId;
+    return updated;
+  }
+  return registration;
+};
 
 eventRegistrationSchema.pre('save', function(next) {
   if (this.status === 'confirmed' && !this.ticketId) {
-    const unique = crypto.randomBytes(6).toString('hex').toUpperCase().slice(0, 8);
-    this.ticketId = `EVT-${unique}`;
+    this.ticketId = generateTicketId();
   }
   next();
 });

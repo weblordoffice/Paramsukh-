@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { Search, Plus, Edit, Trash2, Calendar as CalendarIcon, MapPin, Users, DollarSign, FolderOpen } from 'lucide-react';
+import { Search, Plus, Edit, Trash2, Calendar as CalendarIcon, MapPin, Users, DollarSign, FolderOpen, Ban } from 'lucide-react';
 import EventModal from './EventModal';
 import { formatTime12h } from '@/lib/dateTime';
+import { useAuthStore } from '@/lib/store/authStore';
 
 interface Event {
     _id: string;
@@ -38,6 +39,8 @@ interface Event {
 
 export default function EventsPage() {
     const router = useRouter();
+    const user = useAuthStore((state) => state.user);
+    const hasPermission = useAuthStore((state) => state.hasPermission);
     const [events, setEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -46,15 +49,35 @@ export default function EventsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
     const [deleting, setDeleting] = useState<string | null>(null);
+    const [cancelling, setCancelling] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (user && !hasPermission('manage_events')) {
+            toast.error('You do not have permission to manage events');
+            router.replace('/dashboard');
+        }
+    }, [user, hasPermission, router]);
 
     const fetchEvents = useCallback(async () => {
+        setLoading(true);
         try {
-            const params: any = {};
+            const params: any = { includeCancelled: 'true', limit: 100 };
             if (filterStatus !== 'all') params.status = filterStatus;
             if (filterCategory !== 'all') params.category = filterCategory;
-            
-            const response = await apiClient.get('/api/events/all', { params });
-            setEvents(response.data.events || []);
+
+            // Fetch every page so client-side search covers all events.
+            const collected: Event[] = [];
+            let page = 1;
+            let hasNextPage = true;
+            while (hasNextPage && page <= 20) {
+                const response = await apiClient.get('/api/events/all', {
+                    params: { ...params, page }
+                });
+                collected.push(...(response.data.events || []));
+                hasNextPage = Boolean(response.data.pagination?.hasNextPage);
+                page += 1;
+            }
+            setEvents(collected);
         } catch (error: any) {
             // Only show error for server errors, not for empty data
             if (error.response?.status !== 404) {
@@ -78,9 +101,37 @@ export default function EventsPage() {
         setIsModalOpen(true);
     };
 
-    const handleEdit = (event: Event) => {
-        setSelectedEvent(event);
+    const handleEdit = async (event: Event) => {
+        try {
+            // Load the complete event (including the meeting link) so the edit
+            // form cannot overwrite fields missing from the list payload.
+            const response = await apiClient.get(`/api/events/admin/${event._id}`);
+            setSelectedEvent(response.data.event);
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to load event');
+            return;
+        }
         setIsModalOpen(true);
+    };
+
+    const handleCancelEvent = async (event: Event) => {
+        if (!confirm(`Cancel "${event.title}"? Paid registrations will be refunded automatically.`)) {
+            return;
+        }
+        setCancelling(event._id);
+        try {
+            const response = await apiClient.patch(`/api/events/${event._id}/cancel`);
+            const refundedCount = response.data?.refundedCount || 0;
+            const refundFailedCount = response.data?.refundFailedCount || 0;
+            toast.success(
+                `Event cancelled. ${refundedCount} refund(s) processed${refundFailedCount ? `, ${refundFailedCount} failed` : ''}.`
+            );
+            fetchEvents();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to cancel event');
+        } finally {
+            setCancelling(null);
+        }
     };
 
     const handleDelete = async (eventId: string) => {
@@ -308,6 +359,20 @@ export default function EventsPage() {
                                     >
                                         <Edit className="w-4 h-4" />
                                     </button>
+                                    {event.status !== 'cancelled' && (
+                                        <button
+                                            onClick={() => handleCancelEvent(event)}
+                                            disabled={cancelling === event._id}
+                                            className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition disabled:opacity-50"
+                                            title="Cancel event and refund paid registrations"
+                                        >
+                                            {cancelling === event._id ? (
+                                                <div className="w-4 h-4 border-2 border-orange-600 border-t-transparent rounded-full animate-spin" />
+                                            ) : (
+                                                <Ban className="w-4 h-4" />
+                                            )}
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => handleDelete(event._id)}
                                         disabled={deleting === event._id}

@@ -1,17 +1,38 @@
+import mongoose from 'mongoose';
 import Booking from '../../models/booking.models.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { cleanupExpiredBookings, autoCompletePastBookings } from '../../services/bookingCleanup.service.js';
+import { releaseBookingSlot, revertDiscountForBooking, validateRescheduleTarget } from '../../services/counselingBooking.service.js';
+import { createRefund } from '../../services/razorpayService.js';
+import { recordRefund } from '../../services/transaction.service.js';
 import { formatTime12h } from '../../utils/dateTime.js';
+import { formatInZone, startOfUtcDay } from '../../utils/timezone.js';
+
+const VALID_BOOKING_STATUSES = ['pending', 'confirmed', 'completed', 'cancelled', 'no_show', 'waitlisted', 'rescheduled'];
+const ALLOWED_TRANSITIONS = {
+  pending: ['confirmed', 'cancelled', 'no_show'],
+  confirmed: ['completed', 'cancelled', 'no_show'],
+  waitlisted: ['cancelled'],
+  rescheduled: ['confirmed', 'cancelled'],
+};
 
 // @desc    Get all bookings (Admin only)
 // @route   GET /api/counseling/all
 // @access  Admin
 export const getAllBookings = async (req, res) => {
     try {
-        const { page = 1, limit = 20, status, search } = req.query;
+        const { page = 1, limit = 20, status, search, date } = req.query;
+        const pageNum = Math.max(1, parseInt(page) || 1);
+        const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 20));
 
         const query = {};
-        if (status) query.status = status;
+        if (status && VALID_BOOKING_STATUSES.includes(status)) query.status = status;
+        if (date) {
+            const dayStart = startOfUtcDay(date);
+            if (dayStart) {
+                query.bookingDate = { $gte: dayStart, $lt: new Date(dayStart.getTime() + 24 * 60 * 60 * 1000) };
+            }
+        }
 
         if (search) {
             const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -26,8 +47,8 @@ export const getAllBookings = async (req, res) => {
         const bookings = await Booking.find(query)
             .populate('user', 'displayName email phone')
             .sort({ bookingDate: -1 })
-            .limit(limit * 1)
-            .skip((page - 1) * limit)
+            .limit(limitNum)
+            .skip((pageNum - 1) * limitNum)
             .lean();
 
         const total = await Booking.countDocuments(query);
@@ -37,9 +58,10 @@ export const getAllBookings = async (req, res) => {
             data: {
                 bookings,
                 pagination: {
-                    currentPage: parseInt(page),
-                    totalPages: Math.ceil(total / limit),
-                    totalItems: total
+                    currentPage: pageNum,
+                    totalPages: Math.ceil(total / limitNum),
+                    totalItems: total,
+                    limit: limitNum
                 }
             }
         });
@@ -103,6 +125,23 @@ export const updateBookingStatusAdmin = async (req, res) => {
 
         const oldStatus = booking.status;
 
+        if (!VALID_BOOKING_STATUSES.includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: `Invalid status. Must be one of: ${VALID_BOOKING_STATUSES.join(', ')}`
+            });
+        }
+
+        if (status !== oldStatus) {
+            const allowed = ALLOWED_TRANSITIONS[oldStatus] || [];
+            if (!allowed.includes(status)) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Cannot change a ${oldStatus} booking to ${status}`
+                });
+            }
+        }
+
         // Prevent reactivating cancelled bookings to confirmed if slot was re-booked
         if (status === 'confirmed' && oldStatus === 'cancelled') {
             const existingConfirmed = await Booking.findOne({
@@ -120,8 +159,6 @@ export const updateBookingStatusAdmin = async (req, res) => {
             }
         }
 
-        booking.status = status;
-
         // MEETING LINK VALIDATION: Require meeting link before marking as completed
         if (status === 'completed' && !booking.isFree) {
           if (!booking.meetingLink && !booking.meetingId) {
@@ -132,17 +169,29 @@ export const updateBookingStatusAdmin = async (req, res) => {
           }
         }
 
-        if (status === 'cancelled') {
-            booking.cancelledAt = Date.now();
+        booking.status = status;
+
+        let refundStatus = booking.refundStatus || null;
+
+        if (status === 'cancelled' && oldStatus !== 'cancelled') {
+            booking.cancelledAt = new Date();
             booking.cancellationReason = reason || 'Cancelled by admin';
             booking.cancelledBy = 'admin';
 
-            // Process refund for paid bookings
-            if (!booking.isFree && booking.paymentStatus === 'paid' && booking.paymentId) {
+            const shouldRefund = Boolean(
+                !booking.isFree
+                && booking.paymentStatus === 'paid'
+                && booking.paymentId
+                && !['processed', 'pending'].includes(booking.refundStatus)
+            );
+
+            if (shouldRefund) {
+                booking.refundStatus = 'pending';
                 try {
-                    const { createRefund } = await import('../../services/razorpayService.js');
-                    const refund = await createRefund(booking.paymentId, Math.round(booking.amount * 100), {
-                        booking_id: booking._id.toString(),
+                    const refund = await createRefund(booking.paymentId, booking.amount, {
+                        type: 'counseling',
+                        bookingId: booking._id.toString(),
+                        userId: booking.user.toString(),
                         reason: reason || 'Admin cancellation',
                         cancelled_by: 'admin'
                     });
@@ -150,35 +199,51 @@ export const updateBookingStatusAdmin = async (req, res) => {
                     booking.refundAmount = booking.amount;
                     booking.refundStatus = 'processed';
                     booking.refundProcessedAt = new Date();
+                    booking.refundError = null;
+                    booking.paymentStatus = 'refunded';
+                    refundStatus = 'processed';
+                    recordRefund({ sourceId: booking._id.toString(), refundAmount: booking.amount }).catch(() => {});
                 } catch (refundError) {
                     console.error('Admin refund failed:', refundError.message);
                     booking.refundStatus = 'failed';
                     booking.refundError = refundError.message;
+                    refundStatus = 'failed';
                 }
             }
         } else if (status === 'completed') {
-            booking.completedAt = Date.now();
+            booking.completedAt = new Date();
         }
 
         await booking.save();
 
+        // Free the slot and promote the next waitlisted user after a cancellation.
+        if (status === 'cancelled' && oldStatus !== 'cancelled') {
+            if (oldStatus !== 'waitlisted') {
+                await releaseBookingSlot(booking);
+            }
+            await revertDiscountForBooking(booking);
+        }
+
         // Notify user if status changed
         if (oldStatus !== status) {
             await sendNotification(booking.user, {
-                type: 'counseling_booked',
+                type: status === 'cancelled' ? 'counseling_cancelled' : 'counseling_booked',
                 title: `Booking ${status.charAt(0).toUpperCase() + status.slice(1)}`,
-                message: `Your counseling session on ${new Date(booking.bookingDate).toLocaleDateString()} is now ${status}`,
+                message: status === 'cancelled' && refundStatus === 'processed'
+                    ? `Your counseling session was cancelled and ₹${booking.amount} has been refunded.`
+                    : `Your counseling session on ${formatInZone(booking.bookingDate, booking.timezone)} is now ${status}`,
                 icon: '📅',
                 priority: 'medium',
                 relatedId: booking._id,
-                relatedType: 'booking'
-            });
+                relatedType: 'booking',
+                actionUrl: `/counseling-detail?bookingId=${booking._id}`
+            }).catch(() => {});
         }
 
         res.status(200).json({
             success: true,
             message: `Booking status updated to ${status}`,
-            data: { booking }
+            data: { booking, refundStatus }
         });
     } catch (error) {
         console.error('Update Booking Status Admin Error:', error);
@@ -359,24 +424,16 @@ export const requestRescheduleAdmin = async (req, res) => {
             return res.status(400).json({ success: false, message: 'A reschedule request is already pending for this booking' });
         }
 
-        // Check if new slot conflicts
-        const conflict = await Booking.findOne({
-            _id: { $ne: id },
-            counselorType: booking.counselorType,
-            bookingDate: new Date(newDate),
-            bookingTime: newTime,
-            status: { $in: ['pending', 'confirmed'] }
-        });
-
-        if (conflict) {
-            return res.status(409).json({ success: false, message: 'The new time slot is already booked. Please select a different time.' });
+        const target = await validateRescheduleTarget(booking, newDate, newTime);
+        if (target.error) {
+            return res.status(target.conflict ? 409 : 400).json({ success: false, message: target.error });
         }
 
         booking.rescheduleRequest = {
             status: 'pending',
             requestedBy: 'admin',
-            requestedNewDate: new Date(newDate),
-            requestedNewTime: newTime,
+            requestedNewDate: target.bookingDate,
+            requestedNewTime: target.time,
             reason: reason || 'Admin proposed a new time',
             respondedAt: null,
             responseNote: null
@@ -387,13 +444,13 @@ export const requestRescheduleAdmin = async (req, res) => {
         await sendNotification(booking.user, {
             type: 'reschedule_request',
             title: 'Reschedule Request',
-            message: `Admin has proposed rescheduling your session "${booking.bookingTitle}" from ${new Date(booking.bookingDate).toLocaleDateString()} ${formatTime12h(booking.bookingTime)} to ${new Date(newDate).toLocaleDateString()} ${formatTime12h(newTime)}. Please review and accept or decline.`,
+            message: `Admin has proposed rescheduling your session "${booking.bookingTitle}" from ${formatInZone(booking.bookingDate, booking.timezone)} ${formatTime12h(booking.bookingTime)} to ${formatInZone(target.bookingDate, booking.timezone)} ${formatTime12h(target.time)}. Please review and accept or decline.`,
             icon: '📅',
             priority: 'high',
             relatedId: booking._id,
             relatedType: 'booking',
             actionUrl: `/counseling-detail?bookingId=${booking._id}`
-        });
+        }).catch(() => {});
 
         res.status(200).json({
             success: true,
@@ -431,60 +488,183 @@ export const respondRescheduleAdmin = async (req, res) => {
             return res.status(400).json({ success: false, message: 'This request was not initiated by a user' });
         }
 
-        booking.rescheduleRequest.respondedAt = new Date();
-        booking.rescheduleRequest.responseNote = responseNote || null;
-
         if (action === 'approve') {
-            const oldDate = booking.bookingDate;
-            const oldTime = booking.bookingTime;
-            booking.rescheduledFrom = oldDate;
-            booking.bookingDate = booking.rescheduleRequest.requestedNewDate;
-            booking.bookingTime = booking.rescheduleRequest.requestedNewTime;
-            booking.rescheduledReason = responseNote || 'Admin approved user reschedule request';
-            booking.rescheduledBy = 'admin';
-            booking.rescheduleRequest.status = 'approved';
-
-            await booking.save();
-
-            try {
-                await sendNotification(booking.user, {
-                    type: 'reschedule_approved',
-                    title: 'Reschedule Approved',
-                    message: `Your reschedule request for "${booking.bookingTitle}" has been approved. New time: ${new Date(booking.bookingDate).toLocaleDateString()} ${formatTime12h(booking.bookingTime)}`,
-                    icon: '✅',
-                    priority: 'high',
-                    relatedId: booking._id,
-                    relatedType: 'booking',
-                    actionUrl: `/counseling-detail?bookingId=${booking._id}`
-                });
-            } catch (notifErr) {
-                console.error('Failed to send reschedule approved notification:', notifErr?.message || notifErr);
+            const target = await validateRescheduleTarget(
+                booking,
+                booking.rescheduleRequest.requestedNewDate,
+                booking.rescheduleRequest.requestedNewTime
+            );
+            if (target.error) {
+                return res.status(target.conflict ? 409 : 400).json({ success: false, message: target.error });
             }
 
-            res.status(200).json({ success: true, message: 'Reschedule approved. User has been notified.', data: { booking } });
-        } else {
-            booking.rescheduleRequest.status = 'denied';
-            await booking.save();
-
+            let moved;
             try {
-                await sendNotification(booking.user, {
-                    type: 'reschedule_denied',
-                    title: 'Reschedule Declined',
-                    message: `Your reschedule request for "${booking.bookingTitle}" was declined. Your original booking time remains: ${new Date(booking.bookingDate).toLocaleDateString()} ${formatTime12h(booking.bookingTime)}`,
-                    icon: '❌',
-                    priority: 'medium',
-                    relatedId: booking._id,
-                    relatedType: 'booking'
-                });
-            } catch (notifErr) {
-                console.error('Failed to send reschedule denied notification:', notifErr?.message || notifErr);
+                moved = await Booking.findOneAndUpdate(
+                    { _id: id, status: booking.status, 'rescheduleRequest.status': 'pending' },
+                    {
+                        $set: {
+                            bookingDate: target.bookingDate,
+                            bookingTime: target.time,
+                            rescheduledFrom: booking.bookingDate,
+                            rescheduledReason: responseNote || 'Admin approved user reschedule request',
+                            rescheduledBy: 'admin',
+                            'rescheduleRequest.status': 'approved',
+                            'rescheduleRequest.respondedAt': new Date(),
+                            'rescheduleRequest.responseNote': responseNote || null,
+                            reminder24SentAt: null,
+                            reminder1SentAt: null,
+                            reminderSent: false,
+                            reminderSentAt: null,
+                            paymentDueAt: null
+                        }
+                    },
+                    { new: true }
+                );
+            } catch (moveError) {
+                if (moveError.code === 11000) {
+                    return res.status(409).json({
+                        success: false,
+                        message: 'The requested time slot has just been taken. The request remains pending.'
+                    });
+                }
+                throw moveError;
             }
 
-            res.status(200).json({ success: true, message: 'Reschedule denied. User has been notified.', data: { booking } });
+            if (!moved) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'This reschedule request changed while you were responding. Please refresh.'
+                });
+            }
+
+            await sendNotification(moved.user, {
+                type: 'reschedule_approved',
+                title: 'Reschedule Approved',
+                message: `Your reschedule request for "${moved.bookingTitle}" has been approved. New time: ${formatInZone(moved.bookingDate, moved.timezone)} ${formatTime12h(moved.bookingTime)}`,
+                icon: '✅',
+                priority: 'high',
+                relatedId: moved._id,
+                relatedType: 'booking',
+                actionUrl: `/counseling-detail?bookingId=${moved._id}`
+            }).catch(() => {});
+
+            return res.status(200).json({ success: true, message: 'Reschedule approved. User has been notified.', data: { booking: moved } });
         }
+
+        const denied = await Booking.findOneAndUpdate(
+            { _id: id, 'rescheduleRequest.status': 'pending' },
+            {
+                $set: {
+                    'rescheduleRequest.status': 'denied',
+                    'rescheduleRequest.respondedAt': new Date(),
+                    'rescheduleRequest.responseNote': responseNote || null
+                }
+            },
+            { new: true }
+        );
+
+        if (!denied) {
+            return res.status(409).json({ success: false, message: 'No pending reschedule request to deny' });
+        }
+
+        await sendNotification(denied.user, {
+            type: 'reschedule_denied',
+            title: 'Reschedule Declined',
+            message: `Your reschedule request for "${denied.bookingTitle}" was declined. Your original booking time remains: ${formatInZone(denied.bookingDate, denied.timezone)} ${formatTime12h(denied.bookingTime)}`,
+            icon: '❌',
+            priority: 'medium',
+            relatedId: denied._id,
+            relatedType: 'booking'
+        }).catch(() => {});
+
+        return res.status(200).json({ success: true, message: 'Reschedule denied. User has been notified.', data: { booking: denied } });
     } catch (error) {
         console.error('Admin Respond Reschedule Error:', error);
         res.status(500).json({ success: false, message: 'Failed to respond to reschedule request', error: error.message });
+    }
+};
+
+// @desc    Refund a paid booking (Admin, idempotent)
+// @route   POST /api/counseling/admin/:id/refund
+// @access  Admin
+export const refundBookingAdmin = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { reason } = req.body;
+
+        const booking = await Booking.findById(id);
+        if (!booking) {
+            return res.status(404).json({ success: false, message: 'Booking not found' });
+        }
+
+        if (booking.refundStatus === 'processed') {
+            return res.status(200).json({
+                success: true,
+                message: 'Booking is already refunded',
+                data: { booking }
+            });
+        }
+
+        if (booking.isFree || booking.paymentStatus !== 'paid' || !booking.paymentId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Only paid bookings can be refunded'
+            });
+        }
+
+        try {
+            const refund = await createRefund(booking.paymentId, booking.amount, {
+                type: 'counseling',
+                bookingId: booking._id.toString(),
+                userId: booking.user.toString(),
+                reason: reason || 'Refunded by admin',
+            });
+
+            booking.refundId = refund.id;
+            booking.refundAmount = booking.amount;
+            booking.refundStatus = 'processed';
+            booking.refundProcessedAt = new Date();
+            booking.refundError = null;
+            booking.paymentStatus = 'refunded';
+            await booking.save();
+
+            recordRefund({ sourceId: booking._id.toString(), refundAmount: booking.amount }).catch(() => {});
+
+            await sendNotification(booking.user, {
+                type: 'system',
+                title: 'Refund Processed',
+                message: `Your refund of ₹${booking.amount} has been processed.`,
+                icon: '💰',
+                priority: 'high',
+                relatedId: booking._id,
+                relatedType: 'booking',
+                actionUrl: `/counseling-detail?bookingId=${booking._id}`
+            }).catch(() => {});
+
+            return res.status(200).json({
+                success: true,
+                message: 'Refund processed',
+                data: { booking, refundStatus: 'processed' }
+            });
+        } catch (refundError) {
+            booking.refundStatus = 'failed';
+            booking.refundError = refundError.message;
+            await booking.save();
+            return res.status(502).json({
+                success: false,
+                message: 'Refund failed',
+                error: refundError.message,
+                data: { booking }
+            });
+        }
+    } catch (error) {
+        console.error('Admin Refund Booking Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to refund booking',
+            error: error.message
+        });
     }
 };
 
@@ -497,7 +677,7 @@ export const getPendingRescheduleRequests = async (req, res) => {
             'rescheduleRequest.status': 'pending'
         })
             .populate('user', 'displayName email phone')
-            .sort({ 'rescheduleRequest.updatedAt': -1 })
+            .sort({ bookingDate: 1, bookingTime: 1 })
             .lean();
 
         res.status(200).json({
@@ -519,6 +699,13 @@ export const getPendingRescheduleRequests = async (req, res) => {
 // @access  Admin
 export const wipeCounselingData = async (req, res) => {
     try {
+        if (req.body?.confirm !== 'WIPE') {
+            return res.status(400).json({
+                success: false,
+                message: 'Send { "confirm": "WIPE" } to confirm this destructive action'
+            });
+        }
+
         const { default: CounselingService } = await import('../../models/counselingService.model.js');
         const { default: CounselorAvailabilityException } = await import('../../models/counselorAvailabilityException.model.js');
 
@@ -527,6 +714,8 @@ export const wipeCounselingData = async (req, res) => {
             CounselingService.deleteMany({}),
             CounselorAvailabilityException.deleteMany({})
         ]);
+
+        console.log(`⚠️ Counseling data wiped by admin ${req.admin?._id || 'unknown'}`);
 
         res.status(200).json({
             success: true,

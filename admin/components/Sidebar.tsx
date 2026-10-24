@@ -67,6 +67,7 @@ const menuItems: MenuItem[] = [
     { icon: ClipboardList, label: 'Bookings', href: '/dashboard/bookings', permission: 'manage_content' },
     { icon: MessageSquare, label: 'Community', href: '/dashboard/community', permission: 'manage_community' },
     { icon: MessageSquare, label: 'Counseling', href: '/dashboard/counseling', permission: 'manage_content' },
+    { icon: Calendar, label: 'Counseling Ops', href: '/dashboard/counseling-management', permission: 'manage_content' },
     { icon: Headphones, label: 'Support', href: '/dashboard/support', permission: 'manage_content' },
     { icon: Bell, label: 'Notifications', href: '/dashboard/notifications', permission: 'manage_content' },
     { icon: Brain, label: 'AI Recommendations', href: '/dashboard/ai-recommendations', superAdminOnly: true },

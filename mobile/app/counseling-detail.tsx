@@ -7,6 +7,21 @@ import { Calendar } from 'react-native-calendars';
 import { useCounselingStore } from '../store/counselingStore';
 import { useTheme } from '../hooks/useTheme';
 import { formatTime12h } from '../utils/dateTime';
+import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../utils/paymentBrowser';
+
+const dateOnlyToLocal = (value?: string) => {
+  if (!value) return null;
+  const key = String(value).slice(0, 10);
+  const [year, month, day] = key.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+};
+
+const formatBookingDate = (value?: string, options?: Intl.DateTimeFormatOptions) => {
+  const date = dateOnlyToLocal(value);
+  if (!date) return '—';
+  return date.toLocaleDateString('en-IN', options || { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+};
 
 export default function CounselingDetailScreen() {
   const { colors } = useTheme();
@@ -78,10 +93,12 @@ export default function CounselingDetailScreen() {
   });
     const router = useRouter();
     const { bookingId } = useLocalSearchParams();
-    const { fetchBookingDetails, cancelBooking, rescheduleBooking, requestReschedule, respondToReschedule, submitFeedback, isLoading } = useCounselingStore();
+    const { fetchBookingDetails, cancelBooking, rescheduleBooking, requestReschedule, respondToReschedule, submitFeedback, createBookingPaymentLink, confirmBookingPaymentLink, isLoading } = useCounselingStore();
 
     const [booking, setBooking] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [paying, setPaying] = useState(false);
+    const [rescheduleError, setRescheduleError] = useState<string | null>(null);
     const [showFeedback, setShowFeedback] = useState(false);
     const [feedbackRating, setFeedbackRating] = useState(0);
     const [feedbackComment, setFeedbackComment] = useState('');
@@ -91,7 +108,11 @@ export default function CounselingDetailScreen() {
     const [rescheduleSlots, setRescheduleSlots] = useState<string[]>([]);
     const [rescheduleReason, setRescheduleReason] = useState('');
     const [fetchingSlots, setFetchingSlots] = useState(false);
-    const today = new Date().toISOString().split('T')[0];
+    const today = (() => {
+        const now = new Date();
+        const pad = (value: number) => String(value).padStart(2, '0');
+        return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    })();
 
     const refreshBooking = async () => {
         if (!bookingId) return;
@@ -100,7 +121,11 @@ export default function CounselingDetailScreen() {
     };
 
     useEffect(() => {
-        if (!bookingId) return;
+        if (!bookingId) {
+            setLoading(false);
+            setBooking(null);
+            return;
+        }
         (async () => {
             setLoading(true);
             const data = await fetchBookingDetails(bookingId as string);
@@ -126,12 +151,14 @@ export default function CounselingDetailScreen() {
         if (!rescheduleDate || !booking?.counselorType) return;
         (async () => {
             setFetchingSlots(true);
+            setRescheduleError(null);
             try {
                 const { checkAvailability } = useCounselingStore.getState();
                 const slots = await checkAvailability(rescheduleDate, booking.counselorType);
                 setRescheduleSlots(slots);
-            } catch {
+            } catch (error: any) {
                 setRescheduleSlots([]);
+                setRescheduleError(error?.message || 'Failed to load slots');
             } finally {
                 setFetchingSlots(false);
             }
@@ -147,15 +174,77 @@ export default function CounselingDetailScreen() {
 
     const canCancelOrReschedule = () => {
         if (!booking) return false;
-        if (booking.status === 'cancelled' || booking.status === 'completed') return false;
+        if (['cancelled', 'completed', 'no_show'].includes(booking.status)) return false;
         if (booking.rescheduleRequest?.status === 'pending') return false;
         return true;
     };
 
+    const canReschedule = () => canCancelOrReschedule() && booking?.status !== 'waitlisted';
+
+    const getJoinState = () => {
+        if (!booking) return { open: false, message: '' };
+        if (!['confirmed', 'completed'].includes(booking.status)) {
+            return { open: false, message: 'The meeting link becomes available once your booking is confirmed.' };
+        }
+        const date = dateOnlyToLocal(booking.bookingDate);
+        if (!date) return { open: false, message: '' };
+        const [hours, minutes] = String(booking.bookingTime || '00:00').split(':').map(Number);
+        const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours || 0, minutes || 0);
+        const end = new Date(start.getTime() + (Number(booking.duration) || 60) * 60 * 1000);
+        const now = new Date();
+        if (now < new Date(start.getTime() - 15 * 60 * 1000)) {
+            return { open: false, message: 'The meeting link opens 15 minutes before the session starts.' };
+        }
+        if (now > new Date(end.getTime() + 30 * 60 * 1000)) {
+            return { open: false, message: 'This session has ended.' };
+        }
+        return { open: true, message: '' };
+    };
+
+    const handleRetryPayment = async () => {
+        if (!booking || paying) return;
+        setPaying(true);
+        try {
+            const linkResult = await createBookingPaymentLink(booking._id);
+            if (!linkResult.success || !linkResult.url || !linkResult.paymentLinkId) {
+                Alert.alert('Payment Error', linkResult.message || 'Could not start payment.');
+                return;
+            }
+            await savePendingPaymentLink({
+                type: 'counseling',
+                id: booking._id,
+                paymentLinkId: linkResult.paymentLinkId,
+                url: linkResult.url,
+                expiresAt: linkResult.expiresAt,
+            });
+
+            const openResult = await openPaymentLink({
+                url: linkResult.url,
+                confirm: () => confirmBookingPaymentLink(linkResult.paymentLinkId!, booking._id),
+            });
+
+            if (openResult.success) {
+                await clearPendingPaymentLinks('counseling', booking._id, linkResult.paymentLinkId);
+                await refreshBooking();
+                Alert.alert('Payment Confirmed', 'Your session is confirmed.');
+            } else {
+                Alert.alert(
+                    'Payment Pending',
+                    openResult.result?.message || 'We have not received the payment yet. If you paid, your booking will confirm shortly.'
+                );
+            }
+        } finally {
+            setPaying(false);
+        }
+    };
+
     const handleCancel = () => {
+        const isConfirmed = booking.status === 'confirmed';
         Alert.alert(
             'Cancel Booking',
-            'Are you sure you want to cancel this booking? This action cannot be undone.',
+            isConfirmed
+                ? 'Cancellations are free up to 24 hours before the session. Later cancellations are not refundable. Cancel this booking?'
+                : 'Cancel this booking?',
             [
                 { text: 'No, Keep It', style: 'cancel' },
                 {
@@ -164,7 +253,12 @@ export default function CounselingDetailScreen() {
                     onPress: async () => {
                         const result = await cancelBooking(booking._id || bookingId as string, 'User requested cancellation');
                         if (result.success) {
-                            Alert.alert('Cancelled', 'Your booking has been cancelled.', [
+                            const refundNote = result.refundStatus === 'processed'
+                                ? ' Your refund has been processed.'
+                                : result.refundStatus === 'failed'
+                                    ? ' The refund could not be processed automatically; support will follow up.'
+                                    : '';
+                            Alert.alert('Cancelled', `Your booking has been cancelled.${refundNote}`, [
                                 { text: 'OK', onPress: () => router.back() }
                             ]);
                         } else {
@@ -261,6 +355,22 @@ export default function CounselingDetailScreen() {
         }
     };
 
+    const statusBadgeStyle = () => {
+        if (booking?.status === 'confirmed' || booking?.status === 'completed') return { backgroundColor: '#DCFCE7' };
+        if (booking?.status === 'pending' || booking?.status === 'waitlisted') return { backgroundColor: '#FEF3C7' };
+        if (booking?.status === 'cancelled' || booking?.status === 'no_show') return { backgroundColor: '#FEE2E2' };
+        return { backgroundColor: colors.surfaceSecondary };
+    };
+
+    const statusTextStyle = () => {
+        if (booking?.status === 'cancelled' || booking?.status === 'no_show') return { color: '#B91C1C' };
+        if (booking?.status === 'pending' || booking?.status === 'waitlisted') return { color: '#92400E' };
+        if (booking?.status === 'confirmed' || booking?.status === 'completed') return { color: '#166534' };
+        return { color: colors.text };
+    };
+
+    const joinState = getJoinState();
+
     if (loading) {
         return (
             <SafeAreaView style={styles.container}>
@@ -311,8 +421,8 @@ export default function CounselingDetailScreen() {
                 <View style={styles.card}>
                     <View style={styles.statusRow}>
                         <Text style={styles.sessionTitle}>{booking.bookingTitle || 'Counseling Session'}</Text>
-                        <View style={[styles.statusBadge, booking.status === 'confirmed' ? styles.statusConfirmed : styles.statusPending]}>
-                            <Text style={styles.statusText}>{String(booking.status || 'pending').toUpperCase()}</Text>
+                        <View style={[styles.statusBadge, statusBadgeStyle()]}>
+                            <Text style={[styles.statusText, statusTextStyle()]}>{String(booking.status || 'pending').toUpperCase()}</Text>
                         </View>
                     </View>
                     <Text style={styles.counselorText}>with {booking.counselorName || 'Expert Counselor'}</Text>
@@ -320,12 +430,15 @@ export default function CounselingDetailScreen() {
                     <View style={styles.infoRow}>
                         <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
                         <Text style={styles.infoText}>
-                            {new Date(booking.bookingDate).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                            {formatBookingDate(booking.bookingDate)}
                         </Text>
                     </View>
                     <View style={styles.infoRow}>
                         <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-                        <Text style={styles.infoText}>{formatTime12h(booking.bookingTime)}{booking.duration ? ` · ${booking.duration} mins` : ''}</Text>
+                        <Text style={styles.infoText}>
+                            {formatTime12h(booking.bookingTime)}
+                            {booking.duration ? ` · ${booking.duration} min` : ''}
+                        </Text>
                     </View>
                     {booking.amount > 0 && (
                         <View style={styles.infoRow}>
@@ -335,11 +448,49 @@ export default function CounselingDetailScreen() {
                     )}
                 </View>
 
+                {booking.status === 'waitlisted' && (
+                    <View style={styles.pendingBanner}>
+                        <Text style={styles.pendingBannerTitle}>You&apos;re on the waitlist</Text>
+                        <Text style={styles.pendingBannerText}>
+                            Position #{booking.waitlistRank || 1}. We&apos;ll notify you as soon as a spot opens up.
+                        </Text>
+                    </View>
+                )}
+
+                {booking.status === 'pending' && !booking.isFree && (
+                    <View style={styles.pendingBanner}>
+                        <Text style={styles.pendingBannerTitle}>Payment pending</Text>
+                        <Text style={styles.pendingBannerText}>
+                            Your slot is held until payment is completed. Complete payment to confirm your session.
+                        </Text>
+                        <TouchableOpacity
+                            style={[styles.feedbackButton, { marginTop: 8, opacity: paying ? 0.7 : 1 }]}
+                            onPress={handleRetryPayment}
+                            disabled={paying}
+                        >
+                            {paying ? <ActivityIndicator size="small" color={colors.surface} /> : <Ionicons name="card-outline" size={18} color={colors.surface} />}
+                            <Text style={styles.feedbackButtonText}>{paying ? 'Opening payment...' : 'Complete Payment'}</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+
                 {/* Meeting / Join section */}
                 <View style={styles.card}>
                     <Text style={styles.sectionTitle}>Join Your Session</Text>
 
-                    {booking.meetingLink ? (
+                    {!joinState.open ? (
+                        <View style={styles.waitingCard}>
+                            <Ionicons name="time-outline" size={32} color="#F59E0B" />
+                            <Text style={styles.waitingTitle}>
+                                {booking.status === 'cancelled' ? 'Session cancelled' : 'Meeting not available yet'}
+                            </Text>
+                            <Text style={styles.waitingText}>
+                                {booking.status === 'cancelled'
+                                    ? 'This booking was cancelled, so the meeting link is no longer available.'
+                                    : joinState.message || 'Your counselor will add the video call link before your session.'}
+                            </Text>
+                        </View>
+                    ) : booking.meetingLink ? (
                         <>
                             <View style={styles.platformRow}>
                                 <Ionicons name="videocam" size={18} color="#F1842D" />
@@ -460,10 +611,12 @@ export default function CounselingDetailScreen() {
                             <Ionicons name="close-circle-outline" size={18} color="#DC2626" />
                             <Text style={styles.cancelButtonText}>Cancel</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.rescheduleButton} onPress={handleReschedule} disabled={isLoading}>
-                            <Ionicons name="calendar-outline" size={18} color="#D97706" />
-                            <Text style={styles.rescheduleButtonText}>Request Reschedule</Text>
-                        </TouchableOpacity>
+                        {canReschedule() && (
+                            <TouchableOpacity style={styles.rescheduleButton} onPress={handleReschedule} disabled={isLoading}>
+                                <Ionicons name="calendar-outline" size={18} color="#D97706" />
+                                <Text style={styles.rescheduleButtonText}>Request Reschedule</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 )}
 
@@ -475,7 +628,7 @@ export default function CounselingDetailScreen() {
                             <Text style={[styles.pendingBannerTitle, styles.pendingBannerAdminTitle]}>Admin proposes new time</Text>
                         </View>
                         <Text style={[styles.pendingBannerText, styles.pendingBannerAdminText]}>
-                            New: {new Date(booking.rescheduleRequest.requestedNewDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} at {formatTime12h(booking.rescheduleRequest.requestedNewTime)}
+                            New: {formatBookingDate(booking.rescheduleRequest.requestedNewDate, { weekday: 'short', day: 'numeric', month: 'short' })} at {formatTime12h(booking.rescheduleRequest.requestedNewTime)}
                             {booking.rescheduleRequest.reason ? `\nReason: ${booking.rescheduleRequest.reason}` : ''}
                         </Text>
                         <View style={styles.actionRow}>
@@ -498,7 +651,7 @@ export default function CounselingDetailScreen() {
                             <View style={styles.pendingTag}><Text style={styles.pendingTagText}>Awaiting Admin</Text></View>
                         </View>
                         <Text style={styles.pendingBannerText}>
-                            Requested: {new Date(booking.rescheduleRequest.requestedNewDate).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} at {formatTime12h(booking.rescheduleRequest.requestedNewTime)}
+                            Requested: {formatBookingDate(booking.rescheduleRequest.requestedNewDate, { weekday: 'short', day: 'numeric', month: 'short' })} at {formatTime12h(booking.rescheduleRequest.requestedNewTime)}
                         </Text>
                     </View>
                 )}
@@ -539,8 +692,10 @@ export default function CounselingDetailScreen() {
                                 <Text style={{ fontSize: 14, fontWeight: '600', color: colors.text, marginBottom: 8 }}>Select New Time</Text>
                                 {fetchingSlots ? (
                                     <ActivityIndicator size="small" color="#F1842D" style={{ marginVertical: 12 }} />
+                                ) : rescheduleError ? (
+                                    <Text style={{ fontSize: 13, color: '#B91C1C', marginBottom: 12 }}>{rescheduleError}</Text>
                                 ) : rescheduleSlots.length === 0 ? (
-                                    <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>No slots available on this date.</Text>
+                                    <Text style={{ fontSize: 13, color: colors.textSecondary, marginBottom: 12 }}>No slots available on this date. Try another day.</Text>
                                 ) : (
                                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
                                         {rescheduleSlots.map((time) => (

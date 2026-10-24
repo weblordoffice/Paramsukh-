@@ -1,7 +1,10 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api/client';
+import { toDateInput } from '@/lib/dateTime';
+import { useAuthStore } from '@/lib/store/authStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,11 +40,22 @@ interface Exception {
 }
 
 export default function CounselingManagementPage() {
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const hasPermission = useAuthStore((state) => state.hasPermission);
   const [cleanupLoading, setCleanupLoading] = useState(false);
   const [completeLoading, setCompleteLoading] = useState(false);
+  const [submittingException, setSubmittingException] = useState(false);
   const [exceptions, setExceptions] = useState<Exception[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    if (user && !hasPermission('manage_content')) {
+      toast.error('You do not have permission to manage counseling');
+      router.replace('/dashboard');
+    }
+  }, [user, hasPermission, router]);
   
   const [formData, setFormData] = useState({
     serviceId: '',
@@ -57,34 +71,36 @@ export default function CounselingManagementPage() {
 
   const fetchExceptions = async () => {
     try {
-      const response = await apiClient.get('/counseling/admin/availability-exceptions', {
+      const response = await apiClient.get('/api/counseling/admin/availability-exceptions', {
         params: { upcoming: true }
       });
       const data = response.data;
       if (data.success) {
         setExceptions(data.data.exceptions);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch exceptions:', error);
+      toast.error(error?.response?.data?.message || 'Failed to load availability exceptions');
     }
   };
 
   const fetchServices = async () => {
     try {
-      const response = await apiClient.get('/counseling/admin/services');
+      const response = await apiClient.get('/api/counseling/admin/services');
       const data = response.data;
       if (data.success) {
         setServices(data.data.services);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch services:', error);
+      toast.error(error?.response?.data?.message || 'Failed to load services');
     }
   };
 
   const handleCleanupExpired = async () => {
     setCleanupLoading(true);
     try {
-      const response = await apiClient.post('/counseling/admin/cleanup-expired');
+      const response = await apiClient.post('/api/counseling/admin/cleanup-expired');
       const data = response.data;
       if (data.success) {
         toast.success(`Cleaned up ${data.data.cleaned} expired bookings`);
@@ -101,7 +117,7 @@ export default function CounselingManagementPage() {
   const handleAutoComplete = async () => {
     setCompleteLoading(true);
     try {
-      const response = await apiClient.post('/counseling/admin/auto-complete');
+      const response = await apiClient.post('/api/counseling/admin/auto-complete');
       const data = response.data;
       if (data.success) {
         toast.success(`Auto-completed ${data.data.completed} bookings`);
@@ -117,8 +133,21 @@ export default function CounselingManagementPage() {
 
   const handleSubmitException = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.serviceId) {
+      toast.error('Select a service');
+      return;
+    }
+    if (!formData.unavailableDate) {
+      toast.error('Select a date');
+      return;
+    }
+    if (formData.unavailableDate < toDateInput(new Date())) {
+      toast.error('Cannot block a past date');
+      return;
+    }
+    setSubmittingException(true);
     try {
-      const response = await apiClient.post('/counseling/admin/availability-exceptions', formData);
+      const response = await apiClient.post('/api/counseling/admin/availability-exceptions', formData);
       const data = response.data;
       if (data.success) {
         toast.success('Availability exception created');
@@ -129,14 +158,16 @@ export default function CounselingManagementPage() {
         toast.error(data.message || 'Failed to create exception');
       }
     } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to create exception');
+      toast.error(error?.response?.data?.message || 'Failed to create exception');
+    } finally {
+      setSubmittingException(false);
     }
   };
 
   const handleDeleteException = async (id: string) => {
     if (!confirm('Delete this availability exception?')) return;
     try {
-      const response = await apiClient.delete(`/counseling/admin/availability-exceptions/${id}`);
+      const response = await apiClient.delete(`/api/counseling/admin/availability-exceptions/${id}`);
       const data = response.data;
       if (data.success) {
         toast.success('Exception deleted');
@@ -309,7 +340,9 @@ export default function CounselingManagementPage() {
                 />
               </div>
               <div className="flex gap-2">
-                <Button type="submit">Create Exception</Button>
+                <Button type="submit" disabled={submittingException}>
+                  {submittingException ? 'Creating...' : 'Create Exception'}
+                </Button>
                 <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
                   Cancel
                 </Button>
@@ -334,12 +367,7 @@ export default function CounselingManagementPage() {
                     <div>
                       <p className="font-medium">{exception.serviceId?.title || 'Unknown Service'}</p>
                       <p className="text-sm text-gray-500">
-                        {new Date(exception.unavailableDate).toLocaleDateString('en-US', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
+                        {toDateInput(exception.unavailableDate)}
                       </p>
                     </div>
                     {getReasonBadge(exception.reason)}

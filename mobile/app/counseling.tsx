@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator, Linking, RefreshControl } from 'react-native';
+import { ScrollView, Text, TouchableOpacity, View, ActivityIndicator, Linking, RefreshControl, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,6 +18,24 @@ const getStatusColor = (status: string) => {
     case 'no_show': return { bg: 'bg-gray-100', text: 'text-gray-700', label: 'No Show' };
     default: return { bg: 'bg-gray-100', text: 'text-gray-700', label: status || 'Unknown' };
   }
+};
+
+const formatBookingDate = (value?: string, options?: Intl.DateTimeFormatOptions) => {
+  if (!value) return '—';
+  const [year, month, day] = String(value).slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return '—';
+  return new Date(year, month - 1, day).toLocaleDateString('en-IN', options || { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+const canJoinNow = (booking: UserBooking) => {
+  if (booking.status !== 'confirmed' || !booking.meetingLink) return false;
+  const [year, month, day] = String(booking.bookingDate).slice(0, 10).split('-').map(Number);
+  if (!year || !month || !day) return false;
+  const [hours, minutes] = String(booking.bookingTime || '00:00').split(':').map(Number);
+  const start = new Date(year, month - 1, day, hours || 0, minutes || 0);
+  const end = new Date(start.getTime() + (Number(booking.duration) || 60) * 60 * 1000);
+  const now = new Date();
+  return now >= new Date(start.getTime() - 15 * 60 * 1000) && now <= new Date(end.getTime() + 30 * 60 * 1000);
 };
 
 function BookingCard({ booking, onPress, onJoin }: { booking: UserBooking; onPress: () => void; onJoin?: () => void }) {
@@ -58,7 +76,7 @@ function BookingCard({ booking, onPress, onJoin }: { booking: UserBooking; onPre
         <View className="flex-row items-center gap-1">
           <Ionicons name="calendar-outline" size={12} color={colors.textSecondary} />
           <Text className="text-xs" style={{ color: colors.textSecondary }}>
-            {new Date(booking.bookingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+            {formatBookingDate(booking.bookingDate)}
           </Text>
         </View>
         <View className="flex-row items-center gap-1">
@@ -72,7 +90,7 @@ function BookingCard({ booking, onPress, onJoin }: { booking: UserBooking; onPre
         </View>
       </View>
 
-      {booking.meetingLink && booking.status === 'confirmed' && (
+      {canJoinNow(booking) && (
         <TouchableOpacity
           onPress={onJoin}
           className="mt-2 flex-row items-center justify-center gap-1.5 py-2 rounded-xl"
@@ -94,7 +112,7 @@ export default function CounselingScreen() {
   const [isBookingsLoading, setIsBookingsLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  const { counselingTypes, fetchCounselingTypes, fetchMyBookings, isLoading } = useCounselingStore();
+  const { counselingTypes, fetchCounselingTypes, fetchMyBookings, isLoading, error, errorBookings } = useCounselingStore();
 
   const isMountedRef = useRef(true);
 
@@ -106,7 +124,6 @@ export default function CounselingScreen() {
 
   const loadBookings = useCallback(async () => {
     const bookings = await fetchMyBookings();
-    console.log('[DEBUG] bookings returned:', JSON.stringify(bookings));
     if (isMountedRef.current) {
       setAllBookings(bookings);
     }
@@ -158,7 +175,9 @@ export default function CounselingScreen() {
   };
 
   const handleJoin = (meetingLink: string) => {
-    Linking.openURL(meetingLink).catch(() => {});
+    Linking.openURL(meetingLink).catch(() => {
+      Alert.alert('Error', 'Could not open the meeting link.');
+    });
   };
 
   return (
@@ -203,6 +222,16 @@ export default function CounselingScreen() {
                 <ActivityIndicator size="small" color="#F1842D" />
                 <Text className="font-medium" style={{ color: colors.textSecondary }}>Loading your bookings...</Text>
               </View>
+            ) : errorBookings ? (
+              <TouchableOpacity
+                onPress={loadBookings}
+                className="rounded-2xl p-5 shadow-sm border items-center"
+                style={{ backgroundColor: colors.surface, borderColor: '#FCA5A5' }}
+              >
+                <Ionicons name="alert-circle-outline" size={28} color="#DC2626" />
+                <Text className="text-sm mt-2 text-center" style={{ color: '#B91C1C' }}>{errorBookings}</Text>
+                <Text className="text-xs mt-1" style={{ color: colors.textSecondary }}>Tap to retry</Text>
+              </TouchableOpacity>
             ) : allBookings.length === 0 ? (
               <View className="rounded-2xl p-6 shadow-sm border items-center" style={{ backgroundColor: colors.surface, borderColor: colors.border }}>
                 <Ionicons name="calendar-outline" size={32} color={colors.textSecondary} />
@@ -249,6 +278,14 @@ export default function CounselingScreen() {
             <View className="py-10 items-center">
               <ActivityIndicator size="large" color="#F1842D" />
               <Text className="mt-4 font-medium" style={{ color: colors.textSecondary }}>Loading services...</Text>
+            </View>
+          ) : error && counselingTypes.length === 0 ? (
+            <View className="rounded-2xl p-5 mb-8 shadow-sm border items-center" style={{ backgroundColor: colors.surface, borderColor: '#FCA5A5' }}>
+              <Ionicons name="alert-circle-outline" size={28} color="#DC2626" />
+              <Text className="text-sm mt-2 text-center" style={{ color: '#B91C1C' }}>{error}</Text>
+              <TouchableOpacity onPress={() => fetchCounselingTypes()} className="mt-3 px-4 py-2 rounded-lg" style={{ backgroundColor: '#F1842D' }}>
+                <Text className="text-white text-xs font-bold">Retry</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <>

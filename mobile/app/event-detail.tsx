@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, Linking, TextInput, Animated, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Image, ActivityIndicator, Alert, Linking, TextInput, Animated, Platform, AppState } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks } from '../utils/paymentBrowser';
+import { openPaymentLink, savePendingPaymentLink, clearPendingPaymentLinks, verifyPendingPaymentsOnResume } from '../utils/paymentBrowser';
 import { isRazorpayNativeAvailable, payWithRazorpayNative, buildPrefill } from '../utils/razorpayNative';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useEventStore } from '../store/eventStore';
@@ -30,6 +30,7 @@ export default function EventDetailScreen() {
     confirmEventPayment,
     confirmEventPaymentByLink,
     cancelEventRegistration,
+    fetchMeetingLink,
     isLoading,
     isCheckingRegistration
   } = useEventStore();
@@ -62,6 +63,32 @@ export default function EventDetailScreen() {
       isMountedRef.current = false;
     };
   }, [eventId, checkRegistrationStatus, fetchEventDetails]);
+
+  // Verify a payment-link checkout that completed while the app was backgrounded.
+  useEffect(() => {
+    if (!eventId) return;
+    const subscription = AppState.addEventListener('change', async (nextState) => {
+      if (nextState !== 'active') return;
+      try {
+        const { processed } = await verifyPendingPaymentsOnResume(async (pending) => {
+          if (pending.type !== 'event' || pending.id !== eventId || !pending.paymentLinkId) {
+            return { processed: false };
+          }
+          const result = await confirmEventPaymentByLink(eventId, pending.paymentLinkId);
+          return { processed: !!result.success };
+        });
+        if (processed.length > 0) {
+          await checkRegistrationStatus(eventId);
+          if (isMountedRef.current) {
+            Alert.alert('Payment Confirmed', 'Your registration is confirmed.');
+          }
+        }
+      } catch {
+        // Keep the pending link for the next resume.
+      }
+    });
+    return () => subscription.remove();
+  }, [eventId, confirmEventPaymentByLink, checkRegistrationStatus]);
 
   useEffect(() => {
     if (!isMountedRef.current) return;
@@ -100,10 +127,13 @@ export default function EventDetailScreen() {
   const isFull = currentEventMeta?.isFull ?? (event?.maxAttendees != null ? event.currentAttendees >= event.maxAttendees : false);
   const spotsLeft = currentEventMeta?.spotsLeft ?? (event?.maxAttendees != null ? event.maxAttendees - event.currentAttendees : null);
   const registrationClosed = event?.registrationDeadline ? new Date(event.registrationDeadline) < new Date() : false;
-  const canRegister = currentEventMeta?.canRegister ?? (!isFull && !registrationClosed && event?.status !== 'cancelled' && event?.status !== 'past');
+  const eventStarted = event?.startTime ? new Date(event.startTime).getTime() <= Date.now() : false;
+  const canRegister = currentEventMeta?.canRegister
+    ?? (!isFull && !registrationClosed && !eventStarted && event?.status !== 'cancelled' && event?.status !== 'past');
   const isRegistered = !!event?.isRegistered;
   const isPaymentPending = isRegistered && event?.paymentStatus === 'pending';
   const isOpenEvent = event?.registrationRequired === false;
+  const canJoinOnline = isRegistered && (!event?.isPaid || event?.paymentStatus === 'completed');
 
   const currencySymbol = (currency?: string) => (currency === 'USD' ? '$' : currency === 'EUR' ? '€' : '₹');
 
@@ -127,6 +157,17 @@ export default function EventDetailScreen() {
     Linking.openURL(`${API_URL}/events/${event._id}/calendar.ics`).catch(() => {
       Alert.alert('Calendar', 'Could not open the calendar file. Please try again.');
     });
+  };
+
+  const openMeetingLink = async () => {
+    const result = await fetchMeetingLink(eventId);
+    if (result.success && result.url) {
+      Linking.openURL(result.url).catch(() => {
+        Alert.alert('Meeting', 'Could not open the meeting link.');
+      });
+      return;
+    }
+    Alert.alert('Meeting link', result.message || 'The meeting link is not available yet.');
   };
 
   const formattedDate = useMemo(() => {
@@ -209,7 +250,7 @@ export default function EventDetailScreen() {
           name: form.name.trim(),
           email: form.email.trim(),
           phone: form.phone.trim(),
-          couponCode: form.couponCode.trim() || undefined
+          couponCode: form.couponCode.trim().toUpperCase() || undefined
         });
         const rzpOrder = orderResult.data?.razorpay;
         if (__DEV__) {
@@ -283,7 +324,7 @@ export default function EventDetailScreen() {
         name: form.name.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
-        couponCode: form.couponCode.trim() || undefined
+        couponCode: form.couponCode.trim().toUpperCase() || undefined
       });
       if (!linkResult.success || !linkResult.url || !linkResult.paymentLinkId) {
         Alert.alert('Error', linkResult.message || 'Could not create payment.');
@@ -314,6 +355,12 @@ export default function EventDetailScreen() {
           'You are registered for this event. You can find your ticket in the events list.',
           [{ text: 'Great!' }]
         );
+      } else {
+        await checkRegistrationStatus(eventId);
+        Alert.alert(
+          'Payment not confirmed yet',
+          'If you completed the payment, it will be verified automatically when you return to the app.'
+        );
       }
     } catch (err: any) {
       Alert.alert('Payment failed', err?.message || 'Could not complete payment. Please try again.');
@@ -325,9 +372,19 @@ export default function EventDetailScreen() {
 
   const handleCancel = async () => {
     if (!eventId) return;
+    if (event?.hasAttended || event?.registrationStatus === 'attended') {
+      Alert.alert('Cannot cancel', 'Attended registrations cannot be cancelled.');
+      return;
+    }
+    if (eventStarted) {
+      Alert.alert('Cannot cancel', 'Cancellation closes when the event starts.');
+      return;
+    }
     Alert.alert(
       'Cancel Registration',
-      'Are you sure you want to cancel your registration?',
+      event?.isPaid && event?.paymentStatus === 'completed'
+        ? 'Your registration will be cancelled and the full amount will be refunded.'
+        : 'Are you sure you want to cancel your registration?',
       [
         { text: 'Keep it', style: 'cancel' },
         {
@@ -335,12 +392,20 @@ export default function EventDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             setProcessing(true);
-            const ok = await cancelEventRegistration(eventId);
+            const result = await cancelEventRegistration(eventId);
             setProcessing(false);
-            if (ok) {
-              Alert.alert('Cancelled', 'Your registration has been successfully cancelled.');
+            if (result.success) {
+              await checkRegistrationStatus(eventId);
+              Alert.alert(
+                'Cancelled',
+                result.refundStatus === 'processed'
+                  ? 'Your registration was cancelled and the refund has been processed.'
+                  : result.refundStatus === 'failed'
+                    ? 'Your registration was cancelled, but the refund could not be processed automatically. Support will follow up.'
+                    : (result.message || 'Your registration has been cancelled.')
+              );
             } else {
-              Alert.alert('Failed', 'Unable to cancel registration. Please try again.');
+              Alert.alert('Failed', result.message || 'Unable to cancel registration. Please try again.');
             }
           }
         }
@@ -558,9 +623,9 @@ export default function EventDetailScreen() {
             </View>
           ) : null}
 
-          {/* Online Link — only for registered attendees (or open events) */}
-          {event.locationType === 'online' && event.onlineMeetingLink && (
-            event.isRegistered || event.registrationRequired === false ? (
+          {/* Online Link — only after a confirmed (and paid) registration */}
+          {event.locationType === 'online' && (event.hasOnlineMeeting || !!event.onlineMeetingLink) && (
+            canJoinOnline || (!event.isPaid && event.registrationRequired === false) ? (
               <TouchableOpacity 
                 style={{ 
                   marginTop: 32, 
@@ -572,7 +637,7 @@ export default function EventDetailScreen() {
                   borderWidth: 1,
                   borderColor: colors.border
                 }}
-                onPress={() => { if (event.onlineMeetingLink) Linking.openURL(event.onlineMeetingLink).catch(() => {}); }}
+                onPress={openMeetingLink}
               >
                 <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
                   <Ionicons name="videocam" size={24} color={colors.surface} />
@@ -601,7 +666,9 @@ export default function EventDetailScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 16, fontWeight: '700', color: colors.text }}>Online Event</Text>
-                  <Text style={{ fontSize: 14, color: colors.textSecondary }}>Register to get the meeting link</Text>
+                  <Text style={{ fontSize: 14, color: colors.textSecondary }}>
+                    {isPaymentPending ? 'Complete payment to unlock the meeting link' : 'Register to get the meeting link'}
+                  </Text>
                 </View>
               </View>
             )
@@ -693,6 +760,19 @@ export default function EventDetailScreen() {
                 <Ionicons name="close" size={22} color={colors.textSecondary} />
               )}
             </TouchableOpacity>
+          </View>
+        ) : isRegistered && eventStarted ? (
+          <View style={{
+            backgroundColor: colors.primary,
+            paddingHorizontal: 32,
+            height: 56,
+            borderRadius: 16,
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexDirection: 'row'
+          }}>
+            <Ionicons name="checkmark-circle" size={20} color={colors.surface} style={{ marginRight: 8 }} />
+            <Text style={{ color: colors.surface, fontSize: 16, fontWeight: '700' }}>Registered</Text>
           </View>
         ) : isRegistered ? (
           <TouchableOpacity

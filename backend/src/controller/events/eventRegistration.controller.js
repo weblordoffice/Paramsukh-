@@ -10,6 +10,14 @@ import {
   createPurchaseDiscount,
   resolvePurchaseDiscount,
 } from '../../services/purchaseDiscount.service.js';
+import {
+  cancelRegistrationWithSideEffects,
+  ensureTicketId,
+  refundEventRegistration,
+  releaseSeat,
+  reserveSeat,
+  revertDiscountForRegistration,
+} from '../../services/eventRegistration.service.js';
 
 const evaluateEventAchievements = async (userId) => {
   try {
@@ -32,35 +40,6 @@ const syncEventAttendeeCount = async (eventOrId) => {
   await event.updateAttendeeCount();
   await event.save();
   return event;
-};
-
-const reserveEventSeat = async (eventId) => {
-  const event = await Event.findOneAndUpdate(
-    {
-      _id: eventId,
-      $or: [
-        { maxAttendees: null },
-        {
-          $expr: {
-            $lt: [
-              { $add: [
-                { $ifNull: ['$currentAttendees', 0] },
-                { $ifNull: ['$reservedSeats', 0] }
-              ] },
-              '$maxAttendees'
-            ]
-          }
-        }
-      ]
-    },
-    { $inc: { reservedSeats: 1 } },
-    { new: true }
-  );
-  return event;
-};
-
-const releaseEventSeat = async (eventId) => {
-  await Event.findByIdAndUpdate(eventId, { $inc: { reservedSeats: -1 } });
 };
 
 const buildEventSummary = (event) => ({
@@ -147,6 +126,13 @@ export const registerForEvent = async (req, res) => {
     const finalPaymentId = isSimulatedPayment ? (paymentId || `sim_${Date.now()}`) : null;
     const paidAt = isSimulatedPayment ? new Date() : null;
 
+    if (currentPrice > 0 && !isSimulatedPayment) {
+      return res.status(400).json({
+        success: false,
+        message: "This is a paid event. Use the payment order or payment link flow to register."
+      });
+    }
+
     let registration = existingRegistration;
 
     if (registration && ['confirmed', 'attended'].includes(registration.status)) {
@@ -184,10 +170,19 @@ export const registerForEvent = async (req, res) => {
     await registration.save();
 
     // Reserve a seat for capacity-limited events (including free) to prevent overselling
-    if (event.maxAttendees != null && !isSimulatedPayment && isNewRegistration) {
-      const reserved = await reserveEventSeat(eventId);
+    const needsSeatCheck = event.maxAttendees != null && !isSimulatedPayment;
+    if (needsSeatCheck) {
+      const reserved = await reserveSeat(eventId, registration);
       if (!reserved) {
-        await EventRegistration.findByIdAndDelete(registration._id);
+        if (isNewRegistration) {
+          await EventRegistration.findByIdAndDelete(registration._id);
+        } else {
+          registration.status = 'cancelled';
+          registration.cancellationReason = 'Event is full';
+          registration.cancelledBy = 'system';
+          registration.cancelledAt = new Date();
+          await registration.save();
+        }
         return res.status(400).json({
           success: false,
           message: "This event is full. No seats available."
@@ -198,8 +193,8 @@ export const registerForEvent = async (req, res) => {
     await syncEventAttendeeCount(event);
 
     // Release the reserved seat — currentAttendees is now set by the count of confirmed registrations
-    if (event.maxAttendees != null && !isSimulatedPayment && isNewRegistration) {
-      await releaseEventSeat(eventId);
+    if (needsSeatCheck) {
+      await releaseSeat(registration);
     }
 
     console.log(`✅ User ${userId} registered for event: ${event.title}`);
@@ -229,7 +224,9 @@ export const registerForEvent = async (req, res) => {
       fireTrigger('user.event_register', { referrerId: req.user.referredBy, referredUserId: userId }).catch(() => {});
     }
 
-    await evaluateEventAchievements(userId);
+    if (!paymentRequired) {
+      await evaluateEventAchievements(userId);
+    }
 
     return res.status(201).json({
       success: true,
@@ -268,6 +265,14 @@ export const cancelRegistration = async (req, res) => {
     const { eventId } = req.params;
     const userId = req.user._id;
 
+    const event = await Event.findById(eventId);
+    if (!event) {
+      return res.status(404).json({
+        success: false,
+        message: "Event not found"
+      });
+    }
+
     const registration = await EventRegistration.findOne({ userId, eventId });
 
     if (!registration) {
@@ -282,33 +287,211 @@ export const cancelRegistration = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "Registration is already cancelled",
-        registration
+        registration,
+        refundStatus: registration.refundStatus || null
       });
     }
 
-    // Cancel registration
-    registration.status = 'cancelled';
-    registration.checkedIn = false;
-    registration.checkedInAt = null;
-    if (registration.paymentStatus === 'pending') {
-      registration.paymentStatus = 'failed';
-      registration.paymentId = null;
-      registration.paidAt = null;
+    if (registration.status === 'attended' || registration.checkedIn) {
+      return res.status(400).json({
+        success: false,
+        message: "Attended registrations cannot be cancelled"
+      });
     }
-    await registration.save();
+
+    if (event.startTime && new Date() >= new Date(event.startTime)) {
+      return res.status(400).json({
+        success: false,
+        message: "Cancellation is closed because the event has started"
+      });
+    }
+
+    const { refund } = await cancelRegistrationWithSideEffects(registration, {
+      cancelledBy: 'user',
+      reason: 'Cancelled by user',
+      refund: true,
+    });
 
     await syncEventAttendeeCount(eventId);
+
+    const refundStatus = refund?.status || registration.refundStatus || null;
+    const refundMessage = refundStatus === 'processed'
+      ? ` A refund of ₹${Number(registration.refundAmount || registration.paymentAmount || 0)} has been initiated.`
+      : refundStatus === 'failed'
+        ? ' The refund could not be processed automatically; support will follow up.'
+        : '';
+
+    sendNotification(userId, {
+      type: 'system',
+      title: 'Registration Cancelled',
+      message: `Your registration for "${event.title}" was cancelled.${refundMessage}`,
+      icon: '🎟️',
+      relatedId: event._id,
+      relatedType: 'event',
+      actionUrl: `/event-detail?eventId=${event._id}`,
+      priority: 'medium',
+    }).catch(() => {});
 
     console.log(`✅ Registration cancelled for event: ${eventId}`);
 
     return res.status(200).json({
       success: true,
-      message: "Registration cancelled successfully",
-      registration
+      message: `Registration cancelled successfully.${refundMessage}`,
+      registration,
+      refundStatus
     });
 
   } catch (error) {
     console.error("❌ Error cancelling registration:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Cancel a registration as an admin (refunds paid registrations).
+ * DELETE /api/events/:eventId/registrations/:registrationId
+ */
+export const cancelRegistrationAdmin = async (req, res) => {
+  try {
+    const { eventId, registrationId } = req.params;
+    const force = req.body?.force === true || String(req.body?.force) === 'true';
+
+    const registration = await EventRegistration.findOne({ _id: registrationId, eventId });
+    if (!registration) {
+      return res.status(404).json({ success: false, message: "Registration not found" });
+    }
+
+    if (registration.status === 'cancelled') {
+      await syncEventAttendeeCount(eventId);
+      return res.status(200).json({
+        success: true,
+        message: "Registration is already cancelled",
+        registration,
+      });
+    }
+
+    if ((registration.status === 'attended' || registration.checkedIn) && !force) {
+      return res.status(400).json({
+        success: false,
+        message: "Attended registrations require force=true to cancel",
+      });
+    }
+
+    const { refund } = await cancelRegistrationWithSideEffects(registration, {
+      cancelledBy: 'admin',
+      reason: req.body?.reason || 'Cancelled by admin',
+      refund: true,
+    });
+
+    await syncEventAttendeeCount(eventId);
+
+    sendNotification(registration.userId, {
+      type: 'system',
+      title: 'Registration Cancelled',
+      message: refund?.status === 'processed'
+        ? `An admin cancelled your registration and refunded ₹${Number(registration.refundAmount || 0)}.`
+        : 'An admin cancelled your event registration.',
+      icon: '🎟️',
+      relatedId: eventId,
+      relatedType: 'event',
+      actionUrl: `/event-detail?eventId=${eventId}`,
+    }).catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      message: refund?.status === 'failed'
+        ? 'Registration cancelled, but the refund failed and needs a retry'
+        : 'Registration cancelled',
+      registration,
+      refundStatus: refund?.status || registration.refundStatus || null,
+    });
+  } catch (error) {
+    console.error("❌ Admin cancel registration error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Refund a paid registration (admin).
+ * POST /api/events/:eventId/registrations/:registrationId/refund
+ */
+export const refundRegistrationAdmin = async (req, res) => {
+  try {
+    const { eventId, registrationId } = req.params;
+
+    const registration = await EventRegistration.findOne({ _id: registrationId, eventId });
+    if (!registration) {
+      return res.status(404).json({ success: false, message: "Registration not found" });
+    }
+
+    if (registration.refundStatus === 'processed') {
+      return res.status(200).json({
+        success: true,
+        message: "Registration is already refunded",
+        registration,
+      });
+    }
+
+    if (registration.paymentStatus !== 'completed' || !registration.paymentId) {
+      return res.status(400).json({
+        success: false,
+        message: "Only paid registrations can be refunded",
+      });
+    }
+
+    const result = await refundEventRegistration(registration, {
+      reason: req.body?.reason || 'Refunded by admin',
+    });
+
+    if (result.status === 'failed') {
+      await registration.save();
+      return res.status(502).json({
+        success: false,
+        message: "Refund failed",
+        error: result.error,
+        registration,
+      });
+    }
+
+    if (registration.status !== 'cancelled') {
+      await releaseSeat(registration);
+      registration.status = 'cancelled';
+      registration.cancelledAt = new Date();
+      registration.cancelledBy = 'admin';
+      registration.cancellationReason = req.body?.reason || 'Refunded by admin';
+      await revertDiscountForRegistration(registration);
+      await registration.save();
+    }
+
+    await syncEventAttendeeCount(eventId);
+
+    sendNotification(registration.userId, {
+      type: 'system',
+      title: 'Refund Processed',
+      message: `Your refund of ₹${Number(registration.refundAmount || 0)} has been processed.`,
+      icon: '💰',
+      relatedId: eventId,
+      relatedType: 'event',
+      actionUrl: `/event-detail?eventId=${eventId}`,
+      priority: 'high',
+    }).catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      message: "Refund processed",
+      registration,
+      refundStatus: registration.refundStatus,
+    });
+  } catch (error) {
+    console.error("❌ Admin refund error:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -402,6 +585,51 @@ export const getRegistrationStatus = async (req, res) => {
 };
 
 /**
+ * Get the online meeting link for a confirmed/paid registration.
+ * GET /api/events/:eventId/meeting-link
+ */
+export const getMeetingLink = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user._id;
+
+    const event = await Event.findById(eventId).select('onlineMeetingLink locationType isPaid title');
+    if (!event) {
+      return res.status(404).json({ success: false, message: "Event not found" });
+    }
+    if (!event.onlineMeetingLink) {
+      return res.status(404).json({ success: false, message: "This event has no online meeting link" });
+    }
+
+    const registration = await EventRegistration.findOne({ userId, eventId });
+    const hasAccess = Boolean(
+      registration
+      && ['confirmed', 'attended'].includes(registration.status)
+      && (!event.isPaid || registration.paymentStatus === 'completed')
+    );
+
+    if (!hasAccess) {
+      return res.status(403).json({
+        success: false,
+        message: "A confirmed registration and completed payment are required to access this link"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      url: event.onlineMeetingLink
+    });
+  } catch (error) {
+    console.error("❌ Error fetching event meeting link:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+/**
  * Get all registrations for an event (admin)
  * GET /api/events/:eventId/registrations
  */
@@ -470,20 +698,27 @@ export const checkInUser = async (req, res) => {
       });
     }
 
-    if (registration.status !== 'confirmed') {
+    if (!['confirmed', 'attended', 'no-show'].includes(registration.status)) {
       return res.status(400).json({
         success: false,
         message: "Cannot check-in. Registration status: " + registration.status
       });
     }
 
-    registration.markAttended();
+    const requestedStatus = req.body?.status === 'no-show' ? 'no-show' : 'attended';
+    if (requestedStatus === 'no-show') {
+      registration.status = 'no-show';
+      registration.checkedIn = false;
+      registration.checkedInAt = null;
+    } else {
+      registration.markAttended();
+    }
     await registration.save();
     await syncEventAttendeeCount(eventId);
 
     return res.status(200).json({
       success: true,
-      message: "User checked in successfully",
+      message: requestedStatus === 'no-show' ? "Registration marked as no-show" : "User checked in successfully",
       registration
     });
 
@@ -526,26 +761,49 @@ export const updatePaymentStatus = async (req, res) => {
       });
     }
 
-    registration.paymentStatus = paymentStatus;
-    if (paymentId) {
-      registration.paymentId = paymentId;
-    }
-    
     if (paymentStatus === 'completed') {
-      registration.paidAt = new Date();
+      if (paymentId) {
+        registration.paymentId = paymentId;
+      }
+      registration.paymentStatus = 'completed';
       registration.status = 'confirmed';
-    } else if (paymentStatus === 'failed') {
-      registration.status = 'cancelled';
-    }
+      registration.paidAt = new Date();
+      await registration.save();
 
-    await registration.save();
-
-    if (paymentStatus === 'completed') {
+      await ensureTicketId(registration);
+      await releaseSeat(registration);
       await applyPurchaseDiscount({
+        providerOrderId: registration.razorpayOrderId || null,
+        providerPaymentLinkId: registration.paymentLinkId || null,
         referenceType: 'event',
         referenceId: registration._id,
       });
+    } else if (paymentStatus === 'failed') {
+      await cancelRegistrationWithSideEffects(registration, {
+        cancelledBy: 'admin',
+        reason: req.body.reason || 'Marked failed by admin',
+        refund: false,
+      });
+    } else if (paymentStatus === 'refunded') {
+      const { refund } = await cancelRegistrationWithSideEffects(registration, {
+        cancelledBy: 'admin',
+        reason: req.body.reason || 'Refunded by admin',
+        refund: true,
+      });
+      if (refund?.status === 'failed') {
+        return res.status(502).json({
+          success: false,
+          message: 'Refund failed. Registration was cancelled and the refund is marked for retry.',
+          error: refund.error,
+          registration,
+        });
+      }
+    } else {
+      registration.paymentStatus = 'pending';
+      await registration.save();
     }
+
+    await syncEventAttendeeCount(eventId);
 
     return res.status(200).json({
       success: true,
@@ -644,11 +902,19 @@ export const createEventRegistrationOrder = async (req, res) => {
     registration.paidAt = null;
     await registration.save();
 
-    // Reserve a seat for new paid registrations to prevent overselling
-    if (isNewRegistration) {
-      const reservedEvent = await reserveEventSeat(eventId);
+    // Reserve a seat for paid registrations to prevent overselling
+    if (!registration.seatReserved) {
+      const reservedEvent = await reserveSeat(eventId, registration);
       if (!reservedEvent) {
-        await EventRegistration.findByIdAndDelete(registration._id);
+        if (isNewRegistration) {
+          await EventRegistration.findByIdAndDelete(registration._id);
+        } else {
+          await cancelRegistrationWithSideEffects(registration, {
+            cancelledBy: 'system',
+            reason: 'Event is full',
+            refund: false,
+          });
+        }
         return res.status(400).json({
           success: false,
           message: "This event is full. No seats available."
@@ -656,36 +922,56 @@ export const createEventRegistrationOrder = async (req, res) => {
       }
     }
 
-    const order = await createRazorpayOrder({
-      amount: currentPrice,
-      currency: (event.currency || 'INR').toUpperCase(),
-      receipt: `event_${String(registration._id).slice(-6)}_${Date.now().toString(36)}`,
-      notes: {
-        type: 'event',
-        eventId: eventId.toString(),
-        registrationId: registration._id.toString(),
-        userId: userId.toString(),
-        baseAmount: String(discount.baseAmount),
-        discountAmount: String(discount.discountAmount),
-        finalAmount: String(discount.finalAmount),
-        couponCode: discount.couponCode || '',
-        offerId: discount.offer?._id ? String(discount.offer._id) : '',
+    let order;
+    try {
+      order = await createRazorpayOrder({
+        amount: currentPrice,
+        currency: (event.currency || 'INR').toUpperCase(),
+        receipt: `event_${String(registration._id).slice(-6)}_${Date.now().toString(36)}`,
+        notes: {
+          type: 'event',
+          eventId: eventId.toString(),
+          registrationId: registration._id.toString(),
+          userId: userId.toString(),
+          baseAmount: String(discount.baseAmount),
+          discountAmount: String(discount.discountAmount),
+          finalAmount: String(discount.finalAmount),
+          couponCode: discount.couponCode || '',
+          offerId: discount.offer?._id ? String(discount.offer._id) : '',
+        }
+      });
+
+      registration.razorpayOrderId = order.id;
+      await registration.save();
+
+      await createPurchaseDiscount({
+        userId,
+        purchaseType: 'event',
+        targetId: event._id,
+        discount,
+        providerOrderId: order.id,
+        referenceType: 'event',
+        referenceId: registration._id,
+        metadata: { eventId: String(event._id), registrationId: String(registration._id) },
+      });
+    } catch (orderError) {
+      console.error("❌ Event order creation failed:", orderError.message);
+      await releaseSeat(registration);
+      await revertDiscountForRegistration(registration);
+
+      if (isNewRegistration) {
+        await EventRegistration.findByIdAndDelete(registration._id);
+      } else {
+        registration.status = 'pending';
+        registration.paymentStatus = 'pending';
+        await registration.save();
       }
-    });
 
-    registration.razorpayOrderId = order.id;
-    await registration.save();
-
-    await createPurchaseDiscount({
-      userId,
-      purchaseType: 'event',
-      targetId: event._id,
-      discount,
-      providerOrderId: order.id,
-      referenceType: 'event',
-      referenceId: registration._id,
-      metadata: { eventId: String(event._id), registrationId: String(registration._id) },
-    });
+      return res.status(502).json({
+        success: false,
+        message: "Could not start payment. Please try again."
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -748,8 +1034,9 @@ export const confirmEventPayment = async (req, res) => {
       });
     }
 
-    // Bind payment to this registration
-    if (registration.razorpayOrderId && registration.razorpayOrderId !== razorpay_order_id) {
+    // Bind payment to this registration — an order-less pending registration
+    // must go through the order/payment-link flow instead.
+    if (!registration.razorpayOrderId || registration.razorpayOrderId !== razorpay_order_id) {
       return res.status(400).json({
         success: false,
         message: "Payment does not belong to this registration"
@@ -769,7 +1056,7 @@ export const confirmEventPayment = async (req, res) => {
         if (paymentDetails.order_id !== razorpay_order_id) {
           return res.status(400).json({ success: false, message: "Payment order mismatch" });
         }
-        if (Number(paymentDetails.amount) !== Number(registration.paymentAmount * 100)) {
+        if (Number(paymentDetails.amount) !== Math.round(Number(registration.paymentAmount) * 100)) {
           return res.status(400).json({ success: false, message: "Payment amount mismatch" });
         }
       }
@@ -778,6 +1065,7 @@ export const confirmEventPayment = async (req, res) => {
     }
 
     if (registration.status === 'confirmed' && registration.paymentStatus === 'completed') {
+      await ensureTicketId(registration);
       await syncEventAttendeeCount(eventId);
       return res.status(200).json({
         success: true,
@@ -785,7 +1073,8 @@ export const confirmEventPayment = async (req, res) => {
         registration: {
           _id: registration._id,
           status: registration.status,
-          paymentStatus: registration.paymentStatus
+          paymentStatus: registration.paymentStatus,
+          ticketId: registration.ticketId || null
         }
       });
     }
@@ -797,11 +1086,44 @@ export const confirmEventPayment = async (req, res) => {
       });
     }
 
-    registration.paymentStatus = 'completed';
-    registration.paymentId = razorpay_payment_id;
-    registration.paidAt = new Date();
-    registration.status = 'confirmed';
-    await registration.save();
+    // Atomic flip — a retry/double-tap cannot confirm twice.
+    const confirmed = await EventRegistration.findOneAndUpdate(
+      { _id: registration._id, status: 'pending' },
+      {
+        $set: {
+          paymentStatus: 'completed',
+          paymentId: razorpay_payment_id,
+          paidAt: new Date(),
+          status: 'confirmed',
+        }
+      },
+      { new: true }
+    );
+
+    if (!confirmed) {
+      const latest = await EventRegistration.findById(registration._id);
+      if (latest?.status === 'confirmed' && latest.paymentStatus === 'completed') {
+        await ensureTicketId(latest);
+        await syncEventAttendeeCount(eventId);
+        return res.status(200).json({
+          success: true,
+          message: "Payment was already confirmed. You are registered for this event.",
+          registration: {
+            _id: latest._id,
+            status: latest.status,
+            paymentStatus: latest.paymentStatus,
+            ticketId: latest.ticketId || null
+          }
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: "This registration is not waiting for payment confirmation anymore."
+      });
+    }
+
+    registration = confirmed;
+    await ensureTicketId(registration);
 
     await applyPurchaseDiscount({
       providerOrderId: razorpay_order_id,
@@ -815,7 +1137,7 @@ export const confirmEventPayment = async (req, res) => {
       fireTrigger('user.event_register', { referrerId: req.user.referredBy, referredUserId: userId }).catch(() => {});
     }
 
-    await releaseEventSeat(eventId);
+    await releaseSeat(registration);
 
     const event = await Event.findById(eventId).select('title');
     const amountInRupees = (paymentDetails.amount && typeof paymentDetails.amount === 'number')
@@ -855,13 +1177,25 @@ export const confirmEventPayment = async (req, res) => {
 
     await syncEventAttendeeCount(eventId);
 
+    sendNotification(userId, {
+      type: 'event_registered',
+      title: 'Event Registration Confirmed! 🎟️',
+      message: `You're registered for ${event?.title || 'the event'}.`,
+      icon: '🎟️',
+      priority: 'high',
+      relatedId: eventId,
+      relatedType: 'event',
+      actionUrl: `/event-detail?eventId=${eventId}`,
+    }).catch(() => {});
+
     return res.status(200).json({
       success: true,
       message: "Payment confirmed. You are registered for this event.",
       registration: {
         _id: registration._id,
         status: registration.status,
-        paymentStatus: registration.paymentStatus
+        paymentStatus: registration.paymentStatus,
+        ticketId: registration.ticketId || null
       }
     });
   } catch (error) {
@@ -937,11 +1271,19 @@ export const createEventRegistrationLink = async (req, res) => {
     registration.paidAt = null;
     await registration.save();
 
-    // Reserve a seat for new paid registrations to prevent overselling
-    if (isNewRegistration) {
-      const reservedEvent = await reserveEventSeat(eventId);
+    // Reserve a seat for paid registrations to prevent overselling
+    if (!registration.seatReserved) {
+      const reservedEvent = await reserveSeat(eventId, registration);
       if (!reservedEvent) {
-        await EventRegistration.findByIdAndDelete(registration._id);
+        if (isNewRegistration) {
+          await EventRegistration.findByIdAndDelete(registration._id);
+        } else {
+          await cancelRegistrationWithSideEffects(registration, {
+            cancelledBy: 'system',
+            reason: 'Event is full',
+            refund: false,
+          });
+        }
         return res.status(400).json({
           success: false,
           message: "This event is full. No seats available."
@@ -949,10 +1291,11 @@ export const createEventRegistrationLink = async (req, res) => {
       }
     }
 
-    // Reuse existing payment link when possible (and not expired)
+    // Reuse an existing payment link only when it matches the current price.
     if (registration.paymentLinkId && registration.paymentLinkUrl) {
       const expiresAt = registration.paymentLinkExpiresAt;
-      if (!expiresAt || new Date(expiresAt).getTime() > Date.now() + 5 * 60 * 1000) {
+      const sameAmount = Number(registration.paymentLinkAmount) === Number(currentPrice);
+      if (sameAmount && (!expiresAt || new Date(expiresAt).getTime() > Date.now() + 5 * 60 * 1000)) {
         return res.status(200).json({
           success: true,
           data: {
@@ -972,39 +1315,60 @@ export const createEventRegistrationLink = async (req, res) => {
       email: participantEmail || undefined,
       contact: participantPhone ? String(participantPhone).replace('+91', '').trim() : undefined,
     };
-    const link = await createRazorpayPaymentLink({
-      amount: currentPrice,
-      currency: (event.currency || 'INR').toUpperCase(),
-      description: `Event: ${event.title || 'Event'}`,
-      customer,
-      notes: {
-        type: 'event',
-        eventId: String(eventId),
-        registrationId: String(registration._id),
-        userId: String(userId),
-        baseAmount: String(discount.baseAmount),
-        discountAmount: String(discount.discountAmount),
-        finalAmount: String(discount.finalAmount),
-        couponCode: discount.couponCode || '',
-        offerId: discount.offer?._id ? String(discount.offer._id) : '',
-      },
-    });
+    let link;
+    try {
+      link = await createRazorpayPaymentLink({
+        amount: currentPrice,
+        currency: (event.currency || 'INR').toUpperCase(),
+        description: `Event: ${event.title || 'Event'}`,
+        customer,
+        notes: {
+          type: 'event',
+          eventId: String(eventId),
+          registrationId: String(registration._id),
+          userId: String(userId),
+          baseAmount: String(discount.baseAmount),
+          discountAmount: String(discount.discountAmount),
+          finalAmount: String(discount.finalAmount),
+          couponCode: discount.couponCode || '',
+          offerId: discount.offer?._id ? String(discount.offer._id) : '',
+        },
+      });
 
-    await createPurchaseDiscount({
-      userId,
-      purchaseType: 'event',
-      targetId: event._id,
-      discount,
-      providerPaymentLinkId: link.id,
-      referenceType: 'event',
-      referenceId: registration._id,
-      metadata: { eventId: String(event._id), registrationId: String(registration._id) },
-    });
+      await createPurchaseDiscount({
+        userId,
+        purchaseType: 'event',
+        targetId: event._id,
+        discount,
+        providerPaymentLinkId: link.id,
+        referenceType: 'event',
+        referenceId: registration._id,
+        metadata: { eventId: String(event._id), registrationId: String(registration._id) },
+      });
 
-    registration.paymentLinkId = link.id;
-    registration.paymentLinkUrl = link.short_url;
-    registration.paymentLinkExpiresAt = link.expire_by ? new Date(link.expire_by * 1000) : null;
-    await registration.save();
+      registration.paymentLinkId = link.id;
+      registration.paymentLinkUrl = link.short_url;
+      registration.paymentLinkExpiresAt = link.expire_by ? new Date(link.expire_by * 1000) : null;
+      registration.paymentLinkAmount = currentPrice;
+      await registration.save();
+    } catch (linkError) {
+      console.error("❌ Event payment link creation failed:", linkError.message);
+      await releaseSeat(registration);
+      await revertDiscountForRegistration(registration);
+
+      if (isNewRegistration) {
+        await EventRegistration.findByIdAndDelete(registration._id);
+      } else {
+        registration.status = 'pending';
+        registration.paymentStatus = 'pending';
+        await registration.save();
+      }
+
+      return res.status(502).json({
+        success: false,
+        message: "Could not create a payment link. Please try again."
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -1037,7 +1401,7 @@ export const confirmEventPaymentByLink = async (req, res) => {
 
     if (isRazorpayTestMode) {
       const confirmed = await EventRegistration.findOneAndUpdate(
-        { userId, eventId, status: 'pending' },
+        { userId, eventId, status: 'pending', paymentLinkId },
         {
           $set: {
             paymentStatus: 'completed',
@@ -1050,10 +1414,27 @@ export const confirmEventPaymentByLink = async (req, res) => {
       );
 
       if (!confirmed) {
+        const existing = await EventRegistration.findOne({ userId, eventId, paymentLinkId });
+        if (existing?.status === 'confirmed' && existing.paymentStatus === 'completed') {
+          await ensureTicketId(existing);
+          return res.status(200).json({
+            success: true,
+            message: "Payment was already confirmed. You are registered for this event.",
+            data: {
+              registration: {
+                _id: existing._id,
+                status: existing.status,
+                paymentStatus: existing.paymentStatus,
+                ticketId: existing.ticketId || null,
+              },
+            },
+          });
+        }
         return res.status(404).json({ success: false, message: "Pending registration not found or already confirmed" });
       }
 
-      await releaseEventSeat(eventId);
+      await ensureTicketId(confirmed);
+      await releaseSeat(confirmed);
       await syncEventAttendeeCount(eventId);
       await applyPurchaseDiscount({
         providerPaymentLinkId: paymentLinkId,
@@ -1064,7 +1445,14 @@ export const confirmEventPaymentByLink = async (req, res) => {
       return res.status(200).json({
         success: true,
         message: "Test payment confirmed. You are registered for this event.",
-        data: { registration: { _id: confirmed._id, status: confirmed.status, paymentStatus: confirmed.paymentStatus } },
+        data: {
+          registration: {
+            _id: confirmed._id,
+            status: confirmed.status,
+            paymentStatus: confirmed.paymentStatus,
+            ticketId: confirmed.ticketId || null,
+          },
+        },
       });
     }
 
@@ -1111,7 +1499,7 @@ export const confirmEventPaymentByLink = async (req, res) => {
 
     // Idempotent confirmation: atomic update only if still pending
     const confirmed = await EventRegistration.findOneAndUpdate(
-      { _id: registrationId, userId, eventId, status: 'pending', paymentStatus: 'pending' },
+      { _id: registrationId, userId, eventId, status: 'pending' },
       {
         $set: {
           paymentStatus: 'completed',
@@ -1125,14 +1513,28 @@ export const confirmEventPaymentByLink = async (req, res) => {
 
     if (!confirmed) {
       const refreshed = await EventRegistration.findOne({ _id: registrationId, userId, eventId });
+      if (!refreshed) {
+        return res.status(404).json({ success: false, message: "Registration not found" });
+      }
+      await ensureTicketId(refreshed);
       return res.status(200).json({
         success: true,
-        message: "Payment was already confirmed. You are registered for this event.",
-        data: { registration: { _id: refreshed._id, status: refreshed.status, paymentStatus: refreshed.paymentStatus } },
+        message: refreshed.status === 'confirmed'
+          ? "Payment was already confirmed. You are registered for this event."
+          : "This registration is not waiting for payment confirmation anymore.",
+        data: {
+          registration: {
+            _id: refreshed._id,
+            status: refreshed.status,
+            paymentStatus: refreshed.paymentStatus,
+            ticketId: refreshed.ticketId || null,
+          },
+        },
       });
     }
 
-    await releaseEventSeat(eventId);
+    await ensureTicketId(confirmed);
+    await releaseSeat(confirmed);
 
     await applyPurchaseDiscount({
       providerPaymentLinkId: paymentLinkId,
@@ -1192,7 +1594,14 @@ export const confirmEventPaymentByLink = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Payment confirmed. You are registered for this event.",
-      data: { registration: { _id: confirmed._id, status: confirmed.status, paymentStatus: confirmed.paymentStatus } },
+      data: {
+        registration: {
+          _id: confirmed._id,
+          status: confirmed.status,
+          paymentStatus: confirmed.paymentStatus,
+          ticketId: confirmed.ticketId || null,
+        },
+      },
     });
   } catch (error) {
     console.error("❌ Confirm event link error:", error);

@@ -66,7 +66,7 @@ const calculateDiscount = (rule, amount) => {
     discount = Number(rule.discountValue || 0);
   }
 
-  return Math.max(0, Math.min(discount, baseAmount));
+  return Math.max(0, Math.round(Math.min(discount, baseAmount) * 100) / 100);
 };
 
 const activeWindowQuery = (now = new Date()) => ({
@@ -362,28 +362,87 @@ export const applyPurchaseDiscount = async ({
   return discount;
 };
 
-export const cancelPurchaseDiscount = async ({
+const findDiscountForRevert = async ({
+  providerOrderId = null,
+  providerPaymentLinkId = null,
+  referenceType = null,
+  referenceId = null,
+}) => {
+  const query = [];
+  if (providerOrderId) query.push({ providerOrderId: String(providerOrderId) });
+  if (providerPaymentLinkId) query.push({ providerPaymentLinkId: String(providerPaymentLinkId) });
+  if (referenceType && referenceId && mongoose.Types.ObjectId.isValid(String(referenceId))) {
+    query.push({ referenceType, referenceId: toObjectId(referenceId) });
+  }
+  if (query.length === 0) return null;
+
+  return PurchaseDiscount.findOne({
+    $or: query,
+    status: { $in: ['pending', 'applied'] },
+  }).sort({ createdAt: -1 });
+};
+
+/**
+ * Undo a discount: revoke coupon usage / offer stats exactly once and mark the
+ * ledger row cancelled. Safe to call repeatedly.
+ */
+export const revertPurchaseDiscount = async ({
   providerOrderId = null,
   providerPaymentLinkId = null,
   referenceType = null,
   referenceId = null,
 } = {}) => {
-  if (providerOrderId) {
-    await PurchaseDiscount.updateOne(
-      { providerOrderId: String(providerOrderId), status: 'pending' },
-      { $set: { status: 'cancelled' } }
-    );
+  const discount = await findDiscountForRevert({
+    providerOrderId,
+    providerPaymentLinkId,
+    referenceType,
+    referenceId,
+  });
+  if (!discount) return null;
+
+  if (discount.status === 'applied' && discount.sourceType === 'coupon' && discount.coupon) {
+    const usageReferenceType = discount.referenceType || discount.purchaseType;
+    const usageReferenceId = discount.referenceId
+      || (mongoose.Types.ObjectId.isValid(String(discount.providerOrderId || ''))
+        ? toObjectId(discount.providerOrderId)
+        : null);
+
+    const usageQuery = usageReferenceId
+      ? { coupon: discount.coupon, referenceType: usageReferenceType, referenceId: usageReferenceId }
+      : { coupon: discount.coupon, referenceType: usageReferenceType, providerOrderId: discount.providerOrderId };
+
+    const deletedUsage = await CouponUsage.findOneAndDelete(usageQuery);
+    if (deletedUsage) {
+      const discountAmount = Number(discount.discountAmount || 0);
+      await Coupon.updateOne(
+        { _id: discount.coupon },
+        [{
+          $set: {
+            currentUsageCount: { $max: [0, { $subtract: [{ $ifNull: ['$currentUsageCount', 0] }, 1] }] },
+            'stats.totalUsed': { $max: [0, { $subtract: [{ $ifNull: ['$stats.totalUsed', 0] }, 1] }] },
+            'stats.totalDiscount': { $max: [0, { $subtract: [{ $ifNull: ['$stats.totalDiscount', 0] }, discountAmount] }] },
+          },
+        }]
+      );
+    }
   }
-  if (providerPaymentLinkId) {
-    await PurchaseDiscount.updateOne(
-      { providerPaymentLinkId: String(providerPaymentLinkId), status: 'pending' },
-      { $set: { status: 'cancelled' } }
-    );
+
+  if (discount.status === 'applied' && discount.sourceType === 'offer' && discount.offer) {
+    const discountAmount = Number(discount.discountAmount || 0);
+    await Offer.updateOne(
+      { _id: discount.offer },
+      [{
+        $set: {
+          'stats.timesApplied': { $max: [0, { $subtract: [{ $ifNull: ['$stats.timesApplied', 0] }, 1] }] },
+          'stats.totalDiscount': { $max: [0, { $subtract: [{ $ifNull: ['$stats.totalDiscount', 0] }, discountAmount] }] },
+        },
+      }]
+    ).catch((error) => console.error('Offer revert failed:', error.message));
   }
-  if (referenceType && referenceId && mongoose.Types.ObjectId.isValid(String(referenceId))) {
-    await PurchaseDiscount.updateOne(
-      { referenceType, referenceId: toObjectId(referenceId), status: 'pending' },
-      { $set: { status: 'cancelled' } }
-    );
-  }
+
+  discount.status = 'cancelled';
+  await discount.save();
+  return discount;
 };
+
+export const cancelPurchaseDiscount = revertPurchaseDiscount;

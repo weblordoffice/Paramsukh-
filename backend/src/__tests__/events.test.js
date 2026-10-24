@@ -26,7 +26,7 @@ const createTestEvent = async (overrides = {}) => {
     location: 'Online',
     locationType: 'online',
     category: 'workshop',
-    maxParticipants: 100,
+    maxAttendees: 100,
     isPaid: false,
     status: 'upcoming',
     ...overrides,

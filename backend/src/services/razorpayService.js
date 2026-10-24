@@ -30,12 +30,13 @@ export const createRazorpayOrder = async ({ amount, currency = 'INR', receipt, n
     // Test mode - return mock order
     if (TEST_MODE) {
       console.log('🧪 TEST MODE: Creating mock Razorpay order');
+      const amountPaise = Math.round(amount * 100);
       const mockOrder = {
         id: `order_test_${Date.now()}`,
         entity: 'order',
-        amount: amount * 100, // Convert to paise
+        amount: amountPaise, // Convert to paise
         amount_paid: 0,
-        amount_due: amount * 100,
+        amount_due: amountPaise,
         currency,
         receipt: safeReceipt,
         status: 'created',
@@ -48,7 +49,7 @@ export const createRazorpayOrder = async ({ amount, currency = 'INR', receipt, n
 
     // Real Razorpay order
     const options = {
-      amount: amount * 100, // Convert to paise (1 INR = 100 paise)
+      amount: Math.round(amount * 100), // Convert to paise (1 INR = 100 paise)
       currency,
       receipt: safeReceipt,
       notes
@@ -100,7 +101,7 @@ export const createRazorpayPaymentLink = async ({
         id: `plink_test_${Date.now()}`,
         short_url: `https://rzp.io/i/test_${Date.now()}`,
         currency,
-        amount: amount * 100,
+        amount: Math.round(amount * 100),
         description,
         notes,
         status: 'created',
@@ -116,7 +117,7 @@ export const createRazorpayPaymentLink = async ({
     }
 
     const payload = {
-      amount: amount * 100,
+      amount: Math.round(amount * 100),
       currency,
       accept_partial: false,
       description: (description || 'Payment').substring(0, 2048),

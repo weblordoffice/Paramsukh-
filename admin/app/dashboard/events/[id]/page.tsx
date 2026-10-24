@@ -5,12 +5,13 @@ import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Image as ImageIcon, Video, Users, Pencil, Link2 } from 'lucide-react';
+import { ArrowLeft, Image as ImageIcon, Video, Users, Pencil, Link2, Ban } from 'lucide-react';
 import PhotosTab from './PhotosTab';
 import VideosTab from './VideosTab';
 import RegistrationsTab from './RegistrationsTab';
 import EventModal from '../EventModal';
 import { formatTime12h } from '@/lib/dateTime';
+import { useAuthStore } from '@/lib/store/authStore';
 
 interface Event {
     _id: string;
@@ -36,15 +37,25 @@ export default function EventDetailsPage() {
     const params = useParams();
     const router = useRouter();
     const eventId = params.id as string;
+    const user = useAuthStore((state) => state.user);
+    const hasPermission = useAuthStore((state) => state.hasPermission);
     
     const [event, setEvent] = useState<Event | null>(null);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabType>('photos');
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [cancelling, setCancelling] = useState(false);
+
+    useEffect(() => {
+        if (user && !hasPermission('manage_events')) {
+            toast.error('You do not have permission to manage events');
+            router.replace('/dashboard');
+        }
+    }, [user, hasPermission, router]);
 
     const fetchEventDetails = useCallback(async () => {
         try {
-            const response = await apiClient.get(`/api/events/${eventId}`);
+            const response = await apiClient.get(`/api/events/admin/${eventId}`);
             setEvent(response.data.event);
         } catch (error) {
             toast.error('Failed to fetch event details');
@@ -62,6 +73,27 @@ export default function EventDetailsPage() {
 
     const refreshEvent = () => {
         fetchEventDetails();
+    };
+
+    const handleCancelEvent = async () => {
+        if (!event) return;
+        if (!confirm(`Cancel "${event.title}"? Paid registrations will be refunded automatically.`)) {
+            return;
+        }
+        setCancelling(true);
+        try {
+            const response = await apiClient.patch(`/api/events/${event._id}/cancel`);
+            const refundedCount = response.data?.refundedCount || 0;
+            const refundFailedCount = response.data?.refundFailedCount || 0;
+            toast.success(
+                `Event cancelled. ${refundedCount} refund(s) processed${refundFailedCount ? `, ${refundFailedCount} failed` : ''}.`
+            );
+            refreshEvent();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to cancel event');
+        } finally {
+            setCancelling(false);
+        }
     };
 
     if (loading) {
@@ -114,13 +146,29 @@ export default function EventDetailsPage() {
                         <ArrowLeft className="w-5 h-5 mr-2" />
                         Back to Events
                     </button>
-                    <button
-                        onClick={() => setIsModalOpen(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                        <Pencil className="w-4 h-4" />
-                        Edit Event
-                    </button>
+                    <div className="flex items-center gap-2">
+                        {event.status !== 'cancelled' && (
+                            <button
+                                onClick={handleCancelEvent}
+                                disabled={cancelling}
+                                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50"
+                            >
+                                {cancelling ? (
+                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                    <Ban className="w-4 h-4" />
+                                )}
+                                Cancel Event
+                            </button>
+                        )}
+                        <button
+                            onClick={() => setIsModalOpen(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                            <Pencil className="w-4 h-4" />
+                            Edit Event
+                        </button>
+                    </div>
                 </div>
 
                 <div className="bg-white rounded-lg shadow-sm p-6">
@@ -227,7 +275,7 @@ export default function EventDetailsPage() {
                         <VideosTab eventId={eventId} videos={event.videos || []} onUpdate={refreshEvent} />
                     )}
                     {activeTab === 'registrations' && (
-                        <RegistrationsTab eventId={eventId} />
+                        <RegistrationsTab eventId={eventId} onUpdate={refreshEvent} />
                     )}
                 </div>
             </div>

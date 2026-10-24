@@ -21,19 +21,23 @@ interface Registration {
     checkedInAt?: string;
     paymentStatus?: 'completed' | 'pending' | 'failed' | 'refunded';
     paymentAmount?: number;
+    refundStatus?: 'pending' | 'processed' | 'failed' | null;
+    refundAmount?: number;
+    ticketId?: string;
     registeredAt: string;
 }
 
 interface RegistrationsTabProps {
     eventId: string;
+    onUpdate?: () => void;
 }
 
-export default function RegistrationsTab({ eventId }: RegistrationsTabProps) {
+export default function RegistrationsTab({ eventId, onUpdate }: RegistrationsTabProps) {
     const [registrations, setRegistrations] = useState<Registration[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterStatus, setFilterStatus] = useState<string>('all');
-    const [checkingInId, setCheckingInId] = useState<string | null>(null);
+    const [actionId, setActionId] = useState<string | null>(null);
 
     const fetchRegistrations = useCallback(async () => {
         try {
@@ -51,18 +55,68 @@ export default function RegistrationsTab({ eventId }: RegistrationsTabProps) {
         fetchRegistrations();
     }, [eventId, fetchRegistrations]);
 
-    const handleCheckIn = async (registrationId: string) => {
-        if (checkingInId) return;
-        setCheckingInId(registrationId);
+    const refreshAll = () => {
+        fetchRegistrations();
+        onUpdate?.();
+    };
+
+    const handleCheckIn = async (registrationId: string, status: 'attended' | 'no-show' = 'attended') => {
+        if (actionId) return;
+        setActionId(registrationId);
         try {
-            await apiClient.patch(`/api/events/${eventId}/registrations/${registrationId}/checkin`);
-            toast.success('User checked in successfully');
-            fetchRegistrations();
+            await apiClient.patch(
+                `/api/events/${eventId}/registrations/${registrationId}/checkin`,
+                { status }
+            );
+            toast.success(status === 'no-show' ? 'Marked as no-show' : 'User checked in successfully');
+            refreshAll();
         } catch (error: any) {
-            toast.error(error.response?.data?.message || 'Failed to check in user');
+            toast.error(error.response?.data?.message || 'Failed to update attendance');
             console.error(error);
         } finally {
-            setCheckingInId(null);
+            setActionId(null);
+        }
+    };
+
+    const handleCancelRegistration = async (registration: Registration) => {
+        if (actionId) return;
+        if (!confirm('Cancel this registration? Paid attendees will be refunded.')) return;
+        setActionId(registration._id);
+        try {
+            const response = await apiClient.delete(
+                `/api/events/${eventId}/registrations/${registration._id}`,
+                { data: { reason: 'Cancelled by admin' } }
+            );
+            toast.success(
+                response.data?.refundStatus === 'failed'
+                    ? 'Registration cancelled, but the refund failed'
+                    : 'Registration cancelled'
+            );
+            refreshAll();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to cancel registration');
+            console.error(error);
+        } finally {
+            setActionId(null);
+        }
+    };
+
+    const handleRefund = async (registration: Registration) => {
+        if (actionId) return;
+        if (!confirm('Refund this registration?')) return;
+        setActionId(registration._id);
+        try {
+            await apiClient.post(
+                `/api/events/${eventId}/registrations/${registration._id}/refund`,
+                { reason: 'Refunded by admin' }
+            );
+            toast.success('Refund processed');
+            refreshAll();
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'Failed to refund registration');
+            console.error(error);
+        } finally {
+            setActionId(null);
         }
     };
 
@@ -90,8 +144,8 @@ export default function RegistrationsTab({ eventId }: RegistrationsTabProps) {
         ]);
 
         const csvContent = [
-            headers.join(','),
-            ...rows.map(row => row.map(cell => `\"${cell}\"`).join(','))
+            headers.map((header) => `"${safeCell(header)}"`).join(','),
+            ...rows.map(row => row.map(cell => `"${String(safeCell(cell)).replace(/"/g, '""')}"`).join(','))
         ].join('\n');
 
         const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -322,9 +376,16 @@ export default function RegistrationsTab({ eventId }: RegistrationsTabProps) {
                                             {registration.paymentAmount === 0 || registration.paymentAmount === undefined ? (
                                                 <span className="text-sm text-gray-500">Free</span>
                                             ) : registration.paymentStatus ? (
-                                                <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(registration.paymentStatus)}`}>
-                                                    {registration.paymentStatus}
-                                                </span>
+                                                <div className="flex flex-col gap-1">
+                                                    <span className={`px-2 py-1 inline-flex w-fit text-xs leading-5 font-semibold rounded-full ${getPaymentStatusColor(registration.paymentStatus)}`}>
+                                                        {registration.paymentStatus}
+                                                    </span>
+                                                    {registration.refundStatus && (
+                                                        <span className={`text-xs ${registration.refundStatus === 'failed' ? 'text-red-600' : 'text-gray-500'}`}>
+                                                            refund: {registration.refundStatus}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <span className="text-sm text-gray-500">Free</span>
                                             )}
@@ -333,15 +394,44 @@ export default function RegistrationsTab({ eventId }: RegistrationsTabProps) {
                                             {new Date(registration.registeredAt).toLocaleDateString()}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                            {!(registration.checkedIn || registration.status === 'attended') && registration.status === 'confirmed' && (
-                                                <button
-                                                    onClick={() => handleCheckIn(registration._id)}
-                                                    disabled={checkingInId === registration._id}
-                                                    className={`font-medium ${checkingInId === registration._id ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-900'}`}
-                                                >
-                                                    {checkingInId === registration._id ? 'Checking...' : 'Check In'}
-                                                </button>
-                                            )}
+                                            <div className="flex items-center gap-3">
+                                                {registration.status === 'confirmed' && !registration.checkedIn && (
+                                                    <button
+                                                        onClick={() => handleCheckIn(registration._id, 'attended')}
+                                                        disabled={actionId === registration._id}
+                                                        className={`font-medium ${actionId === registration._id ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-900'}`}
+                                                    >
+                                                        {actionId === registration._id ? 'Working...' : 'Check In'}
+                                                    </button>
+                                                )}
+                                                {registration.status === 'confirmed' && (
+                                                    <button
+                                                        onClick={() => handleCheckIn(registration._id, 'no-show')}
+                                                        disabled={actionId === registration._id}
+                                                        className="font-medium text-gray-600 hover:text-gray-900 disabled:text-gray-400"
+                                                    >
+                                                        No-show
+                                                    </button>
+                                                )}
+                                                {registration.status !== 'cancelled' && registration.status !== 'attended' && (
+                                                    <button
+                                                        onClick={() => handleCancelRegistration(registration)}
+                                                        disabled={actionId === registration._id}
+                                                        className="font-medium text-red-600 hover:text-red-800 disabled:text-gray-400"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                )}
+                                                {registration.paymentStatus === 'completed' && registration.refundStatus !== 'processed' && (
+                                                    <button
+                                                        onClick={() => handleRefund(registration)}
+                                                        disabled={actionId === registration._id}
+                                                        className="font-medium text-purple-600 hover:text-purple-800 disabled:text-gray-400"
+                                                    >
+                                                        Refund
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

@@ -1,6 +1,69 @@
 import { Event } from '../../models/event.models.js';
+import { EventRegistration } from '../../models/eventRegistration.models.js';
 import { escapeRegex } from '../../utils/sanitizeUtils.js';
 import { notifyNewEvent } from '../../services/notificationAutomation.service.js';
+import { sendNotification } from '../notifications/notifications.controller.js';
+import { cancelRegistrationWithSideEffects } from '../../services/eventRegistration.service.js';
+
+const PUBLIC_EVENT_SELECT = '-__v -onlineMeetingLink';
+const ALLOWED_CURRENCIES = ['INR', 'USD', 'EUR'];
+
+const shapePublicEvent = (event) => {
+  const raw = typeof event?.toObject === 'function' ? event.toObject() : { ...(event || {}) };
+  delete raw.onlineMeetingLink;
+  const taken = Number(raw.currentAttendees || 0) + Number(raw.reservedSeats || 0);
+  return {
+    ...raw,
+    hasOnlineMeeting: raw.locationType === 'online',
+    isFull: raw.maxAttendees != null && taken >= Number(raw.maxAttendees),
+    spotsLeft: raw.maxAttendees == null ? null : Math.max(0, Number(raw.maxAttendees) - taken),
+  };
+};
+
+const validateEventFields = ({
+  isPaid,
+  price,
+  earlyBirdPrice,
+  earlyBirdEndDate,
+  startTime,
+  endTime,
+  registrationDeadline,
+  maxAttendees,
+  currency,
+  currentAttendees = 0,
+  reservedSeats = 0,
+}) => {
+  if (currency && !ALLOWED_CURRENCIES.includes(String(currency).toUpperCase())) {
+    return `Currency must be one of: ${ALLOWED_CURRENCIES.join(', ')}`;
+  }
+  if (Number(price) < 0 || Number(earlyBirdPrice || 0) < 0) {
+    return 'Prices cannot be negative';
+  }
+  if (isPaid && !(Number(price) > 0)) {
+    return 'Paid events must have a price greater than 0';
+  }
+  const start = startTime ? new Date(startTime) : null;
+  const end = endTime ? new Date(endTime) : null;
+  if (start && end && end <= start) {
+    return 'End time must be after start time';
+  }
+  if (earlyBirdPrice != null && Number(earlyBirdPrice) > 0 && Number(earlyBirdPrice) >= Number(price)) {
+    return 'Early bird price must be lower than the regular price';
+  }
+  if (earlyBirdEndDate && start && new Date(earlyBirdEndDate) > start) {
+    return 'Early bird end date must be before the event starts';
+  }
+  if (registrationDeadline && start && new Date(registrationDeadline) > start) {
+    return 'Registration deadline must be before the event starts';
+  }
+  if (
+    maxAttendees != null
+    && Number(maxAttendees) < Number(currentAttendees) + Number(reservedSeats)
+  ) {
+    return 'Capacity cannot be lower than the seats already taken';
+  }
+  return null;
+};
 
 /**
  * Create a new event
@@ -47,7 +110,7 @@ export const createEvent = async (req, res) => {
     } = req.body;
 
     // organizerId must come from the authenticated admin, not the request body
-    const organizerId = req.admin?._id || null;
+    const organizerId = req.admin?._id || req.admin?.id || null;
 
     const resolvedLocationType = ['physical', 'online'].includes(locationType)
       ? locationType
@@ -78,6 +141,21 @@ export const createEvent = async (req, res) => {
         success: false,
         message: "Required fields: title, eventDate, eventTime, startTime, location, category"
       });
+    }
+
+    const semanticError = validateEventFields({
+      isPaid,
+      price,
+      earlyBirdPrice,
+      earlyBirdEndDate,
+      startTime,
+      endTime,
+      registrationDeadline,
+      maxAttendees,
+      currency,
+    });
+    if (semanticError) {
+      return res.status(400).json({ success: false, message: semanticError });
     }
 
     // Create event
@@ -166,6 +244,7 @@ export const getAllEvents = async (req, res) => {
       search,
       upcoming,
       past,
+      includeCancelled,
       page = 1,
       limit = 20,
       sortBy = 'eventDate',
@@ -188,6 +267,8 @@ export const getAllEvents = async (req, res) => {
       query.startTime = { $lt: now };
     } else if (status) {
       query.status = status;
+    } else if (includeCancelled !== 'true') {
+      query.status = { $ne: 'cancelled' };
     }
 
     // Filter by category
@@ -232,7 +313,8 @@ export const getAllEvents = async (req, res) => {
         .sort(sortOptions)
         .skip(skip)
         .limit(limitNum)
-        .select('-__v'),
+        .select(PUBLIC_EVENT_SELECT)
+        .lean(),
       Event.countDocuments(query)
     ]);
 
@@ -241,7 +323,7 @@ export const getAllEvents = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Events fetched successfully",
-      events,
+      events: events.map(shapePublicEvent),
       pagination: {
         currentPage: pageNum,
         totalPages,
@@ -276,7 +358,7 @@ export const getEventById = async (req, res) => {
       });
     }
 
-    const event = await Event.findById(id).select('-__v');
+    const event = await Event.findById(id).select(PUBLIC_EVENT_SELECT);
 
     if (!event) {
       return res.status(404).json({
@@ -292,12 +374,12 @@ export const getEventById = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Event fetched successfully",
-      event,
+      event: shapePublicEvent(event),
       meta: {
         currentPrice,
         canRegister,
         isFull: event.isFull(),
-        spotsLeft: event.maxAttendees ? event.maxAttendees - event.currentAttendees : null
+        spotsLeft: event.spotsLeft()
       }
     });
 
@@ -321,6 +403,35 @@ export const getEventById = async (req, res) => {
 };
 
 /**
+ * Get an event by ID for the admin editor (includes the meeting link).
+ * GET /api/events/admin/:id
+ */
+export const getEventByIdAdmin = async (req, res) => {
+  try {
+    const event = await Event.findById(req.params.id).select('-__v');
+    if (!event) {
+      return res.status(404).json({ success: false, message: "Event not found" });
+    }
+    return res.status(200).json({
+      success: true,
+      event,
+      meta: {
+        currentPrice: event.getCurrentPrice(),
+        canRegister: event.canRegister(),
+        isFull: event.isFull(),
+        spotsLeft: event.spotsLeft(),
+      }
+    });
+  } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(400).json({ success: false, message: "Invalid event ID format" });
+    }
+    console.error("❌ Error fetching event for admin:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+/**
  * Get event by slug
  * GET /api/events/slug/:slug
  */
@@ -335,7 +446,7 @@ export const getEventBySlug = async (req, res) => {
       });
     }
 
-    const event = await Event.findOne({ slug }).select('-__v');
+    const event = await Event.findOne({ slug }).select(PUBLIC_EVENT_SELECT);
 
     if (!event) {
       return res.status(404).json({
@@ -351,12 +462,12 @@ export const getEventBySlug = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Event fetched successfully",
-      event,
+      event: shapePublicEvent(event),
       meta: {
         currentPrice,
         canRegister,
         isFull: event.isFull(),
-        spotsLeft: event.maxAttendees ? event.maxAttendees - event.currentAttendees : null
+        spotsLeft: event.spotsLeft()
       }
     });
 
@@ -431,6 +542,28 @@ export const updateEvent = async (req, res) => {
         success: false,
         message: "Event not found"
       });
+    }
+
+    const semanticError = validateEventFields({
+      isPaid: updateData.isPaid !== undefined ? updateData.isPaid : event.isPaid,
+      price: updateData.price !== undefined ? updateData.price : event.price,
+      earlyBirdPrice: updateData.earlyBirdPrice !== undefined ? updateData.earlyBirdPrice : event.earlyBirdPrice,
+      earlyBirdEndDate: updateData.earlyBirdEndDate !== undefined ? updateData.earlyBirdEndDate : event.earlyBirdEndDate,
+      startTime: updateData.startTime !== undefined ? updateData.startTime : event.startTime,
+      endTime: updateData.endTime !== undefined ? updateData.endTime : event.endTime,
+      registrationDeadline: updateData.registrationDeadline !== undefined ? updateData.registrationDeadline : event.registrationDeadline,
+      maxAttendees: updateData.maxAttendees !== undefined ? updateData.maxAttendees : event.maxAttendees,
+      currency: updateData.currency !== undefined ? updateData.currency : event.currency,
+      currentAttendees: event.currentAttendees,
+      reservedSeats: event.reservedSeats,
+    });
+    if (semanticError) {
+      return res.status(400).json({ success: false, message: semanticError });
+    }
+
+    if (updateData.isPaid === false) {
+      updateData.price = 0;
+      updateData.earlyBirdPrice = 0;
     }
 
     // Keep the meeting link consistent with the (possibly updated) location type.
@@ -517,6 +650,18 @@ export const deleteEvent = async (req, res) => {
       });
     }
 
+    const paidRegistrations = await EventRegistration.countDocuments({
+      eventId: id,
+      paymentStatus: 'completed',
+      status: { $ne: 'cancelled' },
+    });
+    if (paidRegistrations > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "This event has paid registrations. Cancel the event first so refunds can be processed."
+      });
+    }
+
     const event = await Event.findByIdAndDelete(id);
 
     if (!event) {
@@ -573,13 +718,14 @@ export const getUpcomingEvents = async (req, res) => {
 
     const events = await Event.find(query)
       .sort({ startTime: 1 })
-      .limit(parseInt(limit))
-      .select('-__v');
+      .limit(Math.min(100, Math.max(1, parseInt(limit) || 10)))
+      .select(PUBLIC_EVENT_SELECT)
+      .lean();
 
     return res.status(200).json({
       success: true,
       message: "Upcoming events fetched successfully",
-      events,
+      events: events.map(shapePublicEvent),
       count: events.length
     });
 
@@ -611,24 +757,27 @@ export const getPastEvents = async (req, res) => {
       query.category = category;
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const pageNum = Math.max(1, parseInt(page) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit) || 10));
+    const skip = (pageNum - 1) * limitNum;
 
     const [events, totalCount] = await Promise.all([
       Event.find(query)
         .sort({ eventDate: -1 })
         .skip(skip)
-        .limit(parseInt(limit))
-        .select('-__v'),
+        .limit(limitNum)
+        .select(PUBLIC_EVENT_SELECT)
+        .lean(),
       Event.countDocuments(query)
     ]);
 
     return res.status(200).json({
       success: true,
       message: "Past events fetched successfully",
-      events,
+      events: events.map(shapePublicEvent),
       pagination: {
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(totalCount / parseInt(limit)),
+        currentPage: pageNum,
+        totalPages: Math.ceil(totalCount / limitNum),
         totalEvents: totalCount
       }
     });
@@ -658,12 +807,7 @@ export const cancelEvent = async (req, res) => {
       });
     }
 
-    const event = await Event.findByIdAndUpdate(
-      id,
-      { status: 'cancelled' },
-      { new: true }
-    ).select('-__v');
-
+    const event = await Event.findById(id);
     if (!event) {
       return res.status(404).json({
         success: false,
@@ -671,22 +815,73 @@ export const cancelEvent = async (req, res) => {
       });
     }
 
-    console.log("✅ Event cancelled:", event.title);
-
-    // Cascade to registrations — mark pending/confirmed as cancelled
-    const { EventRegistration } = await import('../../models/eventRegistration.models.js');
-    const regResult = await EventRegistration.updateMany(
-      { eventId: id, status: { $in: ['pending', 'confirmed', 'attended'] } },
-      { $set: { status: 'cancelled', notes: 'Event was cancelled by Admin' } }
-    );
-    if (regResult.modifiedCount > 0) {
-      console.log(`✅ Cancelled ${regResult.modifiedCount} registrations for cancelled event: ${id}`);
+    if (event.status === 'cancelled') {
+      return res.status(200).json({
+        success: true,
+        message: "Event is already cancelled",
+        event,
+        cancelledCount: 0,
+        refundedCount: 0,
+        refundFailedCount: 0,
+      });
     }
+
+    event.status = 'cancelled';
+    await event.save();
+
+    // Cancel pending + confirmed registrations and refund the paid ones.
+    // Attended registrations are preserved as attendance history.
+    const registrations = await EventRegistration.find({
+      eventId: id,
+      status: { $in: ['pending', 'confirmed'] },
+    });
+
+    let refundedCount = 0;
+    let refundFailedCount = 0;
+
+    for (const registration of registrations) {
+      try {
+        const { refund } = await cancelRegistrationWithSideEffects(registration, {
+          cancelledBy: 'admin',
+          reason: 'Event cancelled by admin',
+          refund: true,
+        });
+
+        if (refund?.status === 'processed') refundedCount += 1;
+        if (refund?.status === 'failed') refundFailedCount += 1;
+
+        sendNotification(registration.userId, {
+          type: 'system',
+          title: 'Event Cancelled',
+          message: refund?.status === 'processed'
+            ? `"${event.title}" was cancelled. Your refund of ₹${Number(registration.refundAmount || 0)} has been processed.`
+            : `"${event.title}" was cancelled by the organizer.`,
+          icon: '📅',
+          relatedId: event._id,
+          relatedType: 'event',
+          actionUrl: `/event-detail?eventId=${event._id}`,
+          priority: 'high',
+        }).catch(() => {});
+      } catch (registrationError) {
+        console.error(`Failed to cancel registration ${registration._id}:`, registrationError.message);
+      }
+    }
+
+    const currentAttendees = await EventRegistration.countDocuments({
+      eventId: id,
+      status: { $in: ['confirmed', 'attended'] },
+    });
+    await Event.findByIdAndUpdate(id, { currentAttendees, reservedSeats: 0 });
+
+    console.log(`✅ Event cancelled: ${event.title} (${registrations.length} registrations cancelled)`);
 
     return res.status(200).json({
       success: true,
       message: "Event cancelled successfully",
-      event
+      event,
+      cancelledCount: registrations.length,
+      refundedCount,
+      refundFailedCount,
     });
 
   } catch (error) {
@@ -949,7 +1144,6 @@ export const downloadEventCalendar = async (req, res) => {
     const locationText = [event.location, addressText].filter(Boolean).join(' - ');
     const descriptionLines = [
       event.description || event.shortDescription || '',
-      event.locationType === 'online' && event.onlineMeetingLink ? `Join: ${event.onlineMeetingLink}` : '',
     ].filter(Boolean).join('\n');
 
     const ics = [

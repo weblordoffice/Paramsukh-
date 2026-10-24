@@ -15,10 +15,9 @@ export default function BookCounselingScreen() {
   const { colors } = useTheme();
   const router = useRouter();
   const { id } = useLocalSearchParams();
-  const { counselingTypes, checkAvailability, bookSession, createBookingOrder, createBookingPaymentLink, confirmBookingPaymentLink, verifyCounselingPayment, isLoading } = useCounselingStore();
+  const { counselingTypes, fetchCounselingTypes, checkAvailability, bookSession, createBookingOrder, createBookingPaymentLink, confirmBookingPaymentLink, verifyCounselingPayment, isLoading } = useCounselingStore();
   
-  // Safely extract from store instead of URL params
-  const service = counselingTypes.find(t => t.id === id) || counselingTypes[0]; // fallback
+  const service = id ? counselingTypes.find(t => t.id === id || t._id === id) : undefined;
   const title = service?.title || 'Counseling Session';
   const description = service?.description || '';
   const price = service?.price || 0;
@@ -27,10 +26,22 @@ export default function BookCounselingScreen() {
   const color = service?.color || '#F1842D';
   const bgColor = service?.bgColor || colors.background;
   const numericPrice = Number(price) || 0;
-  const isFree = service?.isFree || numericPrice === 0 ? 'true' : 'false';
+  const isFree = Boolean(service?.isFree) || numericPrice === 0;
 
-  // Set today as initial date
-  const today = new Date().toISOString().split('T')[0];
+  React.useEffect(() => {
+    if (!counselingTypes.length) {
+      fetchCounselingTypes();
+    }
+  }, [counselingTypes.length, fetchCounselingTypes]);
+
+  const localToday = () => {
+    const now = new Date();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  };
+
+  // Set today as initial date (device-local calendar date)
+  const today = localToday();
   const [selectedDate, setSelectedDate] = useState<string>(today);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
@@ -54,6 +65,7 @@ export default function BookCounselingScreen() {
           const slots = await checkAvailability(selectedDate, id as string);
           setAvailableSlots(slots);
         } catch (error: any) {
+          setAvailableSlots([]);
           Alert.alert('Error', error?.message || 'Failed to load available slots. Please try again.');
         } finally {
           setFetchingSlots(false);
@@ -74,14 +86,13 @@ export default function BookCounselingScreen() {
       day: 'numeric',
       month: 'short'
     });
-    const numericPrice = Number(price) || 0;
-    const free = isFree === 'true';
 
     // Optimistically remove slot from available list
     const bookedSlot = selectedTime;
     setOptimisticSlot(bookedSlot);
     setAvailableSlots(prev => prev.filter(s => s !== bookedSlot));
 
+    let bookingCreated = false;
     setProcessing(true);
     try {
       // Step 1: Create booking (pending for paid, confirmed for free)
@@ -93,8 +104,8 @@ export default function BookCounselingScreen() {
         bookingDate: selectedDate,
         bookingTime: selectedTime,
         userNotes: notes,
-        couponCode: couponCode.trim() || undefined,
-        amount: free ? 0 : numericPrice
+        couponCode: couponCode.trim().toUpperCase() || undefined,
+        amount: numericPrice
       });
 
       if (!result.success) {
@@ -105,12 +116,25 @@ export default function BookCounselingScreen() {
         return;
       }
 
-      // Free service: booking is already confirmed
-      if (free) {
+      bookingCreated = true;
+
+      if (result.isWaitlisted) {
+        setOptimisticSlot(null);
+        Alert.alert(
+          'Added to Waitlist',
+          result.message || `You are #${result.waitlistRank || 1} on the waitlist. We'll notify you if a spot opens.`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Server decides whether the booking is confirmed (free or fully discounted).
+      if (result.status === 'confirmed' || result.isFree === true) {
+        setOptimisticSlot(null);
         Alert.alert(
           'Booking Confirmed! 🎉',
           `Your session with ${counselorName || 'Counselor'} on ${formattedDateString} at ${formatTime12h(selectedTime)} has been booked.`,
-          [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
+          [{ text: 'View Booking', onPress: () => router.replace(`/counseling-detail?bookingId=${result.bookingId}`) }]
         );
         return;
       }
@@ -159,19 +183,36 @@ export default function BookCounselingScreen() {
             return;
           }
           if (payResult.status === 'cancelled') {
-            Alert.alert('Payment Cancelled', 'Your booking is saved as pending. You can retry payment from your bookings.');
+            setOptimisticSlot(null);
+            Alert.alert(
+              'Payment Cancelled',
+              'Your booking is saved as pending. You can complete payment from this booking.',
+              [{ text: 'View Booking', onPress: () => router.replace(`/counseling-detail?bookingId=${bookingId}`) }]
+            );
             return;
           }
-          // Native checkout errored — fall through to the browser-based payment-link flow below
+
+          // Native checkout errored. Never start a second payment flow here —
+          // the first attempt may already have been charged.
+          setOptimisticSlot(null);
+          Alert.alert(
+            'Payment Under Verification',
+            'We could not confirm the payment status. If you were charged, your booking will be confirmed automatically. Please check your booking before trying again.',
+            [{ text: 'View Booking', onPress: () => router.replace(`/counseling-detail?bookingId=${bookingId}`) }]
+          );
+          return;
         }
       }
 
       const linkResult = await createBookingPaymentLink(bookingId);
       if (!linkResult.success || !linkResult.url || !linkResult.paymentLinkId) {
-        // Restore slot on failure
-        setAvailableSlots(prev => [...prev, bookedSlot].sort());
+        // The pending booking already holds the slot; do not offer it again.
         setOptimisticSlot(null);
-        Alert.alert('Payment Error', linkResult.message || 'Could not start payment.');
+        Alert.alert(
+          'Payment Error',
+          linkResult.message || 'Could not start payment. You can retry from your booking.',
+          [{ text: 'View Booking', onPress: () => router.replace(`/counseling-detail?bookingId=${bookingId}`) }]
+        );
         return;
       }
 
@@ -198,17 +239,25 @@ export default function BookCounselingScreen() {
           [{ text: 'Done', onPress: () => router.push('/(home)/menu') }]
         );
       } else if (openResult.timedOut) {
-        // Payment timed out - keep slot reserved, user can retry
-        Alert.alert('Payment Pending', 'Your payment is being processed. If you paid, your booking will be confirmed shortly.');
-      } else {
-        // Payment cancelled or failed - restore slot
-        setAvailableSlots(prev => [...prev, bookedSlot].sort());
+        // Payment timed out - the pending booking still holds the slot.
         setOptimisticSlot(null);
-        Alert.alert('Payment', openResult.result?.message || 'If you paid, your booking will be confirmed shortly. Otherwise please try again.');
+        Alert.alert(
+          'Payment Pending',
+          'Your payment is being processed. If you paid, your booking will be confirmed shortly.',
+          [{ text: 'View Booking', onPress: () => router.replace(`/counseling-detail?bookingId=${bookingId}`) }]
+        );
+      } else {
+        setOptimisticSlot(null);
+        Alert.alert(
+          'Payment Not Completed',
+          openResult.result?.message || 'If you paid, your booking will be confirmed shortly. Otherwise retry from your booking.',
+          [{ text: 'View Booking', onPress: () => router.replace(`/counseling-detail?bookingId=${bookingId}`) }]
+        );
       }
     } catch (e: any) {
-      // Restore slot on error
-      setAvailableSlots(prev => [...prev, bookedSlot].sort());
+      if (!bookingCreated) {
+        setAvailableSlots(prev => [...prev, bookedSlot].sort());
+      }
       setOptimisticSlot(null);
       Alert.alert('Error', e?.message || 'An unexpected error occurred.');
     } finally {
@@ -217,9 +266,37 @@ export default function BookCounselingScreen() {
     }
   };
 
-  const showPayment = isFree !== 'true';
+  const showPayment = !isFree;
   const displayColor = (color as string) || '#3B82F6';
   const displayBgColor = (bgColor as string) || '#EFF6FF';
+
+  if (!service && isLoading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </SafeAreaView>
+    );
+  }
+
+  if (!service) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+        <Ionicons name="alert-circle-outline" size={48} color={colors.warning} />
+        <Text style={{ fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 12, textAlign: 'center' }}>
+          Counseling service not found
+        </Text>
+        <Text style={{ fontSize: 14, color: colors.textSecondary, marginTop: 6, textAlign: 'center' }}>
+          Please go back and pick a service again.
+        </Text>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{ marginTop: 20, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.primary }}
+        >
+          <Text style={{ color: colors.surface, fontWeight: '700' }}>Go back</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -240,7 +317,7 @@ export default function BookCounselingScreen() {
             </View>
             <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, backgroundColor: displayColor + '15' }}>
               <Text style={{ fontWeight: '700', fontSize: 12, color: displayColor }}>
-                {isFree === 'true' ? 'FREE' : `₹${price}`}
+                {isFree ? 'FREE' : `₹${price}`}
               </Text>
             </View>
           </View>

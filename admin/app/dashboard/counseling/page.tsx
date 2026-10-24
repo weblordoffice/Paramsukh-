@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, Search, Filter, MoreVertical, Calendar, Star, Edit, Trash2 } from 'lucide-react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import CounselingServiceModal from '@/components/CounselingServiceModal';
+import { useAuthStore } from '@/lib/store/authStore';
 
 interface CounselingService {
     _id: string;
@@ -27,6 +29,16 @@ export default function CounselingPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedService, setSelectedService] = useState<CounselingService | null>(null);
+    const router = useRouter();
+    const user = useAuthStore((state) => state.user);
+    const hasPermission = useAuthStore((state) => state.hasPermission);
+
+    useEffect(() => {
+        if (user && !hasPermission('manage_content')) {
+            toast.error('You do not have permission to manage counseling');
+            router.replace('/dashboard');
+        }
+    }, [user, hasPermission, router]);
 
     const fetchServices = async () => {
         try {
@@ -53,6 +65,10 @@ export default function CounselingPage() {
         try {
             setDeletingId(id);
             const response = await apiClient.delete(`/api/counseling/admin/services/${id}`);
+            if (response.data?.success === false) {
+                toast.error(response.data.message || 'Failed to delete service');
+                return;
+            }
             toast.success('Service deleted successfully');
             fetchServices();
         } catch (error: any) {
@@ -65,9 +81,13 @@ export default function CounselingPage() {
 
     const toggleStatus = async (service: CounselingService) => {
         try {
-            await apiClient.put(`/api/counseling/admin/services/${service._id}`, {
+            const response = await apiClient.put(`/api/counseling/admin/services/${service._id}`, {
                 isActive: !service.isActive
             });
+            if (response.data?.success === false) {
+                toast.error(response.data.message || 'Failed to update status');
+                return;
+            }
             toast.success(`Service ${service.isActive ? 'deactivated' : 'activated'}`);
             fetchServices();
         } catch (error) {
@@ -77,8 +97,8 @@ export default function CounselingPage() {
     };
 
     const filteredServices = services.filter(service =>
-        service.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        service.counselorName.toLowerCase().includes(searchQuery.toLowerCase())
+        String(service.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(service.counselorName || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
 
     return (

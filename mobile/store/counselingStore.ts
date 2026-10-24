@@ -29,6 +29,10 @@ export interface UserBooking {
     meetingPassword?: string;
     meetingPlatform?: string;
     duration?: number;
+    timezone?: string;
+    paymentDueAt?: string | null;
+    waitlistRank?: number | null;
+    refundStatus?: string | null;
     userNotes?: string;
     amount?: number;
     paymentStatus?: string;
@@ -51,14 +55,14 @@ interface CounselingState {
     errorBookings: string | null;
     fetchCounselingTypes: () => Promise<void>;
     checkAvailability: (date: string, counselorType: string) => Promise<string[]>;
-    bookSession: (bookingData: any) => Promise<{ success: boolean; message?: string; bookingId?: string }>;
+    bookSession: (bookingData: any) => Promise<{ success: boolean; message?: string; bookingId?: string; status?: string; isFree?: boolean; paymentRequired?: boolean; isWaitlisted?: boolean; waitlistRank?: number; amount?: number }>;
     createBookingOrder: (bookingId: string, amount?: number) => Promise<{ success: boolean; data?: { razorpay: { orderId: string; amount: number; currency: string; keyId: string } }; message?: string }>;
     createBookingPaymentLink: (bookingId: string) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; expiresAt?: string; message?: string }>;
     confirmBookingPaymentLink: (paymentLinkId: string, bookingId: string) => Promise<{ success: boolean; message?: string }>;
     verifyCounselingPayment: (bookingId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => Promise<{ success: boolean; message?: string }>;
     fetchMyBookings: (status?: string) => Promise<UserBooking[]>;
     fetchBookingDetails: (bookingId: string) => Promise<UserBooking | null>;
-    cancelBooking: (bookingId: string, reason?: string) => Promise<{ success: boolean; message?: string }>;
+    cancelBooking: (bookingId: string, reason?: string) => Promise<{ success: boolean; message?: string; refundStatus?: string | null }>;
     rescheduleBooking: (bookingId: string, newDate: string, newTime: string, reason?: string) => Promise<{ success: boolean; message?: string }>;
     requestReschedule: (bookingId: string, newDate: string, newTime: string, reason?: string) => Promise<{ success: boolean; message?: string }>;
     respondToReschedule: (bookingId: string, action: 'approve' | 'deny', responseNote?: string) => Promise<{ success: boolean; message?: string }>;
@@ -112,8 +116,9 @@ export const useCounselingStore = create<CounselingState>((set) => ({
             set({ isLoadingSlots: false });
             return response.data?.data?.availableSlots || [];
         } catch (error: any) {
-            set({ isLoadingSlots: false, error: 'Failed to check availability' });
-            return [];
+            const message = error.response?.data?.message || 'Failed to check availability';
+            set({ isLoadingSlots: false, error: message });
+            throw new Error(message);
         }
     },
 
@@ -123,8 +128,18 @@ export const useCounselingStore = create<CounselingState>((set) => ({
             const response = await apiClient.post(`${API_URL}/counseling/book`, bookingData);
             set({ isLoading: false });
             if (response.data?.success) {
-                const bookingId = response.data?.data?.booking?._id;
-                return { success: true, message: 'Booking created', bookingId };
+                const booking = response.data?.data?.booking;
+                return {
+                    success: true,
+                    message: response.data?.message || 'Booking created',
+                    bookingId: booking?._id,
+                    status: booking?.status,
+                    isFree: Boolean(booking?.isFree),
+                    paymentRequired: booking?.status === 'pending' && !booking?.isFree,
+                    isWaitlisted: Boolean(response.data?.data?.isWaitlisted),
+                    waitlistRank: response.data?.data?.waitlistRank,
+                    amount: booking?.amount,
+                };
             }
             return { success: false, message: response.data?.message || 'Booking failed' };
         } catch (error: any) {
@@ -214,14 +229,12 @@ export const useCounselingStore = create<CounselingState>((set) => ({
                 params: status ? { status } : {},
                 timeout: 10000
             });
-            console.log('[fetchMyBookings] response:', JSON.stringify(response.data));
             if (requestId !== activeBookingsRequestId) {
                 return [];
             }
             set({ isLoadingBookings: false });
             return response.data?.data?.bookings || [];
         } catch (error: any) {
-            console.log('[fetchMyBookings] error:', JSON.stringify(error?.response?.data || error?.message));
             if (requestId !== activeBookingsRequestId) {
                 return [];
             }
@@ -252,7 +265,11 @@ export const useCounselingStore = create<CounselingState>((set) => ({
             const response = await apiClient.patch(`${API_URL}/counseling/${bookingId}/cancel`, { reason });
             set({ isLoading: false });
             if (response.data?.success) {
-                return { success: true, message: response.data?.message };
+                return {
+                    success: true,
+                    message: response.data?.message,
+                    refundStatus: response.data?.refundStatus ?? response.data?.data?.refundStatus,
+                };
             }
             return { success: false, message: response.data?.message || 'Cancellation failed' };
         } catch (error: any) {

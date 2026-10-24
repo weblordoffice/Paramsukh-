@@ -1,4 +1,11 @@
 import mongoose from 'mongoose';
+import CounselorAvailabilityException from './counselorAvailabilityException.model.js';
+import {
+  startOfUtcDay,
+  toDateKey,
+  todayInZone,
+  zonedDateTimeToUtc,
+} from '../utils/timezone.js';
 
 const bookingSchema = new mongoose.Schema({
   user: {
@@ -6,6 +13,17 @@ const bookingSchema = new mongoose.Schema({
     ref: 'User',
     required: true,
     index: true
+  },
+  // Service this booking belongs to (resolved at creation)
+  serviceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CounselingService',
+    default: null,
+    index: true
+  },
+  timezone: {
+    type: String,
+    default: 'Asia/Kolkata'
   },
   // Counselor selection
   counselorType: {
@@ -57,13 +75,21 @@ const bookingSchema = new mongoose.Schema({
   // Booking status
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'completed', 'cancelled', 'rescheduled', 'no_show'],
+    enum: ['pending', 'confirmed', 'completed', 'cancelled', 'rescheduled', 'no_show', 'waitlisted'],
     default: 'pending'
   },
   // Waitlist for full slots
   waitlistRank: {
     type: Number,
     default: null // null means not on waitlist, number indicates position
+  },
+  promotedAt: {
+    type: Date,
+    default: null
+  },
+  paymentDueAt: {
+    type: Date,
+    default: null
   },
   // Payment details
   isFree: {
@@ -225,6 +251,14 @@ const bookingSchema = new mongoose.Schema({
   reminderSentAt: {
     type: Date
   },
+  reminder24SentAt: {
+    type: Date,
+    default: null
+  },
+  reminder1SentAt: {
+    type: Date,
+    default: null
+  },
   // Feedback
   userRating: {
     type: Number,
@@ -246,6 +280,7 @@ const bookingSchema = new mongoose.Schema({
 // Indexes for efficient queries
 bookingSchema.index({ user: 1, status: 1, bookingDate: -1 });
 bookingSchema.index({ counselorType: 1, bookingDate: 1, status: 1 });
+bookingSchema.index({ serviceId: 1, bookingDate: 1, status: 1 });
 bookingSchema.index({ bookingDate: 1, bookingTime: 1 });
 
 // UNIQUE compound index to prevent double booking (status handled by partialFilterExpression)
@@ -272,39 +307,35 @@ bookingSchema.virtual('formattedDate').get(function () {
   });
 });
 
-// Method to check if booking can be cancelled
-// Parse bookingDate + bookingTime into full datetime
-function resolveBookingDateTime(bookingDate, bookingTime) {
-  const date = new Date(bookingDate);
-  if (!bookingTime) return date;
-  const timeParts = bookingTime.match(/^(\d{1,2}):(\d{2})$/);
-  if (timeParts) {
-    date.setHours(parseInt(timeParts[1]), parseInt(timeParts[2]), 0, 0);
-  }
-  return date;
+// Resolve bookingDate + bookingTime into the exact UTC instant in the service zone
+function resolveBookingDateTime(bookingDate, bookingTime, timezone = 'Asia/Kolkata') {
+  return zonedDateTimeToUtc(bookingDate, bookingTime, timezone) || new Date(bookingDate);
 }
 
 bookingSchema.methods.canBeCancelled = function () {
-  if (this.status === 'cancelled' || this.status === 'completed') {
+  if (this.status === 'cancelled' || this.status === 'completed' || this.status === 'no_show') {
     return false;
   }
   const now = new Date();
-  const bookingDateTime = resolveBookingDateTime(this.bookingDate, this.bookingTime);
+  const bookingDateTime = resolveBookingDateTime(this.bookingDate, this.bookingTime, this.timezone);
   const hoursUntilBooking = (bookingDateTime - now) / (1000 * 60 * 60);
   return hoursUntilBooking >= 24;
 };
 
 bookingSchema.methods.canBeRescheduled = function () {
-  if (this.status === 'cancelled' || this.status === 'completed') {
+  if (this.status === 'cancelled' || this.status === 'completed' || this.status === 'no_show') {
     return false;
   }
   const now = new Date();
-  const bookingDateTime = resolveBookingDateTime(this.bookingDate, this.bookingTime);
+  const bookingDateTime = resolveBookingDateTime(this.bookingDate, this.bookingTime, this.timezone);
   const hoursUntilBooking = (bookingDateTime - now) / (1000 * 60 * 60);
   return hoursUntilBooking >= 48;
 };
 
-// Static method to get available slots (TIMEZONE FIX: Use UTC consistently)
+/**
+ * Available slots for a service on a calendar date, in the service's timezone.
+ * `date` may be a Date or a YYYY-MM-DD string. Returns "HH:mm" wall-clock slots.
+ */
 bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
   const CounselingService = mongoose.model('CounselingService');
   const serviceQuery = mongoose.Types.ObjectId.isValid(String(counselorType))
@@ -312,73 +343,57 @@ bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
     : { title: counselorType };
   const service = await CounselingService.findOne(serviceQuery);
 
-  if (!service || !service.isActive) {
+  const dateKey = toDateKey(date);
+  if (!service || !service.isActive || !dateKey) {
     return [];
   }
 
-  // TIMEZONE FIX: Parse date as UTC to avoid server timezone issues
-  const queryDate = new Date(date);
-  const startOfDay = new Date(Date.UTC(
-    queryDate.getUTCFullYear(),
-    queryDate.getUTCMonth(),
-    queryDate.getUTCDate(),
-    0, 0, 0, 0
-  ));
-  const endOfDay = new Date(Date.UTC(
-    queryDate.getUTCFullYear(),
-    queryDate.getUTCMonth(),
-    queryDate.getUTCDate(),
-    23, 59, 59, 999
-  ));
+  const timezone = service.timezone || 'Asia/Kolkata';
+  const startOfDay = startOfUtcDay(dateKey);
+  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1);
 
-  // DYNAMIC AVAILABILITY: Check for exceptions (holidays, sick leave, etc.)
-  try {
-    const CounselorAvailabilityException = mongoose.model('CounselorAvailabilityException');
-    const exception = await CounselorAvailabilityException.findOne({
-      serviceId: service._id,
-      unavailableDate: { $gte: startOfDay, $lt: endOfDay },
-      isActive: true
-    });
+  const exception = await CounselorAvailabilityException.findOne({
+    serviceId: service._id,
+    unavailableDate: { $gte: startOfDay, $lt: endOfDay },
+    isActive: true
+  });
 
-    if (exception) {
-      console.log(`🚫 Service ${counselorType} unavailable on ${date}: ${exception.reason}`);
-      return []; // No slots available on this date
-    }
-  } catch (error) {
-    // Model might not exist yet, continue without exception check
-    console.log('⚠️ CounselorAvailabilityException model not found, skipping exception check');
+  if (exception) {
+    return [];
   }
 
-  // Determine day of week in UTC
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  const dayOfWeek = days[queryDate.getUTCDay()];
-  const hours = service.businessHours[dayOfWeek];
+  const dayOfWeek = days[new Date(`${dateKey}T00:00:00Z`).getUTCDay()];
+  const hours = service.businessHours?.[dayOfWeek];
 
   if (!hours || !hours.isActive) {
     return [];
   }
 
+  // Match by serviceId (new bookings) and by title (legacy bookings). Only
+  // pending/confirmed bookings hold a slot.
   const bookings = await this.find({
-    bookingDate: {
-      $gte: startOfDay,
-      $lt: endOfDay
-    },
-    counselorType,
+    bookingDate: { $gte: startOfDay, $lt: endOfDay },
+    $or: [
+      { serviceId: service._id },
+      { counselorType: service.title },
+      { counselorType: String(counselorType) }
+    ],
     status: { $in: ['pending', 'confirmed'] }
   }).select('bookingTime bookingDate');
 
-  // Helper to parse "HH:mm" to minutes from midnight
   const parseTimeToMinutes = (timeStr) => {
     const [hrs, mins] = String(timeStr).split(':').map(Number);
     return hrs * 60 + mins;
   };
 
-  // Filter out bookings outside current business hours (handles legacy bookings with old times)
   const startMinutes = parseTimeToMinutes(hours.start);
   const endMinutes = parseTimeToMinutes(hours.end);
-  const interval = service.intervalMinutes || 60;
+  const interval = Number(service.intervalMinutes) || 60;
+  if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes) || endMinutes <= startMinutes) {
+    return [];
+  }
 
-  // Optional mid-day break splits the day into two shifts (e.g. 09:00-13:00 and 14:00-18:00).
   const breakStartMinutes = hours.breakStart ? parseTimeToMinutes(hours.breakStart) : null;
   const breakEndMinutes = hours.breakEnd ? parseTimeToMinutes(hours.breakEnd) : null;
   const hasBreak =
@@ -387,48 +402,113 @@ bookingSchema.statics.getAvailableSlots = async function (date, counselorType) {
     hasBreak && slotStart < breakEndMinutes && slotStart + interval > breakStartMinutes;
 
   const bookedSlots = bookings
-    .filter(b => {
-      const slotMinutes = parseTimeToMinutes(b.bookingTime);
+    .filter((booking) => {
+      const slotMinutes = parseTimeToMinutes(booking.bookingTime);
       return slotMinutes >= startMinutes && slotMinutes < endMinutes;
     })
-    .map(b => b.bookingTime);
+    .map((booking) => booking.bookingTime);
 
-  // Helper to format minutes to "HH:mm" (24h format — matches pre-save normalization)
   const formatMinutesToTime = (totalMinutes) => {
     const hrs = Math.floor(totalMinutes / 60);
     const mins = totalMinutes % 60;
     return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   };
 
+  const now = new Date();
+  const isToday = dateKey === todayInZone(timezone, now);
+  const leadCutoff = new Date(now.getTime() + 30 * 60 * 1000);
   const availableSlots = [];
 
-  // TIMEZONE FIX: Use UTC for current time check
-  const now = new Date();
-  const isToday = now.toISOString().split('T')[0] === queryDate.toISOString().split('T')[0];
-  const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
-
   for (let current = startMinutes; current + interval <= endMinutes; current += interval) {
-    // Skip slots that fall inside (or overlap) the break window.
     if (overlapsBreak(current)) {
       continue;
     }
 
-    // If it's today, only show future slots (add 30 min buffer)
-    if (isToday && current < currentMinutes + 30) {
+    const timeString = formatMinutesToTime(current);
+    if (bookedSlots.includes(timeString)) {
       continue;
     }
 
-    const timeString = formatMinutesToTime(current);
-    if (!bookedSlots.includes(timeString)) {
-      availableSlots.push(timeString);
+    if (isToday) {
+      const slotInstant = zonedDateTimeToUtc(dateKey, timeString, timezone);
+      if (!slotInstant || slotInstant < leadCutoff) {
+        continue;
+      }
     }
+
+    availableSlots.push(timeString);
   }
 
   return availableSlots;
 };
 
-// Normalize bookingTime to 24h format on save
+/** Validate that a wall-clock slot is inside the service's availability grid. */
+bookingSchema.statics.isValidSlot = async function (date, counselorType, time) {
+  const CounselingService = mongoose.model('CounselingService');
+  const serviceQuery = mongoose.Types.ObjectId.isValid(String(counselorType))
+    ? { _id: counselorType }
+    : { title: counselorType };
+  const service = await CounselingService.findOne(serviceQuery);
+  const dateKey = toDateKey(date);
+  const normalizedTime = String(time || '').trim();
+  if (!service || !service.isActive || !dateKey || !/^\d{2}:\d{2}$/.test(normalizedTime)) {
+    return false;
+  }
+
+  const timezone = service.timezone || 'Asia/Kolkata';
+  const startOfDay = startOfUtcDay(dateKey);
+  const endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000 - 1);
+
+  const exception = await CounselorAvailabilityException.findOne({
+    serviceId: service._id,
+    unavailableDate: { $gte: startOfDay, $lt: endOfDay },
+    isActive: true,
+  });
+  if (exception) return false;
+
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dayOfWeek = days[new Date(`${dateKey}T00:00:00Z`).getUTCDay()];
+  const hours = service.businessHours?.[dayOfWeek];
+  if (!hours || !hours.isActive) return false;
+
+  const parseMinutes = (value) => {
+    const [hrs, mins] = String(value).split(':').map(Number);
+    return hrs * 60 + mins;
+  };
+  const slotMinutes = parseMinutes(normalizedTime);
+  const startMinutes = parseMinutes(hours.start);
+  const endMinutes = parseMinutes(hours.end);
+  const interval = Number(service.intervalMinutes) || 60;
+
+  if (!Number.isFinite(slotMinutes) || slotMinutes < startMinutes) return false;
+  if (slotMinutes + interval > endMinutes) return false;
+
+  const breakStart = hours.breakStart ? parseMinutes(hours.breakStart) : null;
+  const breakEnd = hours.breakEnd ? parseMinutes(hours.breakEnd) : null;
+  if (breakStart != null && breakEnd != null && breakEnd > breakStart) {
+    if (slotMinutes < breakEnd && slotMinutes + interval > breakStart) return false;
+  }
+
+  const slotInstant = zonedDateTimeToUtc(dateKey, normalizedTime, timezone);
+  if (!slotInstant || slotInstant < new Date()) return false;
+
+  return true;
+};
+
+// Normalize bookingTime and bookingDate on save
 bookingSchema.pre('save', function (next) {
+  if (this.bookingDate) {
+    const normalizedDate = startOfUtcDay(this.bookingDate);
+    if (!normalizedDate) {
+      return next(new Error('Invalid bookingDate'));
+    }
+    this.bookingDate = normalizedDate;
+  }
+
+  if (!this.timezone) {
+    this.timezone = 'Asia/Kolkata';
+  }
+
   if (this.bookingTime) {
     const timeStr = String(this.bookingTime).trim();
     // If already in 24h format (e.g. "14:30"), keep as-is

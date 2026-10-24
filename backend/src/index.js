@@ -52,6 +52,7 @@ import { setupOrderCrons } from './services/orderCron.service.js';
 import { setupReferralCrons } from './services/referralCron.service.js';
 import { setupLiveSessionCrons } from './services/liveSessionReminder.service.js';
 import { setupEventReminderCrons } from './services/eventReminder.service.js';
+import { setupEventCrons } from './services/eventCron.service.js';
 import { setupCouponCrons } from './services/couponCron.service.js';
 import { setupNotificationAutomationCrons } from './services/notificationAutomation.service.js';
 dotenv.config();
@@ -451,6 +452,9 @@ setupLiveSessionCrons();
 
 // Setup event registration reminders (24h + 1h before start)
 setupEventReminderCrons();
+
+// Setup event cleanup (abandoned registrations) and status refresh
+setupEventCrons();
 
 // Setup personalized coupon notifications (notify assigned users at activation)
 setupCouponCrons();

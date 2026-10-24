@@ -35,9 +35,11 @@ const KNOWN_PATHS = new Set([
   '/(home)/referral',
   '/(home)/settings',
   '/event-detail',
+  '/event-media',
   '/course-detail',
   '/counseling',
   '/counseling-detail',
+  '/book-counseling',
   '/order-detail',
   '/orders',
   '/donations',
@@ -62,6 +64,8 @@ function sanitizeActionUrl(actionUrl: string): ResolvedRoute | null {
     if (counselingMatch) return { pathname: '/counseling-detail', params: { bookingId: counselingMatch[1] } };
     const blogMatch = path.match(/^\/blogs\/([a-fA-F0-9]{24})$/);
     if (blogMatch) return { pathname: '/blog-detail', params: { id: blogMatch[1] } };
+    const eventMatch = path.match(/^\/events\/([a-fA-F0-9]{24})$/);
+    if (eventMatch) return { pathname: '/event-detail', params: { eventId: eventMatch[1] } };
     return null;
   }
   if (!query) return path;
@@ -103,6 +107,32 @@ export function resolveNotificationRoute(item: NotificationTarget): ResolvedRout
     return '/(home)/my-coupons';
   }
 
+  if (
+    item.type === 'event_reminder'
+    || item.type === 'event_registered'
+    || item.type === 'event_created'
+  ) {
+    return item.relatedId
+      ? { pathname: '/event-detail', params: { eventId: item.relatedId } }
+      : '/(home)/events';
+  }
+
+  if (
+    item.type === 'counseling_booked'
+    || item.type === 'counseling_reminder'
+    || item.type === 'counseling_cancelled'
+    || item.type === 'counseling_waitlist'
+    || item.type === 'counseling_rescheduled'
+    || item.type === 'reschedule_request'
+    || item.type === 'reschedule_approved'
+    || item.type === 'reschedule_denied'
+  ) {
+    if (item.relatedId) {
+      return { pathname: '/counseling-detail', params: { bookingId: item.relatedId } };
+    }
+    return '/counseling';
+  }
+
   const { relatedType, relatedId } = item;
   if (!relatedType) return FALLBACK;
 
@@ -117,6 +147,7 @@ export function resolveNotificationRoute(item: NotificationTarget): ResolvedRout
         ? { pathname: '/course-detail', params: { id: relatedId, courseId: relatedId } }
         : '/(home)/courses';
     case 'booking':
+    case 'counseling':
       return relatedId
         ? { pathname: '/counseling-detail', params: { bookingId: relatedId } }
         : '/counseling';

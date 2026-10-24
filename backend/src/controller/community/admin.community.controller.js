@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { Post, Comment, Group, MentorProfile } from '../../models/community.models.js';
 import { User } from '../../models/user.models.js';
 import Notification from '../../models/notification.models.js';
@@ -457,6 +458,10 @@ export const acceptAnswerAdmin = async (req, res) => {
 
         if (!commentId) {
             return res.status(400).json({ success: false, message: 'Answer id is required' });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(String(commentId))) {
+            return res.status(400).json({ success: false, message: 'Invalid answer id' });
         }
 
         const [post, comment] = await Promise.all([

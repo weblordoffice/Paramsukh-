@@ -139,6 +139,76 @@ export const validateCreateEvent = [
     .optional()
     .isFloat({ min: 0 })
     .withMessage('Price must be a non-negative number'),
+  body('earlyBirdPrice')
+    .optional({ nullable: true })
+    .isFloat({ min: 0 })
+    .withMessage('Early bird price must be a non-negative number'),
+  body('endTime')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('End time must be a valid datetime'),
+  body('registrationDeadline')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('Registration deadline must be a valid datetime'),
+  body('currency')
+    .optional()
+    .isIn(['INR', 'USD', 'EUR'])
+    .withMessage('Currency must be one of INR, USD, EUR'),
+  handleValidationErrors
+];
+
+/**
+ * Update event validator — same rules, every field optional.
+ */
+export const validateUpdateEvent = [
+  body('title')
+    .optional()
+    .trim()
+    .isLength({ min: 3, max: 200 })
+    .withMessage('Event title must be between 3 and 200 characters'),
+  body('description')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ min: 10 })
+    .withMessage('Event description must be at least 10 characters'),
+  body('eventDate')
+    .optional()
+    .isISO8601()
+    .withMessage('Event date must be a valid date'),
+  body('eventTime')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Event time cannot be empty'),
+  body('startTime')
+    .optional()
+    .isISO8601()
+    .withMessage('Start time must be a valid datetime'),
+  body('endTime')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('End time must be a valid datetime'),
+  body('registrationDeadline')
+    .optional({ nullable: true })
+    .isISO8601()
+    .withMessage('Registration deadline must be a valid datetime'),
+  body('maxAttendees')
+    .optional({ nullable: true })
+    .isInt({ min: 1 })
+    .withMessage('Max attendees must be at least 1'),
+  body('price')
+    .optional()
+    .isFloat({ min: 0 })
+    .withMessage('Price must be a non-negative number'),
+  body('earlyBirdPrice')
+    .optional({ nullable: true })
+    .isFloat({ min: 0 })
+    .withMessage('Early bird price must be a non-negative number'),
+  body('currency')
+    .optional()
+    .isIn(['INR', 'USD', 'EUR'])
+    .withMessage('Currency must be one of INR, USD, EUR'),
   handleValidationErrors
 ];
 

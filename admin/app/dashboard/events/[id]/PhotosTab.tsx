@@ -109,11 +109,11 @@ export default function PhotosTab({ eventId, photos, onUpdate }: PhotosTabProps)
 
         try {
             const images = formData.urls
-                .filter(url => url.trim())
                 .map((url, index) => ({
                     url: url.trim(),
                     caption: formData.captions[index] || ''
-                }));
+                }))
+                .filter((image) => image.url);
 
             if (images.length === 0) {
                 toast.error('Please add at least one image URL');

@@ -40,6 +40,7 @@ export interface Event {
         country?: string;
     };
     onlineMeetingLink?: string | null;
+    hasOnlineMeeting?: boolean;
     category: string;
     isPaid: boolean;
     price: number;
@@ -48,6 +49,7 @@ export interface Event {
     earlyBirdEndDate?: string | null;
     attendees?: number; // mapped from currentAttendees
     currentAttendees: number;
+    reservedSeats?: number;
     maxAttendees?: number | null;
     registrationRequired?: boolean;
     registrationDeadline?: string | null;
@@ -66,6 +68,7 @@ export interface Event {
     hasAttended?: boolean;
     registrationStatus?: 'pending' | 'confirmed' | 'cancelled' | 'attended' | 'no-show';
     paymentStatus?: 'pending' | 'completed' | 'failed' | 'refunded';
+    ticketId?: string | null;
     // ... other fields as needed
 }
 
@@ -107,8 +110,9 @@ interface EventState {
     createEventPaymentLink: (eventId: string, payload: { name?: string; email?: string; phone?: string; notes?: string; couponCode?: string }) => Promise<{ success: boolean; url?: string; paymentLinkId?: string; registrationId?: string; expiresAt?: string; message?: string }>;
     confirmEventPaymentByLink: (eventId: string, paymentLinkId: string) => Promise<{ success: boolean; message?: string }>;
     confirmEventPayment: (eventId: string, paymentData: { razorpay_payment_id: string; razorpay_order_id: string; razorpay_signature: string }) => Promise<{ success: boolean; message?: string }>;
-    cancelEventRegistration: (eventId: string) => Promise<boolean>;
+    cancelEventRegistration: (eventId: string) => Promise<{ success: boolean; message?: string; refundStatus?: string }>;
     checkRegistrationStatus: (eventId: string) => Promise<boolean>;
+    fetchMeetingLink: (eventId: string) => Promise<{ success: boolean; url?: string; message?: string }>;
 }
 
 export const useEventStore = create<EventState>((set, get) => ({
@@ -217,15 +221,34 @@ export const useEventStore = create<EventState>((set, get) => ({
             );
 
             if (response.data?.success) {
+                const registration = response.data?.registration;
+                const registrationStatus = registration?.status
+                    || (response.data?.paymentRequired ? 'pending' : 'confirmed');
+                const paymentStatus = registration?.paymentStatus
+                    || (response.data?.paymentRequired ? 'pending' : 'completed');
+                const isRegistered = registrationStatus !== 'cancelled';
+
                 set((state) => ({
                     events: state.events.map((event) =>
                         event._id === eventId
-                            ? { ...event, isRegistered: true, registrationStatus: 'confirmed', paymentStatus: 'completed' }
+                            ? {
+                                ...event,
+                                isRegistered,
+                                registrationStatus,
+                                paymentStatus,
+                                ticketId: registration?.ticketId ?? event.ticketId ?? null,
+                            }
                             : event
                     ),
                     currentEvent:
                         state.currentEvent?._id === eventId
-                            ? { ...state.currentEvent, isRegistered: true, registrationStatus: 'confirmed', paymentStatus: 'completed' }
+                            ? {
+                                ...state.currentEvent,
+                                isRegistered,
+                                registrationStatus,
+                                paymentStatus,
+                                ticketId: registration?.ticketId ?? state.currentEvent.ticketId ?? null,
+                            }
                             : state.currentEvent
                 }));
 
@@ -268,9 +291,9 @@ export const useEventStore = create<EventState>((set, get) => ({
             );
             if (response.data?.success) {
                 set((state) => ({
-                    events: state.events.map((e) => (e._id === eventId ? { ...e, isRegistered: true, registrationStatus: 'confirmed', paymentStatus: 'completed', currentAttendees: (e.currentAttendees || 0) + 1 } : e)),
+                    events: state.events.map((e) => (e._id === eventId ? { ...e, isRegistered: true, registrationStatus: 'confirmed', paymentStatus: 'completed' } : e)),
                     currentEvent: state.currentEvent?._id === eventId
-                        ? { ...state.currentEvent, isRegistered: true, registrationStatus: 'confirmed', paymentStatus: 'completed', currentAttendees: (state.currentEvent.currentAttendees || 0) + 1 }
+                        ? { ...state.currentEvent, isRegistered: true, registrationStatus: 'confirmed', paymentStatus: 'completed' }
                         : state.currentEvent
                 }));
                 return { success: true, message: response.data?.message };
@@ -327,6 +350,7 @@ export const useEventStore = create<EventState>((set, get) => ({
             const response = await apiClient.delete(`${API_URL}/events/${eventId}/register`);
 
             if (response.data?.success) {
+                const refundStatus = response.data?.refundStatus || null;
                 set((state) => ({
                     events: state.events.map((event) =>
                         event._id === eventId
@@ -334,8 +358,7 @@ export const useEventStore = create<EventState>((set, get) => ({
                                 ...event,
                                 isRegistered: false,
                                 registrationStatus: 'cancelled' as const,
-                                paymentStatus: undefined,
-                                currentAttendees: Math.max(0, (event.currentAttendees || 0) - 1)
+                                paymentStatus: refundStatus === 'processed' ? 'refunded' : undefined,
                             }
                             : event
                     ),
@@ -345,16 +368,40 @@ export const useEventStore = create<EventState>((set, get) => ({
                                 ...state.currentEvent,
                                 isRegistered: false,
                                 registrationStatus: 'cancelled' as const,
-                                paymentStatus: undefined,
-                                currentAttendees: Math.max(0, (state.currentEvent.currentAttendees || 0) - 1)
+                                paymentStatus: refundStatus === 'processed' ? 'refunded' : undefined,
                             }
                             : state.currentEvent
                 }));
-                return true;
+                return {
+                    success: true,
+                    message: response.data?.message,
+                    refundStatus,
+                };
             }
-            return false;
+            return {
+                success: false,
+                message: response.data?.message || 'Unable to cancel registration',
+            };
         } catch (error: any) {
-            return false;
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Unable to cancel registration',
+            };
+        }
+    },
+
+    fetchMeetingLink: async (eventId: string) => {
+        try {
+            const response = await apiClient.get(`${API_URL}/events/${eventId}/meeting-link`);
+            if (response.data?.success && response.data?.url) {
+                return { success: true, url: response.data.url as string };
+            }
+            return { success: false, message: response.data?.message || 'Meeting link unavailable' };
+        } catch (error: any) {
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Meeting link unavailable',
+            };
         }
     },
 
@@ -368,15 +415,16 @@ export const useEventStore = create<EventState>((set, get) => ({
             const hasAttended = regData?.status === 'attended' || regData?.checkedIn === true;
             const registrationStatus = regData?.status;
             const paymentStatus = regData?.paymentStatus;
+            const ticketId = regData?.ticketId || null;
 
             set((state) => ({
                 isCheckingRegistration: false,
                 events: state.events.map((event) =>
-                    event._id === eventId ? { ...event, isRegistered, hasAttended, registrationStatus, paymentStatus } : event
+                    event._id === eventId ? { ...event, isRegistered, hasAttended, registrationStatus, paymentStatus, ticketId } : event
                 ),
                 currentEvent:
                     state.currentEvent?._id === eventId
-                        ? { ...state.currentEvent, isRegistered, hasAttended, registrationStatus, paymentStatus }
+                        ? { ...state.currentEvent, isRegistered, hasAttended, registrationStatus, paymentStatus, ticketId }
                         : state.currentEvent
             }));
             return isRegistered;

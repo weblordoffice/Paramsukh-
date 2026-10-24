@@ -4,6 +4,13 @@ import { useState, useEffect } from 'react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { X } from 'lucide-react';
+import {
+    formatTime12h,
+    toDateInput,
+    toTimeInput,
+    toZonedTimeInput,
+    zonedDateTimeToUtc,
+} from '@/lib/dateTime';
 
 interface EventModalProps {
     isOpen: boolean;
@@ -54,24 +61,24 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
     const [tagInput, setTagInput] = useState('');
     const [requirementInput, setRequirementInput] = useState('');
     const [bringInput, setBringInput] = useState('');
+    const minCapacity = (event?.currentAttendees || 0) + (event?.reservedSeats || 0);
 
     useEffect(() => {
         if (isOpen) {
             if (event) {
-                const eventDate = new Date(event.eventDate);
-                // Use local date (not UTC) to avoid timezone offset shifting the displayed date
-                const localDate = eventDate.toLocaleDateString('en-CA'); // YYYY-MM-DD in local timezone
-
+                const timezone = event.timezone || 'Asia/Kolkata';
                 setFormData({
                     title: event.title || '',
                     description: event.description || '',
                     shortDescription: event.shortDescription || '',
                     thumbnailUrl: event.thumbnailUrl || '',
                     bannerUrl: event.bannerUrl || '',
-                    eventDate: localDate,
-                    eventTime: event.eventTime || '',
-                    endTime: event.endTime ? new Date(event.endTime).toTimeString().slice(0, 5) : '',
-                    timezone: event.timezone || 'Asia/Kolkata',
+                    eventDate: toDateInput(event.eventDate),
+                    eventTime: event.startTime
+                        ? toZonedTimeInput(event.startTime, timezone)
+                        : toTimeInput(event.eventTime),
+                    endTime: event.endTime ? toZonedTimeInput(event.endTime, timezone) : '',
+                    timezone,
                     location: event.location || '',
                     locationType: event.locationType || 'physical',
                     address: event.address || {
@@ -243,8 +250,16 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
             toast.error('Meeting link must start with http:// or https://');
             return;
         }
-        if (formData.endTime && formData.eventTime && formData.endTime <= formData.eventTime) {
-            toast.error('End time must be after the start time');
+        if (formData.maxAttendees != null && formData.maxAttendees < minCapacity) {
+            toast.error(`Capacity cannot be lower than the ${minCapacity} seats already taken`);
+            return;
+        }
+        if (formData.isPaid && formData.price <= 0) {
+            toast.error('Paid events need a price greater than 0');
+            return;
+        }
+        if (formData.isPaid && formData.earlyBirdPrice > 0 && formData.earlyBirdPrice >= formData.price) {
+            toast.error('Early bird price must be lower than the regular price');
             return;
         }
 
@@ -273,16 +288,33 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
         setSubmitting(true);
 
         try {
+            const startDateTime = zonedDateTimeToUtc(
+                formData.eventDate,
+                formData.eventTime,
+                formData.timezone
+            );
+            let endDateTime = formData.endTime
+                ? zonedDateTimeToUtc(formData.eventDate, formData.endTime, formData.timezone)
+                : null;
+            if (endDateTime && endDateTime <= startDateTime) {
+                // Treat an end time earlier than the start as the next day (overnight event).
+                endDateTime = new Date(endDateTime.getTime() + 24 * 60 * 60 * 1000);
+            }
+
             // Prepare data with proper date/time formatting
             const submitData = {
                 ...formData,
+                eventTime: formatTime12h(formData.eventTime),
                 location:
                     formData.locationType === 'online' && !formData.location.trim()
                         ? 'Online'
                         : formData.location.trim(),
                 onlineMeetingLink: formData.locationType === 'physical' ? null : (trimmedLink || null),
-                startTime: new Date(`${formData.eventDate}T${formData.eventTime}`).toISOString(),
-                endTime: formData.endTime ? new Date(`${formData.eventDate}T${formData.endTime}`).toISOString() : null,
+                startTime: startDateTime.toISOString(),
+                endTime: endDateTime ? endDateTime.toISOString() : null,
+                isPaid: formData.isPaid,
+                price: formData.isPaid ? formData.price : 0,
+                earlyBirdPrice: formData.isPaid ? formData.earlyBirdPrice : 0,
                 maxAttendees: formData.maxAttendees || null
             };
 
@@ -746,12 +778,17 @@ export default function EventModal({ isOpen, onClose, event, onSuccess }: EventM
                                     </label>
                                     <input
                                         type="number"
-                                        min="1"
+                                        min={Math.max(1, minCapacity)}
                                         value={formData.maxAttendees || ''}
                                         onChange={(e) => setFormData({ ...formData, maxAttendees: e.target.value ? parseInt(e.target.value) : undefined })}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-black"
                                         placeholder="Unlimited"
                                     />
+                                    {minCapacity > 0 && (
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            {minCapacity} seat{minCapacity === 1 ? '' : 's'} already taken.
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="md:col-span-2">

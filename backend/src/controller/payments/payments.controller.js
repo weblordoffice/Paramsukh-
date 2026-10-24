@@ -36,6 +36,15 @@ import {
   findPurchaseDiscount,
   resolvePurchaseDiscount,
 } from '../../services/purchaseDiscount.service.js';
+import {
+  ensureTicketId,
+  releaseSeat,
+  revertDiscountForRegistration,
+} from '../../services/eventRegistration.service.js';
+import {
+  releaseBookingSlot,
+  revertDiscountForBooking,
+} from '../../services/counselingBooking.service.js';
 
 const MAX_ADMIN_LINK_EXPIRY_HOURS = 24 * 30;
 
@@ -176,15 +185,19 @@ export const createBookingPaymentLink = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid booking amount' });
     }
 
-    // Reuse existing payment link when possible (and not expiring soon)
+    // Reuse an existing payment link only while it is comfortably valid.
     if (booking.paymentLinkId && booking.paymentLinkUrl) {
       const expiresAt = booking.paymentLinkExpiresAt;
-      if (!expiresAt || new Date(expiresAt).getTime() < Date.now() + 5 * 60 * 1000) {
+      const expiryMs = expiresAt ? new Date(expiresAt).getTime() : 0;
+      if (expiryMs > Date.now() + 5 * 60 * 1000) {
         return res.status(200).json({
           success: true,
           data: { url: booking.paymentLinkUrl, paymentLinkId: booking.paymentLinkId },
         });
       }
+      booking.paymentLinkId = undefined;
+      booking.paymentLinkUrl = undefined;
+      booking.paymentLinkExpiresAt = undefined;
     }
 
     const user = await User.findById(userId).select('email phone displayName name');
@@ -234,10 +247,10 @@ export const confirmBookingPaymentLink = async (req, res) => {
     const link = await fetchPaymentLink(paymentLinkId);
     const status = String(link?.status || '').toLowerCase();
     const notes = link?.notes || {};
-    if (notes?.userId && String(notes.userId) !== String(userId)) {
+    if (!notes?.userId || String(notes.userId) !== String(userId)) {
       return res.status(403).json({ success: false, message: 'Payment link does not belong to you' });
     }
-    if (notes?.bookingId && String(notes.bookingId) !== String(bookingId)) {
+    if (!notes?.bookingId || String(notes.bookingId) !== String(bookingId)) {
       return res.status(400).json({ success: false, message: 'Payment link does not match this booking' });
     }
     if (status !== 'paid' && status !== 'captured') {
@@ -246,6 +259,9 @@ export const confirmBookingPaymentLink = async (req, res) => {
     const booking = await Booking.findOne({ _id: bookingId, user: userId });
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({ success: false, message: 'This booking has been cancelled' });
     }
     if (booking.paymentStatus === 'paid' || booking.status === 'confirmed') {
       return res.status(200).json({ success: true, message: 'Booking already confirmed', data: { booking } });
@@ -270,14 +286,16 @@ export const confirmBookingPaymentLink = async (req, res) => {
 
     // Idempotent confirmation: atomic update only if still pending
     const confirmedBooking = await Booking.findOneAndUpdate(
-      { _id: bookingId, user: userId, paymentStatus: { $ne: 'paid' }, status: { $ne: 'confirmed' } },
+      { _id: bookingId, user: userId, status: 'pending', paymentStatus: { $ne: 'paid' } },
       {
         $set: {
           paymentId: paymentId || `pay_${Date.now()}`,
+          razorpayOrderId: notes?.orderId || booking.razorpayOrderId,
           paymentMethod: 'razorpay',
           paymentStatus: 'paid',
           paidAt: new Date(),
           status: 'confirmed',
+          paymentDueAt: null,
         }
       },
       { new: true }
@@ -285,6 +303,9 @@ export const confirmBookingPaymentLink = async (req, res) => {
 
     if (!confirmedBooking) {
       const refreshedBooking = await Booking.findOne({ _id: bookingId, user: userId });
+      if (refreshedBooking?.status === 'cancelled') {
+        return res.status(400).json({ success: false, message: 'This booking has been cancelled' });
+      }
       return res.status(200).json({ success: true, message: 'Booking already confirmed', data: { booking: refreshedBooking } });
     }
 
@@ -1423,8 +1444,7 @@ export const createBookingOrder = async (req, res) => {
     if (
       requestedAmount !== undefined
       && Number(requestedAmount) > 0
-      && Number(requestedAmount) !== amount
-      && !Number(booking.discountAmount || 0)
+      && Math.abs(Number(requestedAmount) - amount) > 0.01
     ) {
       return res.status(400).json({
         success: false,
@@ -1443,6 +1463,10 @@ export const createBookingOrder = async (req, res) => {
         userId: userId.toString()
       }
     });
+
+    // Bind the order to the booking so the confirm step can verify it.
+    booking.razorpayOrderId = order.id;
+    await booking.save();
 
     return res.status(200).json({
       success: true,
@@ -1645,9 +1669,9 @@ export const handleWebhook = async (req, res) => {
         }
 
         if (pNotes.type === 'booking' && pNotes.bookingId) {
-          // IDEMPOTENCY: Check if this payment was already used for another booking (fraud prevention)
+          // IDEMPOTENCY: payment ids are unique across bookings.
           const existingBookingWithPayment = await Booking.findOne({
-            razorpayPaymentId: payment.id,
+            paymentId: payment.id,
             _id: { $ne: pNotes.bookingId }
           });
           if (existingBookingWithPayment) {
@@ -1663,15 +1687,16 @@ export const handleWebhook = async (req, res) => {
               console.error(`❌ Amount mismatch for booking ${pNotes.bookingId}: expected ${expectedPaise}, got ${paidPaise}`);
             } else {
               const confirmedBooking = await Booking.findOneAndUpdate(
-                { _id: pNotes.bookingId, paymentStatus: { $ne: 'paid' }, status: { $ne: 'confirmed' } },
+                { _id: pNotes.bookingId, status: 'pending', paymentStatus: { $ne: 'paid' } },
                 {
                   $set: {
                     paymentId: payment.id,
-                    razorpayPaymentId: payment.id,
+                    razorpayOrderId: payment.order_id || booking.razorpayOrderId,
                     paymentMethod: 'razorpay',
                     paymentStatus: 'paid',
                     paidAt: new Date(),
                     status: 'confirmed',
+                    paymentDueAt: null,
                   }
                 },
                 { new: true }
@@ -1781,8 +1806,23 @@ export const handleWebhook = async (req, res) => {
         }
 
         if (pNotes.type === 'event' && pNotes.registrationId && pNotes.eventId) {
+          if (!isRazorpayTestMode) {
+            const pendingReg = await EventRegistration.findOne({
+              _id: pNotes.registrationId,
+              status: 'pending',
+            });
+            if (pendingReg) {
+              const expectedPaise = Math.round(Number(pendingReg.paymentAmount || 0) * 100);
+              const paidPaise = Number(payment.amount || 0);
+              if (expectedPaise > 0 && paidPaise !== expectedPaise) {
+                console.error(`Event webhook amount mismatch for ${pendingReg._id}: expected ${expectedPaise}, got ${paidPaise}`);
+                break;
+              }
+            }
+          }
+
           const eventReg = await EventRegistration.findOneAndUpdate(
-            { _id: pNotes.registrationId, status: 'pending', paymentStatus: 'pending' },
+            { _id: pNotes.registrationId, status: 'pending', paymentStatus: { $ne: 'completed' } },
             {
               $set: {
                 status: 'confirmed',
@@ -1794,7 +1834,8 @@ export const handleWebhook = async (req, res) => {
             { new: true }
           );
           if (eventReg) {
-            await Event.findByIdAndUpdate(pNotes.eventId, { $inc: { reservedSeats: -1 } });
+            await ensureTicketId(eventReg);
+            await releaseSeat(eventReg);
             await applyPurchaseDiscount({
               providerOrderId: payment.order_id || payment.id,
               referenceType: 'event',
@@ -1993,14 +2034,16 @@ export const handleWebhook = async (req, res) => {
               console.error(`❌ Amount mismatch for booking ${notes.bookingId}: expected ${expectedPaise}, got ${paidPaise}`);
             } else {
               const confirmedBooking = await Booking.findOneAndUpdate(
-                { _id: notes.bookingId, paymentStatus: { $ne: 'paid' }, status: { $ne: 'confirmed' } },
+                { _id: notes.bookingId, status: 'pending', paymentStatus: { $ne: 'paid' } },
                 {
                   $set: {
                     paymentId: plPaymentId,
+                    razorpayOrderId: notes.orderId || whBooking.razorpayOrderId,
                     paymentMethod: 'razorpay',
                     paymentStatus: 'paid',
                     paidAt: new Date(),
                     status: 'confirmed',
+                    paymentDueAt: null,
                   }
                 },
                 { new: true }
@@ -2023,8 +2066,23 @@ export const handleWebhook = async (req, res) => {
         }
 
         if (notes.type === 'event' && notes.registrationId && notes.eventId) {
+          if (!isRazorpayTestMode) {
+            const pendingReg = await EventRegistration.findOne({
+              _id: notes.registrationId,
+              status: 'pending',
+            });
+            if (pendingReg) {
+              const expectedPaise = Math.round(Number(pendingReg.paymentAmount || 0) * 100);
+              const paidPaise = Number(pl?.amount || 0);
+              if (expectedPaise > 0 && paidPaise !== expectedPaise) {
+                console.error(`Event link webhook amount mismatch for ${pendingReg._id}: expected ${expectedPaise}, got ${paidPaise}`);
+                break;
+              }
+            }
+          }
+
           const eventReg = await EventRegistration.findOneAndUpdate(
-            { _id: notes.registrationId, status: 'pending', paymentStatus: 'pending' },
+            { _id: notes.registrationId, status: 'pending', paymentStatus: { $ne: 'completed' } },
             {
               $set: {
                 status: 'confirmed',
@@ -2036,7 +2094,8 @@ export const handleWebhook = async (req, res) => {
             { new: true }
           );
           if (eventReg) {
-            await Event.findByIdAndUpdate(notes.eventId, { $inc: { reservedSeats: -1 } });
+            await ensureTicketId(eventReg);
+            await releaseSeat(eventReg);
             await applyPurchaseDiscount({
               providerPaymentLinkId: pl?.id || null,
               referenceType: 'event',
@@ -2078,12 +2137,20 @@ export const handleWebhook = async (req, res) => {
             { status }
           );
 
-          // Release reserved event seat when a paid registration link expires/cancels
+          // Release the reserved seat and revert the discount for an unpaid event link
           if (String(notes.type) === 'event' && notes.registrationId && notes.eventId) {
             const registration = await EventRegistration.findById(notes.registrationId);
-            if (registration && registration.status === 'pending' && registration.paymentStatus === 'pending') {
-              await Event.findByIdAndUpdate(notes.eventId, { $inc: { reservedSeats: -1 } });
+            if (registration && registration.status === 'pending') {
+              await releaseSeat(registration);
+              await revertDiscountForRegistration(registration);
               await EventRegistration.findByIdAndUpdate(notes.registrationId, {
+                $set: {
+                  status: 'cancelled',
+                  cancelledAt: new Date(),
+                  cancelledBy: 'system',
+                  cancellationReason: `Payment link ${status}`,
+                  ...(registration.paymentStatus === 'pending' ? { paymentStatus: 'failed' } : {}),
+                },
                 $unset: { paymentLinkId: 1, paymentLinkUrl: 1, paymentLinkExpiresAt: 1 }
               });
             }
@@ -2107,10 +2174,24 @@ export const handleWebhook = async (req, res) => {
 
           // Mark booking payment as failed if still pending
           if (String(notes.type) === 'counseling' && notes.bookingId) {
-            await Booking.findOneAndUpdate(
-              { _id: notes.bookingId, status: 'pending', paymentStatus: 'pending', paymentLinkId: pl.id },
-              { $set: { paymentStatus: 'failed' } }
+            const cancelledBooking = await Booking.findOneAndUpdate(
+              { _id: notes.bookingId, status: 'pending', paymentStatus: { $in: ['pending', 'failed'] } },
+              {
+                $set: {
+                  status: 'cancelled',
+                  paymentStatus: 'failed',
+                  cancelledAt: new Date(),
+                  cancelledBy: 'system',
+                  cancellationReason: `Payment link ${status}`,
+                  paymentDueAt: null,
+                }
+              },
+              { new: true }
             );
+            if (cancelledBooking) {
+              await releaseBookingSlot(cancelledBooking);
+              await revertDiscountForBooking(cancelledBooking);
+            }
           }
 
           console.log(`❌ Payment link ${pl.id} marked as ${status} via webhook`);
@@ -2166,14 +2247,30 @@ export const handleWebhook = async (req, res) => {
         }
 
         if (fNotes.type === 'booking' && fNotes.bookingId) {
-          await Booking.findOneAndUpdate(
-            { _id: fNotes.bookingId },
-            { $set: { paymentStatus: 'failed' } }
+          const failedBooking = await Booking.findOneAndUpdate(
+            { _id: fNotes.bookingId, status: 'pending', paymentStatus: 'pending' },
+            {
+              $set: {
+                status: 'cancelled',
+                paymentStatus: 'failed',
+                cancelledAt: new Date(),
+                cancelledBy: 'system',
+                cancellationReason: 'Payment failed',
+                paymentDueAt: null,
+              }
+            },
+            { new: true }
           );
+
+          if (failedBooking) {
+            await releaseBookingSlot(failedBooking);
+            await revertDiscountForBooking(failedBooking);
+          }
+
           await sendNotification(fNotes.userId || failedPayment.entity?.user_id, {
             type: 'payment_failed',
             title: 'Payment Failed',
-            message: `Your counseling booking payment failed. Please retry.`,
+            message: `Your counseling booking payment failed. Please book again.`,
             icon: '❌',
             priority: 'high',
             relatedId: fNotes.bookingId,
@@ -2184,11 +2281,17 @@ export const handleWebhook = async (req, res) => {
         }
 
         if (fNotes.type === 'event' && fNotes.registrationId && fNotes.eventId) {
-          await EventRegistration.findOneAndUpdate(
-            { _id: fNotes.registrationId },
-            { $set: { paymentStatus: 'failed' } }
+          const failedReg = await EventRegistration.findOneAndUpdate(
+            { _id: fNotes.registrationId, status: 'pending', paymentStatus: 'pending' },
+            { $set: { paymentStatus: 'failed' } },
+            { new: true }
           );
-          await Event.findByIdAndUpdate(fNotes.eventId, { $inc: { reservedSeats: -1 } });
+
+          if (failedReg) {
+            await releaseSeat(failedReg);
+            await revertDiscountForRegistration(failedReg);
+          }
+
           if (fNotes.userId) {
             await sendNotification(fNotes.userId, {
               type: 'payment_failed',
@@ -2267,6 +2370,70 @@ export const handleWebhook = async (req, res) => {
           } catch (e) { console.error('Refund email skipped:', e?.message || e); }
         }
 
+        if (rNotes.type === 'event' && rNotes.registrationId) {
+          const refundedReg = await EventRegistration.findOneAndUpdate(
+            { _id: rNotes.registrationId },
+            {
+              $set: {
+                refundStatus: 'processed',
+                refundId: refund.id,
+                refundAmount: refund.amount / 100,
+                refundProcessedAt: new Date(),
+                refundError: null,
+                paymentStatus: 'refunded',
+              }
+            },
+            { new: true }
+          );
+
+          if (refundedReg?.userId) {
+            await sendNotification(refundedReg.userId, {
+              type: 'system',
+              title: 'Refund Processed',
+              message: `Your refund of ₹${refund.amount / 100} has been processed.`,
+              icon: '💰',
+              priority: 'high',
+              relatedId: refundedReg.eventId,
+              relatedType: 'event',
+              actionUrl: `/event-detail?eventId=${refundedReg.eventId}`,
+            }).catch(() => {});
+            try {
+              const ru = await User.findById(refundedReg.userId).select('email displayName preferences');
+              if (ru) sendRefundProcessedEmail(ru, { type: 'event', amount: refund.amount / 100, bookingTitle: 'event registration' });
+            } catch (e) { console.error('Refund email skipped:', e?.message || e); }
+          }
+        }
+
+        if (rNotes.type === 'counseling' && rNotes.bookingId) {
+          const refundedBooking = await Booking.findByIdAndUpdate(
+            rNotes.bookingId,
+            {
+              $set: {
+                refundStatus: 'processed',
+                refundId: refund.id,
+                refundAmount: refund.amount / 100,
+                refundProcessedAt: new Date(),
+                refundError: null,
+                paymentStatus: 'refunded',
+              }
+            },
+            { new: true }
+          );
+
+          if (refundedBooking?.user) {
+            await sendNotification(refundedBooking.user, {
+              type: 'system',
+              title: 'Refund Processed',
+              message: `Your refund of ₹${refund.amount / 100} has been processed.`,
+              icon: '💰',
+              priority: 'high',
+              relatedId: refundedBooking._id,
+              relatedType: 'booking',
+              actionUrl: `/counseling-detail?bookingId=${refundedBooking._id}`,
+            }).catch(() => {});
+          }
+        }
+
         recordTransaction({
           userId: rNotes.userId || rNotes.orderId,
           source: 'refund',
@@ -2304,6 +2471,58 @@ export const handleWebhook = async (req, res) => {
             icon: '❌',
             priority: 'high',
           }).catch(() => {});
+        }
+
+        if (frNotes.type === 'counseling' && frNotes.bookingId) {
+          const failedBooking = await Booking.findByIdAndUpdate(
+            frNotes.bookingId,
+            {
+              $set: {
+                refundStatus: 'failed',
+                refundError: failedRefund.reason || 'Refund failed',
+              }
+            },
+            { new: true }
+          );
+
+          if (failedBooking?.user) {
+            await sendNotification(failedBooking.user, {
+              type: 'system',
+              title: 'Refund Failed',
+              message: 'Your counseling refund failed. Please contact support.',
+              icon: '❌',
+              priority: 'high',
+              relatedId: failedBooking._id,
+              relatedType: 'booking',
+              actionUrl: `/counseling-detail?bookingId=${failedBooking._id}`,
+            }).catch(() => {});
+          }
+        }
+
+        if (frNotes.type === 'event' && frNotes.registrationId) {
+          const failedReg = await EventRegistration.findOneAndUpdate(
+            { _id: frNotes.registrationId },
+            {
+              $set: {
+                refundStatus: 'failed',
+                refundError: failedRefund.reason || 'Refund failed',
+              }
+            },
+            { new: true }
+          );
+
+          if (failedReg?.userId) {
+            await sendNotification(failedReg.userId, {
+              type: 'system',
+              title: 'Refund Failed',
+              message: 'Your event refund failed. Please contact support.',
+              icon: '❌',
+              priority: 'high',
+              relatedId: failedReg.eventId,
+              relatedType: 'event',
+              actionUrl: `/event-detail?eventId=${failedReg.eventId}`,
+            }).catch(() => {});
+          }
         }
         break;
       }

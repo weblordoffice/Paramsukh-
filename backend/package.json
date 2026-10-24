@@ -16,6 +16,8 @@
     "seed-shop": "node scripts/seedShop.js",
     "seed-community": "node scripts/seedCommunity.js",
     "seed-test-user": "node scripts/seedTestUser.js",
+    "backfill:event-seats": "node scripts/backfillEventSeatsAndRefunds.js",
+    "backfill:counseling": "node scripts/backfillCounselingBookings.js",
     "migrate-user-memberships": "node scripts/migrateUserMemberships.js",
     "migrate-community-v2": "node scripts/migrate-community-v2.js"
   },

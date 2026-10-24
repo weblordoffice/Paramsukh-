@@ -276,7 +276,8 @@ eventSchema.index({ status: 1, eventDate: 1 });
 eventSchema.index({ eventDate: 1, startTime: 1 });
 eventSchema.index({ createdAt: -1 });
 eventSchema.index({ locationType: 1 });
-eventSchema.index({ organizerId: 1 });// Pre-save middleware to update status based on eventDate
+eventSchema.index({ organizerId: 1 });
+eventSchema.index({ isActive: 1, status: 1, startTime: 1 });// Pre-save middleware to update status based on eventDate
 eventSchema.pre('save', function(next) {
   const now = new Date();
   
@@ -317,11 +318,22 @@ eventSchema.pre('findOneAndDelete', { document: false, query: true }, async func
     const eventId = filter._id;
 
     if (eventId) {
-      const result = await EventRegistration.updateMany({ eventId }, { status: 'cancelled', notes: 'Event was deleted by Admin' });
+      const result = await EventRegistration.updateMany(
+        { eventId, status: { $in: ['pending', 'confirmed'] } },
+        {
+          $set: {
+            status: 'cancelled',
+            cancellationReason: 'Event was deleted by Admin',
+            cancelledBy: 'admin',
+            cancelledAt: new Date(),
+          },
+        }
+      );
       console.log(`✅ Cancelled ${result.modifiedCount} registrations for deleted event: ${eventId}`);
     }
   } catch (error) {
     console.error('❌ Error updating event registrations on cascade delete:', error);
+    throw error;
   }
 });
 
@@ -329,6 +341,12 @@ eventSchema.pre('findOneAndDelete', { document: false, query: true }, async func
 eventSchema.methods.isFull = function() {
   const total = (this.currentAttendees || 0) + (this.reservedSeats || 0);
   return this.maxAttendees !== null && total >= this.maxAttendees;
+};
+
+eventSchema.methods.spotsLeft = function() {
+  if (this.maxAttendees === null || this.maxAttendees === undefined) return null;
+  const taken = (this.currentAttendees || 0) + (this.reservedSeats || 0);
+  return Math.max(0, this.maxAttendees - taken);
 };   
 
 eventSchema.methods.canRegister = function() {
@@ -370,7 +388,7 @@ eventSchema.methods.updateAttendeeCount = async function() {
       eventId: this._id,
       status: { $in: ['confirmed', 'attended'] }
     });
-    this.currentAttendees = count;
+    this.currentAttendees = Math.max(0, count);
     // Note: Don't call this.save() here to avoid triggering pre-save hook again
     // The caller should save the document if needed
     return count;
