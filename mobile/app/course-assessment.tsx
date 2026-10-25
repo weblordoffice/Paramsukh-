@@ -7,6 +7,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Linking,
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -181,6 +182,20 @@ export default function CourseAssessmentScreen() {
     },
     cardTitle: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: 8 },
     bodyText: { fontSize: 13, color: colors.textSecondary, lineHeight: 19 },
+    vivaLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginTop: 10,
+      padding: 12,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.primary + '35',
+      backgroundColor: colors.primary + '10',
+    },
+    vivaLinkBody: { flex: 1, minWidth: 0 },
+    vivaLinkTitle: { fontSize: 13, fontWeight: '700', color: colors.primary },
+    vivaLinkUrl: { fontSize: 11, color: colors.textSecondary, marginTop: 2 },
     progressTrack: {
       height: 8,
       borderRadius: 4,
@@ -484,6 +499,14 @@ export default function CourseAssessmentScreen() {
     }
   };
 
+  const openVivaLink = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Unable to open meeting link', 'Please copy the link and open it in your browser.');
+    }
+  };
+
   const renderVivaCard = () => {
     if (!viva) return null;
     const application = viva.application;
@@ -498,11 +521,21 @@ export default function CourseAssessmentScreen() {
             {application.scheduledAt ? (
               <Text style={styles.bodyText}>Scheduled: {formatDate(application.scheduledAt)}</Text>
             ) : null}
-            {application.meetingPlatform || application.meetingLink ? (
-              <Text style={styles.bodyText}>
-                {application.meetingPlatform || 'Online'}
-                {application.meetingLink ? ` · ${application.meetingLink}` : ''}
-              </Text>
+            {application.meetingLink ? (
+              <TouchableOpacity
+                style={styles.vivaLink}
+                onPress={() => openVivaLink(application.meetingLink!)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="videocam-outline" size={18} color={colors.primary} />
+                <View style={styles.vivaLinkBody}>
+                  <Text style={styles.vivaLinkTitle}>Join on {application.meetingPlatform || 'Online'}</Text>
+                  <Text style={styles.vivaLinkUrl} numberOfLines={1}>{application.meetingLink}</Text>
+                </View>
+                <Ionicons name="open-outline" size={16} color={colors.primary} />
+              </TouchableOpacity>
+            ) : application.meetingPlatform ? (
+              <Text style={styles.bodyText}>{application.meetingPlatform}</Text>
             ) : null}
             {application.result?.remarks ? (
               <Text style={styles.bodyText}>Remarks: {application.result.remarks}</Text>

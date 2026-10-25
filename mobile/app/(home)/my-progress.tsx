@@ -208,6 +208,14 @@ export default function MyProgressScreen() {
     },
     sectionTitle: { fontSize: 16, fontWeight: '800', color: colors.text },
     sectionAction: { fontSize: 12, fontWeight: '700', color: colors.primary },
+    activityHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 12,
+      marginBottom: 10,
+    },
+    activityRangeLabel: { fontSize: 11, fontWeight: '600', color: colors.textSecondary },
     overviewRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
     overviewText: { flex: 1 },
     eyebrow: {
@@ -260,8 +268,10 @@ export default function MyProgressScreen() {
       gap: 2,
       marginTop: 8,
       paddingTop: 8,
+      width: '100%',
+      overflow: 'hidden',
     },
-    barWrap: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+    barWrap: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'flex-end' },
     bar: { width: '100%', minHeight: 3, borderRadius: 3, backgroundColor: colors.primary },
     chartLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
     chartLabel: { fontSize: 9, color: colors.textSecondary },
@@ -508,19 +518,21 @@ export default function MyProgressScreen() {
         </View>
 
         <View style={s.card}>
-          <View style={s.sectionHeader}>
+          <View style={s.activityHeader}>
             <Text style={s.sectionTitle}>Activity</Text>
-            <View style={s.rangeTabs}>
-              {([7, 30, 90] as RangeDays[]).map((value) => (
-                <TouchableOpacity
-                  key={value}
-                  style={[s.rangeTab, range === value && s.rangeTabActive]}
-                  onPress={() => setRange(value)}
-                >
-                  <Text style={[s.rangeText, range === value && s.rangeTextActive]}>{value}d</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+            <Text style={s.activityRangeLabel}>Last {range} days</Text>
+          </View>
+
+          <View style={s.rangeTabs}>
+            {([7, 30, 90] as RangeDays[]).map((value) => (
+              <TouchableOpacity
+                key={value}
+                style={[s.rangeTab, range === value && s.rangeTabActive]}
+                onPress={() => setRange(value)}
+              >
+                <Text style={[s.rangeText, range === value && s.rangeTextActive]}>{value}d</Text>
+              </TouchableOpacity>
+            ))}
           </View>
 
           <View style={s.chart}>
