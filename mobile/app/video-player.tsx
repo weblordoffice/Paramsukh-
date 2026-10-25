@@ -311,32 +311,43 @@ export default function VideoPlayerScreen() {
   const videoUrl = params.videoUrl as string;
   const courseId = params.courseId as string;
   const videoId = params.videoId as string;
-  const isFreePreview = params.isFree === 'true';
-
   // Block access if not enrolled (prevents deep-link bypass).
   // Free preview videos are allowed through without enrollment.
   const [accessChecked, setAccessChecked] = useState(false);
+  const [accessDenied, setAccessDenied] = useState(false);
   useEffect(() => {
-    if (!courseId || !token || isFreePreview) { setAccessChecked(true); return; }
+    if (!courseId || !token) {
+      setAccessChecked(true);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
-        // fetchEnrollmentProgress clears stale state before fetching —
-        // so after the await, enrollmentProgress === null means genuinely not enrolled
         await useCourseStore.getState().fetchEnrollmentProgress(courseId);
         const progress = useCourseStore.getState().enrollmentProgress;
-        if (!cancelled && !progress) {
-          Alert.alert('Access Denied', 'Please enroll in this course first.', [
-            { text: 'OK', onPress: () => router.back() }
-          ]);
+        if (progress) {
+          if (!cancelled) setAccessChecked(true);
+          return;
         }
+
+        // Not enrolled: allow only a genuinely free-preview lesson. Verify from
+        // the server payload instead of trusting the route param.
+        if (!useCourseStore.getState().currentCourse?.videos?.some((v) => String(v._id) === String(videoId))) {
+          await useCourseStore.getState().fetchCourseById(courseId);
+        }
+        const video = useCourseStore.getState().currentCourse?.videos?.find(
+          (item) => String(item._id) === String(videoId)
+        );
+        const allowed = Boolean(video?.isFree && video?.videoUrl);
+        if (!cancelled) setAccessDenied(!allowed);
       } catch {
-        // On network error, allow through — backend will enforce access
+        if (!cancelled) setAccessDenied(true);
+      } finally {
+        if (!cancelled) setAccessChecked(true);
       }
-      if (!cancelled) setAccessChecked(true);
     })();
     return () => { cancelled = true; };
-  }, [courseId, token]);
+  }, [courseId, token, videoId]);
 
   // Find linked assignments
   const video = currentCourse?.videos?.find(v => v._id === videoId);
@@ -426,6 +437,25 @@ export default function VideoPlayerScreen() {
     p.loop = false;
     p.play();
   });
+
+  const hasSeekedRef = useRef(false);
+  useEffect(() => {
+    if (!player || !enrollmentProgress || hasSeekedRef.current) return;
+    const saved = Number(enrollmentProgress.lastVideoPositionSeconds) || 0;
+    if (saved < 5) return;
+
+    const subscription = player.addListener('statusChange', (status: any) => {
+      if (hasSeekedRef.current) return;
+      if (status?.status !== 'readyToPlay') return;
+      const duration = Number(status.duration) || 0;
+      if (duration > 0 && saved < duration - 2) {
+        player.currentTime = saved;
+      }
+      hasSeekedRef.current = true;
+    });
+
+    return () => { subscription?.remove?.(); };
+  }, [player, enrollmentProgress]);
 
   // Switch to the downloaded (offline) file without recreating the native player.
   // Only do so if the file is a valid, playable video — otherwise a corrupt/partial
@@ -716,6 +746,41 @@ export default function VideoPlayerScreen() {
     Alert.alert('Removed', 'Downloaded video removed from this device.');
   };
 
+  if (!accessChecked) {
+    return (
+      <View style={styles.root}>
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={{ color: '#fff', marginTop: 12 }}>Verifying access...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <View style={styles.root}>
+        <StatusBar barStyle="light-content" backgroundColor="#000" />
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <Ionicons name="lock-closed" size={48} color="#fff" />
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginTop: 12, textAlign: 'center' }}>
+            Access Denied
+          </Text>
+          <Text style={{ color: '#D1D5DB', textAlign: 'center', marginTop: 8 }}>
+            Enroll in this course to watch this lesson.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={{ marginTop: 20, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, backgroundColor: courseColor }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '700' }}>Go back</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor="#000" />
@@ -881,7 +946,7 @@ export default function VideoPlayerScreen() {
       )}
 
       {/* ── Mark complete ── */}
-      {token && (
+      {token && courseId && videoId && (
         <View style={styles.actionSection}>
           <TouchableOpacity
             onPress={handleMarkCompletePress}

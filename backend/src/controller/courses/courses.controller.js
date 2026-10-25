@@ -5,7 +5,8 @@ import mongoose from 'mongoose';
 
 import { getAdminFromRequest, isValidAdminApiKey } from '../../middleware/adminAuth.js';
 import { notifyNewCourse } from '../../services/notificationAutomation.service.js';
-import { sanitizeCourseForUser } from '../../services/courseContentSanitizer.service.js';
+import { buildCourseViewerPayload } from '../../services/courseMedia.service.js';
+import { evaluateCourseEnrollmentAccess } from '../../services/entitlement.service.js';
 
 const normalizePlanIdentifier = (value) => String(value || '').trim();
 const normalizeText = (value) => String(value || '').trim();
@@ -46,6 +47,15 @@ const resolveUniqueSlug = async (baseSlug, excludeId = null) => {
 const isObjectIdLike = (value) => {
     const normalized = normalizePlanIdentifier(value);
     return normalized.length === 24 && mongoose.Types.ObjectId.isValid(normalized);
+};
+
+const viewerHasCourseEntitlement = async (req, course) => {
+    if (!req.user?._id) return false;
+    const decision = await evaluateCourseEnrollmentAccess({
+        userId: req.user._id,
+        course,
+    }).catch(() => ({ allowed: false }));
+    return Boolean(decision.allowed);
 };
 
 const resolveIncludedPlans = async (includedInPlans = []) => {
@@ -115,7 +125,7 @@ export const createCourse = async (req, res) => {
 
         const normalizedTitle = normalizeText(title);
         const normalizedCategory = normalizeText(category).toLowerCase();
-        const slug = await resolveUniqueSlug(normalizedTitle);
+        let slug = await resolveUniqueSlug(normalizedTitle);
         const existingCourse = await Course.findOne({
             title: { $regex: `^${escapeRegex(normalizedTitle)}$`, $options: 'i' },
             category: normalizedCategory,
@@ -191,29 +201,65 @@ export const createCourse = async (req, res) => {
 export const deleteCourse = async (req, res) => {
     try {
         const { id } = req.params;
-        if (!id) {
-            return res.status(400).json({
-                success: false,
-                message: "Course ID is required"
-            })
+        if (!mongoose.Types.ObjectId.isValid(String(id))) {
+            return res.status(400).json({ success: false, message: 'Invalid course id' });
         }
 
-        const course = await Course.findByIdAndDelete(id);
+        const course = await Course.findById(id).select('_id assignments');
         if (!course) {
             return res.status(404).json({
                 success: false,
-                message: "courses not found"
-            })
+                message: "Course not found"
+            });
         }
 
-        // Clean up junction table after course is deleted
-        await CoursePlan.deleteMany({ courseId: id });
+        const [
+            { Enrollment },
+            { AssessmentAttempt },
+            { CourseActivitySubmission },
+            { VivaApplication },
+            { Certificate },
+            { Assignment },
+        ] = await Promise.all([
+            import('../../models/enrollment.models.js'),
+            import('../../models/assessmentAttempt.models.js'),
+            import('../../models/courseActivitySubmission.models.js'),
+            import('../../models/vivaApplication.models.js'),
+            import('../../models/certificate.models.js'),
+            import('../../models/course.models.js'),
+        ]);
+
+        const [enrollments, attempts, submissions, vivaApplications, certificates] = await Promise.all([
+            Enrollment.countDocuments({ courseId: id }),
+            AssessmentAttempt.countDocuments({ course: id }),
+            CourseActivitySubmission.countDocuments({ courseId: id }),
+            VivaApplication.countDocuments({ course: id }),
+            Certificate.countDocuments({ course: id }),
+        ]);
+
+        const historyCount = enrollments + attempts + submissions + vivaApplications + certificates;
+        if (historyCount > 0) {
+            return res.status(409).json({
+                success: false,
+                message: 'This course has learner history. Archive it instead of deleting.',
+                archiveRequired: true,
+                history: { enrollments, attempts, submissions, vivaApplications, certificates },
+            });
+        }
+
+        await Promise.all([
+            CoursePlan.deleteMany({ courseId: id }),
+            course.assignments?.length
+                ? Assignment.deleteMany({ _id: { $in: course.assignments } })
+                : Promise.resolve(),
+        ]);
+
+        await Course.findByIdAndDelete(id);
 
         return res.status(200).json({
             success: true,
-            message: "Course deleted successfully",
-            course
-        })
+            message: 'Course deleted successfully',
+        });
     } catch (error) {
         console.error("❌ Error in deleting course:", error);
         return res.status(500).json({
@@ -293,6 +339,7 @@ export const updateCourse = async (req, res) => {
             tags: tags !== undefined ? tags : course.tags,
             slug,
             status: status !== undefined ? status : course.status,
+            ...(status === 'published' && course.status !== 'published' ? { publishedAt: new Date() } : {}),
             strictVideoOrder: strictVideoOrder !== undefined ? (strictVideoOrder === true || strictVideoOrder === 'true') : course.strictVideoOrder,
             ...(planSlugs !== null ? { includedInPlans: planSlugs } : {})
         };
@@ -330,23 +377,52 @@ export const updateCourse = async (req, res) => {
 
 export const getAllCourses = async (req, res) => {
     try {
-        const query = (await isAdminRequest(req)) ? {} : { status: 'published' };
-        const page = Math.max(1, Number(req.query.page || 1));
-        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 20));
+        const adminView = await isAdminRequest(req);
+        const query = adminView ? {} : { status: 'published' };
 
-        let q = Course.find(query)
-            .select('title description thumbnailUrl bannerUrl color icon duration category tags status totalVideos totalPdfs enrollmentCount completionCount averageRating reviewCount includedInPlans createdAt')
-            .sort({ createdAt: -1 })
-            .skip((page - 1) * limit)
-            .limit(limit);
+        const page = Math.max(1, Number(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
 
-        const courses = await q;
+        if (adminView && ['draft', 'published', 'archived'].includes(req.query.status)) {
+            query.status = req.query.status;
+        }
+        if (req.query.category) {
+            query.category = String(req.query.category).trim().toLowerCase();
+        }
+        if (req.query.search) {
+            const escaped = escapeRegex(String(req.query.search).trim());
+            query.$or = [
+                { title: { $regex: escaped, $options: 'i' } },
+                { description: { $regex: escaped, $options: 'i' } },
+            ];
+        }
 
-        // Make sure to return includedInPlans for the UI to precheck the checkboxes.
+        const sort = req.query.sort === 'oldest'
+            ? { createdAt: 1 }
+            : req.query.sort === 'title'
+                ? { title: 1 }
+                : { createdAt: -1 };
+
+        const [courses, total] = await Promise.all([
+            Course.find(query)
+                .select('title description thumbnailUrl bannerUrl color icon duration category tags status totalVideos totalPdfs enrollmentCount completionCount averageRating reviewCount includedInPlans createdAt')
+                .sort(sort)
+                .skip((page - 1) * limit)
+                .limit(limit)
+                .lean(),
+            Course.countDocuments(query),
+        ]);
+
         return res.status(200).json({
             success: true,
-            message: "courses fetched successfully",
-            courses: courses || []
+            message: 'courses fetched successfully',
+            courses: courses || [],
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.max(1, Math.ceil(total / limit)),
+            },
         });
     } catch (error) {
         console.error("❌ Error in fetching courses:", error);
@@ -383,10 +459,11 @@ export const getCourseById = async (req, res) => {
                 message: "Course not found"
             });
         }
+        const entitled = adminView ? true : await viewerHasCourseEntitlement(req, course);
         return res.status(200).json({
             success: true,
             message: "Course fetched successfully",
-            course: adminView ? course : sanitizeCourseForUser(course)
+            course: adminView ? course : await buildCourseViewerPayload(course, { entitled })
         })
     } catch (error) {
         console.error("❌ Error in fetching course by ID:", error);
@@ -423,10 +500,11 @@ export const getCourseBySlug = async (req, res) => {
                 message: "Course not found"
             });
         }
+        const entitled = adminView ? true : await viewerHasCourseEntitlement(req, course);
         return res.status(200).json({
             success: true,
             message: "Course fetched successfully",
-            course: adminView ? course : sanitizeCourseForUser(course)
+            course: adminView ? course : await buildCourseViewerPayload(course, { entitled })
         })
     } catch (error) {
         console.error("❌ Error in fetching course by slug:", error);

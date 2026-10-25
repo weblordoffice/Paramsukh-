@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { Search, Plus, Edit, Trash2, Eye, Video, FolderOpen, Users, Award, TrendingUp, BarChart3 } from 'lucide-react';
 import Image from 'next/image';
 import CourseModal from '@/components/CourseModal';
+import { useAuthStore } from '@/lib/store/authStore';
 
 interface Course {
     _id: string;
@@ -53,45 +54,48 @@ export default function CoursesPage() {
     const [modalKey, setModalKey] = useState(0);
     const [deleting, setDeleting] = useState<string | null>(null);
     const [planLookup, setPlanLookup] = useState<Record<string, { name: string; color: string }>>({});
+    const [page, setPage] = useState(1);
+    const [pages, setPages] = useState(1);
+    const [total, setTotal] = useState(0);
+    const [filterStatus, setFilterStatus] = useState('');
+    const [error, setError] = useState<string | null>(null);
+    const user = useAuthStore((state) => state.user);
+    const hasPermission = useAuthStore((state) => state.hasPermission);
 
     useEffect(() => {
-        fetchCourses();
+        if (user && !hasPermission('manage_courses')) {
+            toast.error('You do not have permission to manage courses');
+            router.replace('/dashboard');
+        }
+    }, [user, hasPermission, router]);
+
+    useEffect(() => {
         fetchPlans();
     }, []);
 
+    useEffect(() => {
+        setLoading(true);
+        fetchCourses();
+    }, [page, filterStatus, searchTerm]);
+
     const fetchCourses = async () => {
         try {
-            const response = await apiClient.get('/api/courses/all');
-            // Fetch enrollment stats to populate enrollment counts
-            const statsResponse = await apiClient.get('/api/enrollments/stats/courses').catch(() => null);
+            setError(null);
+            const response = await apiClient.get('/api/courses/all', {
+                params: {
+                    page,
+                    limit: 20,
+                    ...(filterStatus ? { status: filterStatus } : {}),
+                    ...(searchTerm ? { search: searchTerm } : {}),
+                },
+            });
             const coursesData = response.data.courses || [];
-            
-            // Merge enrollment stats into course data
-            if (statsResponse?.data?.courses) {
-                const enrollmentStatsMap = new Map<string, EnrollmentStats>(
-                    statsResponse.data.courses.map((stat: EnrollmentStats) => [stat.courseId, stat])
-                );
-                const coursesWithStats = coursesData.map((course: Course) => {
-                    const stats = enrollmentStatsMap.get(course._id);
-                    return {
-                        ...course,
-                        enrollmentCount: stats?.enrollmentCount || 0,
-                        completionCount: stats?.completedCount || 0
-                    };
-                });
-                setCourses(coursesWithStats);
-            } else {
-                setCourses(coursesData);
-            }
+            setPages(response.data.pagination?.pages || 1);
+            setTotal(response.data.pagination?.total ?? coursesData.length);
+            setCourses(coursesData);
         } catch (error: any) {
-            // Only show error for server errors, not for empty data
-            if (error.response?.status !== 404) {
-                console.error('Error fetching courses:', error);
-                // Only show toast for actual server errors (500s)
-                if (error.response?.status >= 500) {
-                    toast.error('Server error. Please try again later.');
-                }
-            }
+            console.error('Error fetching courses:', error);
+            setError(error.response?.data?.message || 'Failed to load courses');
             setCourses([]);
         } finally {
             setLoading(false);
@@ -132,7 +136,7 @@ export default function CoursesPage() {
     };
 
     const handleDelete = async (courseId: string) => {
-        if (!confirm('Are you sure you want to delete this course?')) return;
+        if (!confirm('Delete this course? Courses with learner history must be archived instead.')) return;
 
         setDeleting(courseId);
         try {
@@ -140,6 +144,19 @@ export default function CoursesPage() {
             toast.success('Course deleted successfully!');
             fetchCourses();
         } catch (error: any) {
+            if (error.response?.status === 409 && error.response?.data?.archiveRequired) {
+                if (confirm('This course has learner history. Archive it instead?')) {
+                    try {
+                        await apiClient.put(`/api/courses/update/${courseId}`, { status: 'archived' });
+                        toast.success('Course archived');
+                        fetchCourses();
+                        return;
+                    } catch (archiveError: any) {
+                        toast.error(archiveError.response?.data?.message || 'Failed to archive course');
+                        return;
+                    }
+                }
+            }
             toast.error(error.response?.data?.message || 'Failed to delete course');
             console.error(error);
         } finally {
@@ -147,10 +164,7 @@ export default function CoursesPage() {
         }
     };
 
-    const filteredCourses = courses.filter(course =>
-        course.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        course.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
+    const filteredCourses = courses;
 
     if (loading) {
         return (
@@ -178,18 +192,41 @@ export default function CoursesPage() {
             </div>
 
             {/* Search Bar */}
-            <div className="bg-white rounded-xl p-4 shadow-md">
-                <div className="relative">
+            <div className="bg-white rounded-xl p-4 shadow-md flex flex-col md:flex-row gap-3">
+                <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-900" />
                     <input
                         type="text"
-                        placeholder="Search courses by title or tags..."
+                        placeholder="Search courses by title or description..."
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(e) => { setPage(1); setSearchTerm(e.target.value); }}
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-gray-900 placeholder:text-gray-500"
+                        aria-label="Search courses"
                     />
                 </div>
+                <select
+                    value={filterStatus}
+                    onChange={(e) => { setPage(1); setFilterStatus(e.target.value); }}
+                    className="px-4 py-3 border border-gray-300 rounded-lg text-gray-900"
+                    aria-label="Filter by status"
+                >
+                    <option value="">All statuses</option>
+                    <option value="published">Published</option>
+                    <option value="draft">Draft</option>
+                    <option value="archived">Archived</option>
+                </select>
             </div>
+
+            {error ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
+                    <p className="text-red-700 font-medium">{error}</p>
+                    <button onClick={() => fetchCourses()} className="mt-3 px-4 py-2 rounded-lg bg-red-600 text-white">
+                        Retry
+                    </button>
+                </div>
+            ) : (
+            <></>
+            )}
 
             {/* Courses Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -210,6 +247,7 @@ export default function CoursesPage() {
                                         src={course.thumbnailUrl}
                                         alt={course.title}
                                         fill
+                                        unoptimized
                                         className="object-cover"
                                     />
                                 ) : (
@@ -332,6 +370,27 @@ export default function CoursesPage() {
                         </div>
                     ))
                 )}
+            </div>
+
+            <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">{total} course(s)</span>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                        disabled={page <= 1}
+                        className="px-3 py-2 rounded-lg border border-gray-300 text-sm disabled:opacity-50"
+                    >
+                        Previous
+                    </button>
+                    <span className="text-sm text-gray-700">Page {page} of {pages}</span>
+                    <button
+                        onClick={() => setPage((prev) => Math.min(pages, prev + 1))}
+                        disabled={page >= pages}
+                        className="px-3 py-2 rounded-lg border border-gray-300 text-sm disabled:opacity-50"
+                    >
+                        Next
+                    </button>
+                </div>
             </div>
 
             {/* Course Modal */}

@@ -66,6 +66,8 @@ function sanitizeActionUrl(actionUrl: string): ResolvedRoute | null {
     if (blogMatch) return { pathname: '/blog-detail', params: { id: blogMatch[1] } };
     const eventMatch = path.match(/^\/events\/([a-fA-F0-9]{24})$/);
     if (eventMatch) return { pathname: '/event-detail', params: { eventId: eventMatch[1] } };
+    const courseMatch = path.match(/^\/courses\/([a-fA-F0-9]{24})$/);
+    if (courseMatch) return { pathname: '/course-detail', params: { id: courseMatch[1], courseId: courseMatch[1] } };
     return null;
   }
   if (!query) return path;

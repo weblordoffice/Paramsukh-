@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -473,9 +473,26 @@ export default function CourseDetailScreen() {
   const courseDuration = (params.duration as string) || '6 weeks';
   const preview = params.preview === '1';
 
-  const { currentCourse, fetchCourseById, fetchEnrollmentProgress, enrollmentProgress, isLoading, error } =
+  const { currentCourse, fetchCourseById, fetchEnrollmentProgress, enrollmentProgress, notEnrolled, enrollInCourse, isLoading, error } =
     useCourseStore();
   const { token } = useAuthStore();
+  const [enrolling, setEnrolling] = useState(false);
+
+  const isFreeCourse = !(currentCourse?.includedInPlans?.length);
+  const accessLocked = Boolean(preview || (token && notEnrolled));
+
+  const handleEnroll = async () => {
+    if (!courseId || enrolling) return;
+    setEnrolling(true);
+    try {
+      const result = await enrollInCourse(courseId);
+      if (!result.success) {
+        Alert.alert('Enrollment failed', result.message || 'Please try again.');
+      }
+    } finally {
+      setEnrolling(false);
+    }
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -551,6 +568,10 @@ export default function CourseDetailScreen() {
   };
 
   const handleAudioPress = async (lesson: AudioLesson) => {
+    if (accessLocked) {
+      Alert.alert('Locked content', 'Enroll in this course to access the audio lessons.');
+      return;
+    }
     await useAudioPlayerStore.getState().loadAndPlay({
       id: `course-audio-${lesson._id}`,
       title: lesson.title,
@@ -559,6 +580,8 @@ export default function CourseDetailScreen() {
       audioUrl: lesson.audioUrl,
       duration: lesson.duration || '',
       category: currentCourse?.category || 'Course',
+      courseId,
+      audioId: lesson._id,
     });
   };
 
@@ -568,6 +591,10 @@ export default function CourseDetailScreen() {
   };
 
   const handleReflectionPress = (reflection: Reflection) => {
+    if (accessLocked) {
+      Alert.alert('Locked content', 'Enroll in this course to access the reflection exercises.');
+      return;
+    }
     router.push({
       pathname: '/reflection-viewer',
       params: {
@@ -583,6 +610,10 @@ export default function CourseDetailScreen() {
   };
 
   const handlePdfPress = async (pdf: Pdf) => {
+    if (accessLocked) {
+      Alert.alert('Locked content', 'Enroll in this course to access the study materials.');
+      return;
+    }
     let url = pdf.pdfUrl || '';
     if (!url) return;
     try {
@@ -660,7 +691,7 @@ export default function CourseDetailScreen() {
               </View>
             )}
 
-            <Text style={styles.courseTitleHeader}>{courseTitle}</Text>
+            <Text style={styles.courseTitleHeader}>{currentCourse?.title || courseTitle}</Text>
             
             <View style={styles.courseMetaRow}>
               <View style={styles.metaItem}>
@@ -674,6 +705,28 @@ export default function CourseDetailScreen() {
               </View>
             </View>
           </View>
+
+          {token && notEnrolled && (
+            <View style={{ backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12, marginBottom: 16, borderWidth: 1, borderColor: '#FDE047' }}>
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#713F12', marginBottom: 4 }}>
+                {isFreeCourse ? 'Enroll to start this course' : 'Membership required'}
+              </Text>
+              <Text style={{ fontSize: 13, color: '#92400E', marginBottom: 6 }}>
+                {isFreeCourse
+                  ? 'This course is free. Enroll to save your progress and unlock all lessons.'
+                  : 'Enroll through your membership to unlock every lesson, PDF, and live session.'}
+              </Text>
+              {isFreeCourse && (
+                <TouchableOpacity
+                  onPress={handleEnroll}
+                  disabled={enrolling}
+                  style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: courseColor, borderRadius: 12, paddingVertical: 12, opacity: enrolling ? 0.7 : 1 }}
+                >
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>{enrolling ? 'Enrolling...' : 'Enroll now'}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
 
           {/* ── Progress card ── */}
           {token && !preview && totalActivities > 0 && (
@@ -730,7 +783,7 @@ export default function CourseDetailScreen() {
           ) : null}
 
           {/* ── Live Sessions ── */}
-          {liveSessions.length > 0 && (
+          {!accessLocked && liveSessions.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 Live Sessions
@@ -819,7 +872,7 @@ export default function CourseDetailScreen() {
               videos.map((video, idx) => {
                 const isCompleted = enrollmentProgress?.completedVideos?.includes(video._id);
                 const lockedByOrder = currentCourse?.strictVideoOrder && idx > 0 && !enrollmentProgress?.completedVideos?.includes(videos[idx - 1]._id);
-                const isLocked = preview ? !video.isFree : lockedByOrder;
+                const isLocked = accessLocked ? !video.isFree : lockedByOrder;
                 return (
                   <LessonCard
                     key={video._id}
@@ -897,7 +950,7 @@ export default function CourseDetailScreen() {
 
           {/* ── Assignment List ── */}
           {/* Audio Meditations */}
-          {audioLessons.length > 0 && (
+          {!accessLocked && audioLessons.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 Audio Meditations
@@ -947,7 +1000,7 @@ export default function CourseDetailScreen() {
             </View>
           )}
 
-          {currentCourse?.assignments && currentCourse.assignments.length > 0 && (
+          {!accessLocked && currentCourse?.assignments && currentCourse.assignments.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 Assignments & Quizzes
@@ -984,7 +1037,7 @@ export default function CourseDetailScreen() {
 
           {/* ── PDF Resources List ── */}
           {/* Reflection Exercises */}
-          {reflections.length > 0 && (
+          {!accessLocked && reflections.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 Reflection Exercises
@@ -1022,7 +1075,7 @@ export default function CourseDetailScreen() {
             </View>
           )}
 
-          {currentCourse?.pdfs && currentCourse.pdfs.length > 0 && (
+          {!accessLocked && currentCourse?.pdfs && currentCourse.pdfs.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>
                 Study Materials & PDFs

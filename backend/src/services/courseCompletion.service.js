@@ -10,12 +10,19 @@ export const handleCourseCompletion = async (userId, courseId) => {
   let isFirstCompletion = false;
 
   if (enrollment?.isCompleted && !enrollment.completionAwardedAt) {
+    const { Certificate } = await import('../models/certificate.models.js');
+    const existingCertificate = await Certificate.exists({
+      user: userId,
+      course: courseId,
+      type: 'course_participation',
+    });
+
     const claimed = await Enrollment.findOneAndUpdate(
       { _id: enrollment._id, completionAwardedAt: null },
       { $set: { completionAwardedAt: new Date() } },
       { new: true }
     );
-    isFirstCompletion = Boolean(claimed);
+    isFirstCompletion = Boolean(claimed) && !existingCertificate;
   }
 
   if (isFirstCompletion) {

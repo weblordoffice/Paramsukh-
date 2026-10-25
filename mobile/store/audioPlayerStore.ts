@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { Audio } from 'expo-av';
 import type { AVPlaybackStatus } from 'expo-av';
+import apiClient from '../utils/apiClient';
+import { API_URL } from '../config/api';
 
 export interface PodcastTrack {
     id: string;
@@ -10,7 +12,11 @@ export interface PodcastTrack {
     audioUrl: string;
     duration: string;
     category: string;
+    courseId?: string;
+    audioId?: string;
 }
+
+let lastAudioReportAt = 0;
 
 interface AudioPlayerState {
     currentTrack: PodcastTrack | null;
@@ -69,6 +75,20 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
                         playbackDuration: status.durationMillis || 0,
                         isLoaded: true,
                     });
+
+                    if (track.courseId && track.audioId && status.durationMillis) {
+                        const now = Date.now();
+                        if (now - lastAudioReportAt >= 10000 || !status.isPlaying) {
+                            lastAudioReportAt = now;
+                            apiClient.patch(
+                                `${API_URL}/enrollments/course/${track.courseId}/audio/${track.audioId}/position`,
+                                {
+                                    positionSeconds: Math.floor((status.positionMillis || 0) / 1000),
+                                    durationSeconds: Math.floor(status.durationMillis / 1000),
+                                }
+                            ).catch(() => {});
+                        }
+                    }
                 }
             }
         );

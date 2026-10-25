@@ -8,9 +8,9 @@ import {
   getEnrollmentByCourse,
   unenrollFromCourse,
   updateVideoPosition,
+  updateAudioPosition,
   checkEnrollmentStatus,
   getContinueLearning,
-  markCourseComplete
 } from '../../controller/enrollment/enrollment.controller.js';
 import {
   markVideoComplete,
@@ -25,6 +25,8 @@ import {
 import { adminAuth } from '../../middleware/adminAuth.js';
 import { requirePermission } from '../../middleware/requirePermission.js';
 import { progressLimiter } from '../../middleware/rateLimiter.js';
+import { requireCourseAccess } from '../../middleware/courseAccess.js';
+import { validateMongoIdParams } from '../../middleware/validators.js';
 
 const router = express.Router();
 
@@ -59,27 +61,27 @@ router.get('/catalog', getEnrollmentCatalog);
 router.get('/continue-learning', getContinueLearning);
 
 // Check enrollment status for a course
-router.get('/check/:courseId', checkEnrollmentStatus);
+router.get('/check/:courseId', validateMongoIdParams('courseId'), checkEnrollmentStatus);
 
 // Get enrollment details for a specific course
-router.get('/course/:courseId', getEnrollmentByCourse);
+router.get('/course/:courseId', validateMongoIdParams('courseId'), requireCourseAccess, getEnrollmentByCourse);
 
 // Get course progress
-router.get('/course/:courseId/progress', getEnrollmentProgress);
+router.get('/course/:courseId/progress', validateMongoIdParams('courseId'), requireCourseAccess, getEnrollmentProgress);
 
 // Update current video position
-router.patch('/course/:courseId/position', updateVideoPosition);
+router.patch('/course/:courseId/position', validateMongoIdParams('courseId'), requireCourseAccess, updateVideoPosition);
+
+// Update current audio position
+router.patch('/course/:courseId/audio/:audioId/position', validateMongoIdParams('courseId', 'audioId'), requireCourseAccess, updateAudioPosition);
 
 // Mark video as complete
-router.post('/course/:courseId/video/:videoId/complete', progressLimiter, markVideoComplete);
+router.post('/course/:courseId/video/:videoId/complete', validateMongoIdParams('courseId', 'videoId'), requireCourseAccess, progressLimiter, markVideoComplete);
 
 // Mark PDF as complete
-router.post('/course/:courseId/pdf/:pdfId/complete', progressLimiter, markPdfComplete);
+router.post('/course/:courseId/pdf/:pdfId/complete', validateMongoIdParams('courseId', 'pdfId'), requireCourseAccess, progressLimiter, markPdfComplete);
 
-// Mark entire course as complete
-router.post('/course/:courseId/complete', markCourseComplete);
-
-// Unenroll from course
-router.delete('/course/:courseId', unenrollFromCourse);
+// Unenroll from course (kept available after access expires)
+router.delete('/course/:courseId', validateMongoIdParams('courseId'), unenrollFromCourse);
 
 export default router;

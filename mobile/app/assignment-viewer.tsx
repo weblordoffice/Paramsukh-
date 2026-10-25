@@ -251,6 +251,12 @@ export default function AssignmentViewerScreen() {
   const assignment = currentCourse?.assignments?.find(a => a._id === assignmentId) || 
                      currentCourse?.videos?.flatMap(v => v.assignments || []).find(a => a._id === assignmentId);
 
+  useEffect(() => {
+    if (!assignment && courseId) {
+      useCourseStore.getState().fetchCourseById(courseId);
+    }
+  }, [assignment, courseId]);
+
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [showExplanation, setShowExplanation] = useState<Record<string, boolean>>({});
   const [attempts, setAttempts] = useState<any[]>([]);
@@ -476,6 +482,7 @@ export default function AssignmentViewerScreen() {
                     value={answers[q._id] || ''}
                     onChangeText={(text) => handleInputChange(q._id, text)}
                     placeholderTextColor={colors.textSecondary}
+                    editable={!showExp}
                   />
                 </View>
               )}

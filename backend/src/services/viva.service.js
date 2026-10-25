@@ -10,7 +10,7 @@ const ALLOWED_TRANSITIONS = {
   completed: ['passed', 'failed'],
   passed: [],
   failed: [],
-  cancelled: [],
+  cancelled: ['applied'],
 };
 
 const buildHistoryEntry = ({ from, to, actorId, actorType = 'admin', note = '' }) => ({
@@ -86,6 +86,30 @@ export const applyForViva = async (userId, courseId, note = '') => {
   }
 
   try {
+    if (eligibility.application?.status === 'cancelled') {
+      const revived = await VivaApplication.findByIdAndUpdate(
+        eligibility.application._id,
+        {
+          $set: {
+            status: 'applied',
+            appliedAt: new Date(),
+            notes: String(note || '').trim(),
+          },
+          $push: {
+            statusHistory: buildHistoryEntry({
+              from: 'cancelled',
+              to: 'applied',
+              actorId: userId,
+              actorType: 'user',
+              note: String(note || '').trim(),
+            }),
+          },
+        },
+        { new: true, runValidators: true }
+      );
+      if (revived) return revived;
+    }
+
     return await VivaApplication.create({
       user: userId,
       course: courseId,

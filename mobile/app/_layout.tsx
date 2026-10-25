@@ -312,7 +312,15 @@ export default function RootLayout() {
 
   // Prevent screenshots / screen recording app-wide (Android FLAG_SECURE).
   // Uses a dynamic import so older dev builds without the native module don't crash.
+  // Demo channels (development, preview, production-apk) allow screen sharing via
+  // EXPO_PUBLIC_ALLOW_SCREEN_CAPTURE=true; store production builds stay protected.
   useEffect(() => {
+    const screenCaptureAllowed = process.env.EXPO_PUBLIC_ALLOW_SCREEN_CAPTURE === 'true'
+      || (__DEV__ && process.env.EXPO_PUBLIC_ALLOW_SCREEN_CAPTURE !== 'false');
+    if (screenCaptureAllowed) {
+      return;
+    }
+
     let restore: (() => void) | undefined;
     let cancelled = false;
 

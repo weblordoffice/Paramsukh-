@@ -238,6 +238,11 @@ describe('Enrollment Module - /api/enrollments', () => {
       });
       const videoId = course.videos[0]._id;
 
+      await request(app)
+        .patch(`/api/enrollments/course/${course._id}/position`)
+        .set(getAuthHeader(token))
+        .send({ videoId, positionSeconds: 95, durationSeconds: 100, isPaused: true });
+
       const res = await request(app)
         .post(`/api/enrollments/course/${course._id}/video/${videoId}/complete`)
         .set(getAuthHeader(token));

@@ -55,6 +55,7 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
     const submitLockRef = useRef(false);
     const [membershipPlans, setMembershipPlans] = useState<MembershipPlan[]>([]);
     const [loadingPlans, setLoadingPlans] = useState(true);
+    const [plansError, setPlansError] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchPlans = async () => {
@@ -63,13 +64,20 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                 if (response.data.success) {
                     setMembershipPlans(response.data.data.filter((p: any) => p.status !== 'archived'));
                 }
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Error fetching plans:', error);
+                setPlansError(
+                    error.response?.status === 403
+                        ? 'You need the manage_users permission to view membership plans.'
+                        : 'Failed to load membership plans.'
+                );
             } finally {
                 setLoadingPlans(false);
             }
         };
         if (isOpen) {
+            setLoadingPlans(true);
+            setPlansError(null);
             fetchPlans();
         }
     }, [isOpen]);
@@ -114,14 +122,6 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
 
         try {
             const selectedPlanSlugs = formData.includedInPlans || [];
-            const isFreeCourse = formData.isFreeCourse === true;
-
-            if (!isFreeCourse && selectedPlanSlugs.length === 0) {
-                toast.error('Select at least one membership plan, or mark the course as free.');
-                setLoading(false);
-                return;
-            }
-
             const normalizedCategory = String(formData.category || '').trim().toLowerCase();
             if (!normalizedCategory) {
                 toast.error('Category is required.');
@@ -130,10 +130,17 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
             }
 
             const payload = {
-                ...formData,
+                title: String(formData.title || '').trim(),
+                description: String(formData.description || '').trim(),
+                color: formData.color,
+                thumbnailUrl: formData.thumbnailUrl || null,
+                bannerUrl: formData.bannerUrl || null,
+                duration: String(formData.duration || '').trim(),
                 category: normalizedCategory,
-                includedInPlans: isFreeCourse ? [] : selectedPlanSlugs,
-                tags: tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag !== '')
+                tags: tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag !== ''),
+                status: formData.status || 'draft',
+                includedInPlans: selectedPlanSlugs,
+                strictVideoOrder: formData.strictVideoOrder === true,
             };
 
             if (course?._id) {
@@ -188,12 +195,14 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
         try {
             const response = await apiClient.post(`/api/upload/course-media?type=${type}`, formData);
 
-            if (response.data.success) {
+            if (response.data.success && response.data.data?.url) {
                 setFormData((prev: Course) => ({
                     ...prev,
                     [fieldName]: response.data.data.url
                 }));
                 toast.success('Image uploaded successfully!', { id: toastId });
+            } else {
+                toast.error(response.data?.message || 'Upload failed', { id: toastId });
             }
         } catch (error: any) {
             console.error('Upload error:', error);
@@ -340,62 +349,41 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                             Course Access Settings
                         </label>
 
-                        {/* Free Course Toggle */}
-                        <div className="flex items-center gap-3 mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-                            <input
-                                type="checkbox"
-                                id="isFreeCourse"
-                                checked={formData.isFreeCourse === true}
-                                onChange={() => {
-                                    setFormData((prev: any) => ({
-                                        ...prev,
-                                        isFreeCourse: !prev.isFreeCourse,
-                                        includedInPlans: !prev.isFreeCourse ? [] : prev.includedInPlans,
-                                    }));
-                                }}
-                                className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
-                            />
-                            <div>
-                                <label htmlFor="isFreeCourse" className="text-sm font-semibold text-green-800 cursor-pointer select-none">
-                                    Free Course — Available to all users without membership
-                                </label>
-                                <p className="text-xs text-green-700 mt-1">
-                                    Anyone can enroll in this course. No payment or membership plan required.
-                                </p>
-                            </div>
-                        </div>
+                        <p className="text-xs text-gray-600 mb-4">
+                            Leave every plan unchecked to make this course free. Selecting plans restricts it to those memberships.
+                        </p>
 
-                        {!formData.isFreeCourse && (
-                            <>
-                                <label className="block text-sm font-medium text-secondary mb-2">
-                                    Restricted Plan Access (Auto-Enroll)
-                                </label>
-                                {loadingPlans ? (
-                                    <p className="text-sm text-gray-500">Loading plans...</p>
-                                ) : membershipPlans.length === 0 ? (
-                                    <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-lg text-sm">
-                                        No plans exist. Please ask the admin to create a membership plan first.
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-wrap gap-4">
-                                        {membershipPlans.map((plan) => (
-                                            <label key={plan._id} className="flex items-center space-x-2 cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={(formData.includedInPlans || []).includes(plan.slug)}
-                                                    onChange={() => handlePlanChange(plan.slug)}
-                                                    className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
-                                                />
-                                                <span className="capitalize text-black">{plan.title}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                )}
-                                <p className="text-xs text-gray-500 mt-1">
-                                    Users on these plans will be automatically enrolled in this course upon purchase.
-                                </p>
-                            </>
+                        <label className="block text-sm font-medium text-secondary mb-2">
+                            Restricted Plan Access (Auto-Enroll)
+                        </label>
+                        {loadingPlans ? (
+                            <p className="text-sm text-gray-500">Loading plans...</p>
+                        ) : plansError ? (
+                            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-lg text-sm">
+                                {plansError} You can still edit the other fields; plan access is unchanged.
+                            </div>
+                        ) : membershipPlans.length === 0 ? (
+                            <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 p-4 rounded-lg text-sm">
+                                No plans exist. Please ask the admin to create a membership plan first.
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap gap-4">
+                                {membershipPlans.map((plan) => (
+                                    <label key={plan._id} className="flex items-center space-x-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={(formData.includedInPlans || []).includes(plan.slug)}
+                                            onChange={() => handlePlanChange(plan.slug)}
+                                            className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                                        />
+                                        <span className="capitalize text-black">{plan.title}</span>
+                                    </label>
+                                ))}
+                            </div>
                         )}
+                        <p className="text-xs text-gray-500 mt-1">
+                            Users on these plans will be automatically enrolled in this course upon purchase.
+                        </p>
                     </div>
 
                     {/* Tags */}
@@ -452,7 +440,6 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm text-black"
                                         placeholder="https://example.com/image.jpg"
-                                        required
                                     />
                                 </div>
                                 <div className="relative">
@@ -514,7 +501,6 @@ export default function CourseModal({ isOpen, onClose, course, onSuccess }: Cour
                                         onChange={handleChange}
                                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none text-sm text-black"
                                         placeholder="https://example.com/banner.jpg"
-                                        required
                                     />
                                 </div>
                                 <div className="relative">

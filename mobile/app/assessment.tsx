@@ -449,9 +449,9 @@ export default function AssessmentScreen() {
   const insets = useSafeAreaInsets();
 
   const {
-    answers, textInputs, scales, issueDetails,
+    answers, textInputs, scales, issueDetails, wellnessGoals, investmentOther,
     selectedCountryCode, selectedStateCode,
-    setAnswer, setTextInput, setScale, setIssueDetail,
+    setAnswer, setTextInput, setScale, setIssueDetail, setWellnessGoal, setInvestmentOther,
     setCountryCode, setStateCode,
   } = store;
 
@@ -503,13 +503,20 @@ export default function AssessmentScreen() {
   const selectedCountry = countries.find((country) => country.isoCode === selectedCountryCode);
   const selectedState = states.find((state) => state.isoCode === selectedStateCode);
 
-  const questions = [
+  const questions: {
+    id: string;
+    question: string;
+    detailKey: keyof typeof issueDetails | null;
+    detailLabel?: string;
+    detailPlaceholder?: string;
+  }[] = [
     { id: 'physical_issue', question: 'Do you have any Physical Issues?', detailKey: 'physicalIssueDetails' as const, detailLabel: 'Please describe your physical concerns', detailPlaceholder: 'e.g., back pain, joint issues, fatigue...' },
     { id: 'special_disease_issue', question: 'Do you have any Special Disease Issues?', detailKey: 'specialDiseaseDetails' as const, detailLabel: 'Please describe any medical conditions', detailPlaceholder: 'e.g., diabetes, hypertension, thyroid...' },
     { id: 'relationship_issue', question: 'Do you have any Relationship Issues?', detailKey: 'relationshipIssueDetails' as const, detailLabel: 'Please describe your relationship concerns', detailPlaceholder: 'e.g., communication, trust, loneliness...' },
     { id: 'financial_issue', question: 'Do you have any Financial Issues?', detailKey: 'financialIssueDetails' as const, detailLabel: 'Please describe your financial concerns', detailPlaceholder: 'e.g., debt, career uncertainty, budgeting...' },
     { id: 'emotional_issue', question: 'Do you have any Mental Health Issues?', detailKey: 'mentalHealthIssueDetails' as const, detailLabel: 'Please describe your mental health concerns', detailPlaceholder: 'e.g., anxiety, depression, stress...' },
     { id: 'spiritual_issue', question: 'Do you have any Spiritual Growth Interests?', detailKey: 'spiritualGrowthDetails' as const, detailLabel: 'Please describe your spiritual interests', detailPlaceholder: 'e.g., meditation, consciousness, purpose...' },
+    { id: 'wants_to_become_counsellor', question: 'Do You Want To Become Counsellor', detailKey: null },
   ];
 
   const scaleQuestions = [
@@ -517,6 +524,30 @@ export default function AssessmentScreen() {
     { key: 'sleepQuality' as const, label: 'Sleep Quality' },
     { key: 'energyLevel' as const, label: 'Daily Energy Level' },
     { key: 'moodRating' as const, label: 'Overall Mood' },
+  ];
+
+  const wellnessGoalFields: {
+    key: keyof typeof wellnessGoals;
+    label: string;
+    placeholder: string;
+  }[] = [
+    { key: 'physical', label: 'What you want to achieve in Physical wellness?', placeholder: 'e.g., move daily, reduce pain, build strength...' },
+    { key: 'mental', label: 'What you want to achieve in Mental Wellness?', placeholder: 'e.g., less anxiety, better focus, calmer mind...' },
+    { key: 'relationship', label: 'What you want to achieve in Relationship & Family Wellness?', placeholder: 'e.g., better communication, more trust, quality time...' },
+    { key: 'financial', label: 'What you want to achieve in Financial Wellness?', placeholder: 'e.g., budgeting, savings, less money stress...' },
+    { key: 'spiritual', label: 'What you want to achieve in Spirituality & Mantra Yoga Wellness?', placeholder: 'e.g., daily meditation, mantra practice, deeper purpose...' },
+  ];
+
+  const commitmentQuestions = [
+    { id: 'ready_to_invest_lifetime', question: 'Are you ready to invest on you for lifetime solutions of above issues?' },
+    { id: 'can_invest_one_year', question: 'Can You Invest 1 year to address your life Issues' },
+  ];
+
+  const investmentOptions = [
+    { value: '25k', label: '₹25k' },
+    { value: '40k', label: '₹40k' },
+    { value: '80k', label: '₹80k' },
+    { value: 'other', label: 'Other' },
   ];
 
   const handleCountryChange = (countryCode: string) => {
@@ -537,8 +568,11 @@ export default function AssessmentScreen() {
     const answeredCount = Object.keys(answers).length;
     const filledTextInputs = Object.values(textInputs).filter(val => val.trim() !== '').length;
     const locationSelections = (selectedCountryCode ? 1 : 0) + (selectedStateCode ? 1 : 0);
-    const totalFields = questions.length + Object.keys(textInputs).length + 2;
-    const totalAnswered = answeredCount + filledTextInputs + locationSelections;
+    const needsInvestmentOther = answers.investment_amount === 'other';
+    const totalFields = questions.length + Object.keys(textInputs).length + 2 + commitmentQuestions.length + 1
+      + (needsInvestmentOther ? 1 : 0);
+    const totalAnswered = answeredCount + filledTextInputs + locationSelections
+      + (needsInvestmentOther && investmentOther.trim() ? 1 : 0);
 
     if (totalAnswered < totalFields) {
       const missingFields = totalFields - totalAnswered;
@@ -578,7 +612,17 @@ export default function AssessmentScreen() {
         mentalHealthIssue: answers.emotional_issue === 'Yes',
         mentalHealthIssueDetails: issueDetails.mentalHealthIssueDetails,
         spiritualGrowth: answers.spiritual_issue === 'Yes',
-        spiritualGrowthDetails: issueDetails.spiritualGrowthDetails
+        spiritualGrowthDetails: issueDetails.spiritualGrowthDetails,
+        wantsToBecomeCounsellor: answers.wants_to_become_counsellor === 'Yes',
+        physicalWellnessGoal: wellnessGoals.physical.trim(),
+        mentalWellnessGoal: wellnessGoals.mental.trim(),
+        relationshipWellnessGoal: wellnessGoals.relationship.trim(),
+        financialWellnessGoal: wellnessGoals.financial.trim(),
+        spiritualWellnessGoal: wellnessGoals.spiritual.trim(),
+        readyToInvestLifetime: answers.ready_to_invest_lifetime === 'Yes',
+        canInvestOneYear: answers.can_invest_one_year === 'Yes',
+        lifeTransformationInvestment: answers.investment_amount || '',
+        lifeTransformationInvestmentOther: investmentOther.trim()
       };
 
       const response = await apiClient.post('/assessment/submit', assessmentData);
@@ -596,6 +640,8 @@ export default function AssessmentScreen() {
           countryName: selectedCountry?.name || '',
           stateCode: selectedState?.isoCode || '',
           stateName: selectedState?.name || '',
+          wellnessGoals,
+          investmentOther,
         };
         await AsyncStorage.setItem('assessment_answers', JSON.stringify(allAnswers));
 
@@ -618,8 +664,11 @@ export default function AssessmentScreen() {
   const answeredCount = Object.keys(answers).length;
   const filledTextInputs = Object.values(textInputs).filter(val => val.trim() !== '').length;
   const locationSelections = (selectedCountryCode ? 1 : 0) + (selectedStateCode ? 1 : 0);
-  const totalFields = questions.length + Object.keys(textInputs).length + 2;
-  const totalAnswered = answeredCount + filledTextInputs + locationSelections;
+  const needsInvestmentOther = answers.investment_amount === 'other';
+  const totalFields = questions.length + Object.keys(textInputs).length + 2 + commitmentQuestions.length + 1
+    + (needsInvestmentOther ? 1 : 0);
+  const totalAnswered = answeredCount + filledTextInputs + locationSelections
+    + (needsInvestmentOther && investmentOther.trim() ? 1 : 0);
   const progressPercentage = (totalAnswered / totalFields) * 100;
   const isComplete = totalAnswered === totalFields;
 
@@ -820,6 +869,88 @@ export default function AssessmentScreen() {
             ))}
           </View>
 
+          {/* Section: Wellness Goals */}
+          <Text style={styles.sectionHeading}>Your Wellness Goals</Text>
+          <Text style={styles.sectionSubheading}>Tell us what you want to achieve in each area (optional)</Text>
+          {wellnessGoalFields.map((goal) => (
+            <View key={goal.key} style={styles.inputBlock}>
+              <Text style={styles.inputLabel}>{goal.label}</Text>
+              <TextInput
+                style={[styles.textInput, { minHeight: 90, textAlignVertical: 'top', paddingTop: 12 }]}
+                placeholder={goal.placeholder}
+                placeholderTextColor={colors.textSecondary}
+                value={wellnessGoals[goal.key]}
+                onChangeText={(value) => setWellnessGoal(goal.key, value)}
+                multiline
+                numberOfLines={4}
+              />
+            </View>
+          ))}
+
+          {/* Section: Commitment */}
+          <Text style={styles.sectionHeading}>Your Commitment</Text>
+          <Text style={styles.sectionSubheading}>Your answers help us understand how ready you are for long-term change</Text>
+
+          {commitmentQuestions.map((question) => (
+            <View key={question.id} style={styles.questionBlock}>
+              <Text style={styles.questionText}>
+                {question.question} <Text style={styles.required}>*</Text>
+              </Text>
+              <View style={styles.yesNoContainer}>
+                {['Yes', 'No'].map((option) => {
+                  const isSelected = answers[question.id] === option;
+                  return (
+                    <TouchableOpacity
+                      key={option}
+                      style={[
+                        styles.yesNoButton,
+                        isSelected && (option === 'Yes' ? styles.yesButtonSelected : styles.noButtonSelected),
+                      ]}
+                      onPress={() => setAnswer(question.id, option)}
+                    >
+                      <Text style={[styles.yesNoText, isSelected && styles.selectedYesNoText]}>
+                        {option}
+                      </Text>
+                      {isSelected && <Ionicons name="checkmark-circle" size={20} color={colors.surface} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+
+          <View style={styles.questionBlock}>
+            <Text style={styles.questionText}>
+              How much you can invest in yourself for Life Transformation? <Text style={styles.required}>*</Text>
+            </Text>
+            <View style={styles.yesNoContainer}>
+              {investmentOptions.map((option) => {
+                const isSelected = answers.investment_amount === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[styles.yesNoButton, isSelected && styles.yesButtonSelected]}
+                    onPress={() => setAnswer('investment_amount', option.value)}
+                  >
+                    <Text style={[styles.yesNoText, isSelected && styles.selectedYesNoText]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {answers.investment_amount === 'other' && (
+              <TextInput
+                style={[styles.textInput, { marginTop: 10, minHeight: 56 }]}
+                placeholder="Enter your amount"
+                placeholderTextColor={colors.textSecondary}
+                value={investmentOther}
+                onChangeText={setInvestmentOther}
+                keyboardType="default"
+              />
+            )}
+          </View>
+
           {/* Section: Wellness Areas */}
           <Text style={styles.sectionHeading}>Wellness Areas</Text>
           <Text style={styles.sectionSubheading}>Tell us about any challenges you&apos;re facing</Text>
@@ -851,12 +982,12 @@ export default function AssessmentScreen() {
                 })}
               </View>
 
-              {answers[question.id] === 'Yes' && (
+              {answers[question.id] === 'Yes' && question.detailKey && (
                 <DetailInput
-                  label={question.detailLabel}
+                  label={question.detailLabel || ''}
                   value={issueDetails[question.detailKey]}
-                  onChange={(v) => setIssueDetail(question.detailKey, v)}
-                  placeholder={question.detailPlaceholder}
+                  onChange={(v) => setIssueDetail(question.detailKey!, v)}
+                  placeholder={question.detailPlaceholder || ''}
                 />
               )}
             </View>

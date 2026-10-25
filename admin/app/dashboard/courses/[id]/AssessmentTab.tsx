@@ -259,6 +259,7 @@ export default function AssessmentTab({ courseId }: AssessmentTabProps) {
                 retakeCooldownHours: Number(assessment.retakeCooldownHours),
                 timeLimitMinutes: Number(assessment.timeLimitMinutes),
                 questions: assessment.questions.map((question, index) => ({
+                    ...(question._id ? { _id: question._id } : {}),
                     prompt: question.prompt,
                     type: question.type,
                     points: Number(question.points),
@@ -306,9 +307,10 @@ export default function AssessmentTab({ courseId }: AssessmentTabProps) {
         if (!selectedAttempt) return;
         const grades = Object.entries(manualGrades).map(([questionId, value]) => ({
             questionId,
+            rawValue: value,
             awardedPoints: Number(value),
         }));
-        if (grades.some((grade) => !Number.isFinite(grade.awardedPoints) || grade.awardedPoints < 0)) {
+        if (grades.some((grade) => String(grade.rawValue ?? '').trim() === '' || !Number.isFinite(grade.awardedPoints) || grade.awardedPoints < 0)) {
             toast.error('Enter valid points for every pending answer');
             return;
         }
@@ -524,7 +526,15 @@ export default function AssessmentTab({ courseId }: AssessmentTabProps) {
                                             className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30"
                                             aria-label="Move up"
                                         >
-                                            <GripVertical size={16} />
+                                            ↑
+                                        </button>
+                                        <button
+                                            onClick={() => moveQuestion(index, 1)}
+                                            disabled={index === assessment.questions.length - 1}
+                                            className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-30"
+                                            aria-label="Move down"
+                                        >
+                                            ↓
                                         </button>
                                         <button
                                             onClick={() => removeQuestion(index)}

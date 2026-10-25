@@ -109,7 +109,19 @@ const enrollmentSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: 0
-  }
+  },
+  videoProgress: [{
+    videoId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    positionSeconds: { type: Number, default: 0, min: 0 },
+    durationSeconds: { type: Number, default: 0, min: 0 },
+    updatedAt: { type: Date, default: Date.now }
+  }],
+  audioProgress: [{
+    audioId: { type: mongoose.Schema.Types.ObjectId, required: true },
+    positionSeconds: { type: Number, default: 0, min: 0 },
+    durationSeconds: { type: Number, default: 0, min: 0 },
+    updatedAt: { type: Date, default: Date.now }
+  }]
 }, {
   timestamps: true
 });
@@ -121,26 +133,61 @@ enrollmentSchema.index({ courseId: 1, isCompleted: 1 });
 enrollmentSchema.index({ userId: 1, hasStartedLearning: 1, lastPausedAt: -1 });
 
 // Methods
-enrollmentSchema.methods.updateProgress = function(totalVideos, totalPdfs, totalAudioLessons = 0, totalReflections = 0) {
-  const totalItems = totalVideos + totalPdfs + totalAudioLessons + totalReflections;
+enrollmentSchema.methods.updateProgress = function({
+  totalVideos = 0,
+  totalPdfs = 0,
+  totalAudioLessons = 0,
+  requiredReflectionIds = [],
+  videoIds = null,
+  pdfIds = null,
+  audioIds = null,
+  reflectionIds = null,
+} = {}) {
+  const toSet = (ids) => new Set((ids || []).map((id) => String(id)));
+  const countCompleted = (completed, liveIds) => {
+    const ids = liveIds ? toSet(liveIds) : null;
+    return (completed || []).reduce((count, id) => {
+      if (!ids) return count + 1;
+      return ids.has(String(id)) ? count + 1 : count;
+    }, 0);
+  };
+
+  const completedVideos = countCompleted(this.completedVideos, videoIds);
+  const completedPdfs = countCompleted(this.completedPdfs, pdfIds);
+  const completedAudio = countCompleted(this.completedAudioLessons, audioIds);
+  const requiredReflections = requiredReflectionIds || [];
+  const requiredReflectionSet = toSet(requiredReflections);
+  const completedReflections = countCompleted(
+    (this.completedReflections || []).filter((id) => (
+      reflectionIds ? toSet(reflectionIds).has(String(id)) : true
+    )),
+    requiredReflections
+  );
+
+  const totalItems = totalVideos + totalPdfs + totalAudioLessons + requiredReflectionSet.size;
   if (totalItems === 0) {
-    this.progress = 100;
-    this.isCompleted = true;
-    this.completedAt = new Date();
+    this.progress = 0;
+    this.isCompleted = false;
+    this.completedAt = null;
     return this.progress;
   }
 
   const completedItems =
-    (this.completedVideos?.length || 0)
-    + (this.completedPdfs?.length || 0)
-    + (this.completedAudioLessons?.length || 0)
-    + (this.completedReflections?.length || 0);
+    Math.min(completedVideos, totalVideos)
+    + Math.min(completedPdfs, totalPdfs)
+    + Math.min(completedAudio, totalAudioLessons)
+    + Math.min(completedReflections, requiredReflectionSet.size);
 
   this.progress = Math.min(100, Math.round((completedItems / totalItems) * 100));
 
-  if (this.progress === 100 && !this.isCompleted) {
-    this.isCompleted = true;
-    this.completedAt = new Date();
+  if (this.progress === 100) {
+    if (!this.isCompleted) {
+      this.isCompleted = true;
+      this.completedAt = new Date();
+    }
+  } else if (this.isCompleted) {
+    this.isCompleted = false;
+    this.completedAt = null;
   }
 
   return this.progress;
@@ -194,9 +241,19 @@ enrollmentSchema.post('findOneAndDelete', async function(doc) {
   if (!doc) return;
   try {
     const { Course } = await import('./course.models.js');
-    await Course.findByIdAndUpdate(doc.courseId, {
-      $inc: { enrollmentCount: -1, ...(doc.isCompleted ? { completionCount: -1 } : {}) }
-    });
+    const completionDelta = doc.isCompleted ? 1 : 0;
+    await Course.findByIdAndUpdate(doc.courseId, [
+      {
+        $set: {
+          enrollmentCount: {
+            $max: [0, { $subtract: [{ $ifNull: ['$enrollmentCount', 0] }, 1] }],
+          },
+          completionCount: {
+            $max: [0, { $subtract: [{ $ifNull: ['$completionCount', 0] }, completionDelta] }],
+          },
+        },
+      },
+    ]);
   } catch (error) {
     console.error('Failed to sync course counts on enrollment delete:', error);
   }

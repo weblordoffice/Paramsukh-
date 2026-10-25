@@ -1,5 +1,7 @@
 import { Course } from '../../models/course.models.js';
 import { notifyCourseContentAdded } from '../../services/notificationAutomation.service.js';
+import { recomputeCourseProgress } from '../../services/courseProgress.service.js';
+import { signCourseItemUrl } from '../../services/courseMedia.service.js';
 
 // Helper function to parse duration string to seconds
 function parseDurationToSeconds(duration) {
@@ -112,16 +114,19 @@ export const getCourseVideos = async(req ,res) =>{
         }
         const course  = await Course.findById(courseId).select('videos');
 
-        if(!course || !course.videos || course.videos.length === 0){
+        if(!course){
             return res.status(404).json({
                 success: false,
-                message:"No videos found for this course"
+                message:"Course not found"
             })
         }
+        const videos = await Promise.all(
+            (course.videos || []).map((video) => signCourseItemUrl(video, 'videoUrl'))
+        );
         return res.status(200).json({             
             success: true,
             message:"videos fetched successfully",
-            videos: course.videos
+            videos
         })                       
     }catch(error){  
         console.error("❌ Error in fetching course videos:", error);
@@ -158,10 +163,11 @@ export const getVideoById = async(req ,res) =>{
                 message:"Video not found"
             })
         }
+        const safeVideo = await signCourseItemUrl(video, 'videoUrl');
         return res.status(200).json({
             success: true,
             message:"Video fetched successfully",
-            video
+            video: safeVideo
         })
     }catch(error){
         console.error("❌ Error in fetching video by ID:", error);
@@ -269,6 +275,11 @@ export const deleteVideo = async (req, res) =>{
 
         const { Enrollment } = await import('../../models/enrollment.models.js');
         await Enrollment.updateMany({ courseId }, { $pull: { completedVideos: videoId } });
+        const enrollments = await Enrollment.find({ courseId });
+        for (const enrollment of enrollments) {
+            recomputeCourseProgress(enrollment, course);
+            await enrollment.save();
+        }
         
         return res.status(200).json({
             success: true,

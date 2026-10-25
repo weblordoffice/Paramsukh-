@@ -2,6 +2,7 @@ import { Enrollment } from '../../models/enrollment.models.js';
 import { Course } from '../../models/course.models.js';
 import { evaluateCourseEnrollmentAccess } from '../../services/entitlement.service.js';
 import { syncUserCommunityMembershipsByPlan } from '../../services/planUpgrade.service.js';
+import { buildCourseViewerPayload } from '../../services/courseMedia.service.js';
 
 /**
  * Get published course catalog with access reason flags
@@ -271,7 +272,7 @@ export const getEnrollmentByCourse = async (req, res) => {
     const enrollment = await Enrollment.findOne({ userId, courseId })
       .populate({
         path: 'courseId',
-        select: 'title description icon color thumbnailUrl bannerUrl duration totalVideos totalPdfs videos pdfs liveSessions category'
+        select: 'title description icon color thumbnailUrl bannerUrl duration totalVideos totalPdfs videos pdfs audioLessons liveSessions category includedInPlans status'
       });
 
     if (!enrollment) {
@@ -286,10 +287,17 @@ export const getEnrollmentByCourse = async (req, res) => {
     enrollment.lastAccessedAt = new Date();
     await enrollment.save();
 
+    const enrollmentPayload = enrollment.toObject();
+    if (enrollmentPayload.courseId) {
+      enrollmentPayload.courseId = await buildCourseViewerPayload(enrollmentPayload.courseId, {
+        entitled: true,
+      });
+    }
+
     return res.status(200).json({
       success: true,
       message: "Enrollment fetched successfully",
-      enrollment,
+      enrollment: enrollmentPayload,
       isEnrolled: true
     });
 
@@ -330,32 +338,46 @@ export const updateVideoPosition = async (req, res) => {
     const course = await Course.findById(enrollment.courseId).select('videos').lean();
     const courseVideos = course?.videos || [];
 
-    // Resolve the video index from the id when the client does not send one.
-    let resolvedIndex = Number(videoIndex);
-    if (!Number.isInteger(resolvedIndex) || resolvedIndex < 0) {
-      resolvedIndex = videoId
-        ? courseVideos.findIndex((video) => String(video._id) === String(videoId))
-        : -1;
-    }
-
-    const maxIndex = Math.max(0, courseVideos.length - 1);
-    if (resolvedIndex < 0 || resolvedIndex > maxIndex) {
+    // The video must belong to this course. Prefer the posted id; fall back to
+    // the index only when no id was sent.
+    let resolvedIndex = videoId
+      ? courseVideos.findIndex((video) => String(video._id) === String(videoId))
+      : Number(videoIndex);
+    if (!Number.isInteger(resolvedIndex) || resolvedIndex < 0 || resolvedIndex >= courseVideos.length) {
       return res.status(400).json({
         success: false,
-        message: `videoIndex must be between 0 and ${maxIndex}`
+        message: 'Invalid video for this course'
       });
     }
 
-    const position = Math.max(0, Number(positionSeconds) || 0);
-    const duration = Math.max(0, Number(durationSeconds) || 0);
+    const resolvedVideo = courseVideos[resolvedIndex];
+    if (videoId && String(videoId) !== String(resolvedVideo._id)) {
+      return res.status(400).json({ success: false, message: 'Video does not belong to this course' });
+    }
 
-    enrollment.currentVideoId = videoId || courseVideos[resolvedIndex]?._id || null;
+    const rawPosition = Math.max(0, Number(positionSeconds) || 0);
+    const rawDuration = Math.max(0, Number(durationSeconds) || 0);
+    const duration = Math.min(rawDuration, 12 * 60 * 60);
+    const position = duration > 0 ? Math.min(rawPosition, duration) : rawPosition;
+
+    enrollment.currentVideoId = resolvedVideo._id;
     enrollment.currentVideoIndex = resolvedIndex;
     enrollment.lastAccessedAt = new Date();
     enrollment.lastPlayedAt = new Date();
     enrollment.hasStartedLearning = true;
     enrollment.lastVideoPositionSeconds = position;
     enrollment.lastVideoDurationSeconds = duration;
+    enrollment.videoProgress = [
+      ...(enrollment.videoProgress || []).filter(
+        (entry) => String(entry.videoId) !== String(resolvedVideo._id)
+      ),
+      {
+        videoId: resolvedVideo._id,
+        positionSeconds: position,
+        durationSeconds: duration,
+        updatedAt: new Date(),
+      },
+    ];
 
     if (isPaused !== false) {
       enrollment.lastPausedAt = new Date();
@@ -383,6 +405,63 @@ export const updateVideoPosition = async (req, res) => {
 };
 
 /**
+ * Update current audio position (for listen proof / resume)
+ * PATCH /api/enrollments/course/:courseId/audio/:audioId/position
+ */
+export const updateAudioPosition = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { courseId, audioId } = req.params;
+    const { positionSeconds, durationSeconds } = req.body;
+
+    const enrollment = await Enrollment.findOne({ userId, courseId });
+    if (!enrollment) {
+      return res.status(404).json({ success: false, message: 'Enrollment not found' });
+    }
+
+    const course = await Course.findById(courseId).select('audioLessons').lean();
+    const lesson = (course?.audioLessons || []).find(
+      (item) => String(item._id) === String(audioId)
+    );
+    if (!lesson) {
+      return res.status(400).json({ success: false, message: 'Audio lesson does not belong to this course' });
+    }
+
+    const rawPosition = Math.max(0, Number(positionSeconds) || 0);
+    const rawDuration = Math.max(0, Number(durationSeconds) || 0);
+    const duration = Math.min(rawDuration, 12 * 60 * 60);
+    const position = duration > 0 ? Math.min(rawPosition, duration) : rawPosition;
+
+    enrollment.audioProgress = [
+      ...(enrollment.audioProgress || []).filter(
+        (entry) => String(entry.audioId) !== String(audioId)
+      ),
+      {
+        audioId,
+        positionSeconds: position,
+        durationSeconds: duration,
+        updatedAt: new Date(),
+      },
+    ];
+    enrollment.lastAccessedAt = new Date();
+    await enrollment.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Audio position updated',
+      data: { audioId, positionSeconds: position, durationSeconds: duration },
+    });
+  } catch (error) {
+    console.error('Error updating audio position:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message,
+    });
+  }
+};
+
+/**
  * Unenroll from course
  * DELETE /api/enrollments/course/:courseId
  */
@@ -400,14 +479,7 @@ export const unenrollFromCourse = async (req, res) => {
       });
     }
 
-    const course = await Course.findById(courseId);
-    if (course) {
-      course.enrollmentCount = Math.max(0, (course.enrollmentCount || 0) - 1);
-      if (enrollment.isCompleted) {
-        course.completionCount = Math.max(0, (course.completionCount || 0) - 1);
-      }
-      await course.save();
-    }
+    // Course counts are maintained by the Enrollment post-delete hook.
 
     if (enrollment.isCompleted) {
       const { Certificate } = await import('../../models/certificate.models.js');
@@ -506,7 +578,7 @@ export const getContinueLearning = async (req, res) => {
         select: 'title icon color thumbnailUrl totalVideos'
       })
       .sort({ lastPausedAt: -1, lastAccessedAt: -1 })
-      .limit(parseInt(limit));
+      .limit(Math.min(50, Math.max(1, parseInt(limit, 10) || 5)));
 
     return res.status(200).json({
       success: true,
@@ -536,86 +608,4 @@ export const getContinueLearning = async (req, res) => {
   }
 };
 
-/**
- * Mark an entire course as complete
- * POST /api/enrollments/course/:courseId/complete
- */
-export const markCourseComplete = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const { courseId } = req.params;
-
-    const enrollment = await Enrollment.findOne({ userId, courseId });
-    if (!enrollment) {
-      return res.status(404).json({
-        success: false,
-        message: "Enrollment not found. Please enroll in this course first."
-      });
-    }
-
-    const course = await Course.findById(courseId);
-    if (!course) {
-      return res.status(404).json({
-        success: false,
-        message: "Course not found"
-      });
-    }
-
-    if (enrollment.isCompleted) {
-      return res.status(200).json({
-        success: true,
-        message: "Course is already marked as complete",
-        progress: 100,
-        isCompleted: true,
-        completedAt: enrollment.completedAt
-      });
-    }
-
-    if (Array.isArray(course.videos)) {
-      course.videos.forEach(v => enrollment.markVideoComplete(v._id));
-    }
-    if (Array.isArray(course.pdfs)) {
-      course.pdfs.forEach(p => enrollment.markPdfComplete(p._id));
-    }
-    if (Array.isArray(course.audioLessons)) {
-      course.audioLessons.forEach(a => enrollment.markAudioComplete(a._id));
-    }
-    if (Array.isArray(course.reflections)) {
-      course.reflections.forEach(r => enrollment.markReflectionComplete(r._id));
-    }
-
-    const totalVideos = Array.isArray(course.videos) ? course.videos.length : 0;
-    const totalPdfs = Array.isArray(course.pdfs) ? course.pdfs.length : 0;
-    const totalAudioLessons = Array.isArray(course.audioLessons) ? course.audioLessons.length : 0;
-    const totalReflections = Array.isArray(course.reflections)
-      ? course.reflections.filter((reflection) => reflection.isRequired !== false).length
-      : 0;
-    enrollment.updateProgress(totalVideos, totalPdfs, totalAudioLessons, totalReflections);
-    await enrollment.save();
-
-    const { handleCourseCompletion } = await import('../../services/courseCompletion.service.js');
-    handleCourseCompletion(userId, courseId).catch(err =>
-      console.error('Post-completion hook failed:', err.message)
-    );
-
-    console.log(`Course ${courseId} marked complete for user ${userId}.`);
-
-    return res.status(200).json({
-      success: true,
-      message: "Course marked as completed successfully",
-      progress: enrollment.progress,
-      isCompleted: enrollment.isCompleted,
-      completedVideosCount: enrollment.completedVideos.length,
-      completedPdfsCount: enrollment.completedPdfs.length
-    });
-
-  } catch (error) {
-    console.error("Error marking course complete:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message
-    });
-  }
-};
 

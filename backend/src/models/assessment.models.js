@@ -122,6 +122,55 @@ const assessmentSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  wantsToBecomeCounsellor: {
+    type: Boolean,
+    default: false
+  },
+  // Wellness goals (free text)
+  physicalWellnessGoal: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  mentalWellnessGoal: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  relationshipWellnessGoal: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  financialWellnessGoal: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  spiritualWellnessGoal: {
+    type: String,
+    trim: true,
+    default: ''
+  },
+  // Commitment & investment
+  readyToInvestLifetime: {
+    type: Boolean,
+    default: false
+  },
+  canInvestOneYear: {
+    type: Boolean,
+    default: false
+  },
+  lifeTransformationInvestment: {
+    type: String,
+    enum: ['', '25k', '40k', '80k', 'other'],
+    default: ''
+  },
+  lifeTransformationInvestmentOther: {
+    type: String,
+    trim: true,
+    default: ''
+  },
   completedAt: {
     type: Date,
     default: Date.now

@@ -119,7 +119,8 @@ router.post('/course-media',
 // @body filename, contentType
 // @query folder: optional folder name
 router.post('/video/presign',
-  adminOrUserAuth,
+  adminAuth,
+  requirePermission('manage_courses'),
   getVideoPresignedUrl
 );
 
@@ -128,28 +129,26 @@ router.post('/video/presign',
 // @multipart file: video
 // @query folder: optional folder name
 router.post('/video',
-  adminOrUserAuth,
+  adminAuth,
+  requirePermission('manage_courses'),
   uploadSingleVideo,
   handleMulterError,
   uploadVideoFile
 );
 
-// Upload audio (podcasts)
-// POST /api/upload/audio
-// @multipart file: audio
-// @query folder: optional folder name
+// Upload audio (course lessons / podcasts)
 router.post('/audio',
-  adminOrUserAuth,
+  adminAuth,
+  requirePermission('manage_courses', 'manage_content'),
   uploadSingleAudio,
   handleMulterError,
   uploadAudioFile
 );
 
 // Upload PDF (for course materials)
-// POST /api/upload/pdf
-// @multipart file: PDF file (max 50MB)
 router.post('/pdf',
-  adminOrUserAuth,
+  adminAuth,
+  requirePermission('manage_courses'),
   uploadSinglePdf,
   handleMulterError,
   uploadPdfFile
@@ -164,7 +163,7 @@ router.post('/pdf',
 // @body publicId: Cloudinary public ID
 // @body resourceType: image or video
 router.delete('/delete',
-  adminOrUserAuth,
+  adminAuth,
   deleteUploadedFile
 );
 

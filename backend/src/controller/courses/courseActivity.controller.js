@@ -4,19 +4,13 @@ import { Assignment } from '../../models/course.models.js';
 import { CourseActivitySubmission } from '../../models/courseActivitySubmission.models.js';
 import { notifyCourseContentAdded } from '../../services/notificationAutomation.service.js';
 import { recordRequiredAssignmentCompletion } from '../../services/certificationEligibility.service.js';
+import { recomputeCourseProgress } from '../../services/courseProgress.service.js';
+import { signCourseItemUrl } from '../../services/courseMedia.service.js';
 
 const normalize = (value) => String(value ?? '').trim().toLowerCase();
 
-const getCourseTotals = (course) => ({
-  videos: (course.videos || []).length,
-  pdfs: (course.pdfs || []).length,
-  audioLessons: (course.audioLessons || []).length,
-  reflections: (course.reflections || []).filter((reflection) => reflection.isRequired !== false).length,
-});
-
 const updateEnrollmentProgress = (enrollment, course) => {
-  const totals = getCourseTotals(course);
-  enrollment.updateProgress(totals.videos, totals.pdfs, totals.audioLessons, totals.reflections);
+  recomputeCourseProgress(enrollment, course);
 };
 
 const afterProgressChange = async (userId, courseId, enrollment) => {
@@ -65,11 +59,15 @@ export const getCourseAudioLessons = async (req, res) => {
 
     const completedIds = new Set((enrollment?.completedAudioLessons || []).map(String));
 
+    const audioLessons = await Promise.all(
+      (course.audioLessons || [])
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
+        .map((lesson) => signCourseItemUrl(formatAudioLesson(lesson, completedIds), 'audioUrl'))
+    );
+
     return res.status(200).json({
       success: true,
-      audioLessons: (course.audioLessons || [])
-        .sort((a, b) => (a.order || 0) - (b.order || 0))
-        .map((lesson) => formatAudioLesson(lesson, completedIds)),
+      audioLessons,
     });
   } catch (error) {
     console.error('Get Course Audio Lessons Error:', error);
@@ -162,6 +160,18 @@ export const deleteAudioLesson = async (req, res) => {
 
     course.audioLessons.pull(req.params.audioId);
     await course.save();
+
+    const enrollments = await Enrollment.find({ courseId: course._id });
+    for (const enrollment of enrollments) {
+      enrollment.completedAudioLessons = (enrollment.completedAudioLessons || []).filter(
+        (id) => String(id) !== String(req.params.audioId)
+      );
+      enrollment.audioProgress = (enrollment.audioProgress || []).filter(
+        (entry) => String(entry.audioId) !== String(req.params.audioId)
+      );
+      recomputeCourseProgress(enrollment, course);
+      await enrollment.save();
+    }
 
     return res.status(200).json({ success: true, message: 'Audio lesson deleted' });
   } catch (error) {
@@ -297,6 +307,15 @@ export const deleteReflection = async (req, res) => {
     course.reflections.pull(req.params.reflectionId);
     await course.save();
 
+    const enrollments = await Enrollment.find({ courseId: course._id });
+    for (const enrollment of enrollments) {
+      enrollment.completedReflections = (enrollment.completedReflections || []).filter(
+        (id) => String(id) !== String(req.params.reflectionId)
+      );
+      recomputeCourseProgress(enrollment, course);
+      await enrollment.save();
+    }
+
     return res.status(200).json({ success: true, message: 'Reflection deleted' });
   } catch (error) {
     console.error('Delete Reflection Error:', error);
@@ -352,7 +371,9 @@ export const submitReflection = async (req, res) => {
       { upsert: true, new: true }
     );
 
-    enrollment.markReflectionComplete(reflection._id);
+    if (reflection.isRequired !== false) {
+      enrollment.markReflectionComplete(reflection._id);
+    }
     enrollment.lastAccessedAt = new Date();
     updateEnrollmentProgress(enrollment, course);
     await enrollment.save();
@@ -441,7 +462,9 @@ export const submitAssignment = async (req, res) => {
 
     const maxScore = graded;
     const percentage = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
-    const passed = maxScore > 0 && percentage >= 60;
+    const passingPercentage = Number(assignment.passingPercentage ?? 60);
+    const passed = maxScore > 0 && percentage >= passingPercentage;
+    const maxAttempts = Math.max(1, Number(assignment.maxAttempts) || 3);
     const existingCount = await CourseActivitySubmission.countDocuments({
       userId,
       courseId,
@@ -449,19 +472,43 @@ export const submitAssignment = async (req, res) => {
       assignmentId,
     });
 
-    const submission = await CourseActivitySubmission.create({
-      userId,
-      courseId,
-      type: 'quiz',
-      assignmentId,
-      answers,
-      score,
-      maxScore,
-      percentage,
-      passed,
-      attemptNumber: existingCount + 1,
-      submittedAt: new Date(),
-    });
+    if (existingCount >= maxAttempts) {
+      return res.status(429).json({
+        success: false,
+        message: `No quiz attempts remaining (maximum ${maxAttempts}).`,
+        code: 'MAX_ATTEMPTS_REACHED',
+      });
+    }
+
+    let submission = null;
+    for (let attempt = existingCount + 1; attempt <= existingCount + 3; attempt += 1) {
+      try {
+        submission = await CourseActivitySubmission.create({
+          userId,
+          courseId,
+          type: 'quiz',
+          assignmentId,
+          answers,
+          score,
+          maxScore,
+          percentage,
+          passed,
+          attemptNumber: attempt,
+          submittedAt: new Date(),
+        });
+        break;
+      } catch (error) {
+        if (error?.code !== 11000) throw error;
+      }
+    }
+
+    if (!submission) {
+      return res.status(409).json({
+        success: false,
+        message: 'A quiz attempt was submitted concurrently. Please retry.',
+        code: 'ATTEMPT_CONFLICT',
+      });
+    }
 
     const attempts = await CourseActivitySubmission.find({
       userId,

@@ -70,6 +70,10 @@ const courseActivitySubmissionSchema = new mongoose.Schema({
 courseActivitySubmissionSchema.index({ userId: 1, courseId: 1, type: 1, submittedAt: -1 });
 courseActivitySubmissionSchema.index({ userId: 1, assignmentId: 1, attemptNumber: -1 });
 courseActivitySubmissionSchema.index({ userId: 1, courseId: 1, reflectionId: 1 }, { unique: true, partialFilterExpression: { type: 'reflection' } });
+courseActivitySubmissionSchema.index(
+  { userId: 1, courseId: 1, assignmentId: 1, attemptNumber: 1 },
+  { unique: true, partialFilterExpression: { type: 'quiz' } }
+);
 
 export const CourseActivitySubmission = mongoose.model('CourseActivitySubmission', courseActivitySubmissionSchema);
 export default CourseActivitySubmission;

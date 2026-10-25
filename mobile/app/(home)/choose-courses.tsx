@@ -159,6 +159,8 @@ export default function ChooseCoursesScreen() {
   const [selecting, setSelecting] = useState<string | null>(null);
   const [selectedCount, setSelectedCount] = useState(0);
   const [remaining, setRemaining] = useState(maxSelectable);
+  const [totalSelectable, setTotalSelectable] = useState(maxSelectable);
+  const [selectionLoaded, setSelectionLoaded] = useState(false);
 
   // #3: Toast feedback
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -199,13 +201,21 @@ export default function ChooseCoursesScreen() {
       if (data.success) {
         setRemaining(data.remaining);
         setSelectedCount(data.used);
+        setTotalSelectable(
+          Number.isFinite(Number(data.maxSelectable))
+            ? Number(data.maxSelectable)
+            : Number(data.remaining || 0) + Number(data.used || 0),
+        );
       }
     } catch (error) {
       console.error('Failed to fetch selection status:', error);
+    } finally {
+      setSelectionLoaded(true);
     }
   };
 
   const handleSelect = async (course: EligibleCourse) => {
+    if (selecting) return;
     if (remaining <= 0) {
       showToast('No credits remaining', 'error');
       return;
@@ -234,6 +244,7 @@ export default function ChooseCoursesScreen() {
         setRemaining(data.remainingCredits);
         setSelectedCount((prev) => prev + 1);
         showToast(`"${course.title}" added to your library`);
+        fetchSelectionStatus();
       } else {
         showToast(data.message || 'Failed to select course', 'error');
       }
@@ -246,6 +257,7 @@ export default function ChooseCoursesScreen() {
 
   // #4: Undo selection
   const handleUndo = async (course: EligibleCourse) => {
+    if (selecting) return;
     setSelecting(course._id);
     try {
       const { data } = await apiClient.post(`${API_URL}/membership/${membershipId}/undo-selection`, {
@@ -328,7 +340,7 @@ export default function ChooseCoursesScreen() {
           <Text style={styles.headerTitle}>Choose Your Courses</Text>
           <Text style={styles.headerSub}>
             {remaining > 0
-              ? `${remaining} of ${maxSelectable} credits remaining`
+              ? `${remaining} of ${totalSelectable} credits remaining`
               : 'All credits used'}
           </Text>
         </View>
@@ -339,7 +351,7 @@ export default function ChooseCoursesScreen() {
         )}
       </View>
 
-      {maxSelectable === 0 ? (
+      {selectionLoaded && remaining === 0 ? (
         <View style={styles.centered}>
           <Ionicons name="checkmark-circle" size={48} color={colors.success} />
           <Text style={styles.emptyTitle}>All Done</Text>

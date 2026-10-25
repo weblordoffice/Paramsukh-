@@ -77,9 +77,20 @@ describe('Course activities - audio, reflections, quizzes', () => {
       .post(`/api/courses/${course._id}/progress/audio/${created.body.audioLesson._id}`)
       .set(getAuthHeader(token));
 
-    expect(completed.status).toBe(200);
-    expect(completed.body.data.completedAudioLessons).toContain(String(created.body.audioLesson._id));
-    expect(completed.body.data.progress).toBe(100);
+    expect(completed.status).toBe(400);
+
+    await request(app)
+      .patch(`/api/enrollments/course/${course._id}/audio/${created.body.audioLesson._id}/position`)
+      .set(getAuthHeader(token))
+      .send({ positionSeconds: 95, durationSeconds: 100 });
+
+    const completedWithProof = await request(app)
+      .post(`/api/courses/${course._id}/progress/audio/${created.body.audioLesson._id}`)
+      .set(getAuthHeader(token));
+
+    expect(completedWithProof.status).toBe(200);
+    expect(completedWithProof.body.data.completedAudioLessons).toContain(String(created.body.audioLesson._id));
+    expect(completedWithProof.body.data.progress).toBe(100);
   });
 
   it('should submit reflections with minimum-word validation and update progress', async () => {

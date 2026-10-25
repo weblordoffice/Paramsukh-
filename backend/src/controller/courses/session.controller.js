@@ -138,12 +138,23 @@ export const getCourseLiveSessions = async (req, res) => {
     // Sort by scheduled date
     sessions.sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
 
+    const now = new Date();
+    const safeSessions = sessions.map((session) => {
+      const plain = typeof session.toObject === 'function' ? session.toObject() : { ...session };
+      const start = new Date(plain.scheduledAt).getTime();
+      const end = start + (Number(plain.durationInMinutes) || 60) * 60 * 1000;
+      const joinable = now.getTime() >= start - 10 * 60 * 1000 && now.getTime() <= end;
+      if (!joinable) delete plain.meetingLink;
+      if (now.getTime() <= end) delete plain.recordingUrl;
+      return plain;
+    });
+
     return res.status(200).json({
       success: true,
       message: "Live sessions fetched successfully",
       courseTitle: course.title,
-      liveSessions: sessions,
-      count: sessions.length
+      liveSessions: safeSessions,
+      count: safeSessions.length
     });
 
   } catch (error) {
@@ -192,13 +203,18 @@ export const getLiveSessionById = async (req, res) => {
       sessionStatus = 'completed';
     }
 
+    const canJoin = sessionStatus === 'ongoing' || (sessionStart - now <= 10 * 60000 && now <= sessionEnd);
+    const sessionPayload = typeof liveSession.toObject === 'function' ? liveSession.toObject() : { ...liveSession };
+    if (!canJoin) delete sessionPayload.meetingLink;
+    if (now <= sessionEnd) delete sessionPayload.recordingUrl;
+
     return res.status(200).json({
       success: true,
       message: "Live session fetched successfully",
       courseTitle: course.title,
-      liveSession,
+      liveSession: sessionPayload,
       currentStatus: sessionStatus,
-      canJoin: sessionStatus === 'ongoing' || (sessionStart - now <= 10 * 60000) // Can join 10 min before
+      canJoin
     });
 
   } catch (error) {

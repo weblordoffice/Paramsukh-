@@ -122,6 +122,11 @@ export interface EnrollmentProgress {
     completedAudioLessons?: string[];
     completedReflections?: string[];
     currentVideoId: string | null;
+    currentVideoIndex?: number;
+    lastVideoPositionSeconds?: number;
+    lastVideoDurationSeconds?: number;
+    videoProgress?: Array<{ videoId: string; positionSeconds: number; durationSeconds: number }>;
+    audioProgress?: Array<{ audioId: string; positionSeconds: number; durationSeconds: number }>;
     isCompleted: boolean;
     lastAccessedAt: string;
 }
@@ -130,6 +135,7 @@ interface CourseState {
     courses: Course[];
     currentCourse: Course | null;
     enrollmentProgress: EnrollmentProgress | null;
+    notEnrolled: boolean;
     isLoading: boolean;
     error: string | null;
 
@@ -137,16 +143,18 @@ interface CourseState {
     fetchCourseById: (id: string) => Promise<void>;
     fetchCourseBySlug: (slug: string) => Promise<void>;
     fetchEnrollmentProgress: (courseId: string) => Promise<void>;
+    enrollInCourse: (courseId: string) => Promise<{ success: boolean; message?: string }>;
     markVideoComplete: (courseId: string, videoId: string) => Promise<boolean>;
     markPdfComplete: (courseId: string, pdfId: string) => Promise<boolean>;
     markAudioComplete: (courseId: string, audioId: string) => Promise<boolean>;
     clearCurrentCourse: () => void;
 }
 
-export const useCourseStore = create<CourseState>((set) => ({
+export const useCourseStore = create<CourseState>((set, get) => ({
     courses: [],
     currentCourse: null,
     enrollmentProgress: null,
+    notEnrolled: false,
     isLoading: false,
     error: null,
 
@@ -161,10 +169,10 @@ export const useCourseStore = create<CourseState>((set) => ({
                 );
                 set({ courses: publishedCourses, isLoading: false });
             } else {
-                set({ courses: [], isLoading: false });
+                set({ isLoading: false, error: response.data?.message || 'Failed to load courses' });
             }
         } catch (error: any) {
-            set({ isLoading: false, courses: [], error: error?.message || 'Failed to load courses' });
+            set({ isLoading: false, error: error?.response?.data?.message || error?.message || 'Failed to load courses' });
         }
     },
 
@@ -198,30 +206,36 @@ export const useCourseStore = create<CourseState>((set) => ({
 
     fetchEnrollmentProgress: async (courseId: string) => {
         // Always clear stale progress from a previous course before fetching
-        set({ enrollmentProgress: null });
+        set({ enrollmentProgress: null, notEnrolled: false });
         try {
             const response = await apiClient.get(`${API_URL}/courses/${courseId}/progress`);
             if (response.data?.success) {
-                set({ enrollmentProgress: response.data?.data });
+                set({ enrollmentProgress: response.data?.data, notEnrolled: false });
             }
         } catch (error: any) {
-            // Only auto-enroll if the response indicates the user is not enrolled
-            const isNotEnrolled = error.response?.status === 404 &&
-                (error.response?.data?.message || '').toLowerCase().includes('enroll');
-            if (isNotEnrolled) {
-                try {
-                    const enrollResponse = await apiClient.post(`${API_URL}/enrollments/enroll`, { courseId });
-                    if (enrollResponse.data?.success) {
-                        const retryResponse = await apiClient.get(`${API_URL}/courses/${courseId}/progress`);
-                        if (retryResponse.data?.success) {
-                            set({ enrollmentProgress: retryResponse.data?.data });
-                        }
-                    }
-                } catch (enrollError) {
-                    // Ignore enrollment error, keep enrollmentProgress null
-                }
+            const isNotEnrolled = error.response?.status === 404
+                && (error.response?.data?.message || '').toLowerCase().includes('enroll');
+            set({
+                notEnrolled: Boolean(isNotEnrolled),
+                error: isNotEnrolled ? null : (error.response?.data?.message || error?.message || 'Failed to load progress'),
+            });
+        }
+    },
+
+    enrollInCourse: async (courseId: string) => {
+        try {
+            const response = await apiClient.post(`${API_URL}/enrollments/enroll`, { courseId });
+            if (response.data?.success) {
+                set({ notEnrolled: false });
+                await get().fetchEnrollmentProgress(courseId);
+                return { success: true };
             }
-            // For any other error (network, 403, 500), leave enrollmentProgress null
+            return { success: false, message: response.data?.message || 'Enrollment failed' };
+        } catch (error: any) {
+            return {
+                success: false,
+                message: error.response?.data?.message || 'Failed to enroll in course',
+            };
         }
     },
 
@@ -265,5 +279,5 @@ export const useCourseStore = create<CourseState>((set) => ({
         }
     },
 
-    clearCurrentCourse: () => set({ currentCourse: null, enrollmentProgress: null })
+    clearCurrentCourse: () => set({ currentCourse: null, enrollmentProgress: null, notEnrolled: false, error: null })
 }));

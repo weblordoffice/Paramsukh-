@@ -1,6 +1,8 @@
 import { Pdf } from '../../models/course.models.js';
 import { Course } from '../../models/course.models.js';
 import { notifyCourseContentAdded } from '../../services/notificationAutomation.service.js';
+import { recomputeCourseProgress } from '../../services/courseProgress.service.js';
+import { signCourseItemUrl } from '../../services/courseMedia.service.js';
 
 
 export const addPdfToCourse = async(req ,res) =>{
@@ -67,16 +69,19 @@ export const getCoursePdfs = async(req ,res) =>{
             })
         }
         const course  = await Course.findById(courseId).select('pdfs');
-        if(!course || !course.pdfs || course.pdfs.length === 0){
+        if(!course){
             return res.status(404).json({
                 success: false,
-                message:"No pdfs found for this course"
+                message:"Course not found"
             })
         }
+        const pdfs = await Promise.all(
+            (course.pdfs || []).map((pdf) => signCourseItemUrl(pdf, 'pdfUrl'))
+        );
         return res.status(200).json({
             success: true,
             message:"pdfs fetched successfully",
-            pdfs: course.pdfs
+            pdfs
         })
     }catch(error){
         console.error("❌ Error in fetching course pdfs:", error);
@@ -112,10 +117,11 @@ export const getPdfById = async(req , res) =>{
                 message:"pdf not found"
             })
         }
+        const safePdf = await signCourseItemUrl(pdf, 'pdfUrl');
         return res.status(200).json({
             success: true,
             message:"pdf fetched successfully",
-            pdf
+            pdf: safePdf
         })
     }catch(error){
         console.error("❌ Error in fetching pdf by ID:", error);
@@ -215,6 +221,11 @@ export const deletePdf = async(req , res) =>{
             { courseId },
             { $pull: { completedPdfs: pdfId } }
         );
+        const enrollments = await Enrollment.find({ courseId });
+        for (const enrollment of enrollments) {
+            recomputeCourseProgress(enrollment, course);
+            await enrollment.save();
+        }
         return res.status(200).json({
             success: true,
             message: "PDF deleted successfully"

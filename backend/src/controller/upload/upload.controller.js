@@ -521,7 +521,11 @@ export const getVideoPresignedUrl = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Unsupported video type' });
     }
 
-    const folder = req.query.folder || 'videos';
+    const folder = String(req.query.folder || 'videos');
+    const allowedFolders = new Set(['videos', 'course-videos', 'courses', 'events', 'event-media']);
+    if (!allowedFolders.has(folder)) {
+      return res.status(400).json({ success: false, message: 'Invalid upload folder' });
+    }
 
     const result = await getPresignedUploadUrl({
       filename,

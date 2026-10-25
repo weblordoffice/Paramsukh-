@@ -91,6 +91,17 @@ const assignmentSchema = new mongoose.Schema({
   requiredForAssessment: {
     type: Boolean,
     default: false
+  },
+  maxAttempts: {
+    type: Number,
+    default: 3,
+    min: 1
+  },
+  passingPercentage: {
+    type: Number,
+    default: 60,
+    min: 0,
+    max: 100
   }
 }, {
   timestamps: true

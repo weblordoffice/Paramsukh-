@@ -585,6 +585,7 @@ export default function CourseAssessmentScreen() {
     : null;
   const timerMinutes = remainingMs !== null ? Math.max(0, Math.floor(remainingMs / 60000)) : null;
   const timerSeconds = remainingMs !== null ? Math.max(0, Math.floor((remainingMs % 60000) / 1000)) : null;
+  const timerExpired = remainingMs !== null && remainingMs <= 0;
   const answeredCount = activeAssessment
     ? activeAssessment.questions.filter((question) => String(answers[question._id] || '').trim()).length
     : 0;
@@ -638,7 +639,7 @@ export default function CourseAssessmentScreen() {
               <View style={styles.timerPill}>
                 <Ionicons name="timer-outline" size={15} color="#DC2626" />
                 <Text style={styles.timerText}>
-                  {timerMinutes}:{String(timerSeconds ?? 0).padStart(2, '0')} remaining
+                  {timerExpired ? 'Time expired — submit now' : `${timerMinutes}:${String(timerSeconds ?? 0).padStart(2, '0')} remaining`}
                 </Text>
               </View>
             )}
@@ -660,6 +661,7 @@ export default function CourseAssessmentScreen() {
                         key={option.key}
                         style={[styles.optionRow, selected && styles.optionRowSelected]}
                         onPress={() => setAnswers((prev) => ({ ...prev, [question._id]: option.key }))}
+                        disabled={timerExpired}
                       >
                         <View style={[styles.optionKey, selected && styles.optionKeySelected]}>
                           <Text style={[styles.optionKeyText, selected && { color: '#FFFFFF' }]}>
@@ -678,6 +680,7 @@ export default function CourseAssessmentScreen() {
                     placeholderTextColor={colors.textSecondary}
                     style={styles.input}
                     autoCapitalize="none"
+                    editable={!timerExpired}
                   />
                 ) : (
                   <TextInput
@@ -687,6 +690,7 @@ export default function CourseAssessmentScreen() {
                     placeholderTextColor={colors.textSecondary}
                     multiline
                     style={[styles.input, { minHeight: 110, textAlignVertical: 'top' }]}
+                    editable={!timerExpired}
                   />
                 )}
 

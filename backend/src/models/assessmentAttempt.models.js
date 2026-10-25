@@ -69,7 +69,7 @@ const assessmentAttemptSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['in_progress', 'pending_manual', 'graded', 'expired'],
+    enum: ['in_progress', 'grading', 'pending_manual', 'graded', 'expired'],
     default: 'in_progress',
     index: true
   },

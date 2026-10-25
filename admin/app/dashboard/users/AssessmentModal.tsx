@@ -53,6 +53,12 @@ export default function AssessmentModal({ isOpen, onClose, assessment, userName 
             issueKey: 'spiritualGrowth',
             detailsKey: 'spiritualGrowthDetails',
             color: 'bg-purple-50 text-purple-700 border-purple-200'
+        },
+        {
+            title: 'Counsellor Interest',
+            issueKey: 'wantsToBecomeCounsellor',
+            detailsKey: null,
+            color: 'bg-amber-50 text-amber-700 border-amber-200'
         }
     ];
 
@@ -214,14 +220,17 @@ export default function AssessmentModal({ isOpen, onClose, assessment, userName 
                             <div className="grid grid-cols-1 gap-4">
                                 {sections.map((section) => {
                                     const hasIssue = assessment[section.issueKey];
-                                    const details = assessment[section.detailsKey];
+                                    const details = section.detailsKey ? assessment[section.detailsKey] : null;
+                                    const isCounsellorInterest = section.title === 'Counsellor Interest';
 
                                     return (
                                         <div key={section.title} className={`p-4 rounded-xl border ${hasIssue ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100'}`}>
                                             <div className="flex items-center justify-between mb-2">
                                                 <h3 className="font-semibold text-gray-800">{section.title}</h3>
                                                 <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${hasIssue ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                                                    {hasIssue ? 'Issue Reported' : 'No Issue'}
+                                                    {isCounsellorInterest
+                                                        ? (hasIssue ? 'Interested' : 'Not interested')
+                                                        : (hasIssue ? 'Issue Reported' : 'No Issue')}
                                                 </span>
                                             </div>
                                             {details ? (
@@ -229,11 +238,65 @@ export default function AssessmentModal({ isOpen, onClose, assessment, userName 
                                                     &ldquo;{details}&rdquo;
                                                 </p>
                                             ) : (
-                                                <p className="text-sm text-gray-500 italic">No additional details provided.</p>
+                                                !isCounsellorInterest && (
+                                                    <p className="text-sm text-gray-500 italic">No additional details provided.</p>
+                                                )
                                             )}
                                         </div>
                                     );
                                 })}
+                            </div>
+
+                            {/* Wellness Goals */}
+                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                                <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wider">Wellness Goals</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {[
+                                        { label: 'Physical Wellness', key: 'physicalWellnessGoal' },
+                                        { label: 'Mental Wellness', key: 'mentalWellnessGoal' },
+                                        { label: 'Relationship & Family Wellness', key: 'relationshipWellnessGoal' },
+                                        { label: 'Financial Wellness', key: 'financialWellnessGoal' },
+                                        { label: 'Spirituality & Mantra Yoga Wellness', key: 'spiritualWellnessGoal' },
+                                    ].map((goal) => (
+                                        <div key={goal.key} className="bg-white rounded-lg p-3 border border-gray-100">
+                                            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">{goal.label}</p>
+                                            <p className="text-sm text-gray-800 mt-1 whitespace-pre-wrap">
+                                                {assessment[goal.key] || 'Not provided'}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Commitment & Investment */}
+                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+                                <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wider">Commitment & Investment</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div className="bg-white rounded-lg p-3 border border-gray-100">
+                                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Ready to invest for lifetime solutions</p>
+                                        <p className="text-sm font-semibold text-gray-900 mt-1">
+                                            {assessment.readyToInvestLifetime ? 'Yes' : 'No'}
+                                        </p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-3 border border-gray-100">
+                                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Can invest 1 year</p>
+                                        <p className="text-sm font-semibold text-gray-900 mt-1">
+                                            {assessment.canInvestOneYear ? 'Yes' : 'No'}
+                                        </p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-3 border border-gray-100">
+                                        <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">Life transformation investment</p>
+                                        <p className="text-sm font-semibold text-gray-900 mt-1">
+                                            {assessment.lifeTransformationInvestment === 'other'
+                                                ? (assessment.lifeTransformationInvestmentOther
+                                                    ? `₹${assessment.lifeTransformationInvestmentOther}`
+                                                    : 'Other')
+                                                : (assessment.lifeTransformationInvestment
+                                                    ? `₹${assessment.lifeTransformationInvestment}`
+                                                    : 'Not provided')}
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </>
                     )}

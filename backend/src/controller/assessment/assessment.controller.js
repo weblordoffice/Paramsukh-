@@ -76,7 +76,17 @@ export const submitAssessment = async (req, res) => {
       mentalHealthIssue,
       mentalHealthIssueDetails,
       spiritualGrowth,
-      spiritualGrowthDetails
+      spiritualGrowthDetails,
+      wantsToBecomeCounsellor,
+      physicalWellnessGoal,
+      mentalWellnessGoal,
+      relationshipWellnessGoal,
+      financialWellnessGoal,
+      spiritualWellnessGoal,
+      readyToInvestLifetime,
+      canInvestOneYear,
+      lifeTransformationInvestment,
+      lifeTransformationInvestmentOther
     } = req.body;
 
     const normalizedCountryCode = String(countryCode || '').trim().toUpperCase();
@@ -142,6 +152,18 @@ export const submitAssessment = async (req, res) => {
       assessment.mentalHealthIssueDetails = mentalHealthIssueDetails || '';
       assessment.spiritualGrowth = spiritualGrowth;
       assessment.spiritualGrowthDetails = spiritualGrowthDetails || '';
+      assessment.wantsToBecomeCounsellor = wantsToBecomeCounsellor === true;
+      assessment.physicalWellnessGoal = String(physicalWellnessGoal || '').trim();
+      assessment.mentalWellnessGoal = String(mentalWellnessGoal || '').trim();
+      assessment.relationshipWellnessGoal = String(relationshipWellnessGoal || '').trim();
+      assessment.financialWellnessGoal = String(financialWellnessGoal || '').trim();
+      assessment.spiritualWellnessGoal = String(spiritualWellnessGoal || '').trim();
+      assessment.readyToInvestLifetime = readyToInvestLifetime === true;
+      assessment.canInvestOneYear = canInvestOneYear === true;
+      assessment.lifeTransformationInvestment = ['25k', '40k', '80k', 'other'].includes(String(lifeTransformationInvestment || '').toLowerCase())
+        ? String(lifeTransformationInvestment).toLowerCase()
+        : '';
+      assessment.lifeTransformationInvestmentOther = String(lifeTransformationInvestmentOther || '').trim();
 
       await assessment.save();
 
@@ -180,7 +202,19 @@ export const submitAssessment = async (req, res) => {
       mentalHealthIssue,
       mentalHealthIssueDetails: mentalHealthIssueDetails || '',
       spiritualGrowth,
-      spiritualGrowthDetails: spiritualGrowthDetails || ''
+      spiritualGrowthDetails: spiritualGrowthDetails || '',
+      wantsToBecomeCounsellor: wantsToBecomeCounsellor === true,
+      physicalWellnessGoal: String(physicalWellnessGoal || '').trim(),
+      mentalWellnessGoal: String(mentalWellnessGoal || '').trim(),
+      relationshipWellnessGoal: String(relationshipWellnessGoal || '').trim(),
+      financialWellnessGoal: String(financialWellnessGoal || '').trim(),
+      spiritualWellnessGoal: String(spiritualWellnessGoal || '').trim(),
+      readyToInvestLifetime: readyToInvestLifetime === true,
+      canInvestOneYear: canInvestOneYear === true,
+      lifeTransformationInvestment: ['25k', '40k', '80k', 'other'].includes(String(lifeTransformationInvestment || '').toLowerCase())
+        ? String(lifeTransformationInvestment).toLowerCase()
+        : '',
+      lifeTransformationInvestmentOther: String(lifeTransformationInvestmentOther || '').trim()
     });
 
     await assessment.save();

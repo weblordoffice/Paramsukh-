@@ -143,6 +143,7 @@ describe('Dynamic Referral System', () => {
       description: 'Learn wellness secrets',
       category: 'Mental Wellness',
       duration: '1 hour',
+      status: 'published',
       videos: [{ title: 'Intro', videoUrl: 'http://test.com', duration: 120, order: 1 }],
       pdfs: []
     });
@@ -155,7 +156,12 @@ describe('Dynamic Referral System', () => {
       completedVideos: []
     });
 
-    // Mark course complete to 100%
+    // Record watch proof, then mark course complete to 100%
+    await request(app)
+      .patch(`/api/enrollments/course/${course._id}/position`)
+      .set(getAuthHeader(refereeToken))
+      .send({ videoId: course.videos[0]._id, positionSeconds: 95, durationSeconds: 100, isPaused: true });
+
     const res = await request(app)
       .post(`/api/courses/${course._id}/progress/video/${course.videos[0]._id}`)
       .set(getAuthHeader(refereeToken));

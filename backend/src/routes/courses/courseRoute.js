@@ -52,15 +52,16 @@ import { requirePermission } from '../../middleware/requirePermission.js';
 import { progressLimiter } from '../../middleware/rateLimiter.js';
 import { validateMongoIdParams } from '../../middleware/validators.js';
 import { requireCourseAccess } from '../../middleware/courseAccess.js';
+import { optionalAuth } from '../../middleware/optionalAuth.js';
 
 const router = express.Router();
 
 router.post('/create', adminAuth, requirePermission('manage_courses'), createCourse);
-router.delete('/delete/:id', adminAuth, requirePermission('manage_courses'), deleteCourse);
-router.put('/update/:id', adminAuth, requirePermission('manage_courses'), updateCourse);
+router.delete('/delete/:id', adminAuth, requirePermission('manage_courses'), validateMongoIdParams('id'), deleteCourse);
+router.put('/update/:id', adminAuth, requirePermission('manage_courses'), validateMongoIdParams('id'), updateCourse);
 router.get('/all', getAllCourses);
-router.get('/slug/:slug', getCourseBySlug);
-router.get('/:id', getCourseById);
+router.get('/slug/:slug', optionalAuth, getCourseBySlug);
+router.get('/:id', optionalAuth, validateMongoIdParams('id'), getCourseById);
 
 
 router.post('/:courseId/videos', adminAuth, requirePermission('manage_courses'), addVideoToCourse);
@@ -117,11 +118,11 @@ router.post('/:courseId/progress/pdf/:pdfId', protectedRoutes, requireCourseAcce
 router.post('/:courseId/progress/audio/:audioId', protectedRoutes, requireCourseAccess, progressLimiter, markAudioComplete);
 
 // Certification assessment and viva routes
-router.get('/:courseId/assessment', protectedRoutes, requireCourseAccess, validateMongoIdParams('courseId'), getCourseAssessmentOverview);
-router.post('/:courseId/assessment/start', protectedRoutes, requireCourseAccess, progressLimiter, validateMongoIdParams('courseId'), startCourseAssessment);
-router.post('/:courseId/assessment/submit', protectedRoutes, requireCourseAccess, progressLimiter, validateMongoIdParams('courseId'), submitCourseAssessment);
-router.get('/:courseId/assessment/attempts', protectedRoutes, requireCourseAccess, validateMongoIdParams('courseId'), getCourseAssessmentAttempts);
-router.get('/:courseId/viva', protectedRoutes, requireCourseAccess, validateMongoIdParams('courseId'), getCourseViva);
-router.post('/:courseId/viva/apply', protectedRoutes, requireCourseAccess, progressLimiter, validateMongoIdParams('courseId'), applyCourseViva);
+router.get('/:courseId/assessment', protectedRoutes, validateMongoIdParams('courseId'), requireCourseAccess, getCourseAssessmentOverview);
+router.post('/:courseId/assessment/start', protectedRoutes, validateMongoIdParams('courseId'), requireCourseAccess, progressLimiter, startCourseAssessment);
+router.post('/:courseId/assessment/submit', protectedRoutes, validateMongoIdParams('courseId'), requireCourseAccess, progressLimiter, submitCourseAssessment);
+router.get('/:courseId/assessment/attempts', protectedRoutes, validateMongoIdParams('courseId'), requireCourseAccess, getCourseAssessmentAttempts);
+router.get('/:courseId/viva', protectedRoutes, validateMongoIdParams('courseId'), requireCourseAccess, getCourseViva);
+router.post('/:courseId/viva/apply', protectedRoutes, validateMongoIdParams('courseId'), requireCourseAccess, progressLimiter, applyCourseViva);
 
 export default router;

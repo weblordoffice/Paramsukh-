@@ -110,6 +110,7 @@ describe('Profile & Progress Management', () => {
       description: 'Learn to meditate',
       category: 'Mental Wellness',
       duration: '2 hours',
+      status: 'published',
       videos: [{ 
         title: 'Intro', 
         videoUrl: 'http://test.com/1', 
@@ -127,7 +128,12 @@ describe('Profile & Progress Management', () => {
       completedVideos: []
     });
 
-    // Mark the video complete to reach 100% progress
+    // Record watch proof, then mark the video complete to reach 100% progress
+    await request(app)
+      .patch(`/api/enrollments/course/${course._id}/position`)
+      .set(getAuthHeader(token))
+      .send({ videoId: course.videos[0]._id, positionSeconds: 95, durationSeconds: 100, isPaused: true });
+
     const res = await request(app)
       .post(`/api/courses/${course._id}/progress/video/${course.videos[0]._id}`)
       .set(getAuthHeader(token));

@@ -354,7 +354,7 @@ export default function CoursesScreen() {
   },
 });
   const router = useRouter();
-  const { courses, fetchCourses, isLoading } = useCourseStore();
+  const { courses, fetchCourses, isLoading, error: coursesError } = useCourseStore();
   const { fetchCurrentSubscription } = useMembershipStore();
   const [planLookup, setPlanLookup] = useState<Record<string, PlanVisual>>({});
   const [planAliases, setPlanAliases] = useState<Record<string, string>>({});
@@ -371,11 +371,13 @@ export default function CoursesScreen() {
   const [memberships, setMemberships] = useState<MembershipAccess[]>([]);
   const [entitlementPlanSlugs, setEntitlementPlanSlugs] = useState<Set<string>>(new Set());
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
+  const [accessError, setAccessError] = useState<string | null>(null);
 
   const fetchMembershipCredits = useCallback(async () => {
     setCreditsLoading(true);
     try {
       const { data } = await apiClient.get('/membership/active');
+      setAccessError(null);
       if (data?.success && data?.hasActiveMembership) {
         const list: MembershipAccess[] = Array.isArray(data.memberships) ? data.memberships : [];
         setMemberships(list);
@@ -404,10 +406,8 @@ export default function CoursesScreen() {
         setEntitlementPlanSlugs(new Set());
       }
     } catch {
-      setMemberships([]);
-      setMembershipCredits(null);
-      setSelectedCourseIds(new Set());
-      setEntitlementPlanSlugs(new Set());
+      // Keep the previous entitlement state; never turn a paid member into a paywall.
+      setAccessError('Could not verify membership access. Pull to refresh.');
     } finally {
       setCreditsLoading(false);
     }
@@ -523,8 +523,12 @@ export default function CoursesScreen() {
                       remaining: Math.max(0, prev.remaining - 1),
                     } : null);
                     Alert.alert('Success', `"${module.title}" is now unlocked!`);
+                    fetchMembershipCredits();
                   } else if (res.data?.reason === 'already_enrolled') {
                     setSelectedCourseIds((prev) => new Set(prev).add(courseIdStr));
+                    fetchMembershipCredits();
+                  } else {
+                    Alert.alert('Could not unlock', res.data?.message || 'Please refresh and try again.');
                   }
                 } catch (err: any) {
                   if (err?.response?.data?.reason === 'already_enrolled') {
@@ -813,6 +817,14 @@ export default function CoursesScreen() {
         }
       >
         <View style={styles.scrollContent}>
+          {accessError && (
+            <TouchableOpacity
+              onPress={fetchMembershipCredits}
+              style={{ marginHorizontal: 16, marginBottom: 12, padding: 12, borderRadius: 12, backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FDE68A' }}
+            >
+              <Text style={{ color: '#92400E', fontWeight: '600' }}>{accessError} Tap to retry.</Text>
+            </TouchableOpacity>
+          )}
           {/* Section Header */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Courses</Text>
@@ -901,6 +913,15 @@ export default function CoursesScreen() {
 
           {isLoading ? (
             <ActivityIndicator size="large" color={colors.primary} style={{ marginTop: 20 }} />
+          ) : coursesError && courses.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="alert-circle-outline" size={64} color="#DC2626" />
+              <Text style={styles.emptyTitle}>Could not load courses</Text>
+              <Text style={styles.emptySubtitle}>{coursesError}</Text>
+              <TouchableOpacity onPress={() => fetchCourses()} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.primary }}>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Retry</Text>
+              </TouchableOpacity>
+            </View>
           ) : enrichedCourses.length === 0 ? (
             <View style={styles.emptyState}>
               <Ionicons name="book-outline" size={64} color={colors.border} />

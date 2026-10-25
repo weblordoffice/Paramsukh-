@@ -48,7 +48,10 @@ export default function AssignmentsTab({ courseId, assignments, onUpdate }: Assi
                 title: assignment.title,
                 description: assignment.description || '',
                 order: assignment.order,
-                questions: assignment.questions || [],
+                questions: (assignment.questions || []).map((question: any) => ({
+                    ...question,
+                    options: [...(question.options || [])],
+                })),
             });
         } else {
             setEditingAssignment(null);
@@ -153,7 +156,7 @@ export default function AssignmentsTab({ courseId, assignments, onUpdate }: Assi
                         <p className="text-gray-500">No assignments added yet.</p>
                     </div>
                 ) : (
-                    assignments.sort((a, b) => a.order - b.order).map((assignment) => (
+                    [...assignments].sort((a, b) => a.order - b.order).map((assignment) => (
                         <div key={assignment._id} className="bg-white border rounded-xl overflow-hidden shadow-sm">
                             <div className="p-4 flex items-center justify-between">
                                 <div className="flex items-center gap-3">

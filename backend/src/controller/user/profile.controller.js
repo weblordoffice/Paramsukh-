@@ -663,6 +663,34 @@ export const deleteAccount = async (req, res) => {
     // Import models
     const { Enrollment } = await import('../../models/enrollment.models.js');
     const { EventRegistration } = await import('../../models/eventRegistration.models.js');
+    const { Course } = await import('../../models/course.models.js');
+
+    // Keep course counters accurate: bulk deletes do not fire the Enrollment hook.
+    const enrollments = await Enrollment.find({ userId })
+      .select('courseId isCompleted')
+      .lean();
+    const perCourse = new Map();
+    for (const enrollment of enrollments) {
+      const key = String(enrollment.courseId);
+      const current = perCourse.get(key) || { enrollment: 0, completed: 0 };
+      current.enrollment += 1;
+      if (enrollment.isCompleted) current.completed += 1;
+      perCourse.set(key, current);
+    }
+    for (const [courseId, counts] of perCourse.entries()) {
+      await Course.findByIdAndUpdate(courseId, [
+        {
+          $set: {
+            enrollmentCount: {
+              $max: [0, { $subtract: [{ $ifNull: ['$enrollmentCount', 0] }, counts.enrollment] }],
+            },
+            completionCount: {
+              $max: [0, { $subtract: [{ $ifNull: ['$completionCount', 0] }, counts.completed] }],
+            },
+          },
+        },
+      ]);
+    }
 
     // Delete user's data
     await Promise.all([

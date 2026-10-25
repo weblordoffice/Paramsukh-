@@ -6,6 +6,7 @@ import { Enrollment } from '../models/enrollment.models.js';
 import { UserMembership } from '../models/userMembership.models.js';
 import { AssessmentAttempt } from '../models/assessmentAttempt.models.js';
 import { VivaApplication } from '../models/vivaApplication.models.js';
+import { CourseAssessment } from '../models/courseAssessment.models.js';
 import {
   getMembershipIssuanceKey,
   isPaidMembershipForCertificate,
@@ -25,9 +26,27 @@ const buildAuditEntry = (action, { actorType = 'system', actor = null, reason = 
   at: new Date(),
 });
 
+const reviveCertificate = async (certificate) => {
+  if (!certificate) return certificate;
+  if (!certificate.isRevoked && certificate.status === 'issued') return certificate;
+
+  certificate.isRevoked = false;
+  certificate.status = 'issued';
+  certificate.revokedAt = null;
+  certificate.auditTrail = certificate.auditTrail || [];
+  certificate.auditTrail.push(
+    buildAuditEntry('reissued', {
+      actorType: 'system',
+      reason: 'Course re-completed after a previous revocation',
+    })
+  );
+  await certificate.save();
+  return certificate;
+};
+
 const createOrReturnCertificate = async (issuanceKey, payload) => {
   const existing = await Certificate.findOne({ issuanceKey });
-  if (existing) return existing;
+  if (existing) return reviveCertificate(existing);
 
   try {
     return await Certificate.findOneAndUpdate(
@@ -49,7 +68,7 @@ const createOrReturnCertificate = async (issuanceKey, payload) => {
     );
   } catch (error) {
     if (error?.code === 11000) {
-      return Certificate.findOne({ issuanceKey });
+      return reviveCertificate(await Certificate.findOne({ issuanceKey }));
     }
     throw error;
   }
@@ -76,7 +95,7 @@ export const issueParticipationCertificate = async (userId, courseId) => {
   });
 
   if (legacyCertificate) {
-    return legacyCertificate;
+    return reviveCertificate(legacyCertificate);
   }
 
   const issuanceKey = `course_participation:${userId}:${courseId}`;
@@ -160,25 +179,32 @@ export const issueAssessmentCertificate = async ({
   vivaApplicationId,
   adminId,
 }) => {
-  const viva = await VivaApplication.findOne({
-    _id: vivaApplicationId,
-    user: userId,
-    course: courseId,
-    status: 'passed',
-  });
+  const assessment = await CourseAssessment.findOne({ course: courseId }).select('vivaRequired').lean();
 
-  if (!viva) {
+  let viva = null;
+  if (vivaApplicationId) {
+    viva = await VivaApplication.findOne({
+      _id: vivaApplicationId,
+      user: userId,
+      course: courseId,
+      status: 'passed',
+    });
+
+    if (!viva) {
+      const error = new Error('A passed viva is required before issuing this certificate');
+      error.status = 400;
+      throw error;
+    }
+  } else if (assessment?.vivaRequired !== false) {
     const error = new Error('A passed viva is required before issuing this certificate');
     error.status = 400;
     throw error;
   }
 
-  const attempt = await AssessmentAttempt.findOne({
-    _id: viva.assessmentAttempt,
-    user: userId,
-    course: courseId,
-    passed: true,
-  });
+  const attemptQuery = viva
+    ? { _id: viva.assessmentAttempt, user: userId, course: courseId, passed: true }
+    : { user: userId, course: courseId, passed: true };
+  const attempt = await AssessmentAttempt.findOne(attemptQuery).sort({ submittedAt: -1 });
 
   if (!attempt) {
     const error = new Error('A passed assessment attempt is required before issuing this certificate');
@@ -213,7 +239,7 @@ export const issueAssessmentCertificate = async ({
     existing.issuedAt = new Date();
     existing.issuedByAdmin = adminId || null;
     existing.assessmentAttempt = attempt._id;
-    existing.vivaApplication = viva._id;
+    existing.vivaApplication = viva?._id || null;
     existing.auditTrail = existing.auditTrail || [];
     existing.auditTrail.push(buildAuditEntry('reissued', {
       actorType: 'admin',
@@ -234,17 +260,19 @@ export const issueAssessmentCertificate = async ({
     courseName: course.title,
     issuedByAdmin: adminId || null,
     assessmentAttempt: attempt._id,
-    vivaApplication: viva._id,
+    vivaApplication: viva?._id || null,
     auditTrail: [buildAuditEntry('issued', {
       actorType: 'admin',
       actor: adminId || null,
     })],
   });
 
-  await VivaApplication.updateOne(
-    { _id: viva._id, certificate: null },
-    { $set: { certificate: certificate._id } }
-  );
+  if (viva) {
+    await VivaApplication.updateOne(
+      { _id: viva._id, certificate: null },
+      { $set: { certificate: certificate._id } }
+    );
+  }
 
   return certificate;
 };

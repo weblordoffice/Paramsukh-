@@ -321,30 +321,56 @@ export const submitAssessmentAttempt = async ({
       code: 'ATTEMPT_ALREADY_SUBMITTED',
     });
   }
-  if (attempt.expiresAt && attempt.expiresAt.getTime() < Date.now()) {
-    attempt.status = 'expired';
-    await attempt.save();
-    throw createError('This assessment attempt has expired', 409, {
-      code: 'ATTEMPT_EXPIRED',
+  if (!assessment.isEnabled) {
+    throw createError('This assessment is currently disabled', 409, {
+      code: 'ASSESSMENT_DISABLED',
+    });
+  }
+
+  const now = new Date();
+  const claimed = await AssessmentAttempt.findOneAndUpdate(
+    {
+      _id: attemptId,
+      user: userId,
+      course: courseId,
+      status: 'in_progress',
+      $or: [{ expiresAt: null }, { expiresAt: { $gt: now } }],
+    },
+    { $set: { status: 'grading' } },
+    { new: true }
+  );
+
+  if (!claimed) {
+    if (attempt.expiresAt && attempt.expiresAt.getTime() <= now.getTime()) {
+      await AssessmentAttempt.updateOne(
+        { _id: attemptId, status: 'in_progress' },
+        { $set: { status: 'expired' } }
+      );
+      throw createError('This assessment attempt has expired', 409, {
+        code: 'ATTEMPT_EXPIRED',
+      });
+    }
+    throw createError('This assessment attempt has already been submitted', 409, {
+      code: 'ATTEMPT_ALREADY_SUBMITTED',
     });
   }
 
   const result = gradeAssessmentAnswers(assessment, answers || {});
 
-  attempt.answers = result.answers;
-  attempt.correctCount = result.correctCount;
-  attempt.totalQuestions = result.totalQuestions;
-  attempt.score = result.score;
-  attempt.maxScore = result.maxScore;
-  attempt.percentage = result.percentage;
-  attempt.passed = result.passed;
-  attempt.status = result.status;
-  attempt.submittedAt = new Date();
-  attempt.gradedAt = result.status === 'graded' ? new Date() : null;
-  await attempt.save();
+  claimed.answers = result.answers;
+  claimed.correctCount = result.correctCount;
+  claimed.totalQuestions = result.totalQuestions;
+  claimed.score = result.score;
+  claimed.maxScore = result.maxScore;
+  claimed.percentage = result.percentage;
+  claimed.passed = result.passed;
+  claimed.status = result.status;
+  claimed.submittedAt = new Date();
+  claimed.gradedAt = result.status === 'graded' ? new Date() : null;
+  await claimed.save();
 
   return {
-    attempt: toAttemptWithAnswers(attempt),
+    attempt: toAttemptWithAnswers(claimed),
     result: {
       status: result.status,
       correctCount: result.correctCount,
@@ -419,7 +445,13 @@ export const gradeAssessmentAttemptManually = async ({
 
     const grade = gradeMap.get(String(answer.questionId));
     const question = questionMap.get(String(answer.questionId));
-    if (!grade || !question) return;
+    if (!grade) return;
+    if (!question) {
+      throw createError(
+        'This attempt references a question that no longer exists. The assessment was edited after submission.',
+        409
+      );
+    }
 
     const awardedPoints = Number(grade.awardedPoints || 0);
     if (!Number.isFinite(awardedPoints) || awardedPoints < 0 || awardedPoints > Number(question.points || 0)) {

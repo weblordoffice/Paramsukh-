@@ -49,6 +49,9 @@ const normalizeQuestion = (question, index) => {
   if (!Number.isFinite(order) || order < 0) return { error: `Question ${index + 1}: invalid order` };
 
   const normalized = {
+    ...(question?._id && mongoose.Types.ObjectId.isValid(String(question._id))
+      ? { _id: question._id }
+      : {}),
     prompt,
     type,
     points,
@@ -124,6 +127,14 @@ const buildAssessmentPayload = (body) => {
   if (passingRuleType === 'percentage' && passingRuleValue > 100) {
     return { error: 'Percentage passing rule cannot exceed 100' };
   }
+  if (passingRuleType === 'correct_count') {
+    const activeQuestionCount = normalizedQuestions.filter((question) => question.isEnabled !== false).length;
+    if (passingRuleValue > activeQuestionCount) {
+      return {
+        error: `Correct-answer passing rule cannot exceed the number of enabled questions (${activeQuestionCount}).`,
+      };
+    }
+  }
 
   const maxAttempts = Number(body?.maxAttempts ?? 3);
   const retakeCooldownHours = Number(body?.retakeCooldownHours ?? 0);
@@ -143,7 +154,7 @@ const buildAssessmentPayload = (body) => {
       retakeCooldownHours,
       timeLimitMinutes,
       shuffleQuestions: body?.shuffleQuestions === true,
-      isEnabled: body?.isEnabled === true,
+      ...(body?.isEnabled !== undefined ? { isEnabled: body.isEnabled === true } : {}),
       vivaRequired: body?.vivaRequired !== false,
     },
   };

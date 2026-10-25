@@ -1,6 +1,7 @@
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
@@ -282,6 +283,38 @@ export const getVideoUrl = (key) => {
   return buildPublicUrl(key);
 };
 
+/**
+ * Return a short-lived signed GET URL for an R2 object.
+ * Non-R2 / external URLs are returned unchanged so local dev and legacy
+ * Cloudinary assets keep working.
+ */
+export const getSignedMediaUrl = async (urlOrKey, expiresIn) => {
+  if (!urlOrKey) return urlOrKey;
+  if (!isConfigured || !s3Client) return urlOrKey;
+
+  const ttl = Number(expiresIn || process.env.R2_SIGNED_URL_TTL_SECONDS || 900);
+  const value = String(urlOrKey);
+  let key = null;
+
+  if (/^https?:\/\//i.test(value)) {
+    const publicBase = String(R2_PUBLIC_URL || '').replace(/\/$/, '');
+    if (!publicBase || !value.startsWith(publicBase)) return value;
+    key = extractKeyFromUrl(value);
+  } else {
+    key = value.replace(/^\//, '');
+  }
+
+  if (!key) return value;
+
+  try {
+    const command = new GetObjectCommand({ Bucket: R2_BUCKET, Key: key });
+    return await getSignedUrl(s3Client, command, { expiresIn: ttl });
+  } catch (error) {
+    console.error('Failed to sign R2 media URL:', error?.message);
+    return value;
+  }
+};
+
 export default {
   uploadVideo,
   getPresignedUploadUrl,
@@ -289,4 +322,5 @@ export default {
   videoExists,
   extractKeyFromUrl,
   getVideoUrl,
+  getSignedMediaUrl,
 };

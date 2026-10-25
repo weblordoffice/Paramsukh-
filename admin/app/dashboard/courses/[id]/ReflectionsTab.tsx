@@ -17,6 +17,7 @@ interface Reflection {
 
 interface ReflectionSubmission {
     _id: string;
+    reflectionId?: string;
     response: string;
     submittedAt: string;
     userId?: { displayName?: string; email?: string; phone?: string } | null;
@@ -268,7 +269,10 @@ export default function ReflectionsTab({ courseId, reflections, onUpdate }: Refl
                                                 <p className="text-xs text-accent">{new Date(submission.submittedAt).toLocaleString()}</p>
                                             </div>
                                             <p className="text-xs text-accent mt-1">{submission.userId?.email || submission.userId?.phone || ''}</p>
-                                            <p className="text-sm text-secondary mt-2 whitespace-pre-wrap">{submission.response}</p>
+                                            <p className="text-xs font-medium text-indigo-600 mt-2">
+                                                {reflections.find((reflection: any) => String(reflection._id) === String(submission.reflectionId))?.title || 'Reflection'}
+                                            </p>
+                                            <p className="text-sm text-secondary mt-1 whitespace-pre-wrap">{submission.response}</p>
                                         </div>
                                     ))}
                                 </div>

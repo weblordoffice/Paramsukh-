@@ -125,7 +125,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                             if (item.superAdminOnly && !isSuperAdmin) return null;
                             if (item.permission && !isSuperAdmin && !hasPermission(item.permission)) return null;
                             const Icon = item.icon;
-                            const isActive = pathname === item.href;
+                            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
 
                             return (
                                 <li key={item.href}>
