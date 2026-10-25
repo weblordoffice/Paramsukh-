@@ -1,1024 +1,57 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  Modal,
-  Image,
-  Alert,
-  Animated,
-  Dimensions,
-  Platform,
   FlatList,
-  KeyboardAvoidingView,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
+  StyleSheet,
+  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
-import AssessmentModal from '@/components/AssessmentModal';
+import { useTheme } from '../../hooks/useTheme';
 import CommentsModal from '@/components/CommentsModal';
 import ImageViewerModal from '@/components/ImageViewerModal';
+import CommunityPostCard from '@/components/community/CommunityPostCard';
+import CommunityComposerModal from '@/components/community/CommunityComposerModal';
+import CommunityGroupSelector from '@/components/community/CommunityGroupSelector';
+import CommunityGroupsSection from '@/components/community/CommunityGroupsSection';
 import CommunityMentorsSection from '@/components/community/CommunityMentorsSection';
-import CreateMentorGroupModal from '@/components/community/CreateMentorGroupModal';
-import ManageGroupMembersModal from '@/components/community/ManageGroupMembersModal';
-import * as ImagePicker from 'expo-image-picker';
-import { useCommunityStore, Group, PlanGroup, Post, CommunityPostType, QuestionFilter } from '@/store/communityStore';
-import { useBottomTabBarHeight } from '@/hooks/useBottomTabBarHeight';
-import { useTheme } from '../../hooks/useTheme';
+import {
+  useCommunityStore,
+  Group,
+  Post,
+  QuestionFilter,
+} from '@/store/communityStore';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.75;
+type CommunityTab = 'discussion' | 'question' | 'mentors' | 'groups';
 
-const getCategoryIcon = (category: string | undefined): keyof typeof Ionicons.glyphMap => {
-  const norm = String(category || '').trim().toLowerCase();
-  switch (norm) {
-    case 'physical': return 'barbell-outline';
-    case 'mental': return 'layers-outline';
-    case 'financial': return 'cash-outline';
-    case 'relationship': return 'heart-outline';
-    case 'spiritual': return 'sparkles-outline';
-    case 'general': return 'layers-outline';
-    default: return 'chatbubble-ellipses-outline';
-  }
-};
+const TABS: { key: CommunityTab; label: string }[] = [
+  { key: 'discussion', label: 'Discussion' },
+  { key: 'question', label: 'Questions' },
+  { key: 'mentors', label: 'Mentors' },
+  { key: 'groups', label: 'Groups' },
+];
 
-type ViewType = 'feed' | 'groups' | 'mentors' | 'message';
+const QUESTION_FILTERS: { key: QuestionFilter; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'unanswered', label: 'Unanswered' },
+  { key: 'resolved', label: 'Resolved' },
+  { key: 'mine', label: 'My Questions' },
+];
 
 export default function CommunityScreen() {
   const { colors } = useTheme();
-  const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  customHeader: {
-    backgroundColor: colors.surface,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(92, 74, 66, 0.06)',
-    paddingTop: Platform.OS === 'ios' ? 50 : 40,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    shadowColor: colors.border,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  menuButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitleContainer: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: 0.3,
-  },
-  headerSubtitle: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  headerRightButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  notificationButton: {
-    padding: 4,
-  },
-  notificationIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#F1842D',
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  notificationBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.surface,
-  },
-  profileButton: {
-    padding: 4,
-  },
-  profileIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(241, 132, 45, 0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(241, 132, 45, 0.25)',
-  },
-  profileIconText: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#F1842D',
-  },
-  sidebarOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(44, 36, 32, 0.5)',
-    zIndex: 998,
-  },
-  sidebar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: SIDEBAR_WIDTH,
-    height: '100%',
-    backgroundColor: colors.surface,
-    zIndex: 999,
-    shadowColor: colors.border,
-    shadowOffset: { width: 4, height: 0 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 10,
-  },
-  sidebarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 50,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(92, 74, 66, 0.06)',
-  },
-  sidebarTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: 0.5,
-  },
-  sidebarContent: {
-    paddingTop: 20,
-  },
-  sidebarSection: {
-    marginTop: 24,
-    paddingHorizontal: 20,
-  },
-
-  sidebarSectionTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 12,
-  },
-  planGroupHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    marginVertical: 2,
-  },
-  planGroupHeaderActive: {
-    backgroundColor: 'rgba(241, 132, 45, 0.06)',
-  },
-  planGroupIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: 'rgba(241, 132, 45, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  planGroupIconContainerActive: {
-    backgroundColor: '#F1842D',
-  },
-  planGroupName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  planGroupNameActive: {
-    color: '#F1842D',
-  },
-  planGroupMeta: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  subgroupsContainer: {
-    marginLeft: 28,
-    paddingLeft: 12,
-    borderLeftWidth: 1.5,
-    borderLeftColor: 'rgba(92, 74, 66, 0.08)',
-    paddingVertical: 4,
-    gap: 4,
-  },
-  subgroupItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    marginRight: 12,
-  },
-  subgroupItemActive: {
-    backgroundColor: 'rgba(241, 132, 45, 0.08)',
-  },
-  subgroupIconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    backgroundColor: 'rgba(92, 74, 66, 0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  subgroupIconContainerActive: {
-    backgroundColor: 'rgba(241, 132, 45, 0.15)',
-  },
-  subgroupText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    flex: 1,
-  },
-  subgroupTextActive: {
-    color: '#F1842D',
-    fontWeight: '600',
-  },
-  subgroupCount: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '600',
-    backgroundColor: 'rgba(92, 74, 66, 0.06)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  subgroupCountActive: {
-    color: '#F1842D',
-    backgroundColor: 'rgba(241, 132, 45, 0.12)',
-  },
-  sidebarItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    gap: 16,
-  },
-  sidebarItemActive: {
-    backgroundColor: 'rgba(241, 132, 45, 0.1)',
-    borderLeftWidth: 4,
-    borderLeftColor: '#F1842D',
-  },
-  sidebarItemText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  sidebarItemTextActive: {
-    color: '#F1842D',
-    fontWeight: '600',
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 80,
-    paddingHorizontal: 40,
-  },
-  emptyStateText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: 16,
-    marginBottom: 8,
-    letterSpacing: 0.3,
-  },
-  emptyStateSubtext: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  postTypeModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(44, 36, 32, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  postTypeModalContent: {
-    backgroundColor: colors.surface,
-    borderRadius: 24,
-    padding: 24,
-    width: '100%',
-    maxWidth: 400,
-    shadowColor: colors.border,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  postTypeModalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 24,
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  postTypeOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 18,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceSecondary,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(92, 74, 66, 0.08)',
-  },
-  postTypeOptionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(241, 132, 45, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  postTypeOptionContent: {
-    flex: 1,
-  },
-  postTypeOptionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  postTypeOptionDescription: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  postTypeCancelButton: {
-    marginTop: 12,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  postTypeCancelText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  groupChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  groupChipActive: {
-    backgroundColor: '#F1842D',
-    borderColor: '#F1842D',
-  },
-  groupChipSub: {
-    backgroundColor: colors.background,
-  },
-  groupChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    maxWidth: 120,
-  },
-  groupChipTextActive: {
-    color: colors.surface,
-  },
-  groupChipSubText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  assessmentBanner: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  bannerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-  },
-  bannerIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  bannerTextContainer: {
-    flex: 1,
-  },
-  bannerTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1E40AF',
-    marginBottom: 2,
-  },
-  bannerSubtitle: {
-    fontSize: 13,
-    color: '#60A5FA',
-  },
-  createPostButton: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    marginHorizontal: 20,
-    marginTop: 16,
-    marginBottom: 20,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(92, 74, 66, 0.08)',
-    shadowColor: colors.border,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  createPostContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  createPostText: {
-    flex: 1,
-    fontSize: 15,
-    color: colors.textSecondary,
-    marginLeft: 12,
-    fontWeight: '500',
-  },
-  mediaIcons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(92, 74, 66, 0.06)',
-  },
-  communityTabs: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginTop: 14,
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 12,
-    padding: 4,
-  },
-  communityTab: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 9,
-    borderRadius: 9,
-  },
-  communityTabActive: {
-    backgroundColor: colors.surface,
-    shadowColor: colors.border,
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  communityTabText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  communityTabTextActive: {
-    color: '#F1842D',
-  },
-  questionFiltersRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-  },
-  questionFilterChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceSecondary,
-  },
-  questionFilterChipActive: {
-    backgroundColor: 'rgba(241, 132, 45, 0.12)',
-  },
-  questionFilterText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  questionFilterTextActive: {
-    color: '#F1842D',
-  },
-  questionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: 4,
-    marginBottom: 6,
-    lineHeight: 23,
-  },
-  resolvedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-  },
-  resolvedBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#2E7D32',
-  },
-  questionInputLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: 8,
-  },
-  questionTitleInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-    backgroundColor: colors.surfaceSecondary,
-    marginBottom: 14,
-  },
-  section: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 16,
-    letterSpacing: 0.3,
-  },
-  postCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(92, 74, 66, 0.08)',
-    shadowColor: colors.border,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  postHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  userInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  userAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.surfaceSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  avatarText: {
-    fontSize: 20,
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  postTime: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  postContent: {
-    fontSize: 15,
-    color: colors.textSecondary,
-    lineHeight: 22,
-    marginBottom: 16,
-    fontWeight: '500',
-  },
-  postMedia: {
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 16,
-    height: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(92, 74, 66, 0.08)',
-    position: 'relative',
-  },
-  mediaCountBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  mediaCountText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  groupsHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 14,
-    gap: 12,
-  },
-  createGroupButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#F1842D',
-    borderRadius: 9,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-  },
-  createGroupButtonText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF' },
-  mentorGroupsLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: 10,
-  },
-  mentorGroupTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  privateBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(241, 132, 45, 0.12)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 7,
-  },
-  privateBadgeText: { fontSize: 9, fontWeight: '800', color: '#F1842D' },
-  manageGroupButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(241, 132, 45, 0.35)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    marginLeft: 8,
-  },
-  manageGroupText: { fontSize: 10, fontWeight: '800', color: '#F1842D' },
-  groupCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    marginBottom: 18,
-    shadowColor: colors.border,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 8,
-    elevation: 2,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(92, 74, 66, 0.08)',
-  },
-  mediaPlaceholder: {
-    fontSize: 48,
-    marginBottom: 8,
-  },
-  mediaLabel: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  postActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(92, 74, 66, 0.06)',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  actionText: {
-    fontSize: 14,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  likedText: {
-    color: '#EC4899',
-  },
-  fullModalOverlay: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  fullModalContent: {
-    flex: 1,
-    backgroundColor: colors.surface,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(44, 36, 32, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 24,
-    paddingBottom: 40,
-    maxHeight: '80%',
-    shadowColor: colors.border,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 12,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(92, 74, 66, 0.08)',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: 0.3,
-  },
-  postInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 16,
-    padding: 16,
-    fontSize: 15,
-    color: colors.text,
-    minHeight: 110,
-    textAlignVertical: 'top',
-    backgroundColor: colors.surfaceSecondary,
-  },
-  selectedMediaContainer: {
-    position: 'relative',
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(241, 132, 45, 0.3)',
-    backgroundColor: '#000',
-  },
-  selectedMediaImage: {
-    width: '100%',
-    height: 200,
-  },
-  removeMediaBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 15,
-  },
-  selectedMediaPreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(241, 132, 45, 0.1)',
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(241, 132, 45, 0.2)',
-  },
-  selectedMediaText: {
-    fontSize: 14,
-    color: '#F1842D',
-    fontWeight: '600',
-  },
-  mediaButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  mediaButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(241, 132, 45, 0.1)',
-    paddingVertical: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(241, 132, 45, 0.2)',
-  },
-  mediaButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#F1842D',
-  },
-  publishButton: {
-    backgroundColor: '#F1842D',
-    paddingVertical: 16,
-    borderRadius: 14,
-    alignItems: 'center',
-    shadowColor: '#F1842D',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  publishButtonDisabled: {
-    backgroundColor: colors.border,
-    shadowOpacity: 0,
-  },
-  publishButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.surface,
-  },
-  filterButtonsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 8,
-    gap: 12,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: 'rgba(92, 74, 66, 0.08)',
-  },
-  filterButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  filterModalOverlay: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  filterModalBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(44, 36, 32, 0.5)',
-  },
-  filterModalContent: {
-    backgroundColor: colors.surface,
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    padding: 24,
-    paddingBottom: 40,
-    maxHeight: '60%',
-    shadowColor: colors.border,
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 20,
-    elevation: 12,
-  },
-  filterModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  filterModalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.text,
-    letterSpacing: 0.3,
-  },
-  filterOptionsContainer: {
-    gap: 12,
-  },
-  filterOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 18,
-    borderRadius: 16,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: 'rgba(92, 74, 66, 0.08)',
-    gap: 12,
-  },
-  filterOptionActive: {
-    backgroundColor: 'rgba(241, 132, 45, 0.1)',
-    borderColor: '#F1842D',
-  },
-  filterOptionText: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  filterOptionTextActive: {
-    color: '#F1842D',
-    fontWeight: '600',
-  },
-});
   const router = useRouter();
-  const bottomTabHeight = useBottomTabBarHeight();
-  const { user, token } = useAuthStore();
+  const { user } = useAuthStore();
   const { unreadCount, fetchUnreadCount } = useNotificationStore();
+
   const {
     posts,
     groups,
@@ -1026,1794 +59,407 @@ export default function CommunityScreen() {
     mentorGroups,
     ownedGroups,
     mentorMemberGroups,
-    mentorPosts,
     generalGroup,
-    isLoading: isStoreLoading,
+    isLoading,
     fetchMyGroups,
     fetchGroupPosts,
     fetchAllPosts,
-    createPost: storeCreatePost,
-    togglePostLike: storeToggleLike,
+    deletePost,
+    togglePostLike,
     votePost,
-    deletePost: storeDeletePost,
-    communityAccessDenied,
     postingBlocked,
     mentorMe,
     fetchMentorMe,
   } = useCommunityStore();
 
+  const [activeTab, setActiveTab] = useState<CommunityTab>('discussion');
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
-
-
-  const [showCreatePost, setShowCreatePost] = useState(false);
-  const [showCreateGroup, setShowCreateGroup] = useState(false);
-  const [manageGroup, setManageGroup] = useState<Group | null>(null);
-  const [postContent, setPostContent] = useState('');
-  const [questionTitle, setQuestionTitle] = useState('');
-  const [feedTab, setFeedTab] = useState<CommunityPostType>('discussion');
   const [questionFilter, setQuestionFilter] = useState<QuestionFilter>('all');
-  const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
-  const [showSidebar, setShowSidebar] = useState(false);
-  const [currentView, setCurrentView] = useState<ViewType>('feed');
-  const [showPostTypeFilter, setShowPostTypeFilter] = useState(false);
-  const [selectedPostFilter, setSelectedPostFilter] = useState<'all' | 'image' | 'text'>('all');
-  const [showTagFilter, setShowTagFilter] = useState(false);
-  const [selectedTag, setSelectedTag] = useState<string | null>('all');
-  const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [showGroupSelector, setShowGroupSelector] = useState(false);
+  const [showComposer, setShowComposer] = useState(false);
+  const [commentPost, setCommentPost] = useState<Post | null>(null);
+  const [viewer, setViewer] = useState({ visible: false, images: [] as string[], index: 0 });
   const [currentPage, setCurrentPage] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [activePostId, setActivePostId] = useState<string | null>(null);
-  const [viewer, setViewer] = useState<{ visible: boolean; images: string[]; index: number }>({
-    visible: false,
-    images: [],
-    index: 0,
-  });
-  const [createPostTags, setCreatePostTags] = useState<string[]>([]);
-  const [expandedPlanGroups, setExpandedPlanGroups] = useState<Set<string>>(new Set());
-  const sidebarAnimation = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Get user's initials
-  const getUserInitial = () => {
-    if (user?.displayName) {
-      const name = user.displayName.trim();
-      const words = name.split(/\s+/).filter(word => word.length > 0);
-      if (words.length === 0) return 'U';
-      if (words.length === 1) return words[0].charAt(0).toUpperCase();
-      return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
-    }
-    return 'U';
-  };
-
-  const navigateToProfile = () => {
-    router.push('/profile-menu');
-  };
-
-  const navigateToNotifications = () => {
-    router.push('/(home)/notifications');
-  };
-
-  const [showAssessment, setShowAssessment] = useState(false);
-  const [assessmentCompleted, setAssessmentCompleted] = useState(false);
-
-  const checkAssessmentStatus = useCallback(async () => {
-    try {
-      const completed = await AsyncStorage.getItem('assessment_completed');
-      setAssessmentCompleted(completed === 'true');
-    } catch (error) {
-    }
-  }, []);
-
-  const handleAssessmentComplete = async (answers: Record<string, string | boolean>) => {
-    try {
-      await AsyncStorage.setItem('assessment_completed', 'true');
-      await AsyncStorage.setItem('assessment_answers', JSON.stringify(answers));
-      setAssessmentCompleted(true);
-      setShowAssessment(false);
-    } catch (error) {
-    }
-  };
-
-  const [, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    checkAssessmentStatus();
-  }, [checkAssessmentStatus]);
+  const isFeed = activeTab === 'discussion' || activeTab === 'question';
 
   useFocusEffect(
     useCallback(() => {
-      if (!token) return;
       fetchMyGroups();
       fetchMentorMe();
       fetchUnreadCount();
-    }, [token, fetchMyGroups, fetchMentorMe, fetchUnreadCount])
+    }, [fetchMyGroups, fetchMentorMe, fetchUnreadCount])
   );
 
-  // Default to the "All" view (no specific group selected). The user can pick
-  // a group from the chip bar or the sidebar.
-
-  const loadFeedPage = useCallback((page = 1) => {
+  const loadFeed = useCallback((page = 1) => {
+    const postType = activeTab === 'question' ? 'question' : 'discussion';
     if (activeGroup) {
-      return fetchGroupPosts(activeGroup._id, page, feedTab, questionFilter);
+      return fetchGroupPosts(activeGroup._id, page, postType, questionFilter);
     }
-    return fetchAllPosts(page, feedTab, questionFilter);
-  }, [activeGroup, feedTab, questionFilter, fetchGroupPosts, fetchAllPosts]);
+    return fetchAllPosts(page, postType, questionFilter);
+  }, [activeGroup, activeTab, questionFilter, fetchGroupPosts, fetchAllPosts]);
 
-  // When the selected group, tab, or filter changes, reset and fetch the matching feed.
   useEffect(() => {
-    if (currentView !== 'feed') return;
-    setSelectedPostFilter('all');
-    setSelectedTag(null);
+    if (!isFeed) return;
     setCurrentPage(1);
-    loadFeedPage(1);
-  }, [currentView, activeGroup, feedTab, questionFilter, loadFeedPage]);
+    loadFeed(1);
+  }, [isFeed, activeGroup?._id, activeTab, questionFilter, loadFeed]);
 
-  const toggleSidebar = useCallback(() => {
-    setShowSidebar(!showSidebar);
-  }, [showSidebar]);
-
-  useEffect(() => {
-    Animated.timing(sidebarAnimation, {
-      toValue: showSidebar ? 0 : -SIDEBAR_WIDTH,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [showSidebar, sidebarAnimation]);
-
-  const handleViewChange = (view: ViewType) => {
-    setCurrentView(view);
-    setShowSidebar(false);
+  const refresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchMyGroups(), loadFeed(1)]);
+    setRefreshing(false);
   };
 
-  const handlePickImage = async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please grant permission to access your photos');
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.7, // Compress to 70% quality
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        
-        // Check file size (5MB limit)
-        if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) {
-          Alert.alert('File Too Large', 'Image must be less than 5MB. Please choose a smaller image.');
-          return;
-        }
-
-        setSelectedMedia(asset.uri);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to pick image');
-    }
-  };
-
-  const publishPost = async () => {
-    const targetGroup = activeGroup || generalGroup;
-    if (!targetGroup) {
-      Alert.alert('Error', 'No group available to post to.');
-      return;
-    }
-
-    try {
-      setIsLoading(true);
-      let uploadedImageUrls: string[] = [];
-
-      // Upload media to Cloudinary if present
-      if (selectedMedia) {
-        const uploadedUrl = await useCommunityStore.getState().uploadMedia(selectedMedia, 'image');
-
-        if (uploadedUrl) {
-          uploadedImageUrls = [uploadedUrl];
-        } else {
-          Alert.alert('Upload Failed', 'Failed to upload media. Please try again.');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      const success = await storeCreatePost(
-        targetGroup._id,
-        postContent,
-        uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined,
-        createPostTags,
-        {
-          postType: feedTab,
-          title: feedTab === 'question' ? questionTitle.trim() : undefined,
-        }
-      );
-
-      if (success) {
-        setPostContent('');
-        setQuestionTitle('');
-        setSelectedMedia(null);
-        setCreatePostTags([]);
-        setShowCreatePost(false);
-        setIsLoading(false);
-        // Re-fetch to get server-assigned data (author enrichment, timeAgo, etc.)
-        loadFeedPage(1);
-
-        Alert.alert('Success', feedTab === 'question' ? 'Your question has been posted!' : 'Your post has been published!');
-      } else {
-        setIsLoading(false);
-        Alert.alert('Error', 'Failed to publish post');
-      }
-    } catch (error) {
-      setIsLoading(false);
-      Alert.alert('Error', 'An unexpected error occurred');
-    }
-  };
-
-  const handleCreatePost = () => {
-    if (feedTab === 'question') {
-      if (questionTitle.trim().length < 5) {
-        Alert.alert('Title Required', 'Please add a question title of at least 5 characters.');
-        return;
-      }
-      if (!postContent.trim()) {
-        Alert.alert('Details Required', 'Please describe your question.');
-        return;
-      }
-    } else if (!postContent.trim() && !selectedMedia) {
-      Alert.alert('Content Required', 'Please add text or an image to your post.');
-      return;
-    }
-
-    publishPost();
-  };
-
-  const toggleLike = async (postId: string) => {
-    await storeToggleLike(postId);
-  };
-
-  const handlePostMenu = (post: Post) => {
-    const isOwnPost = post.author?._id && user?._id && post.author._id === user._id;
-    if (!isOwnPost) return;
-
-    Alert.alert('Post Options', 'What would you like to do?', [
-      { text: 'Delete Post', style: 'destructive', onPress: () => confirmDeletePost(post._id) },
+  const confirmDelete = (post: Post) => {
+    Alert.alert('Delete Post', 'Delete this post?', [
       { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => deletePost(post._id) },
     ]);
   };
 
-  const confirmDeletePost = (postId: string) => {
-    Alert.alert('Delete Post', 'Are you sure you want to delete this post?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => { await storeDeletePost(postId); } },
-    ]);
+  const selectGroup = (group: Group | null) => {
+    setActiveGroup(group);
+    setCurrentPage(1);
   };
 
-  const getViewTitle = () => {
-    switch (currentView) {
-      case 'feed':
-        return activeGroup ? activeGroup.name : 'All Communities';
-      case 'groups':
-        return 'My Groups';
-      case 'mentors':
-        return 'Mentors';
-      case 'message':
-        return 'Messages';
-      default:
-        return 'Community';
-    }
-  };
+  const groupLabel = activeGroup?.name || 'All Communities';
+  const notificationBadge = unreadCount > 99 ? '99+' : String(unreadCount);
 
-  const handlePostFilterSelect = (filter: 'all' | 'image' | 'text') => {
-    setSelectedPostFilter(filter);
-    setShowPostTypeFilter(false);
-  };
+  const selectorGroups = useMemo(() => {
+    const byId = new Map<string, Group>();
+    groups.forEach((group) => {
+      if (group?._id) byId.set(group._id, group);
+    });
+    return [...byId.values()];
+  }, [groups]);
 
-  const getFilteredPosts = () => {
-    let filtered = posts;
+  const feedComposerGroups = activeGroup
+    ? [activeGroup]
+    : generalGroup
+      ? [generalGroup]
+      : [];
 
-    // Filter by Post Type
-    if (selectedPostFilter !== 'all') {
-      filtered = filtered.filter(post => {
-        if (selectedPostFilter === 'image' && post.images && post.images.length > 0) return true;
-        if (selectedPostFilter === 'text' && (!post.images || post.images.length === 0)) return true;
-        return false;
-      });
-    }
+  const activePost = commentPost;
 
-    // Filter by Tag
-    if (selectedTag && selectedTag !== 'all') {
-      filtered = filtered.filter(post => post.tags && post.tags.includes(selectedTag));
-    }
-
-    return filtered;
-  };
-
-  const activePost = posts.find((p) => p._id === activePostId)
-    || mentorPosts.find((p) => p._id === activePostId)
-    || null;
-  const notificationBadgeCount = unreadCount > 99 ? '99+' : String(unreadCount);
-
-  const activeSection = currentView === 'mentors'
-    ? 'mentors'
-    : currentView === 'groups'
-      ? 'groups'
-      : feedTab;
-
-  const selectSection = (section: 'discussion' | 'question' | 'mentors' | 'groups') => {
-    setShowSidebar(false);
-    if (section === 'groups') {
-      setCurrentView('groups');
-      return;
-    }
-    if (section === 'mentors') {
-      setCurrentView('mentors');
-      return;
-    }
-    setFeedTab(section);
-    setCurrentView('feed');
-  };
-
-  const renderCommunityTabs = () => (
-    <View style={styles.communityTabs}>
-      {([
-        { key: 'discussion', label: 'Discussion' },
-        { key: 'question', label: 'Questions' },
-        { key: 'mentors', label: 'Mentors' },
-        { key: 'groups', label: 'Groups' },
-      ] as const).map((tab) => (
-        <TouchableOpacity
-          key={tab.key}
-          style={[styles.communityTab, activeSection === tab.key && styles.communityTabActive]}
-          onPress={() => selectSection(tab.key)}
-          activeOpacity={0.8}
+  const renderFeedHeader = () => (
+    <View>
+      {activeTab === 'question' ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
         >
-          <Text style={[styles.communityTabText, activeSection === tab.key && styles.communityTabTextActive]}>
-            {tab.label}
-          </Text>
-        </TouchableOpacity>
-      ))}
+          {QUESTION_FILTERS.map((filter) => {
+            const active = questionFilter === filter.key;
+            return (
+              <TouchableOpacity
+                key={filter.key}
+                style={[
+                  styles.filterChip,
+                  { backgroundColor: active ? colors.primary : colors.surface, borderColor: colors.border },
+                ]}
+                onPress={() => setQuestionFilter(filter.key)}
+              >
+                <Text style={[styles.filterText, { color: active ? '#FFFFFF' : colors.textSecondary }]}>
+                  {filter.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      ) : null}
+
+      <TouchableOpacity
+        style={[styles.composerButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        onPress={() => {
+          if (postingBlocked) {
+            Alert.alert('Posting blocked', 'An administrator has blocked you from posting.');
+            return;
+          }
+          setShowComposer(true);
+        }}
+      >
+        <Ionicons
+          name={postingBlocked ? 'ban' : 'add-circle'}
+          size={23}
+          color={postingBlocked ? colors.textSecondary : colors.primary}
+        />
+        <Text style={[styles.composerText, { color: colors.textSecondary }]}>
+          {postingBlocked
+            ? 'You are blocked from posting'
+            : activeTab === 'question'
+              ? 'Ask the community a question...'
+              : 'Share something with the community...'}
+        </Text>
+        <Ionicons name="image-outline" size={20} color={colors.textSecondary} />
+      </TouchableOpacity>
+
+      <Text style={[styles.listTitle, { color: colors.text }]}>
+        {activeTab === 'question' ? 'Questions' : 'Recent Posts'}
+      </Text>
     </View>
   );
 
-  const mentorGroupCards = [
-    ...ownedGroups,
-    ...mentorGroups,
-    ...mentorMemberGroups,
-  ].reduce<Group[]>((acc, group) => {
-    if (group?._id && !acc.some((entry) => entry._id === group._id)) acc.push(group);
-    return acc;
-  }, []);
-
-
   return (
-    <View style={styles.container}>
-      {/* Custom Header with Menu Button */}
-      <View style={[styles.customHeader, { paddingTop: Platform.OS === 'ios' ? 50 : 40 }]}>
-        <View style={styles.headerContent}>
-          <View style={[styles.headerTitleContainer, { marginLeft: 0 }]}>
-            <Text style={styles.headerTitle} numberOfLines={1}>{getViewTitle()}</Text>
-          </View>
-          <View style={styles.headerRightButtons}>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={navigateToNotifications}
-              activeOpacity={0.7}
-            >
-              <View style={styles.notificationIconContainer}>
-                <Ionicons name="notifications-outline" size={24} color={colors.text} />
-                {unreadCount > 0 && (
-                  <View style={styles.notificationBadge}>
-                    <Text style={styles.notificationBadgeText}>{notificationBadgeCount}</Text>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.profileButton}
-              onPress={navigateToProfile}
-              activeOpacity={0.7}
-            >
-              <View style={styles.profileIconContainer}>
-                <Text style={styles.profileIconText}>{getUserInitial()}</Text>
-              </View>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-
-      {/* Sidebar Overlay */}
-      {showSidebar && (
-        <TouchableOpacity
-          style={styles.sidebarOverlay}
-          activeOpacity={1}
-          onPress={() => setShowSidebar(false)}
-        />
-      )}
-
-      {/* Sidebar */}
-      <Animated.View
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <View
         style={[
-          styles.sidebar,
+          styles.header,
           {
-            transform: [{ translateX: sidebarAnimation }],
+            backgroundColor: colors.surface,
+            borderBottomColor: colors.border,
+            paddingTop: Platform.OS === 'ios' ? 50 : 40,
           },
         ]}
       >
-        <View style={styles.sidebarHeader}>
-          <Text style={styles.sidebarTitle}>Menu</Text>
-          <TouchableOpacity onPress={() => setShowSidebar(false)}>
-            <Ionicons name="close" size={24} color={colors.text} />
-          </TouchableOpacity>
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Community</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+            Discuss, ask, learn from mentors
+          </Text>
         </View>
-
-        <View style={styles.sidebarContent}>
+        <View style={styles.headerActions}>
           <TouchableOpacity
-            style={[
-              styles.sidebarItem,
-              currentView === 'feed' && styles.sidebarItemActive,
-            ]}
-            onPress={() => handleViewChange('feed')}
+            style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
+            onPress={() => router.push('/(home)/notifications')}
           >
-            <Ionicons
-              name="home"
-              size={24}
-              color={currentView === 'feed' ? '#F1842D' : '#5C4A42'}
-            />
-            <Text
-              style={[
-                styles.sidebarItemText,
-                currentView === 'feed' && styles.sidebarItemTextActive,
-              ]}
-            >
-              Feed
+            <Ionicons name="notifications-outline" size={22} color={colors.text} />
+            {unreadCount > 0 ? (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{notificationBadge}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.headerButton, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}
+            onPress={() => router.push('/profile-menu')}
+          >
+            <Text style={[styles.profileInitial, { color: colors.primary }]}>
+              {user?.displayName?.charAt(0)?.toUpperCase() || 'U'}
             </Text>
           </TouchableOpacity>
-
-          <View style={styles.sidebarSection}>
-            <Text style={styles.sidebarSectionTitle}>Communities</Text>
-
-            <TouchableOpacity
-              style={[
-                styles.planGroupHeader,
-                !activeGroup && styles.planGroupHeaderActive,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                setActiveGroup(null);
-                setCurrentView('feed');
-                setShowSidebar(false);
-              }}
-              activeOpacity={0.8}
-            >
-              <View style={[
-                styles.planGroupIconContainer,
-                !activeGroup && styles.planGroupIconContainerActive,
-              ]}>
-                <Ionicons
-                  name="grid-outline"
-                  size={14}
-                  color={!activeGroup ? colors.surface : '#F1842D'}
-                />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    styles.planGroupName,
-                    !activeGroup && styles.planGroupNameActive,
-                  ]}
-                  numberOfLines={1}
-                >
-                  All Communities
-                </Text>
-                <Text style={styles.planGroupMeta}>Every community you belong to</Text>
-              </View>
-            </TouchableOpacity>
-
-            {generalGroup && (
-              <TouchableOpacity
-                style={[
-                  styles.planGroupHeader,
-                  activeGroup?._id === generalGroup._id && styles.planGroupHeaderActive,
-                ]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                  setActiveGroup(generalGroup);
-                  setCurrentView('feed');
-                  setShowSidebar(false);
-                }}
-                activeOpacity={0.8}
-              >
-                <View style={[
-                  styles.planGroupIconContainer,
-                  activeGroup?._id === generalGroup._id && styles.planGroupIconContainerActive,
-                ]}>
-                  <Ionicons
-                    name="globe-outline"
-                    size={14}
-                    color={activeGroup?._id === generalGroup._id ? colors.surface : '#F1842D'}
-                  />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.planGroupName,
-                      activeGroup?._id === generalGroup._id && styles.planGroupNameActive,
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {generalGroup.name}
-                  </Text>
-                  <Text style={styles.planGroupMeta}>{generalGroup.memberCount} members · public</Text>
-                </View>
-              </TouchableOpacity>
-            )}
-
-            {/* Render hierarchical plan -> subgroup tree */}
-            {planGroups.length > 0 ? (
-              planGroups.map((pg: PlanGroup) => {
-                const isExpanded = expandedPlanGroups.has(pg._id);
-                const isPlanActive = activeGroup?._id === pg._id;
-
-                return (
-                  <View key={pg._id}>
-                    {/* Plan parent header */}
-                    <TouchableOpacity
-                      style={[
-                        styles.planGroupHeader,
-                        isPlanActive && styles.planGroupHeaderActive
-                      ]}
-                      onPress={() => {
-                        // 1. Select as active group (view combined feed)
-                        setActiveGroup(pg as any as Group);
-                        setCurrentView('feed');
-                        
-                        // 2. Toggle expand/collapse
-                        setExpandedPlanGroups(prev => {
-                          const next = new Set(prev);
-                          if (next.has(pg._id)) {
-                            next.delete(pg._id);
-                          } else {
-                            next.add(pg._id);
-                          }
-                          return next;
-                        });
-                        
-                        // 3. Play Haptic
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                      }}
-                      activeOpacity={0.8}
-                    >
-                      <Ionicons
-                        name={isExpanded ? 'chevron-down' : 'chevron-forward'}
-                        size={16}
-                        color="#8C7B73"
-                        style={{ marginRight: 8 }}
-                      />
-                      <View style={[
-                        styles.planGroupIconContainer,
-                        isPlanActive && styles.planGroupIconContainerActive
-                      ]}>
-                        <Ionicons 
-                          name="shield-outline" 
-                          size={14} 
-                          color={isPlanActive ? colors.surface : '#F1842D'} 
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={[
-                          styles.planGroupName,
-                          isPlanActive && styles.planGroupNameActive
-                        ]} numberOfLines={1}>
-                          {pg.name}
-                        </Text>
-                        <Text style={styles.planGroupMeta}>
-                          {pg.memberCount} members · {pg.subgroups.length} sub-groups
-                        </Text>
-                      </View>
-                    </TouchableOpacity>
-
-                    {/* Subgroups (visible when expanded) */}
-                    {isExpanded && pg.subgroups.length > 0 && (
-                      <View style={styles.subgroupsContainer}>
-                        {pg.subgroups.map((sub: Group) => {
-                          const isSubActive = activeGroup?._id === sub._id;
-                          return (
-                            <TouchableOpacity
-                              key={sub._id}
-                              style={[
-                                styles.subgroupItem,
-                                isSubActive && styles.subgroupItemActive
-                              ]}
-                              onPress={() => {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                                setActiveGroup(sub);
-                                setCurrentView('feed');
-                                setShowSidebar(false);
-                              }}
-                              activeOpacity={0.7}
-                            >
-                              <View style={[
-                                styles.subgroupIconContainer,
-                                isSubActive && styles.subgroupIconContainerActive
-                              ]}>
-                                <Ionicons 
-                                  name={getCategoryIcon(sub.category)} 
-                                  size={14} 
-                                  color={isSubActive ? '#F1842D' : '#8C7B73'} 
-                                />
-                              </View>
-                              <Text style={[
-                                styles.subgroupText,
-                                isSubActive && styles.subgroupTextActive
-                              ]} numberOfLines={1}>
-                                {sub.category ? sub.category.charAt(0).toUpperCase() + sub.category.slice(1) : sub.name}
-                              </Text>
-                              <Text style={[
-                                styles.subgroupCount,
-                                isSubActive && styles.subgroupCountActive
-                              ]}>
-                                {sub.memberCount}
-                              </Text>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    )}
-                  </View>
-                );
-              })
-            ) : (
-              // Fallback: flat group list for backward compat
-              groups.length > 0 && (
-                <View style={{ marginLeft: 20, marginTop: 8 }}>
-                  {groups
-                    .filter((g) => g._id !== generalGroup?._id && g.groupType !== 'mentor' && !mentorGroups.some((mentorGroup) => mentorGroup._id === g._id))
-                    .map(g => (
-                    <TouchableOpacity
-                      key={g._id}
-                      style={{ paddingVertical: 10, flexDirection: 'row', alignItems: 'center' }}
-                      onPress={() => {
-                        setActiveGroup(g);
-                        setCurrentView('feed');
-                        setShowSidebar(false);
-                      }}
-                    >
-                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: activeGroup?._id === g._id ? '#F1842D' : colors.border, marginRight: 12 }} />
-                      <Text style={{ fontSize: 14, color: activeGroup?._id === g._id ? colors.text : colors.textSecondary, fontWeight: activeGroup?._id === g._id ? '600' : '500' }} numberOfLines={1}>
-                        {g.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )
-            )}
-
-            {mentorGroups.length > 0 && (
-              <View style={styles.sidebarSection}>
-                <Text style={styles.sidebarSectionTitle}>Mentor Groups</Text>
-                {mentorGroups.map((mentorGroup) => {
-                  const alreadyListed = planGroups.some(
-                    (planGroup) => planGroup._id === mentorGroup._id
-                      || planGroup.subgroups?.some((subgroup) => subgroup._id === mentorGroup._id)
-                  );
-                  if (alreadyListed) return null;
-
-                  return (
-                    <TouchableOpacity
-                      key={mentorGroup._id}
-                      style={[
-                        styles.subgroupItem,
-                        activeGroup?._id === mentorGroup._id && styles.subgroupItemActive,
-                      ]}
-                      onPress={() => {
-                        setActiveGroup(mentorGroup);
-                        setCurrentView('feed');
-                        setShowSidebar(false);
-                      }}
-                    >
-                      <View style={[
-                        styles.subgroupIconContainer,
-                        activeGroup?._id === mentorGroup._id && styles.subgroupIconContainerActive,
-                      ]}>
-                        <Ionicons
-                          name="school-outline"
-                          size={14}
-                          color={activeGroup?._id === mentorGroup._id ? '#F1842D' : '#8C7B73'}
-                        />
-                      </View>
-                      <Text
-                        style={[
-                          styles.subgroupText,
-                          activeGroup?._id === mentorGroup._id && styles.subgroupTextActive,
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {mentorGroup.name}
-                      </Text>
-                      <Text style={styles.subgroupCount}>{mentorGroup.memberCount}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={[
-                styles.sidebarItem,
-                currentView === 'groups' && styles.sidebarItemActive,
-              ]}
-              onPress={() => handleViewChange('groups')}
-            >
-              <Ionicons
-                name="people"
-                size={24}
-                color={currentView === 'groups' ? '#F1842D' : '#5C4A42'}
-              />
-              <Text
-                style={[
-                  styles.sidebarItemText,
-                  currentView === 'groups' && styles.sidebarItemTextActive,
-                ]}
-              >
-                All Groups
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.sidebarItem}
-              onPress={() => {
-                setShowSidebar(false);
-                router.push('/(home)/mentor-corner' as any);
-              }}
-            >
-              <Ionicons name="school" size={24} color="#5C4A42" />
-              <Text style={styles.sidebarItemText}>
-                Mentor Corner
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.sidebarItem,
-                currentView === 'message' && styles.sidebarItemActive,
-              ]}
-              onPress={() => handleViewChange('message')}
-            >
-              <Ionicons
-                name="chatbubbles"
-                size={24}
-                color={currentView === 'message' ? '#F1842D' : '#5C4A42'}
-              />
-              <Text
-                style={[
-                  styles.sidebarItemText,
-                  currentView === 'message' && styles.sidebarItemTextActive,
-                ]}
-              >
-                Messages
-              </Text>
-            </TouchableOpacity>
-          </View>
         </View>
-      </Animated.View>
-
-      <View style={{ flex: 1 }}>
-        {renderCommunityTabs()}
-        {currentView === 'feed' ? (
-          <FlatList
-            data={getFilteredPosts()}
-            keyExtractor={(item) => item._id}
-            contentContainerStyle={{ paddingBottom: bottomTabHeight }}
-            showsVerticalScrollIndicator={false}
-            refreshing={isStoreLoading}
-            onRefresh={() => { setCurrentPage(1); loadFeedPage(1); }}
-            onEndReachedThreshold={0.3}
-            onEndReached={() => {
-              if (!loadingMore) {
-                setLoadingMore(true);
-                const nextPage = currentPage + 1;
-                loadFeedPage(nextPage).then(() => {
-                  setCurrentPage(nextPage);
-                  setLoadingMore(false);
-                }).catch(() => setLoadingMore(false));
-              }
-            }}
-            ListHeaderComponent={
-              <>
-                {/* Quick Group Switcher — horizontal scrollable chips */}
-                {(planGroups.length > 0 || generalGroup || groups.length > 0) && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingHorizontal: 20, paddingVertical: 12, gap: 8 }}
-                    style={{ backgroundColor: colors.background, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' }}
-                  >
-                    <TouchableOpacity
-                      style={[styles.groupChip, !activeGroup && styles.groupChipActive]}
-                      onPress={() => { setActiveGroup(null); setCurrentPage(1); }}
-                    >
-                        <Ionicons name="grid-outline" size={14} color={!activeGroup ? colors.surface : colors.textSecondary} />
-                      <Text style={[styles.groupChipText, !activeGroup && styles.groupChipTextActive]}>All</Text>
-                    </TouchableOpacity>
-                    {generalGroup && (
-                      <TouchableOpacity
-                        style={[styles.groupChip, activeGroup?._id === generalGroup._id && styles.groupChipActive]}
-                        onPress={() => { setActiveGroup(generalGroup); setCurrentView('feed'); setCurrentPage(1); }}
-                      >
-                        <Ionicons name="globe-outline" size={14} color={activeGroup?._id === generalGroup._id ? '#FFF' : '#F1842D'} />
-                        <Text style={[styles.groupChipText, activeGroup?._id === generalGroup._id && styles.groupChipTextActive]} numberOfLines={1}>
-                          General
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                    {planGroups.map((pg: PlanGroup) => (
-                      <React.Fragment key={pg._id}>
-                        <TouchableOpacity
-                          style={[styles.groupChip, activeGroup?._id === pg._id && styles.groupChipActive]}
-                          onPress={() => { setActiveGroup(pg as any as Group); setCurrentView('feed'); setCurrentPage(1); }}
-                        >
-                          <Ionicons name="shield-outline" size={14} color={activeGroup?._id === pg._id ? '#FFF' : '#F1842D'} />
-                          <Text style={[styles.groupChipText, activeGroup?._id === pg._id && styles.groupChipTextActive]} numberOfLines={1}>
-                            {pg.name}
-                          </Text>
-                        </TouchableOpacity>
-                        {pg.subgroups?.map((sub: Group) => (
-                          <TouchableOpacity
-                            key={sub._id}
-                            style={[styles.groupChip, styles.groupChipSub, activeGroup?._id === sub._id && styles.groupChipActive]}
-                            onPress={() => { setActiveGroup(sub); setCurrentView('feed'); setCurrentPage(1); }}
-                          >
-                            <Ionicons name="pricetag-outline" size={12} color={activeGroup?._id === sub._id ? '#FFF' : '#8C7B73'} />
-                            <Text style={[styles.groupChipText, styles.groupChipSubText, activeGroup?._id === sub._id && styles.groupChipTextActive]} numberOfLines={1}>
-                              {sub.category ? sub.category.charAt(0).toUpperCase() + sub.category.slice(1) : sub.name.split(' - ').pop()}
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                    {mentorGroups.map((mentorGroup) => {
-                      const alreadyListed = planGroups.some(
-                        (planGroup) => planGroup._id === mentorGroup._id
-                          || planGroup.subgroups?.some((subgroup) => subgroup._id === mentorGroup._id)
-                      );
-                      if (alreadyListed) return null;
-
-                      return (
-                        <TouchableOpacity
-                          key={`mentor-${mentorGroup._id}`}
-                          style={[styles.groupChip, styles.groupChipSub, activeGroup?._id === mentorGroup._id && styles.groupChipActive]}
-                          onPress={() => { setActiveGroup(mentorGroup); setCurrentView('feed'); setCurrentPage(1); }}
-                        >
-                          <Ionicons name="school-outline" size={12} color={activeGroup?._id === mentorGroup._id ? '#FFF' : '#8C7B73'} />
-                          <Text style={[styles.groupChipText, styles.groupChipSubText, activeGroup?._id === mentorGroup._id && styles.groupChipTextActive]} numberOfLines={1}>
-                            {mentorGroup.name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                )}
-
-                {feedTab === 'question' && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.questionFiltersRow}
-                  >
-                    {([
-                      { key: 'all', label: 'All' },
-                      { key: 'unanswered', label: 'Unanswered' },
-                      { key: 'resolved', label: 'Resolved' },
-                      { key: 'mine', label: 'My Questions' },
-                    ] as { key: QuestionFilter; label: string }[]).map((filter) => (
-                      <TouchableOpacity
-                        key={filter.key}
-                        style={[styles.questionFilterChip, questionFilter === filter.key && styles.questionFilterChipActive]}
-                        onPress={() => setQuestionFilter(filter.key)}
-                      >
-                        <Text style={[styles.questionFilterText, questionFilter === filter.key && styles.questionFilterTextActive]}>
-                          {filter.label}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
-
-                {/* Assessment Banner - Show if not completed */}
-                {!assessmentCompleted && (
-                  <TouchableOpacity
-                    style={styles.assessmentBanner}
-                    onPress={() => setShowAssessment(true)}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.bannerContent}>
-                      <View style={styles.bannerIconContainer}>
-                        <Ionicons name="clipboard-outline" size={24} color="#F1842D" />
-                      </View>
-                      <View style={styles.bannerTextContainer}>
-                        <Text style={styles.bannerTitle}>Complete Your Assessment</Text>
-                        <Text style={styles.bannerSubtitle}>Help us personalize your experience</Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-                    </View>
-                  </TouchableOpacity>
-                )}
-
-                {/* Create Post Button */}
-                <TouchableOpacity
-                  style={[styles.createPostButton, postingBlocked && { opacity: 0.6 }]}
-                  onPress={() => {
-                    if (postingBlocked) {
-                      Alert.alert(
-                        'Posting Blocked',
-                        'An administrator has blocked you from creating posts in the community.'
-                      );
-                      return;
-                    }
-                    setShowCreatePost(true);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.createPostContent}>
-                    <Ionicons
-                      name={postingBlocked ? 'ban' : 'add-circle'}
-                      size={24}
-                      color={postingBlocked ? colors.textSecondary : '#F1842D'}
-                    />
-                    <Text style={styles.createPostText}>
-                      {postingBlocked
-                        ? 'You are blocked from posting'
-                        : feedTab === 'question'
-                          ? 'Ask the community a question...'
-                          : 'Share something with the community...'}
-                    </Text>
-                  </View>
-                  <View style={styles.mediaIcons}>
-                    <Ionicons name="image-outline" size={20} color={colors.textSecondary} />
-                  </View>
-                </TouchableOpacity>
-
-                <View style={styles.section}>
-                  <Text style={styles.sectionTitle}>
-                    {feedTab === 'question' ? 'Recent Questions' : 'Recent Posts'}
-                  </Text>
-                </View>
-              </>
-            }
-            ListEmptyComponent={
-              !activeGroup && groups.length === 0 && !isStoreLoading ? (
-                <View style={styles.emptyState}>
-                  <Text style={styles.emptyStateText}>
-                    {communityAccessDenied
-                      ? 'Membership required to access community groups.'
-                      : 'No communities available yet.'}
-                  </Text>
-                </View>
-              ) : (
-                <View style={[styles.emptyState, { paddingTop: 40 }]}>
-                  <Text style={styles.emptyStateText}>
-                    {feedTab === 'question'
-                      ? 'No questions yet — be the first to ask.'
-                      : (!activeGroup || (generalGroup && activeGroup._id === generalGroup._id)
-                        ? 'No posts yet — be the first to share.'
-                        : 'No posts found')}
-                  </Text>
-                </View>
-              )
-            }
-            renderItem={({ item: post }) => (
-              <View style={[styles.postCard, { marginHorizontal: 20 }]}>
-                {/* Post Header */}
-                <View style={styles.postHeader}>
-                  <View style={styles.userInfo}>
-                    <View style={styles.userAvatar}>
-                      <Image
-                        source={{ uri: post.author.photoURL || 'https://via.placeholder.com/40' }}
-                        style={{ width: 40, height: 40, borderRadius: 20 }}
-                      />
-                    </View>
-                    <View>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <Text style={styles.userName}>{post.author.displayName || 'User'}</Text>
-                        {post.author.isMentor && (
-                          <View style={{ backgroundColor: 'rgba(241,132,45,0.12)', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8 }}>
-                            <Text style={{ fontSize: 10, fontWeight: '700', color: '#F1842D' }}>Mentor</Text>
-                          </View>
-                        )}
-                      </View>
-                      <Text style={styles.postTime}>{/* format date */ new Date(post.createdAt).toLocaleDateString()}</Text>
-                    </View>
-                  </View>
-                  <TouchableOpacity onPress={() => handlePostMenu(post)}>
-                    <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-
-                {post.postType === 'question' && (
-                  <>
-                    {post.isResolved && (
-                      <View style={styles.resolvedBadge}>
-                        <Ionicons name="checkmark-circle" size={12} color="#2E7D32" />
-                        <Text style={styles.resolvedBadgeText}>Resolved</Text>
-                      </View>
-                    )}
-                    {!!post.title && <Text style={styles.questionTitle}>{post.title}</Text>}
-                  </>
-                )}
-
-                {/* Post Content */}
-                <Text style={styles.postContent}>{post.content}</Text>
-
-                {/* Tags */}
-                {post.tags && post.tags.length > 0 && (
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                    {post.tags.map(tag => (
-                      <View key={tag} style={{ backgroundColor: colors.surfaceSecondary, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }}>
-                        <Text style={{ fontSize: 12, color: colors.textSecondary }}>#{tag}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {/* Post Image/Video */}
-                {post.images && post.images.length > 0 && (
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    onPress={() => setViewer({ visible: true, images: post.images || [], index: 0 })}
-                  >
-                    <View style={styles.postMedia}>
-                      <Image source={{ uri: post.images[0] }} style={{ width: '100%', height: 200, borderRadius: 8 }} resizeMode="cover" />
-                      {post.images.length > 1 && (
-                        <View style={styles.mediaCountBadge}>
-                          <Ionicons name="images-outline" size={12} color="#FFFFFF" />
-                          <Text style={styles.mediaCountText}>{post.images.length}</Text>
-                        </View>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                )}
-
-                {/* Post Actions */}
-                <View style={styles.postActions}>
-                  {post.postType === 'question' ? (
-                    <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => votePost(post._id)}
-                    >
-                      <Ionicons
-                        name={post.userVoted ? "arrow-up-circle" : "arrow-up-circle-outline"}
-                        size={22}
-                        color={post.userVoted ? "#F1842D" : colors.textSecondary}
-                      />
-                      <Text style={[styles.actionText, post.userVoted && { color: '#F1842D' }]}>
-                        {post.voteCount || 0}
-                      </Text>
-                    </TouchableOpacity>
-                  ) : (
-                    <TouchableOpacity
-                      style={styles.actionButton}
-                      onPress={() => toggleLike(post._id)}
-                    >
-                      <Ionicons
-                        name={post.userLiked ? "heart" : "heart-outline"}
-                        size={22}
-                        color={post.userLiked ? "#EF4444" : colors.textSecondary}
-                      />
-                      <Text style={[styles.actionText, post.userLiked && styles.likedText]}>
-                        {post.likeCount}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-
-                  <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => {
-                      setActivePostId(post._id);
-                      setShowCommentsModal(true);
-                    }}
-                  >
-                    <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} />
-                    <Text style={styles.actionText}>{post.commentCount}</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity style={styles.actionButton}>
-                    <Ionicons name="share-social-outline" size={20} color={colors.textSecondary} />
-                    <Text style={styles.actionText}>0</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          />
-        ) : currentView === 'mentors' ? (
-          <CommunityMentorsSection
-            activeGroup={activeGroup}
-            onSelectGroup={setActiveGroup}
-            onOpenComments={(post) => {
-              setActivePostId(post._id);
-              setShowCommentsModal(true);
-            }}
-          />
-        ) : (
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {currentView === 'groups' && (
-              <View style={styles.section}>
-                <View style={styles.groupsHeaderRow}>
-                  <Text style={styles.sectionTitle}>My Communities</Text>
-                  {mentorMe.isMentor ? (
-                    <TouchableOpacity
-                      style={styles.createGroupButton}
-                      onPress={() => setShowCreateGroup(true)}
-                      activeOpacity={0.85}
-                    >
-                      <Ionicons name="add" size={16} color="#FFFFFF" />
-                      <Text style={styles.createGroupButtonText}>Create Group</Text>
-                    </TouchableOpacity>
-                  ) : null}
-                </View>
-                {mentorGroupCards.length > 0 && (
-                  <View style={{ marginBottom: 20 }}>
-                    <Text style={styles.mentorGroupsLabel}>Mentor Groups</Text>
-                    {mentorGroupCards.map((group) => (
-                      <TouchableOpacity
-                        key={`mentor-group-${group._id}`}
-                        style={[styles.groupCard, { marginBottom: 10 }]}
-                        onPress={() => {
-                          setActiveGroup(group);
-                          setCurrentView('feed');
-                        }}
-                      >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
-                          <View style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: 'rgba(241, 132, 45, 0.1)', alignItems: 'center', justifyContent: 'center', marginRight: 13 }}>
-                            <Ionicons name="school-outline" size={20} color="#F1842D" />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <View style={styles.mentorGroupTitleRow}>
-                              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }} numberOfLines={1}>
-                                {group.name}
-                              </Text>
-                              <View style={styles.privateBadge}>
-                                <Ionicons name="lock-closed" size={9} color="#F1842D" />
-                                <Text style={styles.privateBadgeText}>
-                                  {String(group.ownerId) === String(user?._id) ? 'Owner' : 'Private'}
-                                </Text>
-                              </View>
-                            </View>
-                            <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>
-                              {group.memberCount} members
-                            </Text>
-                          </View>
-                          {String(group.ownerId) === String(user?._id) ? (
-                            <TouchableOpacity
-                              style={styles.manageGroupButton}
-                              onPress={() => setManageGroup(group)}
-                            >
-                              <Ionicons name="people-outline" size={15} color="#F1842D" />
-                              <Text style={styles.manageGroupText}>Manage</Text>
-                            </TouchableOpacity>
-                          ) : (
-                            <Ionicons name="chevron-forward" size={18} color="#8C7B73" />
-                          )}
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-
-                {generalGroup && (
-                  <TouchableOpacity
-                    style={[styles.groupCard, { borderLeftWidth: 4, borderLeftColor: '#F1842D', marginBottom: 16 }]}
-                    onPress={() => {
-                      setActiveGroup(generalGroup);
-                      setCurrentView('feed');
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20 }}>
-                      <View style={{ width: 50, height: 50, borderRadius: 14, backgroundColor: 'rgba(241, 132, 45, 0.12)', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
-                        <Ionicons name="globe" size={24} color="#F1842D" />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontSize: 17, fontWeight: '700', color: colors.text }}>{generalGroup.name}</Text>
-                        <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: '500', marginTop: 2 }}>
-                          {generalGroup.memberCount} members · Open to everyone
-                        </Text>
-                      </View>
-                      <Ionicons name="chevron-forward" size={20} color="#8C7B73" />
-                    </View>
-                  </TouchableOpacity>
-                )}
-                {planGroups.length === 0 && groups.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <Ionicons name="infinite-outline" size={64} color={colors.textSecondary} />
-                    <Text style={styles.emptyStateText}>
-                      {communityAccessDenied ? 'Membership Required' : 'No communities yet'}
-                    </Text>
-                    <Text style={styles.emptyStateSubtext}>
-                      {communityAccessDenied
-                        ? 'You need an active membership to access community groups.'
-                        : 'Communities will appear here once available.'}
-                    </Text>
-                  </View>
-                ) : planGroups.length > 0 ? (
-                  planGroups.map((pg: PlanGroup) => (
-                    <View key={pg._id} style={{ marginBottom: 20 }}>
-                      {/* Plan parent card */}
-                      <TouchableOpacity
-                        style={[styles.groupCard, { borderLeftWidth: 4, borderLeftColor: '#F1842D' }]}
-                        onPress={() => {
-                          setActiveGroup(pg as any as Group);
-                          setCurrentView('feed');
-                        }}
-                      >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20 }}>
-                          <View style={{ width: 50, height: 50, borderRadius: 14, backgroundColor: 'rgba(241, 132, 45, 0.12)', alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
-                            <Ionicons name="shield" size={24} color="#F1842D" />
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 17, fontWeight: '700', color: colors.text }}>{pg.name}</Text>
-                            <Text style={{ fontSize: 13, color: colors.textSecondary, fontWeight: '500', marginTop: 2 }}>
-                              {pg.memberCount} members · Combined feed
-                            </Text>
-                          </View>
-                          <Ionicons name="chevron-forward" size={20} color="#8C7B73" />
-                        </View>
-                      </TouchableOpacity>
-
-                      {/* Subgroup cards */}
-                      {pg.subgroups.length > 0 && (
-                        <View style={{ marginLeft: 24, borderLeftWidth: 2, borderLeftColor: 'rgba(241, 132, 45, 0.2)', paddingLeft: 16, marginTop: 4 }}>
-                          {pg.subgroups.map((sub: Group) => (
-                            <TouchableOpacity
-                              key={sub._id}
-                              style={[styles.groupCard, { marginBottom: 10 }]}
-                              onPress={() => {
-                                setActiveGroup(sub);
-                                setCurrentView('feed');
-                              }}
-                            >
-                              <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
-                                <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: 'rgba(92, 74, 66, 0.06)', alignItems: 'center', justifyContent: 'center', marginRight: 14 }}>
-                                  <Ionicons name="pricetag-outline" size={18} color="#5C4A42" />
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                  <Text style={{ fontSize: 15, fontWeight: '600', color: colors.text }}>
-                                    {sub.category ? sub.category.charAt(0).toUpperCase() + sub.category.slice(1) : sub.name}
-                                  </Text>
-                                  <Text style={{ fontSize: 12, color: colors.textSecondary, fontWeight: '500', marginTop: 1 }}>
-                                    {sub.memberCount} members
-                                  </Text>
-                                </View>
-                                <Ionicons name="chevron-forward" size={18} color="#8C7B73" />
-                              </View>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      )}
-                    </View>
-                  ))
-                ) : (
-                  // Fallback: flat group list
-                  groups.map(g => (
-                    <TouchableOpacity
-                      key={g._id}
-                      style={styles.groupCard}
-                      onPress={() => {
-                        setActiveGroup(g);
-                        setCurrentView('feed');
-                      }}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20 }}>
-                        <View style={{ width: 50, height: 50, borderRadius: 12, backgroundColor: 'rgba(92, 74, 66, 0.08)', marginRight: 16 }} />
-                        <View>
-                          <Text style={{ fontSize: 17, fontWeight: '700', color: colors.text }}>{g.name}</Text>
-                          <Text style={{ fontSize: 14, color: colors.textSecondary, fontWeight: '500' }}>{g.memberCount} members</Text>
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  ))
-                )}
-              </View>
-            )}
-
-            {currentView === 'message' && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Messages</Text>
-                <View style={styles.emptyState}>
-                  <Ionicons name="chatbubbles-outline" size={64} color={colors.textSecondary} />
-                  <Text style={styles.emptyStateText}>No messages yet</Text>
-                  <Text style={styles.emptyStateSubtext}>
-                    Start a conversation with community members
-                  </Text>
-                </View>
-              </View>
-            )}
-          </ScrollView>
-        )}
       </View>
 
-      {/* Create Post Modal */}
-      <Modal
-        visible={showCreatePost}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => {
-          setShowCreatePost(false);
-        }}
-      >
-        <SafeAreaView style={styles.fullModalOverlay}>
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          >
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{feedTab === 'question' ? 'Ask a Question' : 'Create Post'}</Text>
-              <TouchableOpacity
-                style={{ padding: 4 }}
-                onPress={() => {
-                  setShowCreatePost(false);
-                }}
-              >
-                <Ionicons name="close" size={28} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ paddingBottom: bottomTabHeight + 30, gap: 16 }}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
+      <View style={[styles.tabs, { backgroundColor: colors.surfaceSecondary }]}>
+        {TABS.map((tab) => {
+          const active = activeTab === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              style={[styles.tab, active && { backgroundColor: colors.surface }]}
+              onPress={() => setActiveTab(tab.key)}
+              activeOpacity={0.8}
             >
-              {feedTab === 'question' && (
-                <View>
-                  <Text style={styles.questionInputLabel}>Question title</Text>
-                  <TextInput
-                    style={styles.questionTitleInput}
-                    placeholder="What do you need help with?"
-                    placeholderTextColor={colors.textSecondary}
-                    value={questionTitle}
-                    onChangeText={setQuestionTitle}
-                    maxLength={200}
-                  />
-                </View>
-              )}
+              <Text style={[styles.tabText, { color: active ? colors.primary : colors.textSecondary }]}>
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
 
-              <TextInput
-                style={styles.postInput}
-                placeholder={feedTab === 'question' ? 'Describe your question in detail...' : "What's on your mind?"}
-                placeholderTextColor={colors.textSecondary}
-                multiline
-                value={postContent}
-                onChangeText={setPostContent}
-                maxLength={5000}
-              />
-
-              {selectedMedia && (
-                <View style={styles.selectedMediaContainer}>
-                  <Image
-                    source={{ uri: selectedMedia }}
-                    style={styles.selectedMediaImage}
-                    resizeMode="cover"
-                  />
-                  <TouchableOpacity
-                    style={styles.removeMediaBadge}
-                    onPress={() => setSelectedMedia(null)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="close-circle" size={26} color="#EF4444" />
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              <View>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textSecondary, marginBottom: 8 }}>
-                  Tags
-                </Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {['meditation', 'spiritual', 'wellness', 'learning', 'community'].map(tag => (
-                    <TouchableOpacity
-                      key={tag}
-                      style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderRadius: 16,
-                        backgroundColor: createPostTags.includes(tag) ? '#F1842D' : colors.surfaceSecondary,
-                        marginRight: 8,
-                        borderWidth: 1,
-                        borderColor: createPostTags.includes(tag) ? '#F1842D' : colors.border
-                      }}
-                      onPress={() => {
-                        if (createPostTags.includes(tag)) {
-                          setCreatePostTags(prev => prev.filter(t => t !== tag));
-                        } else {
-                          setCreatePostTags(prev => [...prev, tag]);
-                        }
-                      }}
-                    >
-                      <Text style={{
-                        fontSize: 12,
-                        color: createPostTags.includes(tag) ? '#FFF' : '#4B5563',
-                        fontWeight: '500'
-                      }}>
-                        {tag.charAt(0).toUpperCase() + tag.slice(1)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              <View style={styles.mediaButtons}>
-                <TouchableOpacity
-                  style={styles.mediaButton}
-                  onPress={handlePickImage}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="image-outline" size={24} color="#F1842D" />
-                  <Text style={styles.mediaButtonText}>
-                    {selectedMedia ? 'Change Photo' : 'Add Photo'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity
-                style={[
-                  styles.publishButton,
-                  (feedTab === 'question'
-                    ? (questionTitle.trim().length < 5 || !postContent.trim())
-                    : (!postContent.trim() && !selectedMedia)) && styles.publishButtonDisabled
-                ]}
-                onPress={handleCreatePost}
-                disabled={feedTab === 'question'
-                  ? (questionTitle.trim().length < 5 || !postContent.trim())
-                  : (!postContent.trim() && !selectedMedia)}
-                activeOpacity={0.85}
-              >
-                <Text style={styles.publishButtonText}>{feedTab === 'question' ? 'Post Question' : 'Publish Post'}</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </SafeAreaView>
-      </Modal>
-
-      {/* Post Type Filter Bottom Sheet */}
-      <Modal
-        visible={showPostTypeFilter}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowPostTypeFilter(false)}
-      >
-        <View style={styles.filterModalOverlay}>
-          <TouchableOpacity
-            style={styles.filterModalBackdrop}
-            activeOpacity={1}
-            onPress={() => setShowPostTypeFilter(false)}
+      {activeTab !== 'groups' ? (
+        <TouchableOpacity
+          style={[styles.groupSelector, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          onPress={() => setShowGroupSelector(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name={activeGroup?.groupType === 'mentor' ? 'lock-closed-outline' : 'people-outline'}
+            size={16}
+            color={colors.primary}
           />
-          <View style={styles.filterModalContent}>
-            <View style={styles.filterModalHeader}>
-              <Text style={styles.filterModalTitle}>Filter by Post Type</Text>
-              <TouchableOpacity onPress={() => setShowPostTypeFilter(false)}>
-                <Ionicons name="close" size={24} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
+          <Text style={[styles.groupSelectorText, { color: colors.text }]} numberOfLines={1}>
+            {groupLabel}
+          </Text>
+          <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+        </TouchableOpacity>
+      ) : null}
 
-            <View style={styles.filterOptionsContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.filterOption,
-                  selectedPostFilter === 'all' && styles.filterOptionActive
-                ]}
-                onPress={() => handlePostFilterSelect('all')}
-              >
-                <Ionicons
-                  name="grid-outline"
-                  size={24}
-                  color={selectedPostFilter === 'all' ? '#F1842D' : '#5C4A42'}
-                />
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    selectedPostFilter === 'all' && styles.filterOptionTextActive
-                  ]}
-                >
-                  All Posts
-                </Text>
-                {selectedPostFilter === 'all' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#F1842D" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterOption,
-                  selectedPostFilter === 'image' && styles.filterOptionActive
-                ]}
-                onPress={() => handlePostFilterSelect('image')}
-              >
-                <Ionicons
-                  name="image-outline"
-                  size={24}
-                  color={selectedPostFilter === 'image' ? '#F1842D' : '#5C4A42'}
-                />
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    selectedPostFilter === 'image' && styles.filterOptionTextActive
-                  ]}
-                >
-                  Image
-                </Text>
-                {selectedPostFilter === 'image' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#F1842D" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterOption,
-                  selectedPostFilter === 'text' && styles.filterOptionActive
-                ]}
-                onPress={() => handlePostFilterSelect('text')}
-              >
-                <Ionicons
-                  name="document-text-outline"
-                  size={24}
-                  color={selectedPostFilter === 'text' ? '#F1842D' : '#5C4A42'}
-                />
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    selectedPostFilter === 'text' && styles.filterOptionTextActive
-                  ]}
-                >
-                  Text
-                </Text>
-                {selectedPostFilter === 'text' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#F1842D" />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Tag Filter Bottom Sheet */}
-      <Modal
-        visible={showTagFilter}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowTagFilter(false)}
-      >
-        <View style={styles.filterModalOverlay}>
-          <TouchableOpacity
-            style={styles.filterModalBackdrop}
-            activeOpacity={1}
-            onPress={() => setShowTagFilter(false)}
-          />
-          <View style={styles.filterModalContent}>
-            <View style={styles.filterModalHeader}>
-              <Text style={styles.filterModalTitle}>Filter by Tag</Text>
-              <TouchableOpacity onPress={() => setShowTagFilter(false)}>
-                <Ionicons name="close" size={24} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.filterOptionsContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.filterOption,
-                  selectedTag === 'all' && styles.filterOptionActive
-                ]}
-                onPress={() => {
-                  setSelectedTag('all');
-                  setShowTagFilter(false);
-                }}
-              >
-                <Ionicons
-                  name="pricetags-outline"
-                  size={24}
-                  color={selectedTag === 'all' ? '#F1842D' : '#5C4A42'}
-                />
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    selectedTag === 'all' && styles.filterOptionTextActive
-                  ]}
-                >
-                  All Tags
-                </Text>
-                {selectedTag === 'all' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#F1842D" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterOption,
-                  selectedTag === 'meditation' && styles.filterOptionActive
-                ]}
-                onPress={() => {
-                  setSelectedTag('meditation');
-                  setShowTagFilter(false);
-                }}
-              >
-                <Ionicons
-                  name="sparkles-outline"
-                  size={24}
-                  color={selectedTag === 'meditation' ? '#F1842D' : '#5C4A42'}
-                />
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    selectedTag === 'meditation' && styles.filterOptionTextActive
-                  ]}
-                >
-                  Meditation
-                </Text>
-                {selectedTag === 'meditation' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#F1842D" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterOption,
-                  selectedTag === 'spiritual' && styles.filterOptionActive
-                ]}
-                onPress={() => {
-                  setSelectedTag('spiritual');
-                  setShowTagFilter(false);
-                }}
-              >
-                <Ionicons
-                  name="flower-outline"
-                  size={24}
-                  color={selectedTag === 'spiritual' ? '#F1842D' : '#5C4A42'}
-                />
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    selectedTag === 'spiritual' && styles.filterOptionTextActive
-                  ]}
-                >
-                  Spiritual
-                </Text>
-                {selectedTag === 'spiritual' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#F1842D" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterOption,
-                  selectedTag === 'wellness' && styles.filterOptionActive
-                ]}
-                onPress={() => {
-                  setSelectedTag('wellness');
-                  setShowTagFilter(false);
-                }}
-              >
-                <Ionicons
-                  name="fitness-outline"
-                  size={24}
-                  color={selectedTag === 'wellness' ? '#F1842D' : '#5C4A42'}
-                />
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    selectedTag === 'wellness' && styles.filterOptionTextActive
-                  ]}
-                >
-                  Wellness
-                </Text>
-                {selectedTag === 'wellness' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#F1842D" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterOption,
-                  selectedTag === 'learning' && styles.filterOptionActive
-                ]}
-                onPress={() => {
-                  setSelectedTag('learning');
-                  setShowTagFilter(false);
-                }}
-              >
-                <Ionicons
-                  name="book-outline"
-                  size={24}
-                  color={selectedTag === 'learning' ? '#F1842D' : '#5C4A42'}
-                />
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    selectedTag === 'learning' && styles.filterOptionTextActive
-                  ]}
-                >
-                  Learning
-                </Text>
-                {selectedTag === 'learning' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#F1842D" />
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterOption,
-                  selectedTag === 'community' && styles.filterOptionActive
-                ]}
-                onPress={() => {
-                  setSelectedTag('community');
-                  setShowTagFilter(false);
-                }}
-              >
-                <Ionicons
-                  name="people-outline"
-                  size={24}
-                  color={selectedTag === 'community' ? '#F1842D' : '#5C4A42'}
-                />
-                <Text
-                  style={[
-                    styles.filterOptionText,
-                    selectedTag === 'community' && styles.filterOptionTextActive
-                  ]}
-                >
-                  Community
-                </Text>
-                {selectedTag === 'community' && (
-                  <Ionicons name="checkmark-circle" size={20} color="#F1842D" />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Assessment Modal */}
-      <AssessmentModal
-        visible={showAssessment}
-        onClose={() => setShowAssessment(false)}
-        onComplete={handleAssessmentComplete}
-      />
-
-      <CreateMentorGroupModal
-        visible={showCreateGroup}
-        onClose={() => setShowCreateGroup(false)}
-        onCreated={(group) => {
-          setManageGroup(group);
-          fetchMyGroups();
-        }}
-      />
-
-      <ManageGroupMembersModal
-        visible={!!manageGroup}
-        group={manageGroup}
-        onClose={() => setManageGroup(null)}
-        onChanged={() => {
-          fetchMyGroups();
-          if (manageGroup) {
-            useCommunityStore.getState().fetchMentorGroupMembers(manageGroup._id);
+      {activeTab === 'groups' ? (
+        <CommunityGroupsSection
+          generalGroup={generalGroup}
+          planGroups={planGroups}
+          mentorGroups={mentorGroups}
+          ownedGroups={ownedGroups}
+          mentorMemberGroups={mentorMemberGroups}
+          isMentor={mentorMe.isMentor}
+          onOpenGroup={(group) => {
+            setActiveGroup(group);
+            setActiveTab('discussion');
+          }}
+          onChanged={fetchMyGroups}
+        />
+      ) : activeTab === 'mentors' ? (
+        <CommunityMentorsSection
+          activeGroup={activeGroup}
+          onOpenComments={setCommentPost}
+          onViewImages={(images, index) => setViewer({ visible: true, images, index })}
+        />
+      ) : (
+        <FlatList
+          data={posts}
+          keyExtractor={(item) => item._id}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />
           }
-        }}
+          ListHeaderComponent={renderFeedHeader}
+          ListEmptyComponent={
+            isLoading ? (
+              <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} />
+            ) : (
+              <View style={styles.empty}>
+                <Ionicons name="chatbubbles-outline" size={40} color={colors.textSecondary} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                  {activeTab === 'question' ? 'No questions yet' : 'No posts yet'}
+                </Text>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                  {activeTab === 'question'
+                    ? 'Be the first to ask the community.'
+                    : 'Start the conversation.'}
+                </Text>
+              </View>
+            )
+          }
+          onEndReachedThreshold={0.3}
+          onEndReached={() => {
+            if (loadingMore || isLoading) return;
+            setLoadingMore(true);
+            const nextPage = currentPage + 1;
+            loadFeed(nextPage)
+              .then(() => setCurrentPage(nextPage))
+              .finally(() => setLoadingMore(false));
+          }}
+          ListFooterComponent={
+            loadingMore ? <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} /> : null
+          }
+          renderItem={({ item }) => (
+            <CommunityPostCard
+              post={item}
+              onLike={togglePostLike}
+              onVote={votePost}
+              onComments={setCommentPost}
+              onViewImages={(images, index) => setViewer({ visible: true, images, index })}
+              onDelete={item.author?._id === user?._id ? confirmDelete : undefined}
+            />
+          )}
+        />
+      )}
+
+      <CommunityGroupSelector
+        visible={showGroupSelector}
+        groups={selectorGroups}
+        activeGroup={activeGroup}
+        onSelect={selectGroup}
+        onClose={() => setShowGroupSelector(false)}
+      />
+
+      <CommunityComposerModal
+        visible={showComposer}
+        allowedTypes={['discussion', 'question']}
+        groups={feedComposerGroups}
+        initialGroupId={activeGroup?._id || generalGroup?._id || null}
+        initialType={activeTab === 'question' ? 'question' : 'discussion'}
+        onClose={() => setShowComposer(false)}
+        onCreated={() => loadFeed(1)}
       />
 
       <CommentsModal
-        visible={showCommentsModal}
-        postId={activePostId}
+        visible={!!activePost}
+        postId={activePost?._id || null}
         post={activePost}
-        onClose={() => setShowCommentsModal(false)}
+        onClose={() => setCommentPost(null)}
       />
 
       <ImageViewerModal
         visible={viewer.visible}
         images={viewer.images}
         initialIndex={viewer.index}
-        onClose={() => setViewer((v) => ({ ...v, visible: false }))}
+        onClose={() => setViewer((current) => ({ ...current, visible: false }))}
       />
     </View>
   );
 }
 
-
+const styles = StyleSheet.create({
+  root: { flex: 1 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+  },
+  headerTitle: { fontSize: 21, fontWeight: '800' },
+  headerSubtitle: { fontSize: 11, marginTop: 2 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  headerButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileInitial: { fontSize: 16, fontWeight: '800' },
+  notificationBadge: {
+    position: 'absolute',
+    top: 5,
+    right: 4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  notificationBadgeText: { fontSize: 8, fontWeight: '800', color: '#FFFFFF' },
+  tabs: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderRadius: 11,
+    padding: 3,
+  },
+  tab: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 8 },
+  tabText: { fontSize: 11, fontWeight: '800' },
+  groupSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 20,
+    marginTop: 12,
+    borderWidth: 1,
+    borderRadius: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  groupSelectorText: { flex: 1, fontSize: 13, fontWeight: '700' },
+  filterRow: { gap: 8, paddingHorizontal: 20, paddingTop: 14 },
+  filterChip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
+  filterText: { fontSize: 11, fontWeight: '700' },
+  composerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 20,
+    marginTop: 14,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  composerText: { flex: 1, fontSize: 13 },
+  listTitle: { fontSize: 13, fontWeight: '800', marginHorizontal: 20, marginTop: 18, marginBottom: 10 },
+  empty: { alignItems: 'center', paddingTop: 50, paddingHorizontal: 30 },
+  emptyTitle: { fontSize: 15, fontWeight: '800', marginTop: 10 },
+  emptyText: { fontSize: 12, textAlign: 'center', marginTop: 4 },
+});

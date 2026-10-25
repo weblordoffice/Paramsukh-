@@ -15,45 +15,70 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../hooks/useTheme';
-import { useCommunityStore, Group } from '@/store/communityStore';
+import { useCommunityStore, FeedPostType, Group } from '@/store/communityStore';
 
 type Props = {
   visible: boolean;
-  defaultGroupId?: string | null;
+  allowedTypes: FeedPostType[];
+  groups: Group[];
+  initialGroupId?: string | null;
+  initialType?: FeedPostType;
   onClose: () => void;
   onCreated: () => void;
 };
 
-export default function CreateMentorPostModal({ visible, defaultGroupId, onClose, onCreated }: Props) {
+const TYPE_LABELS: Record<FeedPostType, string> = {
+  discussion: 'Discussion',
+  question: 'Question',
+  mentor: 'Mentor Post',
+};
+
+export default function CommunityComposerModal({
+  visible,
+  allowedTypes,
+  groups,
+  initialGroupId,
+  initialType,
+  onClose,
+  onCreated,
+}: Props) {
   const { colors } = useTheme();
-  const mentorGroups = useCommunityStore((state) => state.mentorGroups);
-  const ownedGroups = useCommunityStore((state) => state.ownedGroups);
   const createPost = useCommunityStore((state) => state.createPost);
   const uploadMedia = useCommunityStore((state) => state.uploadMedia);
 
-  const [groupId, setGroupId] = useState<string | null>(defaultGroupId || null);
+  const usableGroups = useMemo(() => {
+    const byId = new Map<string, Group>();
+    groups.forEach((group) => {
+      if (group?._id) byId.set(group._id, group);
+    });
+    return [...byId.values()];
+  }, [groups]);
+
+  const [type, setType] = useState<FeedPostType>(initialType || allowedTypes[0] || 'discussion');
+  const [groupId, setGroupId] = useState<string | null>(initialGroupId || usableGroups[0]?._id || null);
+  const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const groups = useMemo(() => {
-    const byId = new Map<string, Group>();
-    [...ownedGroups, ...mentorGroups].forEach((group) => {
-      if (group?._id) byId.set(group._id, group);
-    });
-    return [...byId.values()];
-  }, [mentorGroups, ownedGroups]);
-
   useEffect(() => {
-    if (visible) {
-      const selectedGroup = defaultGroupId && groups.some((group) => group._id === defaultGroupId)
-        ? defaultGroupId
-        : (groups[0]?._id || null);
-      setGroupId(selectedGroup);
-      setContent('');
-      setImageUri(null);
-    }
-  }, [visible, defaultGroupId, groups]);
+    if (!visible) return;
+
+    const nextType = initialType && allowedTypes.includes(initialType)
+      ? initialType
+      : allowedTypes[0] || 'discussion';
+    const nextGroup = initialGroupId && usableGroups.some((group) => group._id === initialGroupId)
+      ? initialGroupId
+      : usableGroups[0]?._id || null;
+
+    setType(nextType);
+    setGroupId(nextGroup);
+    setTitle('');
+    setContent('');
+    setImageUri(null);
+    // Reset only when the composer is opened with its current props.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -74,7 +99,11 @@ export default function CreateMentorPostModal({ visible, defaultGroupId, onClose
 
   const submit = async () => {
     if (!groupId) {
-      Alert.alert('Choose a group', 'Select which group should receive this mentor post.');
+      Alert.alert('Choose a community', 'Select where this post should go.');
+      return;
+    }
+    if (type === 'question' && title.trim().length < 5) {
+      Alert.alert('Title required', 'Add a question title of at least 5 characters.');
       return;
     }
     if (!content.trim() && !imageUri) {
@@ -98,13 +127,16 @@ export default function CreateMentorPostModal({ visible, defaultGroupId, onClose
       groupId,
       content.trim() || 'Shared an image',
       images,
-      [],
-      { postType: 'mentor' }
+      undefined,
+      {
+        postType: type,
+        title: type === 'question' ? title.trim() : undefined,
+      }
     );
     setSaving(false);
 
     if (!success) {
-      Alert.alert('Unable to post', 'Please try again.');
+      Alert.alert('Unable to publish', 'Please try again.');
       return;
     }
 
@@ -116,21 +148,46 @@ export default function CreateMentorPostModal({ visible, defaultGroupId, onClose
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={[styles.root, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.title, { color: colors.text }]}>New Mentor Post</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Create Post</Text>
           <TouchableOpacity onPress={onClose} accessibilityLabel="Close">
             <Ionicons name="close" size={26} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          {allowedTypes.length > 1 ? (
+            <>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Post type</Text>
+              <View style={styles.segment}>
+                {allowedTypes.map((option) => {
+                  const active = type === option;
+                  return (
+                    <TouchableOpacity
+                      key={option}
+                      style={[
+                        styles.segmentButton,
+                        { backgroundColor: active ? colors.primary : colors.surface },
+                      ]}
+                      onPress={() => setType(option)}
+                    >
+                      <Text style={[styles.segmentText, { color: active ? '#FFFFFF' : colors.textSecondary }]}>
+                        {TYPE_LABELS[option]}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          ) : null}
+
           <Text style={[styles.label, { color: colors.textSecondary }]}>Post to</Text>
-          {groups.length === 0 ? (
+          {usableGroups.length === 0 ? (
             <Text style={[styles.empty, { color: colors.textSecondary }]}>
-              You are not assigned to a group yet.
+              No community is available for this post.
             </Text>
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.groupRow}>
-              {groups.map((group) => {
+              {usableGroups.map((group) => {
                 const active = groupId === group._id;
                 return (
                   <TouchableOpacity
@@ -158,11 +215,27 @@ export default function CreateMentorPostModal({ visible, defaultGroupId, onClose
             </ScrollView>
           )}
 
-          <Text style={[styles.label, { color: colors.textSecondary }]}>Message</Text>
+          {type === 'question' ? (
+            <>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>Question title</Text>
+              <TextInput
+                value={title}
+                onChangeText={setTitle}
+                placeholder="What do you need help with?"
+                placeholderTextColor={colors.textSecondary}
+                maxLength={200}
+                style={[styles.input, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.border }]}
+              />
+            </>
+          ) : null}
+
+          <Text style={[styles.label, { color: colors.textSecondary }]}>
+            {type === 'question' ? 'Details' : 'Message'}
+          </Text>
           <TextInput
             value={content}
             onChangeText={setContent}
-            placeholder="Share guidance with your members..."
+            placeholder={type === 'mentor' ? 'Share guidance with your members...' : 'Write something...'}
             placeholderTextColor={colors.textSecondary}
             multiline
             style={[
@@ -192,9 +265,9 @@ export default function CreateMentorPostModal({ visible, defaultGroupId, onClose
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+            style={[styles.publishButton, { backgroundColor: colors.primary }]}
             onPress={submit}
-            disabled={saving || groups.length === 0}
+            disabled={saving || usableGroups.length === 0}
             activeOpacity={0.8}
           >
             {saving ? (
@@ -202,7 +275,7 @@ export default function CreateMentorPostModal({ visible, defaultGroupId, onClose
             ) : (
               <>
                 <Ionicons name="send" size={16} color="#FFFFFF" />
-                <Text style={styles.primaryButtonText}>Publish Mentor Post</Text>
+                <Text style={styles.publishText}>Publish {TYPE_LABELS[type]}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -222,26 +295,36 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomWidth: 1,
   },
-  title: { fontSize: 19, fontWeight: '800' },
+  headerTitle: { fontSize: 19, fontWeight: '800' },
   content: { padding: 20, paddingBottom: 50 },
   label: { fontSize: 12, fontWeight: '700', marginBottom: 8, marginTop: 14 },
-  empty: { fontSize: 13, lineHeight: 19 },
+  segment: { flexDirection: 'row', gap: 6 },
+  segmentButton: { flex: 1, alignItems: 'center', borderRadius: 9, paddingVertical: 9 },
+  segmentText: { fontSize: 12, fontWeight: '700' },
+  empty: { fontSize: 12, lineHeight: 18 },
   groupRow: { gap: 8, paddingBottom: 4 },
   groupChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderRadius: 20,
+    borderRadius: 18,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 7,
     maxWidth: 220,
   },
-  groupChipText: { fontSize: 12, fontWeight: '700', maxWidth: 180 },
+  groupChipText: { fontSize: 11, fontWeight: '700', maxWidth: 175 },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 11,
+    fontSize: 14,
+  },
   contentInput: {
     borderWidth: 1,
     borderRadius: 12,
-    minHeight: 150,
+    minHeight: 140,
     padding: 14,
     fontSize: 15,
     textAlignVertical: 'top',
@@ -270,7 +353,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   attachText: { fontSize: 13, fontWeight: '700' },
-  primaryButton: {
+  publishButton: {
     marginTop: 24,
     borderRadius: 12,
     paddingVertical: 14,
@@ -279,5 +362,5 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
-  primaryButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
+  publishText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
 });
