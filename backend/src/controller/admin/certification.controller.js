@@ -4,6 +4,8 @@ import { CourseAssessment } from '../../models/courseAssessment.models.js';
 import { AssessmentAttempt } from '../../models/assessmentAttempt.models.js';
 import { VivaApplication } from '../../models/vivaApplication.models.js';
 import { Certificate } from '../../models/certificate.models.js';
+import Notification from '../../models/notification.models.js';
+import { sendPushToUser } from '../../services/pushService.js';
 import {
   getAssessmentMetaForAdmin,
   gradeAssessmentAttemptManually,
@@ -330,6 +332,82 @@ export const getAdminVivaApplication = async (req, res) => {
   }
 };
 
+const notifyVivaUser = async (application, status, payload = {}) => {
+  try {
+    const course = await Course.findById(application.course).select('title').lean();
+    const courseId = String(application.course);
+    const courseTitle = course?.title || 'your course';
+    const actionUrl = `/course-assessment?courseId=${courseId}&courseTitle=${encodeURIComponent(courseTitle)}`;
+    const when = application.scheduledAt
+      ? new Date(application.scheduledAt).toLocaleString('en-IN', {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+          timeZone: 'Asia/Kolkata',
+        })
+      : '';
+
+    let type = 'viva_completed';
+    let title = 'Viva update';
+    let message = 'Your viva status has been updated.';
+
+    if (status === 'scheduled') {
+      type = 'viva_scheduled';
+      title = 'Viva scheduled';
+      message = `Your viva for ${courseTitle} is scheduled for ${when}.`;
+      if (application.meetingLink) {
+        message += ` Join: ${application.meetingLink}`;
+      }
+    } else if (status === 'cancelled') {
+      type = 'viva_cancelled';
+      title = 'Viva cancelled';
+      message = `Your viva for ${courseTitle} was cancelled.`;
+      if (payload.note || payload.notes) {
+        message += ` ${String(payload.note || payload.notes).trim()}`;
+      }
+    } else if (status === 'no_show') {
+      type = 'viva_no_show';
+      title = 'Viva missed';
+      message = `You missed your scheduled viva for ${courseTitle}. You can request another viva from the assessment page.`;
+    } else if (status === 'completed') {
+      type = 'viva_completed';
+      title = 'Viva completed';
+      message = `Your viva for ${courseTitle} is completed. The result will be shared soon.`;
+    } else if (status === 'passed') {
+      type = 'viva_result';
+      title = 'Viva passed';
+      message = `You passed the viva for ${courseTitle}. Your assessment certificate can now be issued.`;
+    } else if (status === 'failed') {
+      type = 'viva_result';
+      title = 'Viva result';
+      message = `You did not pass the viva for ${courseTitle}. You can request another viva from the assessment page.`;
+    } else {
+      return;
+    }
+
+    await Notification.createNotification({
+      user: application.user,
+      type,
+      title,
+      message,
+      relatedId: application._id,
+      relatedType: 'course',
+      actionUrl,
+      icon: '🎥',
+    });
+    await sendPushToUser(application.user, {
+      title,
+      body: message,
+      data: {
+        type,
+        actionUrl,
+        relatedId: String(application._id),
+      },
+    });
+  } catch (error) {
+    console.error('Viva notification failed:', error?.message);
+  }
+};
+
 export const updateAdminVivaStatus = async (req, res) => {
   try {
     const application = await transitionVivaApplication({
@@ -338,6 +416,8 @@ export const updateAdminVivaStatus = async (req, res) => {
       adminId: req.admin?._id || null,
       payload: req.body || {},
     });
+
+    await notifyVivaUser(application, req.body?.status, req.body || {});
 
     return res.status(200).json({
       success: true,

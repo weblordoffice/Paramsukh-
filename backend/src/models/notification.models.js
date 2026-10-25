@@ -32,6 +32,12 @@ const notificationSchema = new mongoose.Schema({
       'mentor_question',
       'mentor_assigned',
       'mentor_group_added',
+      'viva_scheduled',
+      'viva_reminder',
+      'viva_completed',
+      'viva_result',
+      'viva_cancelled',
+      'viva_no_show',
       // Counseling notifications
       'counseling_booked',
       'counseling_reminder',

@@ -52,6 +52,7 @@ import { setupOrderCrons } from './services/orderCron.service.js';
 import { setupReferralCrons } from './services/referralCron.service.js';
 import { setupLiveSessionCrons } from './services/liveSessionReminder.service.js';
 import { setupEventReminderCrons } from './services/eventReminder.service.js';
+import { setupVivaReminderCrons } from './services/vivaReminder.service.js';
 import { setupEventCrons } from './services/eventCron.service.js';
 import { setupCouponCrons } from './services/couponCron.service.js';
 import { setupNotificationAutomationCrons } from './services/notificationAutomation.service.js';
@@ -454,6 +455,9 @@ setupLiveSessionCrons();
 
 // Setup event registration reminders (24h + 1h before start)
 setupEventReminderCrons();
+
+// Setup viva reminders (24h + 1h before the scheduled slot)
+setupVivaReminderCrons();
 
 // Setup event cleanup (abandoned registrations) and status refresh
 setupEventCrons();

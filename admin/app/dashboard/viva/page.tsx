@@ -29,6 +29,7 @@ const statusStyles: Record<string, string> = {
     passed: 'bg-green-100 text-green-700',
     failed: 'bg-red-100 text-red-700',
     cancelled: 'bg-gray-100 text-gray-600',
+    no_show: 'bg-amber-100 text-amber-700',
 };
 
 const nextActions: Record<string, Array<{ status: string; label: string }>> = {
@@ -42,6 +43,11 @@ const nextActions: Record<string, Array<{ status: string; label: string }>> = {
     ],
     scheduled: [
         { status: 'completed', label: 'Mark Completed' },
+        { status: 'no_show', label: 'Mark No Show' },
+        { status: 'cancelled', label: 'Cancel' },
+    ],
+    no_show: [
+        { status: 'scheduled', label: 'Reschedule Viva' },
         { status: 'cancelled', label: 'Cancel' },
     ],
     completed: [
@@ -204,6 +210,7 @@ export default function VivaApplicationsPage() {
                         <option value="passed">Passed</option>
                         <option value="failed">Failed</option>
                         <option value="cancelled">Cancelled</option>
+                        <option value="no_show">No show</option>
                     </select>
                     <button
                         onClick={fetchApplications}
@@ -347,7 +354,7 @@ export default function VivaApplicationsPage() {
                                     </div>
                                 )}
 
-                                {selected.status === 'under_review' && (
+                                {(selected.status === 'under_review' || selected.status === 'no_show') && (
                                     <div className="space-y-3 rounded-lg border p-4">
                                         <p className="flex items-center gap-2 text-sm font-semibold text-gray-900">
                                             <CalendarClock size={16} /> Schedule viva
@@ -430,6 +437,15 @@ export default function VivaApplicationsPage() {
                                                 Join meeting link
                                             </a>
                                         )}
+                                    </div>
+                                )}
+
+                                {selected.status === 'no_show' && (
+                                    <div className="rounded-lg border bg-amber-50 p-3 text-sm">
+                                        <p className="font-medium text-amber-800">Marked as no-show</p>
+                                        <p className="text-amber-700">
+                                            The learner missed the scheduled viva. You can reschedule it or cancel it.
+                                        </p>
                                     </div>
                                 )}
 

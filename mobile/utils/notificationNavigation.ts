@@ -36,6 +36,7 @@ const KNOWN_PATHS = new Set([
   '/event-detail',
   '/event-media',
   '/course-detail',
+  '/course-assessment',
   '/counseling',
   '/counseling-detail',
   '/book-counseling',

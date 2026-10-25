@@ -16,8 +16,11 @@ import { Assignment } from '../models/course.models.js';
 import { Enrollment } from '../models/enrollment.models.js';
 import { CourseAssessment } from '../models/courseAssessment.models.js';
 import { Certificate } from '../models/certificate.models.js';
+import { VivaApplication } from '../models/vivaApplication.models.js';
+import Notification from '../models/notification.models.js';
 import { MembershipPlan } from '../models/membershipPlan.models.js';
 import { upsertActiveUserMembership } from '../services/userMembership.service.js';
+import { sendVivaReminders } from '../services/vivaReminder.service.js';
 
 setupDB();
 
@@ -371,6 +374,55 @@ describe('Certification Phase 2 API', () => {
         });
       expect(scheduled.status).toBe(200);
 
+      const scheduledNotice = await Notification.findOne({
+        user: user._id,
+        type: 'viva_scheduled',
+      }).lean();
+      expect(scheduledNotice).toBeTruthy();
+      expect(scheduledNotice.actionUrl).toContain('/course-assessment');
+
+      const noShow = await request(app)
+        .patch(`/api/admin/viva-applications/${vivaId}/status`)
+        .set(adminAuth(admin))
+        .send({ status: 'no_show' });
+      expect(noShow.status).toBe(200);
+      expect(noShow.body.application.status).toBe('no_show');
+
+      expect(await Notification.countDocuments({
+        user: user._id,
+        type: 'viva_no_show',
+      })).toBe(1);
+
+      const reapplyStatus = await request(app)
+        .get(`/api/courses/${course._id}/viva`)
+        .set(userAuth(user));
+      expect(reapplyStatus.body.canApply).toBe(true);
+
+      const reapplied = await request(app)
+        .post(`/api/courses/${course._id}/viva/apply`)
+        .set(userAuth(user))
+        .send({ note: 'Missed the first slot, please reschedule.' });
+      expect(reapplied.status).toBe(201);
+      expect(reapplied.body.application.status).toBe('applied');
+      expect(reapplied.body.application.scheduledAt).toBeNull();
+
+      const underReviewAgain = await request(app)
+        .patch(`/api/admin/viva-applications/${vivaId}/status`)
+        .set(adminAuth(admin))
+        .send({ status: 'under_review' });
+      expect(underReviewAgain.status).toBe(200);
+
+      const rescheduled = await request(app)
+        .patch(`/api/admin/viva-applications/${vivaId}/status`)
+        .set(adminAuth(admin))
+        .send({
+          status: 'scheduled',
+          scheduledAt: new Date(Date.now() + 2 * 86400000).toISOString(),
+          meetingPlatform: 'Zoom',
+          meetingLink: 'https://zoom.us/j/987654321',
+        });
+      expect(rescheduled.status).toBe(200);
+
       const completed = await request(app)
         .patch(`/api/admin/viva-applications/${vivaId}/status`)
         .set(adminAuth(admin))
@@ -428,6 +480,42 @@ describe('Certification Phase 2 API', () => {
       expect(view.status).toBe(200);
       expect(view.text).toContain('Course Assessment Certificate');
       expect(view.text).toContain(user.displayName);
+    });
+
+    it('sends viva reminders once before the scheduled slot', async () => {
+      const hourViva = await VivaApplication.create({
+        user: user._id,
+        course: course._id,
+        assessmentAttempt: oid(),
+        status: 'scheduled',
+        scheduledAt: new Date(Date.now() + 30 * 60 * 1000),
+        meetingPlatform: 'Zoom',
+        meetingLink: 'https://zoom.us/j/111111111',
+      });
+      const dayViva = await VivaApplication.create({
+        user: user._id,
+        course: course._id,
+        assessmentAttempt: oid(),
+        status: 'scheduled',
+        scheduledAt: new Date(Date.now() + 12 * 60 * 60 * 1000),
+        meetingPlatform: 'Google Meet',
+        meetingLink: 'https://meet.google.com/abc-defg-hij',
+      });
+
+      const firstRun = await sendVivaReminders();
+      expect(firstRun.sent).toBe(2);
+      expect(await Notification.countDocuments({
+        user: user._id,
+        type: 'viva_reminder',
+      })).toBe(2);
+
+      const refreshedHour = await VivaApplication.findById(hourViva._id).lean();
+      const refreshedDay = await VivaApplication.findById(dayViva._id).lean();
+      expect(refreshedHour.reminder1SentAt).toBeTruthy();
+      expect(refreshedDay.reminder24SentAt).toBeTruthy();
+
+      const secondRun = await sendVivaReminders();
+      expect(secondRun.sent).toBe(0);
     });
 
     it('issues a membership certificate after a verified membership purchase', async () => {

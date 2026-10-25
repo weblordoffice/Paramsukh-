@@ -6,11 +6,12 @@ const ACTIVE_VIVA_STATUSES = ['applied', 'under_review', 'scheduled', 'completed
 const ALLOWED_TRANSITIONS = {
   applied: ['under_review', 'cancelled'],
   under_review: ['scheduled', 'cancelled'],
-  scheduled: ['completed', 'cancelled'],
+  scheduled: ['completed', 'cancelled', 'no_show'],
   completed: ['passed', 'failed'],
   passed: [],
   failed: [],
   cancelled: ['applied'],
+  no_show: ['scheduled', 'applied', 'cancelled'],
 };
 
 const buildHistoryEntry = ({ from, to, actorId, actorType = 'admin', note = '' }) => ({
@@ -62,8 +63,8 @@ export const canApplyForViva = async (userId, courseId) => {
 
   if (existing && existing.status === 'failed') {
     return {
-      canApply: false,
-      reason: 'This viva attempt was failed. A new passing assessment attempt is required to apply again.',
+      canApply: true,
+      reason: null,
       attempt,
       application: existing,
     };
@@ -86,7 +87,7 @@ export const applyForViva = async (userId, courseId, note = '') => {
   }
 
   try {
-    if (eligibility.application?.status === 'cancelled') {
+    if (['cancelled', 'no_show', 'failed'].includes(eligibility.application?.status)) {
       const revived = await VivaApplication.findByIdAndUpdate(
         eligibility.application._id,
         {
@@ -94,10 +95,24 @@ export const applyForViva = async (userId, courseId, note = '') => {
             status: 'applied',
             appliedAt: new Date(),
             notes: String(note || '').trim(),
+            scheduledAt: null,
+            completedAt: null,
+            noShowAt: null,
+            meetingPlatform: '',
+            meetingLink: '',
+            examiner: null,
+            certificate: null,
+            reminder24SentAt: null,
+            reminder1SentAt: null,
+            'result.status': null,
+            'result.remarks': '',
+            'result.feedback': '',
+            'result.recordedBy': null,
+            'result.recordedAt': null,
           },
           $push: {
             statusHistory: buildHistoryEntry({
-              from: 'cancelled',
+              from: eligibility.application.status,
               to: 'applied',
               actorId: userId,
               actorType: 'user',
@@ -173,6 +188,9 @@ export const transitionVivaApplication = async ({
     viva.meetingLink = String(payload.meetingLink || '').trim();
     viva.notes = String(payload.notes || viva.notes || '').trim();
     viva.examiner = payload.examiner || adminId || null;
+    viva.noShowAt = null;
+    viva.reminder24SentAt = null;
+    viva.reminder1SentAt = null;
   }
 
   if (nextStatus === 'under_review') {
@@ -183,6 +201,13 @@ export const transitionVivaApplication = async ({
     viva.completedAt = new Date();
     if (payload.notes !== undefined) {
       viva.notes = String(payload.notes || '').trim();
+    }
+  }
+
+  if (nextStatus === 'no_show') {
+    viva.noShowAt = new Date();
+    if (payload.notes !== undefined || payload.note !== undefined) {
+      viva.notes = String(payload.notes || payload.note || '').trim();
     }
   }
 

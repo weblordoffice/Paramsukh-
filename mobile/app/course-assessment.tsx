@@ -557,7 +557,7 @@ export default function CourseAssessmentScreen() {
             {application.scheduledAt ? (
               <Text style={styles.bodyText}>Scheduled: {formatDate(application.scheduledAt)}</Text>
             ) : null}
-            {application.meetingLink ? (
+            {application.meetingLink && application.status === 'scheduled' ? (
               <TouchableOpacity
                 style={styles.vivaLink}
                 onPress={() => openVivaLink(application.meetingLink!)}
@@ -570,11 +570,44 @@ export default function CourseAssessmentScreen() {
                 </View>
                 <Ionicons name="open-outline" size={16} color={colors.primary} />
               </TouchableOpacity>
-            ) : application.meetingPlatform ? (
+            ) : application.meetingPlatform && application.status === 'scheduled' ? (
               <Text style={styles.bodyText}>{application.meetingPlatform}</Text>
             ) : null}
             {application.result?.remarks ? (
               <Text style={styles.bodyText}>Remarks: {application.result.remarks}</Text>
+            ) : null}
+            {viva.canApply ? (
+              <>
+                <Text style={[styles.bodyText, { marginTop: 10 }]}>
+                  {application.status === 'no_show'
+                    ? 'You missed the previous viva. You can request another one.'
+                    : application.status === 'failed'
+                      ? 'You can request another viva.'
+                      : 'You can request the viva again.'}
+                </Text>
+                <TextInput
+                  value={vivaNote}
+                  onChangeText={setVivaNote}
+                  placeholder="Anything the examiner should know? (optional)"
+                  placeholderTextColor={colors.textSecondary}
+                  multiline
+                  style={[styles.input, { marginTop: 10, minHeight: 60, textAlignVertical: 'top' }]}
+                />
+                <TouchableOpacity
+                  style={[styles.primaryBtn, vivaSubmitting && styles.disabledBtn]}
+                  onPress={applyForViva}
+                  disabled={vivaSubmitting}
+                >
+                  {vivaSubmitting ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="mic-outline" size={18} color="#FFFFFF" />
+                      <Text style={styles.primaryBtnText}>Request Viva Again</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
             ) : null}
           </>
         ) : viva.canApply ? (

@@ -57,7 +57,8 @@ const vivaApplicationSchema = new mongoose.Schema({
       'completed',
       'passed',
       'failed',
-      'cancelled'
+      'cancelled',
+      'no_show'
     ],
     default: 'applied',
     index: true
@@ -78,6 +79,10 @@ const vivaApplicationSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  noShowAt: {
+    type: Date,
+    default: null
+  },
   meetingPlatform: {
     type: String,
     default: ''
@@ -93,6 +98,14 @@ const vivaApplicationSchema = new mongoose.Schema({
   examiner: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Admin',
+    default: null
+  },
+  reminder24SentAt: {
+    type: Date,
+    default: null
+  },
+  reminder1SentAt: {
+    type: Date,
     default: null
   },
   result: {
