@@ -14,6 +14,7 @@ import ReferralConfig from '../../models/referralConfig.models.js';
 import { User } from '../../models/user.models.js';
 import { logPaymentAudit } from '../../services/paymentAudit.service.js';
 import { generateOrderInvoicePdf } from '../../services/invoicePdf.service.js';
+import { recalculateCartTotals } from '../cart/cart.controller.js';
 
 
 // @desc    Create order from cart
@@ -32,6 +33,10 @@ export const createOrder = async (req, res) => {
     if (!cart || cart.items.length === 0) {
       return res.status(400).json({ success: false, message: 'Cart is empty' });
     }
+
+    // Re-price at checkout so the current GST setting and offer/coupon rules apply.
+    await recalculateCartTotals(cart);
+    await cart.save();
 
     // Validate coupon code if attached to the cart
     let dbCoupon = null;

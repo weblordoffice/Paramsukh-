@@ -132,6 +132,10 @@ const cartSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  taxEnabled: {
+    type: Boolean,
+    default: true
+  },
   total: {
     type: Number,
     default: 0
@@ -145,7 +149,7 @@ const cartSchema = new mongoose.Schema({
 });
 
 // Update cart totals. Coupons take precedence over automatic offers.
-cartSchema.methods.calculateTotals = function(coupon = null, offer = null) {
+cartSchema.methods.calculateTotals = function(coupon = null, offer = null, options = {}) {
   this.subtotal = this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
   let discount = 0;
@@ -178,11 +182,18 @@ cartSchema.methods.calculateTotals = function(coupon = null, offer = null) {
 
   this.discount = Math.min(discount, this.subtotal);
 
+  const taxEnabled = options.taxEnabled !== undefined
+    ? options.taxEnabled !== false
+    : this.taxEnabled !== false;
+  this.taxEnabled = taxEnabled;
+
   // Calculate tax per-item using each product's taxRate
-  this.tax = Math.round(this.items.reduce((sum, item) => {
-    const itemNet = Math.max(0, (item.price * item.quantity) - (this.discount || 0) * (item.price * item.quantity / Math.max(1, this.subtotal)));
-    return sum + (itemNet * ((item.taxRate ?? 18) / 100));
-  }, 0) * 100) / 100;
+  this.tax = taxEnabled
+    ? Math.round(this.items.reduce((sum, item) => {
+        const itemNet = Math.max(0, (item.price * item.quantity) - (this.discount || 0) * (item.price * item.quantity / Math.max(1, this.subtotal)));
+        return sum + (itemNet * ((item.taxRate ?? 18) / 100));
+      }, 0) * 100) / 100
+    : 0;
 
   this.total = this.subtotal - this.discount + this.shippingCharge + this.tax;
   this.lastUpdated = Date.now();

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
-import { Settings, UserPlus, Edit, Trash2, Mail, Shield, Search, Video, Upload } from 'lucide-react';
+import { Settings, UserPlus, Edit, Trash2, Mail, Shield, Search, Video, Upload, Receipt } from 'lucide-react';
 import { useAuthStore } from '@/lib/store/authStore';
 import AdminModal, { type AdminUser } from './AdminModal';
 
@@ -21,6 +21,8 @@ export default function SettingsPage() {
     const [welcomeVideoUrl, setWelcomeVideoUrl] = useState('');
     const [savingVideo, setSavingVideo] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [gstEnabled, setGstEnabled] = useState(true);
+    const [savingGst, setSavingGst] = useState(false);
 
     const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -96,6 +98,17 @@ export default function SettingsPage() {
         }
     }, []);
 
+    const fetchGstSetting = useCallback(async () => {
+        try {
+            const response = await apiClient.get('/api/config/shop-gst');
+            if (response.data?.success) {
+                setGstEnabled(response.data.enabled !== false);
+            }
+        } catch (error) {
+            console.error('Failed to load shop GST setting:', error);
+        }
+    }, []);
+
     useEffect(() => {
         if (!isSuperAdmin) {
             router.replace('/dashboard');
@@ -103,7 +116,8 @@ export default function SettingsPage() {
         }
         fetchAdmins();
         fetchWelcomeVideo();
-    }, [isSuperAdmin, router, fetchAdmins, fetchWelcomeVideo]);
+        fetchGstSetting();
+    }, [isSuperAdmin, router, fetchAdmins, fetchWelcomeVideo, fetchGstSetting]);
 
     const handleSaveWelcomeVideo = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -126,6 +140,23 @@ export default function SettingsPage() {
             toast.error(err.response?.data?.message || 'Failed to update welcome video');
         } finally {
             setSavingVideo(false);
+        }
+    };
+
+    const handleSaveGst = async () => {
+        setSavingGst(true);
+        try {
+            const response = await apiClient.post('/api/config/shop-gst', { enabled: gstEnabled });
+            if (response.data?.success) {
+                toast.success(`Shop GST ${response.data.enabled ? 'enabled' : 'disabled'}`);
+            } else {
+                toast.error(response.data?.message || 'Failed to update GST setting');
+            }
+        } catch (error: unknown) {
+            const err = error as { response?: { data?: { message?: string } } };
+            toast.error(err.response?.data?.message || 'Failed to update GST setting');
+        } finally {
+            setSavingGst(false);
         }
     };
 
@@ -386,6 +417,39 @@ export default function SettingsPage() {
                         </button>
                     </div>
                 </form>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-md p-6 mt-8">
+                <div className="flex items-center gap-2 border-b border-gray-100 pb-4 mb-4">
+                    <Receipt className="w-6 h-6 text-primary" />
+                    <h2 className="text-xl font-bold text-secondary">Shop GST</h2>
+                </div>
+                <div className="space-y-4 max-w-2xl">
+                    <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={gstEnabled}
+                            onChange={(e) => setGstEnabled(e.target.checked)}
+                            className="mt-1 h-5 w-5 rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <span>
+                            <span className="block text-sm font-semibold text-secondary">Add GST to shop orders</span>
+                            <span className="block text-xs text-accent mt-1">
+                                When disabled, cart and order totals use subtotal minus discount without adding GST.
+                            </span>
+                        </span>
+                    </label>
+                    <div className="flex justify-end border-t border-gray-100 pt-4">
+                        <button
+                            type="button"
+                            onClick={handleSaveGst}
+                            disabled={savingGst}
+                            className="px-6 py-3 bg-primary hover:bg-primary-dark text-white rounded-lg transition duration-200 font-medium disabled:opacity-50 shadow-md shadow-primary/30"
+                        >
+                            {savingGst ? 'Saving...' : 'Save GST Setting'}
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <AdminModal

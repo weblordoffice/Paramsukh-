@@ -2,6 +2,7 @@ import Cart from '../../models/cart.models.js';
 import Product from '../../models/product.models.js';
 import Coupon from '../../models/coupon.models.js';
 import { Offer } from '../../models/offer.models.js';
+import { isShopGstEnabled } from '../config/config.controller.js';
 
 /**
  * Calculates the subtotal of items in the cart that match a coupon/offer restriction.
@@ -100,6 +101,9 @@ export const recalculateCartTotals = async (cart) => {
     select: 'name images pricing inventory shop category'
   });
 
+  const taxEnabled = await isShopGstEnabled();
+  cart.taxEnabled = taxEnabled;
+
   if (cart.coupon && cart.coupon.code) {
     const now = new Date();
     const coupon = await Coupon.findOne({
@@ -116,14 +120,14 @@ export const recalculateCartTotals = async (cart) => {
       }],
     });
     if (coupon) {
-      cart.calculateTotals(coupon);
+      cart.calculateTotals(coupon, null, { taxEnabled });
       return cart;
     }
     cart.coupon = undefined;
   }
 
   const bestOffer = await findBestOfferForCart(cart);
-  cart.calculateTotals(null, bestOffer);
+  cart.calculateTotals(null, bestOffer, { taxEnabled });
   return cart;
 };
 
@@ -413,7 +417,7 @@ export const applyCoupon = async (req, res) => {
       });
     }
 
-    cart.calculateTotals(coupon);
+    cart.calculateTotals(coupon, null, { taxEnabled: await isShopGstEnabled() });
     await cart.save();
 
     res.status(200).json({

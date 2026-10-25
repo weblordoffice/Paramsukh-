@@ -10,6 +10,7 @@ import Cart from '../models/cart.models.js';
 import Coupon from '../models/coupon.models.js';
 import { Offer } from '../models/offer.models.js';
 import { MembershipPlan } from '../models/membershipPlan.models.js';
+import { AppConfig } from '../models/appConfig.models.js';
 import {
   createTestUser,
   generateUserToken,
@@ -39,6 +40,7 @@ describe('Shop promotions - offers and coupon restrictions', () => {
     await Cart.deleteMany({});
     await Coupon.deleteMany({});
     await Offer.deleteMany({});
+    await AppConfig.deleteMany({ key: 'shop_gst_enabled' });
 
     await MembershipPlan.findOneAndUpdate(
       { slug: 'gold' },
@@ -164,6 +166,44 @@ describe('Shop promotions - offers and coupon restrictions', () => {
       .delete(`/api/admin/offers/${offerRes.body.offer._id}`)
       .set(getAdminApiKeyHeader());
     expect(removed.status).toBe(200);
+  });
+
+  it('should allow GST to be disabled globally', async () => {
+    await AppConfig.create({ key: 'shop_gst_enabled', value: false });
+
+    await request(app)
+      .post('/api/cart/add')
+      .set(getAuthHeader(token))
+      .send({ productId: product._id, quantity: 1 });
+
+    const cartRes = await request(app)
+      .get('/api/cart')
+      .set(getAuthHeader(token));
+
+    expect(cartRes.status).toBe(200);
+    expect(cartRes.body.data.cart.tax).toBe(0);
+    expect(cartRes.body.data.cart.total).toBe(400);
+
+    await Coupon.create({
+      code: 'TENOFF',
+      description: '10% off',
+      discountType: 'percentage',
+      discountValue: 10,
+      applicableOn: 'all',
+      startDate: new Date(Date.now() - 3600000),
+      endDate: new Date(Date.now() + 86400000),
+      isActive: true,
+    });
+
+    const couponRes = await request(app)
+      .post('/api/cart/apply-coupon')
+      .set(getAuthHeader(token))
+      .send({ code: 'TENOFF' });
+
+    expect(couponRes.status).toBe(200);
+    expect(couponRes.body.data.cart.discount).toBe(40);
+    expect(couponRes.body.data.cart.tax).toBe(0);
+    expect(couponRes.body.data.cart.total).toBe(360);
   });
 
   it('should not apply expired offers', async () => {

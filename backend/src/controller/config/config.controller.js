@@ -66,6 +66,70 @@ export const setWelcomeVideo = async (req, res) => {
   }
 };
 
+const SHOP_GST_CONFIG_KEY = 'shop_gst_enabled';
+
+export const isShopGstEnabled = async () => {
+  const config = await AppConfig.findOne({ key: SHOP_GST_CONFIG_KEY }).lean();
+  return config ? config.value !== false : true;
+};
+
+/**
+ * Retrieve the shop GST switch (Admin only).
+ * GET /api/config/shop-gst
+ */
+export const getShopGst = async (req, res) => {
+  try {
+    const enabled = await isShopGstEnabled();
+    return res.status(200).json({ success: true, enabled });
+  } catch (error) {
+    console.error('❌ Error retrieving shop GST setting:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve shop GST setting',
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Enable or disable GST on shop orders (Admin only).
+ * POST /api/config/shop-gst
+ */
+export const setShopGst = async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    if (typeof enabled !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'enabled must be a boolean',
+      });
+    }
+
+    const updatedConfig = await AppConfig.findOneAndUpdate(
+      { key: SHOP_GST_CONFIG_KEY },
+      {
+        key: SHOP_GST_CONFIG_KEY,
+        value: enabled,
+        description: 'Whether GST is added to shop cart and order totals',
+      },
+      { upsert: true, new: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Shop GST ${enabled ? 'enabled' : 'disabled'}`,
+      enabled: updatedConfig.value !== false,
+    });
+  } catch (error) {
+    console.error('❌ Error updating shop GST setting:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to update shop GST setting',
+      error: error.message,
+    });
+  }
+};
+
 export const DEFAULT_RECOMMENDATION_MAPPING = {
   physicalIssue: {
     category: 'physical',
