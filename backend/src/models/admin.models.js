@@ -32,6 +32,7 @@ const adminSchema = new mongoose.Schema({
             'manage_courses',
             'manage_events',
             'manage_community',
+            'manage_mentor_groups',
             'manage_shop',
             'manage_orders',
             'manage_content', // videos, pdfs

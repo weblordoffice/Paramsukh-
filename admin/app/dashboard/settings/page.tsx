@@ -203,6 +203,7 @@ export default function SettingsPage() {
             manage_courses: 'Courses',
             manage_events: 'Events',
             manage_community: 'Community',
+            manage_mentor_groups: 'Mentor Groups',
             manage_shop: 'Shop',
             manage_orders: 'Orders',
             manage_content: 'Content',

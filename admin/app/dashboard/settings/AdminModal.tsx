@@ -10,6 +10,7 @@ const PERMISSION_OPTIONS: { value: string; label: string }[] = [
     { value: 'manage_courses', label: 'Manage Courses' },
     { value: 'manage_events', label: 'Manage Events' },
     { value: 'manage_community', label: 'Manage Community' },
+    { value: 'manage_mentor_groups', label: 'Manage Mentor Groups' },
     { value: 'manage_shop', label: 'Manage Shop' },
     { value: 'manage_orders', label: 'Manage Orders' },
     { value: 'manage_content', label: 'Manage Content (Videos, PDFs)' },

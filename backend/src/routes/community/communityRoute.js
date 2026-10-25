@@ -30,6 +30,20 @@ import {
   deleteComment
 } from '../../controller/community/community.controller.js';
 import { getAllPosts, deletePostAdmin, togglePinPost, toggleBlockPost, setUserPostingBlock, createPostAdmin, getAdminGroups, getPostCommentsAdmin, deleteCommentAdmin, getGeneralGroup, updateGeneralGroup, resolveQuestionAdmin, acceptAnswerAdmin, getAdminMentors, createMentorAdmin, updateMentorAdmin, deactivateMentorAdmin } from '../../controller/community/admin.community.controller.js';
+import {
+  listMentorGroupsAdmin,
+  createMentorGroupAdmin,
+  getMentorGroupAdmin,
+  updateMentorGroupAdmin,
+  archiveMentorGroupAdmin,
+  listMentorOwnerOptions,
+  listMentorGroupCommunities,
+  searchMentorGroupUsers,
+  getMentorGroupMembersAdmin,
+  addMentorGroupMembersAdmin,
+  removeMentorGroupMemberAdmin,
+  detachMentorGroupCommunityAdmin,
+} from '../../controller/community/admin.mentorGroups.controller.js';
 import { runScheduledCleanup } from '../../controller/community/communityCleanup.controller.js';
 
 const router = express.Router();
@@ -51,6 +65,20 @@ router.get('/admin/mentors', adminAuth, requirePermission('manage_community'), g
 router.post('/admin/mentors', adminAuth, requirePermission('manage_community'), createMentorAdmin);
 router.patch('/admin/mentors/:mentorId', adminAuth, requirePermission('manage_community'), validateMongoIdParams('mentorId'), updateMentorAdmin);
 router.delete('/admin/mentors/:mentorId', adminAuth, requirePermission('manage_community'), validateMongoIdParams('mentorId'), deactivateMentorAdmin);
+
+// Mentor Groups (admin management)
+router.get('/admin/mentor-groups', adminAuth, requirePermission('manage_mentor_groups'), listMentorGroupsAdmin);
+router.post('/admin/mentor-groups', adminAuth, requirePermission('manage_mentor_groups'), createMentorGroupAdmin);
+router.get('/admin/mentor-groups/mentors', adminAuth, requirePermission('manage_mentor_groups'), listMentorOwnerOptions);
+router.get('/admin/mentor-groups/communities', adminAuth, requirePermission('manage_mentor_groups'), listMentorGroupCommunities);
+router.get('/admin/mentor-groups/user-candidates', adminAuth, requirePermission('manage_mentor_groups'), searchMentorGroupUsers);
+router.get('/admin/mentor-groups/:groupId', adminAuth, requirePermission('manage_mentor_groups'), validateMongoIdParams('groupId'), getMentorGroupAdmin);
+router.patch('/admin/mentor-groups/:groupId', adminAuth, requirePermission('manage_mentor_groups'), validateMongoIdParams('groupId'), updateMentorGroupAdmin);
+router.delete('/admin/mentor-groups/:groupId', adminAuth, requirePermission('manage_mentor_groups'), validateMongoIdParams('groupId'), archiveMentorGroupAdmin);
+router.get('/admin/mentor-groups/:groupId/members', adminAuth, requirePermission('manage_mentor_groups'), validateMongoIdParams('groupId'), getMentorGroupMembersAdmin);
+router.post('/admin/mentor-groups/:groupId/members', adminAuth, requirePermission('manage_mentor_groups'), validateMongoIdParams('groupId'), addMentorGroupMembersAdmin);
+router.delete('/admin/mentor-groups/:groupId/members/:userId', adminAuth, requirePermission('manage_mentor_groups'), validateMongoIdParams('groupId'), validateMongoIdParams('userId'), removeMentorGroupMemberAdmin);
+router.delete('/admin/mentor-groups/:groupId/linked-groups/:communityId', adminAuth, requirePermission('manage_mentor_groups'), validateMongoIdParams('groupId'), validateMongoIdParams('communityId'), detachMentorGroupCommunityAdmin);
 router.delete('/comments/:commentId/admin', adminAuth, requirePermission('manage_community'), validateMongoIdParams('commentId'), deleteCommentAdmin);
 router.get('/admin/cleanup-expired', adminAuth, requirePermission('manage_community'), runScheduledCleanup);  // Scheduled cleanup endpoint
 
