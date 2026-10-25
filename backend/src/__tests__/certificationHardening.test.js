@@ -84,6 +84,14 @@ const correctAnswers = (assessment) =>
     assessment.questions.map((question) => [String(question._id), question.correctOptionKey])
   );
 
+const incorrectAnswers = (assessment) =>
+  Object.fromEntries(
+    assessment.questions.map((question) => [
+      String(question._id),
+      question.correctOptionKey === 'A' ? 'B' : 'A',
+    ])
+  );
+
 const createMembership = (userId, overrides = {}) => UserMembership.create({
   userId,
   planId: oid(),
@@ -143,10 +151,10 @@ describe('Certification hardening', () => {
         .set(userAuth(user))
         .send({
           attemptId: started.body.attempt._id,
-          answers: correctAnswers(assessment),
+          answers: incorrectAnswers(assessment),
         });
       expect(submitted.status).toBe(200);
-      expect(submitted.body.result.passed).toBe(true);
+      expect(submitted.body.result.passed).toBe(false);
 
       const overview = await request(app)
         .get(`/api/courses/${course._id}/assessment`)
@@ -162,6 +170,45 @@ describe('Certification hardening', () => {
       expect(blocked.status).toBe(409);
       expect(blocked.body.code).toBe('MAX_ATTEMPTS_REACHED');
       expect(blocked.body.maxAttempts).toBe(1);
+      expect(await AssessmentAttempt.countDocuments({ user: user._id })).toBe(1);
+    });
+
+    it('permanently completes the assessment after a passing attempt', async () => {
+      const assessment = await createAssessment(course._id, {
+        maxAttempts: 3,
+        retakeCooldownHours: 0,
+      });
+      await completeEnrollment(user, course);
+
+      const started = await request(app)
+        .post(`/api/courses/${course._id}/assessment/start`)
+        .set(userAuth(user));
+      expect(started.status).toBe(200);
+
+      const submitted = await request(app)
+        .post(`/api/courses/${course._id}/assessment/submit`)
+        .set(userAuth(user))
+        .send({
+          attemptId: started.body.attempt._id,
+          answers: correctAnswers(assessment),
+        });
+      expect(submitted.status).toBe(200);
+      expect(submitted.body.result.passed).toBe(true);
+
+      const overview = await request(app)
+        .get(`/api/courses/${course._id}/assessment`)
+        .set(userAuth(user));
+      expect(overview.status).toBe(200);
+      expect(overview.body.attempts.completed).toBe(true);
+      expect(overview.body.attempts.certificateIssued).toBe(false);
+      expect(overview.body.attempts.remaining).toBe(0);
+      expect(overview.body.canStart).toBe(false);
+
+      const blocked = await request(app)
+        .post(`/api/courses/${course._id}/assessment/start`)
+        .set(userAuth(user));
+      expect(blocked.status).toBe(409);
+      expect(blocked.body.code).toBe('ASSESSMENT_COMPLETED');
       expect(await AssessmentAttempt.countDocuments({ user: user._id })).toBe(1);
     });
 
@@ -182,7 +229,7 @@ describe('Certification hardening', () => {
         .set(userAuth(user))
         .send({
           attemptId: first.body.attempt._id,
-          answers: correctAnswers(assessment),
+          answers: incorrectAnswers(assessment),
         });
 
       const blocked = await request(app)

@@ -1,5 +1,6 @@
 import { CourseAssessment } from '../models/courseAssessment.models.js';
 import { AssessmentAttempt } from '../models/assessmentAttempt.models.js';
+import { Certificate } from '../models/certificate.models.js';
 import {
   getCourseCertificationEligibility,
   recalculateAssessmentUnlock,
@@ -92,6 +93,9 @@ const getAttemptUsage = async ({ userId, courseId, assessment }) => {
     .filter((attempt) => attempt.submittedAt)
     .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))[0] || null;
 
+  // A passing attempt finishes the assessment permanently.
+  const passedAttempt = usedAttempts.find((attempt) => attempt.passed === true) || null;
+
   const cooldownHours = Number(assessment.retakeCooldownHours || 0);
   const nextAvailableAt = cooldownHours > 0 && latestSubmitted?.submittedAt
     ? new Date(new Date(latestSubmitted.submittedAt).getTime() + cooldownHours * 60 * 60 * 1000)
@@ -101,10 +105,14 @@ const getAttemptUsage = async ({ userId, courseId, assessment }) => {
     attempts,
     activeAttempt,
     usedCount: usedAttempts.length,
-    remaining: Math.max(0, Number(assessment.maxAttempts || 0) - usedAttempts.length),
+    remaining: passedAttempt
+      ? 0
+      : Math.max(0, Number(assessment.maxAttempts || 0) - usedAttempts.length),
     latestAttempt: attempts[0] || null,
     latestSubmitted,
-    nextAvailableAt,
+    passedAttempt,
+    completed: Boolean(passedAttempt),
+    nextAvailableAt: passedAttempt ? null : nextAvailableAt,
   };
 };
 
@@ -173,10 +181,17 @@ export const getAssessmentOverview = async (userId, courseId) => {
   }
 
   const usage = await getAttemptUsage({ userId, courseId, assessment });
+  const certificate = await Certificate.findOne({
+    issuanceKey: `course_assessment:${userId}:${courseId}`,
+    status: 'issued',
+    isRevoked: { $ne: true },
+  }).select('_id certificateId issuedAt course').lean();
+
   const cooldownActive = usage.nextAvailableAt && usage.nextAvailableAt.getTime() > Date.now();
   const canStart = Boolean(
     assessment.isEnabled
     && eligibility.assessmentUnlocked
+    && !usage.completed
     && !usage.activeAttempt
     && usage.usedCount < assessment.maxAttempts
     && !cooldownActive
@@ -186,6 +201,11 @@ export const getAssessmentOverview = async (userId, courseId) => {
   if (!eligibility.enrolled) blockedReason = 'Enroll in this course first.';
   else if (!eligibility.assessmentUnlocked) blockedReason = 'Complete all required course content and quizzes to unlock the assessment.';
   else if (!assessment.isEnabled) blockedReason = 'Assessment is not available yet.';
+  else if (usage.completed) {
+    blockedReason = certificate
+      ? 'Assessment completed and certificate issued.'
+      : 'Assessment already passed. Your test is complete.';
+  }
   else if (usage.activeAttempt) blockedReason = 'Resume your active attempt.';
   else if (usage.usedCount >= assessment.maxAttempts) blockedReason = 'No attempts remaining.';
   else if (cooldownActive) blockedReason = 'Retake cooldown is still active.';
@@ -207,7 +227,18 @@ export const getAssessmentOverview = async (userId, courseId) => {
       activeAttempt: toAttemptSummary(usage.activeAttempt),
       latestAttempt: toAttemptSummary(usage.latestAttempt),
       nextAvailableAt: usage.nextAvailableAt,
+      completed: usage.completed,
+      certificateIssued: Boolean(certificate),
     },
+    certificate: certificate
+      ? {
+          _id: certificate._id,
+          certificateId: certificate.certificateId,
+          issuedAt: certificate.issuedAt,
+        }
+      : null,
+    completed: usage.completed,
+    certificateIssued: Boolean(certificate),
     canStart,
     blockedReason,
   };
@@ -218,6 +249,13 @@ export const startAssessmentAttempt = async (userId, courseId) => {
   await ensureUnlocked(userId, courseId);
 
   const usage = await getAttemptUsage({ userId, courseId, assessment });
+
+  if (usage.completed) {
+    throw createError('Assessment already passed. Your test is complete.', 409, {
+      code: 'ASSESSMENT_COMPLETED',
+    });
+  }
+
   if (usage.activeAttempt) {
     return {
       resumed: true,

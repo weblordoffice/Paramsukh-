@@ -79,7 +79,16 @@ type Overview = {
     activeAttempt: AttemptSummary | null;
     latestAttempt: AttemptSummary | null;
     nextAvailableAt: string | null;
+    completed?: boolean;
+    certificateIssued?: boolean;
   };
+  certificate?: {
+    _id: string;
+    certificateId: string;
+    issuedAt?: string;
+  } | null;
+  completed?: boolean;
+  certificateIssued?: boolean;
   canStart: boolean;
   blockedReason: string | null;
 };
@@ -239,6 +248,33 @@ export default function CourseAssessmentScreen() {
       padding: 12,
     },
     warningText: { color: '#B45309', fontSize: 12, lineHeight: 18 },
+    completedBox: {
+      marginTop: 14,
+      borderRadius: 12,
+      padding: 16,
+      alignItems: 'center',
+      backgroundColor: 'rgba(16,185,129,0.08)',
+      borderWidth: 1,
+      borderColor: 'rgba(16,185,129,0.25)',
+    },
+    completedTitle: { fontSize: 16, fontWeight: '800', marginTop: 8 },
+    completedText: {
+      fontSize: 12,
+      lineHeight: 18,
+      textAlign: 'center',
+      marginTop: 5,
+    },
+    completedCertificate: {
+      fontSize: 11,
+      fontWeight: '800',
+      marginTop: 10,
+      letterSpacing: 0.3,
+    },
+    completedLink: {
+      fontSize: 12,
+      fontWeight: '800',
+      marginTop: 8,
+    },
     questionCard: {
       backgroundColor: colors.surface,
       borderRadius: 16,
@@ -816,34 +852,63 @@ export default function CourseAssessmentScreen() {
                 />
               </View>
 
-              {overview.blockedReason && (
-                <View style={styles.warningBox}>
-                  <Text style={styles.warningText}>{overview.blockedReason}</Text>
+              {overview.attempts.completed ? (
+                <View style={styles.completedBox}>
+                  <Ionicons name="checkmark-circle" size={34} color={colors.success} />
+                  <Text style={[styles.completedTitle, { color: colors.text }]}>Assessment Completed</Text>
+                  <Text style={[styles.completedText, { color: colors.textSecondary }]}>
+                    {overview.certificateIssued
+                      ? 'Your test is complete and your certificate has been issued. You do not need to take it again.'
+                      : 'You passed this assessment. Your test is complete and cannot be retaken.'}
+                  </Text>
+                  {overview.certificate?.certificateId ? (
+                    <Text style={[styles.completedCertificate, { color: colors.primary }]}>
+                      {overview.certificate.certificateId}
+                    </Text>
+                  ) : null}
+                  {overview.certificateIssued ? (
+                    <TouchableOpacity
+                      onPress={() => router.push('/(home)/my-progress' as any)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.completedLink, { color: colors.primary }]}>
+                        View Certificate
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
                 </View>
-              )}
+              ) : (
+                <>
+                  {overview.blockedReason && (
+                    <View style={styles.warningBox}>
+                      <Text style={styles.warningText}>{overview.blockedReason}</Text>
+                    </View>
+                  )}
 
-              <TouchableOpacity
-                style={[
-                  styles.primaryBtn,
-                  (!overview.attempts.canStart || starting) && styles.disabledBtn,
-                ]}
-                onPress={startAssessment}
-                disabled={!overview.attempts.canStart || starting}
-              >
-                {starting ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : (
-                  <>
-                    <Ionicons name="play-circle-outline" size={18} color="#FFFFFF" />
-                    <Text style={styles.primaryBtnText}>Start Assessment</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.primaryBtn,
+                      (!overview.attempts.canStart || starting) && styles.disabledBtn,
+                    ]}
+                    onPress={startAssessment}
+                    disabled={!overview.attempts.canStart || starting}
+                  >
+                    {starting ? (
+                      <ActivityIndicator color="#FFFFFF" />
+                    ) : (
+                      <>
+                        <Ionicons name="play-circle-outline" size={18} color="#FFFFFF" />
+                        <Text style={styles.primaryBtnText}>Start Assessment</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
 
-              {overview.attempts.nextAvailableAt && (
-                <Text style={{ marginTop: 10, fontSize: 12, color: colors.textSecondary, textAlign: 'center' }}>
-                  Next attempt available {formatDate(overview.attempts.nextAvailableAt)}
-                </Text>
+                  {overview.attempts.nextAvailableAt && (
+                    <Text style={{ marginTop: 10, fontSize: 12, color: colors.textSecondary, textAlign: 'center' }}>
+                      Next attempt available {formatDate(overview.attempts.nextAvailableAt)}
+                    </Text>
+                  )}
+                </>
               )}
             </View>
 

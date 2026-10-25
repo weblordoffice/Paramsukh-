@@ -408,6 +408,21 @@ describe('Certification Phase 2 API', () => {
       expect(certificates.body.certificates).toHaveLength(1);
       expect(certificates.body.certificates[0].title).toBe('Course Assessment Certificate');
 
+      const overview = await request(app)
+        .get(`/api/courses/${course._id}/assessment`)
+        .set(userAuth(user));
+      expect(overview.status).toBe(200);
+      expect(overview.body.attempts.completed).toBe(true);
+      expect(overview.body.attempts.certificateIssued).toBe(true);
+      expect(overview.body.certificate.certificateId).toBe(issued.body.certificate.certificateId);
+      expect(overview.body.canStart).toBe(false);
+
+      const blockedRetake = await request(app)
+        .post(`/api/courses/${course._id}/assessment/start`)
+        .set(userAuth(user));
+      expect(blockedRetake.status).toBe(409);
+      expect(blockedRetake.body.code).toBe('ASSESSMENT_COMPLETED');
+
       const view = await request(app)
         .get(`/api/certificates/${issued.body.certificate.certificateId}/view`);
       expect(view.status).toBe(200);
