@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 const groupSchema = new mongoose.Schema({
   groupType: {
     type: String,
-    enum: ['course', 'category', 'plan'],
+    enum: ['course', 'category', 'plan', 'mentor'],
     default: 'course',
     index: true,
   },
@@ -60,7 +60,17 @@ const groupSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
     index: true,
-  }
+  },
+  ownerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+    index: true,
+  },
+  linkedGroupIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Group',
+  }],
 }, {
   timestamps: true
 });
@@ -81,6 +91,11 @@ const groupMemberSchema = new mongoose.Schema({
     type: String,
     enum: ['member', 'mentor', 'moderator', 'admin'],
     default: 'member'
+  },
+  sourceGroupId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Group',
+    default: null,
   },
   joinedAt: {
     type: Date,
@@ -118,7 +133,7 @@ const postSchema = new mongoose.Schema({
   },
   postType: {
     type: String,
-    enum: ['discussion', 'question'],
+    enum: ['discussion', 'question', 'mentor'],
     default: 'discussion',
     index: true
   },
