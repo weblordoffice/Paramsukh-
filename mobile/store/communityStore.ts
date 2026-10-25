@@ -15,7 +15,7 @@ export interface Post {
     images?: string[];
     video?: string;
     audio?: string;
-    postType?: 'discussion' | 'question';
+    postType?: 'discussion' | 'question' | 'mentor';
     title?: string | null;
     isResolved?: boolean;
     acceptedCommentId?: string | null;
@@ -35,24 +35,8 @@ export interface Post {
 }
 
 export type CommunityPostType = 'discussion' | 'question';
+export type FeedPostType = 'discussion' | 'question' | 'mentor';
 export type QuestionFilter = 'all' | 'unanswered' | 'resolved' | 'mine';
-export type LeaderboardPeriod = 'weekly' | 'monthly' | 'all';
-
-export interface LeaderboardEntry {
-    rank: number;
-    userId: string;
-    displayName: string;
-    photoURL?: string | null;
-    points: number;
-    level: string;
-    isCurrentUser?: boolean;
-}
-
-export interface LeaderboardMe {
-    rank: number | null;
-    points: number;
-    level: string;
-}
 
 export type MentorQuestionFilter = 'all' | 'unanswered' | 'resolved';
 
@@ -88,13 +72,31 @@ export interface MentorDetail {
     recentPosts: Post[];
 }
 
+export interface MentorGroupMember {
+    _id: string;
+    userId: string;
+    displayName: string;
+    photoURL?: string | null;
+    role: string;
+    isDirect: boolean;
+    sourceGroupId?: string | null;
+    sourceGroupName?: string | null;
+    joinedAt: string;
+}
+
+export interface MentorGroupCandidate {
+    _id: string;
+    displayName: string;
+    photoURL?: string | null;
+}
+
 export interface Group {
     _id: string;
     name: string;
     description?: string;
     memberCount: number;
     coverImage?: string;
-    groupType: 'plan' | 'category' | 'course';
+    groupType: 'plan' | 'category' | 'course' | 'mentor';
     planSlug?: string;
     category?: string;
     parentGroupId?: string | null;
@@ -105,8 +107,12 @@ export interface Group {
         thumbnail?: string;
     } | string;
     isPublic?: boolean;
+    ownerId?: string | null;
+    linkedGroupIds?: string[];
+    isOwner?: boolean;
+    isPrivate?: boolean;
     joinedAt: string;
-    role: 'member' | 'moderator' | 'admin';
+    role: 'member' | 'mentor' | 'moderator' | 'admin';
 }
 
 export interface PlanGroup {
@@ -122,7 +128,7 @@ export interface PlanGroup {
     course?: any;
     isPublic?: boolean;
     joinedAt: string;
-    role: 'member' | 'moderator' | 'admin';
+    role: 'member' | 'mentor' | 'moderator' | 'admin';
     subgroups: Group[];
 }
 
@@ -144,32 +150,35 @@ interface CommunityState {
     groups: Group[];
     planGroups: PlanGroup[];
     mentorGroups: Group[];
+    ownedGroups: Group[];
+    mentorMemberGroups: Group[];
     generalGroup: Group | null;
     currentGroup: Group | null;
     comments: { [postId: string]: Comment[] };
-    leaderboard: LeaderboardEntry[];
-    leaderboardMe: LeaderboardMe | null;
-    leaderboardLoading: boolean;
     mentors: Mentor[];
     mentorDetail: MentorDetail | null;
     mentorMe: { isMentor: boolean; profile: Mentor | null };
     mentorQuestions: Post[];
+    mentorPosts: Post[];
+    mentorPostsLoading: boolean;
     mentorLoading: boolean;
     mentorError: string | null;
+    mentorGroupMembers: MentorGroupMember[];
+    mentorGroupCandidates: MentorGroupCandidate[];
     isLoading: boolean;
     error: string | null;
     communityAccessDenied: boolean;
     postingBlocked: boolean;
 
     fetchMyGroups: () => Promise<void>;
-    fetchGroupPosts: (groupId: string, page?: number, postType?: CommunityPostType, status?: QuestionFilter) => Promise<void>;
-    fetchAllPosts: (page?: number, postType?: CommunityPostType, status?: QuestionFilter) => Promise<void>;
+    fetchGroupPosts: (groupId: string, page?: number, postType?: FeedPostType, status?: QuestionFilter) => Promise<void>;
+    fetchAllPosts: (page?: number, postType?: FeedPostType, status?: QuestionFilter) => Promise<void>;
     createPost: (
         groupId: string,
         content: string,
         images?: string[],
         tags?: string[],
-        options?: { postType?: CommunityPostType; title?: string; assignedMentorId?: string | null }
+        options?: { postType?: FeedPostType; title?: string; assignedMentorId?: string | null }
     ) => Promise<boolean>;
     togglePostLike: (postId: string) => Promise<void>;
     votePost: (postId: string) => Promise<void>;
@@ -181,11 +190,15 @@ interface CommunityState {
     addComment: (postId: string, content: string, parentCommentId?: string | null) => Promise<boolean>;
     toggleCommentLike: (commentId: string, postId: string) => Promise<void>;
     deleteComment: (commentId: string, postId: string) => Promise<boolean>;
-    fetchLeaderboard: (params?: { period?: LeaderboardPeriod; groupId?: string | null }) => Promise<void>;
-    fetchMentors: () => Promise<void>;
+    fetchMentors: (groupId?: string) => Promise<void>;
+    fetchMentorPosts: (params?: { groupId?: string | null; page?: number }) => Promise<void>;
     fetchMentorDetail: (userId: string) => Promise<void>;
     fetchMentorMe: () => Promise<void>;
     fetchMentorQuestions: (params?: { status?: MentorQuestionFilter; assigned?: boolean }) => Promise<void>;
+    createMentorGroup: (payload: { name: string; description?: string; coverImage?: string | null }) => Promise<Group | null>;
+    fetchMentorGroupMembers: (groupId: string) => Promise<void>;
+    fetchMentorGroupCandidates: (groupId: string, query?: string) => Promise<void>;
+    addMentorGroupMembers: (groupId: string, payload: { userIds?: string[]; groupIds?: string[] }) => Promise<boolean>;
 }
 
 export const useCommunityStore = create<CommunityState>((set, get) => ({
@@ -193,18 +206,21 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     groups: [],
     planGroups: [],
     mentorGroups: [],
+    ownedGroups: [],
+    mentorMemberGroups: [],
     generalGroup: null,
     currentGroup: null,
     comments: {},
-    leaderboard: [],
-    leaderboardMe: null,
-    leaderboardLoading: false,
     mentors: [],
     mentorDetail: null,
     mentorMe: { isMentor: false, profile: null },
     mentorQuestions: [],
+    mentorPosts: [],
+    mentorPostsLoading: false,
     mentorLoading: false,
     mentorError: null,
+    mentorGroupMembers: [],
+    mentorGroupCandidates: [],
     isLoading: false,
     error: null,
     communityAccessDenied: false,
@@ -220,6 +236,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                     groups: response.data?.groups || [],
                     planGroups: response.data?.planGroups || [],
                     mentorGroups: response.data?.mentorGroups || [],
+                    ownedGroups: response.data?.ownedGroups || [],
+                    mentorMemberGroups: response.data?.mentorMemberGroups || [],
                     generalGroup: response.data?.generalGroup || null,
                     isLoading: false,
                     communityAccessDenied: false,
@@ -227,7 +245,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                     error: null
                 });
             } else {
-                set({ groups: [], planGroups: [], mentorGroups: [], generalGroup: null, isLoading: false, error: null });
+                set({ groups: [], planGroups: [], mentorGroups: [], ownedGroups: [], mentorMemberGroups: [], generalGroup: null, isLoading: false, error: null });
             }
         } catch (error: any) {
             // Handle 403 - user doesn't have community access
@@ -236,18 +254,20 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                     groups: [], 
                     planGroups: [],
                     mentorGroups: [],
+                    ownedGroups: [],
+                    mentorMemberGroups: [],
                     generalGroup: null,
                     isLoading: false, 
                     error: null,
                     communityAccessDenied: true 
                 });
             } else {
-                set({ groups: [], planGroups: [], mentorGroups: [], generalGroup: null, isLoading: false, error: error?.message || 'Failed to load groups' });
+                set({ groups: [], planGroups: [], mentorGroups: [], ownedGroups: [], mentorMemberGroups: [], generalGroup: null, isLoading: false, error: error?.message || 'Failed to load groups' });
             }
         }
     },
 
-    fetchGroupPosts: async (groupId: string, page = 1, postType: CommunityPostType = 'discussion', status: QuestionFilter = 'all') => {
+    fetchGroupPosts: async (groupId: string, page = 1, postType: FeedPostType = 'discussion', status: QuestionFilter = 'all') => {
         set({ isLoading: true, error: null });
         try {
             const params: Record<string, string | number> = { page, postType };
@@ -280,7 +300,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         }
     },
 
-    fetchAllPosts: async (page = 1, postType: CommunityPostType = 'discussion', status: QuestionFilter = 'all') => {
+    fetchAllPosts: async (page = 1, postType: FeedPostType = 'discussion', status: QuestionFilter = 'all') => {
         set({ isLoading: true, error: null });
         try {
             const params: Record<string, string | number> = { page, postType };
@@ -359,7 +379,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         content: string,
         images?: string[],
         tags?: string[],
-        options?: { postType?: CommunityPostType; title?: string; assignedMentorId?: string | null }
+        options?: { postType?: FeedPostType; title?: string; assignedMentorId?: string | null }
     ) => {
         set({ isLoading: true, error: null });
         try {
@@ -399,18 +419,21 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     },
 
     togglePostLike: async (postId: string) => {
+        const toggle = (list: Post[]) => list.map(p => {
+            if (p._id === postId) {
+                return {
+                    ...p,
+                    userLiked: !p.userLiked,
+                    likeCount: p.userLiked ? p.likeCount - 1 : p.likeCount + 1
+                };
+            }
+            return p;
+        });
+
         // Optimistic update
         set(state => ({
-            posts: state.posts.map(p => {
-                if (p._id === postId) {
-                    return {
-                        ...p,
-                        userLiked: !p.userLiked,
-                        likeCount: p.userLiked ? p.likeCount - 1 : p.likeCount + 1
-                    };
-                }
-                return p;
-            })
+            posts: toggle(state.posts),
+            mentorPosts: toggle(state.mentorPosts),
         }));
 
         try {
@@ -419,16 +442,8 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         } catch (error) {
             // Revert changes on error
             set(state => ({
-                posts: state.posts.map(p => {
-                    if (p._id === postId) {
-                        return {
-                            ...p,
-                            userLiked: !p.userLiked,
-                            likeCount: p.userLiked ? p.likeCount - 1 : p.likeCount + 1
-                        };
-                    }
-                    return p;
-                })
+                posts: toggle(state.posts),
+                mentorPosts: toggle(state.mentorPosts),
             }));
         }
     },
@@ -505,15 +520,17 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     deletePost: async (postId: string) => {
         // Optimistic update
         const previousPosts = get().posts;
+        const previousMentorPosts = get().mentorPosts;
         set(state => ({
-            posts: state.posts.filter(p => p._id !== postId)
+            posts: state.posts.filter(p => p._id !== postId),
+            mentorPosts: state.mentorPosts.filter(p => p._id !== postId)
         }));
 
         try {
             await apiClient.delete(`${API_URL}/community/posts/${postId}`);
         } catch (error) {
             // Revert
-            set({ posts: previousPosts });
+            set({ posts: previousPosts, mentorPosts: previousMentorPosts });
         }
     },
 
@@ -549,6 +566,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                     },
                     // Update comment count on the post
                     posts: state.posts.map(p =>
+                        p._id === postId ? { ...p, commentCount: p.commentCount + 1 } : p
+                    ),
+                    mentorPosts: state.mentorPosts.map(p =>
                         p._id === postId ? { ...p, commentCount: p.commentCount + 1 } : p
                     )
                 }));
@@ -598,6 +618,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 },
                 posts: state.posts.map(p =>
                     p._id === postId ? { ...p, commentCount: Math.max(0, p.commentCount - 1) } : p
+                ),
+                mentorPosts: state.mentorPosts.map(p =>
+                    p._id === postId ? { ...p, commentCount: Math.max(0, p.commentCount - 1) } : p
                 )
             }));
             return true;
@@ -606,31 +629,12 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         }
     },
 
-    fetchLeaderboard: async ({ period = 'all', groupId = null } = {}) => {
-        set({ leaderboardLoading: true });
-        try {
-            const params: Record<string, string> = { period };
-            if (groupId) params.groupId = groupId;
-
-            const response = await apiClient.get(`${API_URL}/community/leaderboard`, { params });
-            if (response.data?.success) {
-                set({
-                    leaderboard: response.data.leaderboard || [],
-                    leaderboardMe: response.data.me || null,
-                    leaderboardLoading: false,
-                });
-            } else {
-                set({ leaderboard: [], leaderboardMe: null, leaderboardLoading: false });
-            }
-        } catch (error) {
-            set({ leaderboard: [], leaderboardMe: null, leaderboardLoading: false });
-        }
-    },
-
-    fetchMentors: async () => {
+    fetchMentors: async (groupId?: string) => {
         set({ mentorLoading: true, mentorError: null });
         try {
-            const response = await apiClient.get(`${API_URL}/community/mentors`);
+            const response = await apiClient.get(`${API_URL}/community/mentors`, {
+                params: groupId ? { groupId } : undefined,
+            });
             set({
                 mentors: response.data?.mentors || [],
                 mentorLoading: false,
@@ -641,6 +645,102 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
                 mentorLoading: false,
                 mentorError: error.response?.data?.message || 'Failed to load mentors',
             });
+        }
+    },
+
+    fetchMentorPosts: async ({ groupId = null, page = 1 } = {}) => {
+        set({ mentorPostsLoading: true, mentorError: null });
+        try {
+            const endpoint = groupId
+                ? `${API_URL}/community/groups/${groupId}/posts`
+                : `${API_URL}/community/feed`;
+            const response = await apiClient.get(endpoint, {
+                params: { page, postType: 'mentor' },
+            });
+            const nextPosts = response.data?.posts || [];
+            set(state => ({
+                mentorPosts: page === 1 ? nextPosts : [...state.mentorPosts, ...nextPosts],
+                mentorPostsLoading: false,
+            }));
+        } catch (error: any) {
+            set({
+                mentorPosts: page === 1 ? [] : get().mentorPosts,
+                mentorPostsLoading: false,
+                mentorError: error.response?.data?.message || 'Failed to load mentor posts',
+            });
+        }
+    },
+
+    createMentorGroup: async ({ name, description, coverImage }) => {
+        try {
+            const response = await apiClient.post(`${API_URL}/community/groups`, {
+                name,
+                description,
+                coverImage,
+            });
+            const group = response.data?.group;
+            if (!response.data?.success || !group) return null;
+
+            const addGroup = (list: Group[]) => [
+                group,
+                ...list.filter((item) => item._id !== group._id),
+            ];
+
+            set(state => ({
+                ownedGroups: addGroup(state.ownedGroups),
+                mentorGroups: addGroup(state.mentorGroups),
+                groups: addGroup(state.groups),
+            }));
+
+            return group as Group;
+        } catch (error: any) {
+            set({ error: error.response?.data?.message || 'Failed to create mentor group' });
+            return null;
+        }
+    },
+
+    fetchMentorGroupMembers: async (groupId: string) => {
+        try {
+            const response = await apiClient.get(`${API_URL}/community/groups/${groupId}/members`);
+            set({
+                mentorGroupMembers: response.data?.members || [],
+            });
+        } catch (error: any) {
+            set({
+                mentorGroupMembers: [],
+                error: error.response?.data?.message || 'Failed to load group members',
+            });
+        }
+    },
+
+    fetchMentorGroupCandidates: async (groupId: string, query = '') => {
+        try {
+            const response = await apiClient.get(
+                `${API_URL}/community/groups/${groupId}/member-candidates`,
+                { params: query ? { q: query } : undefined }
+            );
+            set({ mentorGroupCandidates: response.data?.users || [] });
+        } catch (error) {
+            set({ mentorGroupCandidates: [] });
+        }
+    },
+
+    addMentorGroupMembers: async (groupId, payload) => {
+        try {
+            const response = await apiClient.post(
+                `${API_URL}/community/groups/${groupId}/members`,
+                payload
+            );
+            if (!response.data?.success) return false;
+
+            await Promise.all([
+                get().fetchMentorGroupMembers(groupId),
+                get().fetchMyGroups(),
+            ]);
+            return true;
+        } catch (error: any) {
+            set({ error: error.response?.data?.message || 'Failed to update group members' });
+            return false;
         }
     },
 

@@ -26,6 +26,9 @@ import { useNotificationStore } from '@/store/notificationStore';
 import AssessmentModal from '@/components/AssessmentModal';
 import CommentsModal from '@/components/CommentsModal';
 import ImageViewerModal from '@/components/ImageViewerModal';
+import CommunityMentorsSection from '@/components/community/CommunityMentorsSection';
+import CreateMentorGroupModal from '@/components/community/CreateMentorGroupModal';
+import ManageGroupMembersModal from '@/components/community/ManageGroupMembersModal';
 import * as ImagePicker from 'expo-image-picker';
 import { useCommunityStore, Group, PlanGroup, Post, CommunityPostType, QuestionFilter } from '@/store/communityStore';
 import { useBottomTabBarHeight } from '@/hooks/useBottomTabBarHeight';
@@ -47,7 +50,7 @@ const getCategoryIcon = (category: string | undefined): keyof typeof Ionicons.gl
   }
 };
 
-type ViewType = 'feed' | 'groups' | 'message';
+type ViewType = 'feed' | 'groups' | 'mentors' | 'message';
 
 export default function CommunityScreen() {
   const { colors } = useTheme();
@@ -533,8 +536,8 @@ export default function CommunityScreen() {
     elevation: 2,
   },
   communityTabText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
     color: colors.textSecondary,
   },
   communityTabTextActive: {
@@ -699,6 +702,58 @@ export default function CommunityScreen() {
     fontSize: 12,
     fontWeight: '700',
   },
+  groupsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+    gap: 12,
+  },
+  createGroupButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F1842D',
+    borderRadius: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  createGroupButtonText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF' },
+  mentorGroupsLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 10,
+  },
+  mentorGroupTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  privateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(241, 132, 45, 0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 7,
+  },
+  privateBadgeText: { fontSize: 9, fontWeight: '800', color: '#F1842D' },
+  manageGroupButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(241, 132, 45, 0.35)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    marginLeft: 8,
+  },
+  manageGroupText: { fontSize: 10, fontWeight: '800', color: '#F1842D' },
   groupCard: {
     backgroundColor: colors.surface,
     borderRadius: 20,
@@ -969,6 +1024,9 @@ export default function CommunityScreen() {
     groups,
     planGroups,
     mentorGroups,
+    ownedGroups,
+    mentorMemberGroups,
+    mentorPosts,
     generalGroup,
     isLoading: isStoreLoading,
     fetchMyGroups,
@@ -979,13 +1037,17 @@ export default function CommunityScreen() {
     votePost,
     deletePost: storeDeletePost,
     communityAccessDenied,
-    postingBlocked
+    postingBlocked,
+    mentorMe,
+    fetchMentorMe,
   } = useCommunityStore();
 
   const [activeGroup, setActiveGroup] = useState<Group | null>(null);
 
 
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [manageGroup, setManageGroup] = useState<Group | null>(null);
   const [postContent, setPostContent] = useState('');
   const [questionTitle, setQuestionTitle] = useState('');
   const [feedTab, setFeedTab] = useState<CommunityPostType>('discussion');
@@ -1061,8 +1123,9 @@ export default function CommunityScreen() {
     useCallback(() => {
       if (!token) return;
       fetchMyGroups();
+      fetchMentorMe();
       fetchUnreadCount();
-    }, [token, fetchMyGroups, fetchUnreadCount])
+    }, [token, fetchMyGroups, fetchMentorMe, fetchUnreadCount])
   );
 
   // Default to the "All" view (no specific group selected). The user can pick
@@ -1077,11 +1140,12 @@ export default function CommunityScreen() {
 
   // When the selected group, tab, or filter changes, reset and fetch the matching feed.
   useEffect(() => {
+    if (currentView !== 'feed') return;
     setSelectedPostFilter('all');
     setSelectedTag(null);
     setCurrentPage(1);
     loadFeedPage(1);
-  }, [activeGroup, feedTab, questionFilter, loadFeedPage]);
+  }, [currentView, activeGroup, feedTab, questionFilter, loadFeedPage]);
 
   const toggleSidebar = useCallback(() => {
     setShowSidebar(!showSidebar);
@@ -1232,6 +1296,8 @@ export default function CommunityScreen() {
         return activeGroup ? activeGroup.name : 'All Communities';
       case 'groups':
         return 'My Groups';
+      case 'mentors':
+        return 'Mentors';
       case 'message':
         return 'Messages';
       default:
@@ -1264,8 +1330,61 @@ export default function CommunityScreen() {
     return filtered;
   };
 
-  const activePost = posts.find((p) => p._id === activePostId) || null;
+  const activePost = posts.find((p) => p._id === activePostId)
+    || mentorPosts.find((p) => p._id === activePostId)
+    || null;
   const notificationBadgeCount = unreadCount > 99 ? '99+' : String(unreadCount);
+
+  const activeSection = currentView === 'mentors'
+    ? 'mentors'
+    : currentView === 'groups'
+      ? 'groups'
+      : feedTab;
+
+  const selectSection = (section: 'discussion' | 'question' | 'mentors' | 'groups') => {
+    setShowSidebar(false);
+    if (section === 'groups') {
+      setCurrentView('groups');
+      return;
+    }
+    if (section === 'mentors') {
+      setCurrentView('mentors');
+      return;
+    }
+    setFeedTab(section);
+    setCurrentView('feed');
+  };
+
+  const renderCommunityTabs = () => (
+    <View style={styles.communityTabs}>
+      {([
+        { key: 'discussion', label: 'Discussion' },
+        { key: 'question', label: 'Questions' },
+        { key: 'mentors', label: 'Mentors' },
+        { key: 'groups', label: 'Groups' },
+      ] as const).map((tab) => (
+        <TouchableOpacity
+          key={tab.key}
+          style={[styles.communityTab, activeSection === tab.key && styles.communityTabActive]}
+          onPress={() => selectSection(tab.key)}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.communityTabText, activeSection === tab.key && styles.communityTabTextActive]}>
+            {tab.label}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  const mentorGroupCards = [
+    ...ownedGroups,
+    ...mentorGroups,
+    ...mentorMemberGroups,
+  ].reduce<Group[]>((acc, group) => {
+    if (group?._id && !acc.some((entry) => entry._id === group._id)) acc.push(group);
+    return acc;
+  }, []);
 
 
   return (
@@ -1551,7 +1670,7 @@ export default function CommunityScreen() {
               groups.length > 0 && (
                 <View style={{ marginLeft: 20, marginTop: 8 }}>
                   {groups
-                    .filter((g) => g._id !== generalGroup?._id && !mentorGroups.some((mentorGroup) => mentorGroup._id === g._id))
+                    .filter((g) => g._id !== generalGroup?._id && g.groupType !== 'mentor' && !mentorGroups.some((mentorGroup) => mentorGroup._id === g._id))
                     .map(g => (
                     <TouchableOpacity
                       key={g._id}
@@ -1657,19 +1776,6 @@ export default function CommunityScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.sidebarItem}
-              onPress={() => {
-                setShowSidebar(false);
-                router.push('/(home)/leaderboard' as any);
-              }}
-            >
-              <Ionicons name="trophy" size={24} color="#5C4A42" />
-              <Text style={styles.sidebarItemText}>
-                Leaderboard
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
               style={[
                 styles.sidebarItem,
                 currentView === 'message' && styles.sidebarItemActive,
@@ -1695,6 +1801,7 @@ export default function CommunityScreen() {
       </Animated.View>
 
       <View style={{ flex: 1 }}>
+        {renderCommunityTabs()}
         {currentView === 'feed' ? (
           <FlatList
             data={getFilteredPosts()}
@@ -1789,28 +1896,6 @@ export default function CommunityScreen() {
                     })}
                   </ScrollView>
                 )}
-
-                {/* Discussion / Questions tabs */}
-                <View style={styles.communityTabs}>
-                  <TouchableOpacity
-                    style={[styles.communityTab, feedTab === 'discussion' && styles.communityTabActive]}
-                    onPress={() => setFeedTab('discussion')}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.communityTabText, feedTab === 'discussion' && styles.communityTabTextActive]}>
-                      Discussion
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.communityTab, feedTab === 'question' && styles.communityTabActive]}
-                    onPress={() => setFeedTab('question')}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.communityTabText, feedTab === 'question' && styles.communityTabTextActive]}>
-                      Questions
-                    </Text>
-                  </TouchableOpacity>
-                </View>
 
                 {feedTab === 'question' && (
                   <ScrollView
@@ -2042,11 +2127,81 @@ export default function CommunityScreen() {
               </View>
             )}
           />
+        ) : currentView === 'mentors' ? (
+          <CommunityMentorsSection
+            activeGroup={activeGroup}
+            onSelectGroup={setActiveGroup}
+            onOpenComments={(post) => {
+              setActivePostId(post._id);
+              setShowCommentsModal(true);
+            }}
+          />
         ) : (
           <ScrollView showsVerticalScrollIndicator={false}>
             {currentView === 'groups' && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>My Communities</Text>
+                <View style={styles.groupsHeaderRow}>
+                  <Text style={styles.sectionTitle}>My Communities</Text>
+                  {mentorMe.isMentor ? (
+                    <TouchableOpacity
+                      style={styles.createGroupButton}
+                      onPress={() => setShowCreateGroup(true)}
+                      activeOpacity={0.85}
+                    >
+                      <Ionicons name="add" size={16} color="#FFFFFF" />
+                      <Text style={styles.createGroupButtonText}>Create Group</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+                {mentorGroupCards.length > 0 && (
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={styles.mentorGroupsLabel}>Mentor Groups</Text>
+                    {mentorGroupCards.map((group) => (
+                      <TouchableOpacity
+                        key={`mentor-group-${group._id}`}
+                        style={[styles.groupCard, { marginBottom: 10 }]}
+                        onPress={() => {
+                          setActiveGroup(group);
+                          setCurrentView('feed');
+                        }}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
+                          <View style={{ width: 42, height: 42, borderRadius: 11, backgroundColor: 'rgba(241, 132, 45, 0.1)', alignItems: 'center', justifyContent: 'center', marginRight: 13 }}>
+                            <Ionicons name="school-outline" size={20} color="#F1842D" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <View style={styles.mentorGroupTitleRow}>
+                              <Text style={{ fontSize: 15, fontWeight: '700', color: colors.text }} numberOfLines={1}>
+                                {group.name}
+                              </Text>
+                              <View style={styles.privateBadge}>
+                                <Ionicons name="lock-closed" size={9} color="#F1842D" />
+                                <Text style={styles.privateBadgeText}>
+                                  {String(group.ownerId) === String(user?._id) ? 'Owner' : 'Private'}
+                                </Text>
+                              </View>
+                            </View>
+                            <Text style={{ fontSize: 11, color: colors.textSecondary, marginTop: 2 }}>
+                              {group.memberCount} members
+                            </Text>
+                          </View>
+                          {String(group.ownerId) === String(user?._id) ? (
+                            <TouchableOpacity
+                              style={styles.manageGroupButton}
+                              onPress={() => setManageGroup(group)}
+                            >
+                              <Ionicons name="people-outline" size={15} color="#F1842D" />
+                              <Text style={styles.manageGroupText}>Manage</Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <Ionicons name="chevron-forward" size={18} color="#8C7B73" />
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
                 {generalGroup && (
                   <TouchableOpacity
                     style={[styles.groupCard, { borderLeftWidth: 4, borderLeftColor: '#F1842D', marginBottom: 16 }]}
@@ -2621,6 +2776,27 @@ export default function CommunityScreen() {
         visible={showAssessment}
         onClose={() => setShowAssessment(false)}
         onComplete={handleAssessmentComplete}
+      />
+
+      <CreateMentorGroupModal
+        visible={showCreateGroup}
+        onClose={() => setShowCreateGroup(false)}
+        onCreated={(group) => {
+          setManageGroup(group);
+          fetchMyGroups();
+        }}
+      />
+
+      <ManageGroupMembersModal
+        visible={!!manageGroup}
+        group={manageGroup}
+        onClose={() => setManageGroup(null)}
+        onChanged={() => {
+          fetchMyGroups();
+          if (manageGroup) {
+            useCommunityStore.getState().fetchMentorGroupMembers(manageGroup._id);
+          }
+        }}
       />
 
       <CommentsModal

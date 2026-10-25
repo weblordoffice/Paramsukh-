@@ -1,23 +1,32 @@
 import mongoose from 'mongoose';
 import { Group, GroupMember, Post, Comment, MentorProfile } from '../../models/community.models.js';
+import { User } from '../../models/user.models.js';
 import Notification from '../../models/notification.models.js';
 import { sendPushToUser } from '../../services/pushService.js';
 import { evaluateCommunityAccess } from '../../services/entitlement.service.js';
 import { syncUserCommunityMembershipsByPlan } from '../../services/planUpgrade.service.js';
 import { UserMembership } from '../../models/userMembership.models.js';
-import { ensureGeneralGroup, enrollUserInGroup, isPublicGroup, getPublicGroupIds } from '../../services/community.service.js';
+import {
+  assignMentorToGroup,
+  ensureGeneralGroup,
+  enrollUserInGroup,
+  enrollMembersFromGroups,
+  ensureMentorGroupAccess,
+  isPublicGroup,
+  getPublicGroupIds,
+  syncGroupMemberCount,
+} from '../../services/community.service.js';
 import {
   awardCommunityPoints,
   revokeCommunityPoints,
   revokeCommunityPointsForRef,
   revokeCommunityPointsForPost,
-  getCommunityLeaderboard,
   getGroupScopeIds,
 } from '../../services/communityPoints.service.js';
 
 const normalizeCategory = (value) => String(value || '').trim().toLowerCase();
 
-const VALID_POST_TYPES = new Set(['discussion', 'question']);
+const VALID_POST_TYPES = new Set(['discussion', 'question', 'mentor']);
 const VALID_QUESTION_FILTERS = new Set(['all', 'unanswered', 'resolved']);
 
 const parsePostType = (value) => {
@@ -31,6 +40,11 @@ const parseQuestionFilter = (value) => {
 };
 
 const applyPostTypeFilter = (query, postType, status) => {
+  if (postType === 'mentor') {
+    query.postType = 'mentor';
+    return query;
+  }
+
   if (postType === 'question') {
     query.postType = 'question';
     if (status === 'unanswered') query.isResolved = false;
@@ -73,9 +87,27 @@ const getAccessibleGroupIds = async (userId) => {
     getPublicGroupIds(),
   ]);
 
+  const memberGroupIds = memberships.map((membership) => membership.groupId);
+
+  const mentorGroups = await Group.find({
+    isActive: true,
+    groupType: 'mentor',
+    $or: [
+      { ownerId: userId },
+      { linkedGroupIds: { $in: memberGroupIds } },
+    ],
+  }).select('_id groupType ownerId linkedGroupIds isActive').lean();
+
+  const accessibleMentorGroupIds = [];
+  for (const group of mentorGroups) {
+    const access = await ensureMentorGroupAccess(group, userId);
+    if (access.allowed) accessibleMentorGroupIds.push(String(group._id));
+  }
+
   return [...new Set([
-    ...memberships.map((membership) => String(membership.groupId)),
+    ...memberGroupIds.map((id) => String(id)),
     ...publicGroupIds.map((id) => String(id)),
+    ...accessibleMentorGroupIds,
   ])];
 };
 
@@ -181,6 +213,31 @@ const rejectBlockedUser = (res) => res.status(403).json({
   message: "You have been blocked from posting in the community by an administrator."
 });
 
+const getVerifiedMentorProfile = (userId) => MentorProfile.findOne({
+  userId,
+  isActive: true,
+  isVerified: true,
+});
+
+const formatGroupForUser = (group, membership = null, role = null, extra = {}) => ({
+  _id: group._id,
+  name: group.name,
+  description: group.description,
+  memberCount: group.memberCount || 0,
+  coverImage: group.coverImage || null,
+  groupType: group.groupType,
+  planSlug: group.planSlug || null,
+  category: group.category || null,
+  parentGroupId: group.parentGroupId || null,
+  course: group.courseId || null,
+  isPublic: group.isPublic === true,
+  ownerId: group.ownerId || null,
+  linkedGroupIds: group.linkedGroupIds || [],
+  joinedAt: membership?.joinedAt || new Date(),
+  role: role || membership?.role || 'member',
+  ...extra,
+});
+
 const notifyCommunityUser = async ({
   userId,
   type,
@@ -240,69 +297,6 @@ export const checkCommunityAccess = async (req, res) => {
 
   } catch (error) {
     console.error("❌ Error checking community access:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message
-    });
-  }
-};
-
-/**
- * Get community leaderboard.
- * GET /api/community/leaderboard?period=weekly|monthly|all&groupId=
- */
-export const getLeaderboard = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    const period = String(req.query.period || 'all').toLowerCase();
-    const groupId = req.query.groupId || null;
-    const limit = req.query.limit;
-
-    if (!['weekly', 'monthly', 'all'].includes(period)) {
-      return res.status(400).json({
-        success: false,
-        message: "Period must be weekly, monthly, or all"
-      });
-    }
-
-    if (groupId) {
-      if (!mongoose.Types.ObjectId.isValid(groupId)) {
-        return res.status(400).json({ success: false, message: "Invalid group id" });
-      }
-
-      const group = await Group.findById(groupId).select('isPublic isActive').lean();
-      if (!group || group.isActive === false) {
-        return res.status(404).json({ success: false, message: "Group not found" });
-      }
-
-      if (!isPublicGroup(group)) {
-        const scopeIds = await getGroupScopeIds(groupId);
-        const membership = await GroupMember.findOne({
-          userId,
-          isActive: true,
-          groupId: { $in: scopeIds || [] },
-        }).select('_id').lean();
-
-        if (!membership) {
-          return res.status(403).json({
-            success: false,
-            message: "You must be a member of this group to view its leaderboard"
-          });
-        }
-      }
-    }
-
-    const result = await getCommunityLeaderboard({
-      period,
-      groupId,
-      limit,
-      currentUserId: userId,
-    });
-
-    return res.status(200).json({ success: true, ...result });
-  } catch (error) {
-    console.error("❌ Error fetching community leaderboard:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
@@ -451,6 +445,59 @@ export const getMyGroups = async (req, res) => {
 
     const baseGroups = [generalFormatted, ...mentorGroups].filter(Boolean);
 
+    const userGroupMemberships = await GroupMember.find({ userId, isActive: true })
+      .select('groupId')
+      .lean();
+    const userGroupIds = userGroupMemberships.map((membership) => membership.groupId);
+    const privateMentorGroupDocs = await Group.find({
+      isActive: true,
+      groupType: 'mentor',
+      $or: [
+        { ownerId: userId },
+        { _id: { $in: userGroupIds } },
+        { linkedGroupIds: { $in: userGroupIds } },
+      ],
+    }).lean();
+
+    const privateMentorGroups = [];
+    const ownedGroups = [];
+    const mentorMemberGroups = [];
+
+    for (const group of privateMentorGroupDocs) {
+      const access = await ensureMentorGroupAccess(group, userId);
+      if (!access.allowed) continue;
+
+      const membership = access.membership || await GroupMember.findOne({
+        groupId: group._id,
+        userId,
+        isActive: true,
+      }).lean();
+      const role = String(group.ownerId) === String(userId) ? 'mentor' : (membership?.role || 'member');
+      const formatted = formatGroupForUser(group, membership, role, {
+        isOwner: String(group.ownerId) === String(userId),
+        isPrivate: true,
+      });
+
+      if (!mentorGroups.some((mentorGroup) => String(mentorGroup._id) === String(group._id))) {
+        privateMentorGroups.push(formatted);
+      }
+      if (role === 'mentor') {
+        if (!mentorGroups.some((mentorGroup) => String(mentorGroup._id) === String(group._id))) {
+          ownedGroups.push(formatted);
+        } else if (formatted.isOwner) {
+          ownedGroups.push(formatted);
+        }
+      } else {
+        mentorMemberGroups.push(formatted);
+      }
+    }
+
+    const baseGroupsWithMentorAccess = [
+      ...baseGroups,
+      ...privateMentorGroups,
+      ...mentorMemberGroups,
+    ].filter(Boolean);
+
     // Users without plan-based community access still get the General group
     // and any groups they mentor.
     if (!access.hasAccess) {
@@ -459,10 +506,12 @@ export const getMyGroups = async (req, res) => {
         generalGroup: generalFormatted,
         planGroups: [],
         mentorGroups,
-        groups: baseGroups,
+        ownedGroups,
+        mentorMemberGroups,
+        groups: baseGroupsWithMentorAccess,
         otherGroups: [],
         postingBlocked,
-        totalGroups: baseGroups.length,
+        totalGroups: baseGroupsWithMentorAccess.length,
       });
     }
 
@@ -485,10 +534,12 @@ export const getMyGroups = async (req, res) => {
         generalGroup: generalFormatted,
         planGroups: [],
         mentorGroups,
-        groups: baseGroups,
+        ownedGroups,
+        mentorMemberGroups,
+        groups: baseGroupsWithMentorAccess,
         otherGroups: [],
         postingBlocked,
-        totalGroups: baseGroups.length,
+        totalGroups: baseGroupsWithMentorAccess.length,
       });
     }
 
@@ -566,7 +617,7 @@ export const getMyGroups = async (req, res) => {
     const flatPlanGroups = allPlanGroups.flatMap(pg => [pg, ...pg.subgroups]).filter(g => g._id);
 
     const groupsById = new Map();
-    [...baseGroups, ...flatPlanGroups].forEach((group) => {
+    [...baseGroupsWithMentorAccess, ...flatPlanGroups].forEach((group) => {
       if (group?._id) groupsById.set(String(group._id), group);
     });
     const combinedGroups = [...groupsById.values()];
@@ -576,6 +627,8 @@ export const getMyGroups = async (req, res) => {
       generalGroup: generalFormatted,
       planGroups: allPlanGroups,
       mentorGroups,
+      ownedGroups,
+      mentorMemberGroups,
       groups: combinedGroups,
       otherGroups: [],
       postingBlocked,
@@ -593,13 +646,466 @@ export const getMyGroups = async (req, res) => {
 };
 
 /**
+ * Create a private mentor group.
+ * POST /api/community/groups
+ */
+export const createMentorGroup = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const profile = await getVerifiedMentorProfile(userId);
+
+    if (!profile) {
+      return res.status(403).json({
+        success: false,
+        code: 'MENTOR_ONLY',
+        message: "Only verified mentors can create community groups"
+      });
+    }
+
+    const name = String(req.body.name || '').trim();
+    const description = String(req.body.description || '').trim();
+    const coverImage = String(req.body.coverImage || '').trim() || null;
+
+    if (name.length < 3 || name.length > 80) {
+      return res.status(400).json({
+        success: false,
+        message: "Group name must be between 3 and 80 characters"
+      });
+    }
+    if (description.length > 500) {
+      return res.status(400).json({
+        success: false,
+        message: "Group description cannot exceed 500 characters"
+      });
+    }
+
+    const existing = await Group.findOne({
+      ownerId: userId,
+      groupType: 'mentor',
+      name,
+      isActive: true,
+    }).select('_id').lean();
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: "You already have a private group with this name"
+      });
+    }
+
+    const group = await Group.create({
+      groupType: 'mentor',
+      ownerId: userId,
+      name,
+      description,
+      coverImage,
+      isPublic: false,
+      memberCount: 0,
+      isActive: true,
+    });
+
+    await MentorProfile.updateOne(
+      { _id: profile._id },
+      { $addToSet: { groupIds: group._id } }
+    );
+    await assignMentorToGroup(userId, group._id);
+
+    const freshGroup = await Group.findById(group._id).lean();
+
+    return res.status(201).json({
+      success: true,
+      message: "Private mentor group created",
+      group: formatGroupForUser(freshGroup, null, 'mentor', {
+        isOwner: true,
+        isPrivate: true,
+      }),
+    });
+  } catch (error) {
+    console.error("❌ Error creating mentor group:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+const getOwnedMentorGroup = (groupId, userId) => Group.findOne({
+  _id: groupId,
+  groupType: 'mentor',
+  ownerId: userId,
+  isActive: true,
+});
+
+const buildMentorGroupMembers = async (groupId) => {
+  const members = await GroupMember.find({ groupId, isActive: true })
+    .populate('userId', 'displayName photoURL isActive')
+    .sort({ role: 1, joinedAt: 1 })
+    .lean();
+
+  const sourceIds = [...new Set(
+    members.map((member) => member.sourceGroupId).filter(Boolean).map(String)
+  )];
+  const sourceGroups = sourceIds.length > 0
+    ? await Group.find({ _id: { $in: sourceIds } }).select('name').lean()
+    : [];
+  const sourceNameById = new Map(
+    sourceGroups.map((group) => [String(group._id), group.name])
+  );
+
+  return members
+    .filter((member) => member.userId && member.userId.isActive !== false)
+    .map((member) => ({
+      _id: member._id,
+      userId: member.userId._id,
+      displayName: member.userId.displayName,
+      photoURL: member.userId.photoURL || null,
+      role: member.role,
+      isDirect: !member.sourceGroupId,
+      sourceGroupId: member.sourceGroupId || null,
+      sourceGroupName: member.sourceGroupId
+        ? (sourceNameById.get(String(member.sourceGroupId)) || 'Community')
+        : null,
+      joinedAt: member.joinedAt,
+    }));
+};
+
+/**
+ * List members of a private mentor group.
+ * GET /api/community/groups/:groupId/members
+ */
+export const getMentorGroupMembers = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const group = await getOwnedMentorGroup(req.params.groupId, userId);
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Mentor group not found"
+      });
+    }
+
+    const members = await buildMentorGroupMembers(group._id);
+
+    return res.status(200).json({
+      success: true,
+      group: formatGroupForUser(group, null, 'mentor', {
+        isOwner: true,
+        isPrivate: true,
+      }),
+      members,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching mentor group members:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Add individual users and/or whole communities to a private mentor group.
+ * POST /api/community/groups/:groupId/members
+ */
+export const addMentorGroupMembers = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const group = await getOwnedMentorGroup(req.params.groupId, userId);
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Mentor group not found"
+      });
+    }
+
+    const userIds = [...new Set(
+      (Array.isArray(req.body.userIds) ? req.body.userIds : [])
+        .map((id) => String(id || '').trim())
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    )];
+    const groupIds = [...new Set(
+      (Array.isArray(req.body.groupIds) ? req.body.groupIds : [])
+        .map((id) => String(id || '').trim())
+        .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    )].filter((id) => id !== String(group._id));
+
+    if (userIds.length === 0 && groupIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Select at least one person or community"
+      });
+    }
+
+    const profile = await getVerifiedMentorProfile(userId);
+    const mentorMemberships = await GroupMember.find({
+      userId,
+      isActive: true,
+      role: 'mentor',
+    }).select('groupId').lean();
+
+    const mentorGroupIds = [...new Set([
+      ...((profile?.groupIds || []).map(String)),
+      ...mentorMemberships.map((membership) => String(membership.groupId)),
+    ])];
+
+    const validSourceGroups = [];
+    for (const sourceGroupId of groupIds) {
+      const sourceGroup = await Group.findOne({
+        _id: sourceGroupId,
+        isActive: true,
+        groupType: { $ne: 'mentor' },
+      }).select('_id').lean();
+
+      if (sourceGroup && await isMentorForGroup(userId, sourceGroup._id)) {
+        validSourceGroups.push(sourceGroup._id);
+      }
+    }
+
+    if (validSourceGroups.length > 0) {
+      await Group.updateOne(
+        { _id: group._id },
+        { $addToSet: { linkedGroupIds: { $each: validSourceGroups } } }
+      );
+    }
+
+    const communityEnrollment = await enrollMembersFromGroups(
+      group._id,
+      validSourceGroups
+    );
+
+    let directAdded = 0;
+    const validDirectUserIds = [];
+
+    if (userIds.length > 0) {
+      const users = await User.find({
+        _id: { $in: userIds },
+        isActive: { $ne: false },
+      }).select('_id').lean();
+      const userMap = new Map(users.map((entry) => [String(entry._id), entry._id]));
+
+      const eligibleMemberships = mentorGroupIds.length > 0
+        ? await GroupMember.find({
+            userId: { $in: userIds },
+            groupId: { $in: mentorGroupIds },
+            isActive: true,
+          }).select('userId').lean()
+        : [];
+      const eligibleUserIds = new Set(
+        eligibleMemberships.map((membership) => String(membership.userId))
+      );
+
+      const existingMembers = await GroupMember.find({
+        groupId: group._id,
+        userId: { $in: userIds },
+      }).select('userId isActive sourceGroupId').lean();
+      const existingMap = new Map(
+        existingMembers.map((membership) => [String(membership.userId), membership])
+      );
+
+      for (const id of userIds) {
+        if (!userMap.has(id) || !eligibleUserIds.has(id)) continue;
+        validDirectUserIds.push(userMap.get(id));
+
+        const existing = existingMap.get(id);
+        if (!existing || existing.isActive === false || existing.sourceGroupId) {
+          directAdded += 1;
+        }
+      }
+
+      if (validDirectUserIds.length > 0) {
+        await GroupMember.bulkWrite(
+          validDirectUserIds.map((directUserId) => ({
+            updateOne: {
+              filter: { groupId: group._id, userId: directUserId },
+              update: {
+                $setOnInsert: {
+                  groupId: group._id,
+                  userId: directUserId,
+                  role: 'member',
+                  joinedAt: new Date(),
+                },
+                $set: {
+                  isActive: true,
+                  sourceGroupId: null,
+                },
+              },
+              upsert: true,
+            },
+          })),
+          { ordered: false }
+        );
+      }
+    }
+
+    const memberCount = await syncGroupMemberCount(group._id);
+
+    for (const directUserId of validDirectUserIds) {
+      await notifyCommunityUser({
+        userId: directUserId,
+        type: 'mentor_group_added',
+        title: `Added to ${group.name}`,
+        message: "You now have access to this private mentor group.",
+        relatedId: group._id,
+        relatedType: null,
+        actionUrl: '/(home)/community',
+        icon: '🔐',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Members updated",
+      addedDirect: directAdded,
+      addedFromCommunities: communityEnrollment.added,
+      memberCount,
+      linkedGroupIds: [...new Set([
+        ...(group.linkedGroupIds || []).map(String),
+        ...validSourceGroups.map(String),
+      ])],
+    });
+  } catch (error) {
+    console.error("❌ Error adding mentor group members:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+/**
+ * Search users the mentor shares a community with.
+ * GET /api/community/groups/:groupId/member-candidates?q=
+ */
+export const getMentorGroupCandidates = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const group = await getOwnedMentorGroup(req.params.groupId, userId);
+
+    if (!group) {
+      return res.status(404).json({
+        success: false,
+        message: "Mentor group not found"
+      });
+    }
+
+    const profile = await getVerifiedMentorProfile(userId);
+    const mentorMemberships = await GroupMember.find({
+      userId,
+      isActive: true,
+      role: 'mentor',
+    }).select('groupId').lean();
+
+    const mentorGroupIds = [...new Set([
+      ...((profile?.groupIds || []).map(String)),
+      ...mentorMemberships.map((membership) => String(membership.groupId)),
+    ])];
+
+    if (mentorGroupIds.length === 0) {
+      return res.status(200).json({ success: true, users: [] });
+    }
+
+    const existingMembers = await GroupMember.find({
+      groupId: group._id,
+      isActive: true,
+    }).select('userId').lean();
+    const existingUserIds = new Set(
+      existingMembers.map((membership) => String(membership.userId))
+    );
+
+    const sharedMemberships = await GroupMember.find({
+      groupId: { $in: mentorGroupIds },
+      userId: { $ne: userId },
+      isActive: true,
+    }).select('userId').lean();
+
+    const candidateIds = [...new Set(
+      sharedMemberships.map((membership) => String(membership.userId))
+    )].filter((id) => !existingUserIds.has(id));
+
+    const search = String(req.query.q || '').trim();
+    const query = {
+      _id: { $in: candidateIds },
+      isActive: { $ne: false },
+    };
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      query.displayName = { $regex: escaped, $options: 'i' };
+    }
+
+    const users = await User.find(query)
+      .select('displayName photoURL')
+      .sort({ displayName: 1 })
+      .limit(30)
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      users: users.map((user) => ({
+        _id: user._id,
+        displayName: user.displayName,
+        photoURL: user.photoURL || null,
+      })),
+    });
+  } catch (error) {
+    console.error("❌ Error fetching mentor group candidates:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+/**
  * List verified mentors available in the user's accessible groups.
  * GET /api/community/mentors
  */
 export const getMentors = async (req, res) => {
   try {
     const userId = req.user._id;
-    const accessibleGroupIds = await getAccessibleGroupIds(userId);
+    const requestedGroupId = typeof req.query.groupId === 'string' ? req.query.groupId.trim() : '';
+
+    let accessibleGroupIds = await getAccessibleGroupIds(userId);
+
+    if (requestedGroupId) {
+      if (!mongoose.Types.ObjectId.isValid(requestedGroupId)) {
+        return res.status(400).json({ success: false, message: "Invalid group id" });
+      }
+
+      const group = await Group.findById(requestedGroupId)
+        .select('groupType ownerId linkedGroupIds isPublic planSlug isActive')
+        .lean();
+
+      if (!group || group.isActive === false) {
+        return res.status(404).json({ success: false, message: "Group not found" });
+      }
+
+      if (!accessibleGroupIds.includes(String(requestedGroupId))) {
+        if (group.groupType === 'mentor') {
+          const access = await ensureMentorGroupAccess(group, userId);
+          if (!access.allowed) {
+            return res.status(403).json({
+              success: false,
+              message: "You do not have access to this group",
+            });
+          }
+        } else {
+          return res.status(403).json({
+            success: false,
+            message: "You do not have access to this group",
+          });
+        }
+      }
+
+      accessibleGroupIds = group.groupType === 'plan'
+        ? (await getGroupScopeIds(requestedGroupId)).map((id) => String(id))
+        : [String(requestedGroupId)];
+    }
 
     if (accessibleGroupIds.length === 0) {
       return res.status(200).json({ success: true, mentors: [] });
@@ -839,7 +1345,9 @@ export const getGroupPosts = async (req, res) => {
 
     // Determine which group IDs to query posts from
     // If this is a plan-level parent group, get posts from all child subgroups too
-    const group = await Group.findById(groupId).select('groupType planSlug isPublic isActive').lean();
+    const group = await Group.findById(groupId)
+      .select('groupType planSlug isPublic isActive ownerId linkedGroupIds')
+      .lean();
     if (!group || group.isActive === false) {
       return res.status(404).json({
         success: false,
@@ -848,9 +1356,19 @@ export const getGroupPosts = async (req, res) => {
     }
 
     const publicGroup = isPublicGroup(group);
+    const mentorGroup = group.groupType === 'mentor';
 
-    // Public (General) groups are open to any authenticated user.
-    if (!publicGroup) {
+    // Private mentor groups bypass the plan gate; access comes from ownership,
+    // direct membership, or membership in a linked community.
+    if (mentorGroup) {
+      const access = await ensureMentorGroupAccess(group, userId);
+      if (!access.allowed) {
+        return res.status(403).json({
+          success: false,
+          message: "You are not a member of this group"
+        });
+      }
+    } else if (!publicGroup) {
       const access = await evaluateCommunityAccess(userId);
       if (!access.hasAccess) {
         return res.status(403).json({
@@ -861,7 +1379,9 @@ export const getGroupPosts = async (req, res) => {
     }
 
     // Check membership; auto-enroll into public groups.
-    let membership = await GroupMember.findOne({ groupId, userId, isActive: true });
+    let membership = mentorGroup
+      ? true
+      : await GroupMember.findOne({ groupId, userId, isActive: true });
     if (!membership && publicGroup) {
       await enrollUserInGroup(groupId, userId);
       membership = true;
@@ -953,14 +1473,9 @@ export const getAllFeedPosts = async (req, res) => {
     const postType = parsePostType(req.query.postType);
     const questionStatus = parseQuestionFilter(req.query.status);
 
-    const memberships = await GroupMember.find({ userId, isActive: true })
-      .select('groupId')
-      .lean();
-    const memberGroupIds = memberships.map((m) => String(m.groupId));
+    const accessibleGroupIds = await getAccessibleGroupIds(userId);
 
-    const publicGroupIds = (await getPublicGroupIds()).map((id) => String(id));
-
-    const queryGroupIds = [...new Set([...memberGroupIds, ...publicGroupIds])];
+    const queryGroupIds = [...new Set(accessibleGroupIds)];
 
     if (!queryGroupIds.length) {
       return res.status(200).json({
@@ -1061,7 +1576,9 @@ export const createPost = async (req, res) => {
       });
     }
 
-    const group = await Group.findById(groupId).select('planSlug isPublic isActive').lean();
+    const group = await Group.findById(groupId)
+      .select('planSlug isPublic isActive groupType ownerId linkedGroupIds')
+      .lean();
     if (!group || group.isActive === false) {
       return res.status(404).json({
         success: false,
@@ -1071,6 +1588,10 @@ export const createPost = async (req, res) => {
 
     // Members can post; public (General) groups auto-enroll any authenticated user.
     let membership = await GroupMember.findOne({ groupId, userId, isActive: true });
+    if (!membership && group.groupType === 'mentor') {
+      const mentorAccess = await ensureMentorGroupAccess(group, userId);
+      membership = mentorAccess.allowed;
+    }
     if (!membership && isPublicGroup(group)) {
       await enrollUserInGroup(groupId, userId);
       membership = true;
@@ -1080,6 +1601,17 @@ export const createPost = async (req, res) => {
         success: false,
         message: "You are not a member of this group"
       });
+    }
+
+    if (postType === 'mentor') {
+      const mentorProfile = await getVerifiedMentorProfile(userId);
+      if (!mentorProfile || !(await isMentorForGroup(userId, groupId))) {
+        return res.status(403).json({
+          success: false,
+          code: 'MENTOR_ONLY',
+          message: "Only mentors assigned to this group can create mentor posts"
+        });
+      }
     }
 
     let mentorProfile = null;
@@ -1112,17 +1644,22 @@ export const createPost = async (req, res) => {
     const populatedPost = await Post.findById(post._id)
       .populate('userId', 'displayName photoURL subscriptionPlan');
 
-    await awardCommunityPoints({
-      userId,
-      action: postType === 'question' ? 'question_created' : 'discussion_created',
-      refType: 'post',
-      refId: post._id,
-      groupId,
-      dedupeKey: `${postType}:${post._id}`,
-    });
-    evaluateCommunityAchievements(userId);
+    if (postType !== 'mentor') {
+      await awardCommunityPoints({
+        userId,
+        action: postType === 'question' ? 'question_created' : 'discussion_created',
+        refType: 'post',
+        refId: post._id,
+        groupId,
+        dedupeKey: `${postType}:${post._id}`,
+      });
+      evaluateCommunityAchievements(userId);
+    }
 
-    console.log(`✅ ${postType === 'question' ? 'Question' : 'Post'} created in group ${groupId} by user ${userId}`);
+    const postLabel = postType === 'mentor'
+      ? 'Mentor post'
+      : (postType === 'question' ? 'Question' : 'Post');
+    console.log(`✅ ${postLabel} created in group ${groupId} by user ${userId}`);
 
     const mentorAuthorIds = await getMentorAuthorIds([populatedPost]);
 
@@ -1141,7 +1678,11 @@ export const createPost = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: postType === 'question' ? "Question created successfully" : "Post created successfully",
+      message: postType === 'question'
+        ? "Question created successfully"
+        : postType === 'mentor'
+          ? "Mentor post created successfully"
+          : "Post created successfully",
       post: {
         _id: populatedPost._id,
         content: populatedPost.content,

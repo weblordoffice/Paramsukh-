@@ -15,18 +15,21 @@ import {
   togglePostVote,
   resolveQuestion,
   acceptAnswer,
-  getLeaderboard,
   getMentors,
   getMentorProfile,
   getMentorMe,
   getMentorQuestions,
+  createMentorGroup,
+  getMentorGroupMembers,
+  addMentorGroupMembers,
+  getMentorGroupCandidates,
   getPostComments,
   addComment,
   toggleCommentLike,
   deletePost,
   deleteComment
 } from '../../controller/community/community.controller.js';
-import { getAllPosts, deletePostAdmin, togglePinPost, toggleBlockPost, setUserPostingBlock, createPostAdmin, getAdminGroups, getPostCommentsAdmin, deleteCommentAdmin, getGeneralGroup, updateGeneralGroup, resolveQuestionAdmin, acceptAnswerAdmin, getLeaderboardAdmin, getPointEventsAdmin, getAdminMentors, createMentorAdmin, updateMentorAdmin, deactivateMentorAdmin } from '../../controller/community/admin.community.controller.js';
+import { getAllPosts, deletePostAdmin, togglePinPost, toggleBlockPost, setUserPostingBlock, createPostAdmin, getAdminGroups, getPostCommentsAdmin, deleteCommentAdmin, getGeneralGroup, updateGeneralGroup, resolveQuestionAdmin, acceptAnswerAdmin, getAdminMentors, createMentorAdmin, updateMentorAdmin, deactivateMentorAdmin } from '../../controller/community/admin.community.controller.js';
 import { runScheduledCleanup } from '../../controller/community/communityCleanup.controller.js';
 
 const router = express.Router();
@@ -44,8 +47,6 @@ router.patch('/admin/groups/general', adminAuth, requirePermission('manage_commu
 router.get('/admin/posts/:postId/comments', adminAuth, requirePermission('manage_community'), validateMongoIdParams('postId'), getPostCommentsAdmin);
 router.patch('/admin/posts/:postId/resolve', adminAuth, requirePermission('manage_community'), validateMongoIdParams('postId'), resolveQuestionAdmin);
 router.patch('/admin/posts/:postId/accept-answer', adminAuth, requirePermission('manage_community'), validateMongoIdParams('postId'), acceptAnswerAdmin);
-router.get('/admin/leaderboard', adminAuth, requirePermission('manage_community'), getLeaderboardAdmin);
-router.get('/admin/leaderboard/events', adminAuth, requirePermission('manage_community'), getPointEventsAdmin);
 router.get('/admin/mentors', adminAuth, requirePermission('manage_community'), getAdminMentors);
 router.post('/admin/mentors', adminAuth, requirePermission('manage_community'), createMentorAdmin);
 router.patch('/admin/mentors/:mentorId', adminAuth, requirePermission('manage_community'), validateMongoIdParams('mentorId'), updateMentorAdmin);
@@ -62,11 +63,6 @@ router.use(protectedRoutes);
 router.get('/check-access', checkCommunityAccess);
 
 // ========================================
-// Leaderboard
-// ========================================
-router.get('/leaderboard', getLeaderboard);
-
-// ========================================
 // Mentors
 // ========================================
 router.get('/mentors', getMentors);
@@ -79,6 +75,10 @@ router.get('/mentors/:userId', validateMongoIdParams('userId'), getMentorProfile
 // ========================================
 router.get('/my-groups', getMyGroups);
 router.get('/feed', getAllFeedPosts);
+router.post('/groups', communityPostLimiter, createMentorGroup);
+router.get('/groups/:groupId/members', validateMongoIdParams('groupId'), getMentorGroupMembers);
+router.post('/groups/:groupId/members', validateMongoIdParams('groupId'), addMentorGroupMembers);
+router.get('/groups/:groupId/member-candidates', validateMongoIdParams('groupId'), getMentorGroupCandidates);
 router.get('/groups/:groupId/posts', validateMongoIdParams('groupId'), getGroupPosts);
 router.post('/groups/:groupId/posts', validateMongoIdParams('groupId'), communityPostLimiter, sanitizePostContent, validateCreatePost, createPost);
 

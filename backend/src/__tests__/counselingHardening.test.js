@@ -28,7 +28,7 @@ const pad = (value) => String(value).padStart(2, '0');
 const allDayHours = () => Object.fromEntries(
   ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].map((day) => [
     day,
-    { start: '00:00', end: '23:00', isActive: true, breakStart: null, breakEnd: null },
+    { start: '00:00', end: '23:59', isActive: true, breakStart: null, breakEnd: null },
   ])
 );
 
@@ -38,7 +38,7 @@ const createService = (overrides = {}) => CounselingService.create({
   duration: '60 mins',
   price: 0,
   isFree: false,
-  intervalMinutes: 60,
+  intervalMinutes: 1,
   timezone: 'Asia/Kolkata',
   isActive: true,
   counselorName: 'Test Counselor',
@@ -49,6 +49,27 @@ const createService = (overrides = {}) => CounselingService.create({
 /** A future (or past) wall-clock slot in Asia/Kolkata. */
 const slotAt = (hoursAhead) => {
   const target = new Date(Date.now() + hoursAhead * 60 * 60 * 1000);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hour12: false,
+    }).formatToParts(target).map((part) => [part.type, part.value])
+  );
+  return {
+    dateKey: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${pad(Number(parts.hour) % 24)}:00`,
+  };
+};
+
+/** Round up to the next full hour so a near-future slot is never already past. */
+const ceilSlotAt = (hoursAhead) => {
+  const target = new Date(
+    Math.ceil((Date.now() + hoursAhead * 60 * 60 * 1000) / (60 * 60 * 1000)) * 60 * 60 * 1000
+  );
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Kolkata',
@@ -271,7 +292,7 @@ describe('Counseling hardening', () => {
     it('rejects cancellation inside the 24-hour window', async () => {
       const { tokenA } = await makeUsers();
       const service = await createService({ price: 300, isFree: false });
-      const slot = slotAt(2);
+      const slot = ceilSlotAt(2);
 
       const booked = await bookSession(tokenA, service._id, slot);
       expect(booked.status).toBe(201);

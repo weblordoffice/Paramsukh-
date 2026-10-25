@@ -356,8 +356,8 @@ export const validateCreatePost = [
     .withMessage('Post content must be between 1 and 5000 characters'),
   body('postType')
     .optional()
-    .isIn(['discussion', 'question'])
-    .withMessage('Post type must be either discussion or question'),
+    .isIn(['discussion', 'question', 'mentor'])
+    .withMessage('Post type must be discussion, question, or mentor'),
   body('title')
     .optional({ nullable: true, checkFalsy: true })
     .trim()

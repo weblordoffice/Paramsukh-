@@ -261,12 +261,6 @@ export default function HomeLayout() {
           }}
         />
         <Tabs.Screen
-          name="leaderboard"
-          options={{
-            href: null,
-          }}
-        />
-        <Tabs.Screen
           name="mentor-corner"
           options={{
             href: null,

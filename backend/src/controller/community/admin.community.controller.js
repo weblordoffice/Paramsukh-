@@ -8,8 +8,6 @@ import {
     awardCommunityPoints,
     revokeCommunityPointsForRef,
     revokeCommunityPointsForPost,
-    getCommunityLeaderboard,
-    getCommunityPointEvents,
 } from '../../services/communityPoints.service.js';
 
 // @desc    Get all community posts (Admin only)
@@ -308,7 +306,7 @@ export const createPostAdmin = async (req, res) => {
 export const getAdminGroups = async (req, res) => {
     try {
         const groups = await Group.find({ isActive: true })
-            .select('name groupType description memberCount isPublic')
+            .select('name groupType description memberCount isPublic ownerId linkedGroupIds')
             .sort({ name: 1 })
             .lean();
 
@@ -508,53 +506,6 @@ export const acceptAnswerAdmin = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Failed to accept answer',
-            error: error.message
-        });
-    }
-};
-
-// @desc    Get community leaderboard (Admin only)
-// @route   GET /api/community/admin/leaderboard
-// @access  Admin
-export const getLeaderboardAdmin = async (req, res) => {
-    try {
-        const result = await getCommunityLeaderboard({
-            period: req.query.period,
-            groupId: req.query.groupId || null,
-            limit: req.query.limit,
-            currentUserId: null,
-        });
-
-        res.status(200).json({ success: true, ...result });
-    } catch (error) {
-        console.error('Get Leaderboard Admin Error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to retrieve the leaderboard',
-            error: error.message
-        });
-    }
-};
-
-// @desc    Get community point events (Admin only)
-// @route   GET /api/community/admin/leaderboard/events
-// @access  Admin
-export const getPointEventsAdmin = async (req, res) => {
-    try {
-        const result = await getCommunityPointEvents({
-            period: req.query.period,
-            groupId: req.query.groupId || null,
-            page: req.query.page,
-            limit: req.query.limit,
-            includeInactive: req.query.includeInactive !== 'false',
-        });
-
-        res.status(200).json({ success: true, ...result });
-    } catch (error) {
-        console.error('Get Point Events Admin Error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to retrieve point events',
             error: error.message
         });
     }

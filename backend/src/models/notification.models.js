@@ -31,7 +31,7 @@ const notificationSchema = new mongoose.Schema({
       'community_answer_accepted',
       'mentor_question',
       'mentor_assigned',
-      'leaderboard_rank',
+      'mentor_group_added',
       // Counseling notifications
       'counseling_booked',
       'counseling_reminder',

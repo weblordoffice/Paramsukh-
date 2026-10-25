@@ -7,10 +7,9 @@ import { Search, MessageSquare, Heart, MessageCircle, Trash2, Pin, Plus, EyeOff,
 import CreatePostModal from './CreatePostModal';
 import CommentsModal from './CommentsModal';
 import GeneralCommunityCard from './GeneralCommunityCard';
-import LeaderboardTab from './LeaderboardTab';
 import MentorsTab from './MentorsTab';
 
-type CommunityTab = 'posts' | 'questions' | 'mentors' | 'leaderboard';
+type CommunityTab = 'posts' | 'questions' | 'mentors';
 type QuestionStatus = 'all' | 'unanswered' | 'resolved';
 
 interface Post {
@@ -48,7 +47,7 @@ export default function CommunityPage() {
     const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (activeTab === 'leaderboard' || activeTab === 'mentors') return;
+        if (activeTab === 'mentors') return;
         setPage(1);
         fetchPosts(1, false, activeTab, questionStatus);
     }, [activeTab, questionStatus]);
@@ -203,7 +202,7 @@ export default function CommunityPage() {
                 )}
             </div>
 
-            {activeTab !== 'leaderboard' && activeTab !== 'mentors' && <GeneralCommunityCard />}
+            {activeTab !== 'mentors' && <GeneralCommunityCard />}
 
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="inline-flex rounded-lg bg-white p-1 shadow-md">
@@ -225,12 +224,6 @@ export default function CommunityPage() {
                     >
                         Mentors
                     </button>
-                    <button
-                        onClick={() => setActiveTab('leaderboard')}
-                        className={`px-5 py-2 rounded-md text-sm font-semibold transition ${activeTab === 'leaderboard' ? 'bg-primary text-white' : 'text-accent hover:bg-gray-50'}`}
-                    >
-                        Leaderboard
-                    </button>
                 </div>
 
                 {activeTab === 'questions' && (
@@ -248,9 +241,7 @@ export default function CommunityPage() {
                 )}
             </div>
 
-            {activeTab === 'leaderboard' ? (
-                <LeaderboardTab />
-            ) : activeTab === 'mentors' ? (
+            {activeTab === 'mentors' ? (
                 <MentorsTab />
             ) : (
                 <>

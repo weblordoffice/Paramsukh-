@@ -1,10 +1,8 @@
 import request from 'supertest';
-import mongoose from 'mongoose';
 import createTestApp from './app.js';
 import { Group, Post, Comment, MentorProfile } from '../models/community.models.js';
 import { Course } from '../models/course.models.js';
 import { CommunityPointEvent } from '../models/communityPoint.models.js';
-import { getWeekKey, getMonthKey } from '../services/communityPoints.service.js';
 import { assignMentorToGroup } from '../services/community.service.js';
 import {
   createTestUser,
@@ -532,29 +530,7 @@ describe('Community Module - /api/community', () => {
     });
   });
 
-  describe('Community Leaderboard', () => {
-    const createPointEvent = async ({
-      userId: eventUserId,
-      points,
-      action = 'comment_created',
-      groupId: eventGroupId = null,
-      weekKey = getWeekKey(),
-      monthKey = getMonthKey(),
-      dedupeKey,
-    }) => {
-      return CommunityPointEvent.create({
-        userId: eventUserId,
-        action,
-        points,
-        refType: action === 'comment_created' ? 'comment' : 'post',
-        refId: new mongoose.Types.ObjectId(),
-        groupId: eventGroupId,
-        weekKey,
-        monthKey,
-        dedupeKey,
-      });
-    };
-
+  describe('Community Points', () => {
     it('should award points when a question is created', async () => {
       const created = await request(app)
         .post(`/api/community/groups/${group._id}/posts`)
@@ -702,131 +678,227 @@ describe('Community Module - /api/community', () => {
       }).lean();
       expect(event?.isActive).toBe(false);
     });
+  });
 
-    it('should return the leaderboard with the current user rank', async () => {
-      const other = await createTestUser2({ subscriptionPlan: 'pro', subscriptionStatus: 'active' });
+  describe('Mentor Groups', () => {
+    let phoneCounter = 0;
+    const nextPhone = () => `+9198${String(++phoneCounter).padStart(8, '0')}`;
 
-      await createPointEvent({
-        userId: other._id,
-        points: 50,
-        dedupeKey: 'test:leaderboard:other',
+    const createVerifiedMentor = async ({ verified = true } = {}) => {
+      const mentorUser = await createTestUser2({
+        phone: nextPhone(),
+        subscriptionPlan: 'pro',
+        subscriptionStatus: 'active',
       });
-      await createPointEvent({
-        userId: user._id,
-        points: 30,
-        dedupeKey: 'test:leaderboard:me',
+      await createTestDeviceSession(mentorUser._id);
+      const profile = await MentorProfile.create({
+        userId: mentorUser._id,
+        headline: 'Private group mentor',
+        groupIds: [group._id],
+        isVerified: verified,
+        isActive: true,
       });
+      await assignMentorToGroup(mentorUser._id, group._id);
+      return {
+        mentorUser,
+        profile,
+        mentorToken: generateUserToken(mentorUser._id),
+      };
+    };
 
-      const res = await request(app)
-        .get('/api/community/leaderboard?period=all')
-        .set(getAuthHeader(token));
+    const createMentorGroup = async (mentorToken, overrides = {}) => {
+      return request(app)
+        .post('/api/community/groups')
+        .set(getAuthHeader(mentorToken))
+        .send({
+          name: 'Private Reset Circle',
+          description: 'A private group for selected members.',
+          ...overrides,
+        });
+    };
 
-      expect(res.status).toBe(200);
-      expect(res.body.success).toBe(true);
-      expect(res.body.leaderboard[0].userId).toBe(String(other._id));
-      expect(res.body.leaderboard[1].userId).toBe(String(user._id));
-      expect(res.body.me.rank).toBe(2);
-      expect(res.body.me.points).toBe(30);
+    it('should let only verified mentors create private groups', async () => {
+      const nonMentor = await createMentorGroup(token);
+      expect(nonMentor.status).toBe(403);
+
+      const unverified = await createVerifiedMentor({ verified: false });
+      const unverifiedRes = await createMentorGroup(unverified.mentorToken);
+      expect(unverifiedRes.status).toBe(403);
+
+      const mentor = await createVerifiedMentor();
+      const created = await createMentorGroup(mentor.mentorToken);
+      expect(created.status).toBe(201);
+      expect(created.body.group.groupType).toBe('mentor');
+      expect(created.body.group.isPrivate).toBe(true);
+      expect(created.body.group.ownerId).toBe(String(mentor.mentorUser._id));
     });
 
-    it('should scope the leaderboard to a group and its subgroups', async () => {
-      const other = await createTestUser2({ subscriptionPlan: 'pro', subscriptionStatus: 'active' });
-      const otherGroup = await createTestGroup({ name: 'Other Group' });
+    it('should keep private groups inaccessible to non-members', async () => {
+      const mentor = await createVerifiedMentor();
+      const created = await createMentorGroup(mentor.mentorToken);
 
-      await createPointEvent({
-        userId: user._id,
-        points: 20,
-        groupId: group._id,
-        dedupeKey: 'test:scope:group',
+      const ownerRes = await request(app)
+        .get(`/api/community/groups/${created.body.group._id}/posts`)
+        .set(getAuthHeader(mentor.mentorToken));
+      expect(ownerRes.status).toBe(200);
+
+      const outsider = await createTestUser2({
+        phone: nextPhone(),
+        subscriptionPlan: 'pro',
+        subscriptionStatus: 'active',
       });
-      await createPointEvent({
-        userId: other._id,
-        points: 80,
-        groupId: otherGroup._id,
-        dedupeKey: 'test:scope:other',
-      });
-
-      const res = await request(app)
-        .get(`/api/community/leaderboard?period=all&groupId=${group._id}`)
-        .set(getAuthHeader(token));
-
-      expect(res.status).toBe(200);
-      expect(res.body.leaderboard).toHaveLength(1);
-      expect(res.body.leaderboard[0].userId).toBe(String(user._id));
-      expect(res.body.leaderboard[0].points).toBe(20);
+      await createTestDeviceSession(outsider._id);
+      const outsiderRes = await request(app)
+        .get(`/api/community/groups/${created.body.group._id}/posts`)
+        .set(getAuthHeader(generateUserToken(outsider._id)));
+      expect(outsiderRes.status).toBe(403);
     });
 
-    it('should exclude mentors from the leaderboard', async () => {
-      const mentor = await createTestUser2({ subscriptionPlan: 'pro', subscriptionStatus: 'active' });
+    it('should grant access through linked communities, including future members', async () => {
+      const mentor = await createVerifiedMentor();
+      const created = await createMentorGroup(mentor.mentorToken);
+      const mentorGroupId = created.body.group._id;
+
+      const added = await request(app)
+        .post(`/api/community/groups/${mentorGroupId}/members`)
+        .set(getAuthHeader(mentor.mentorToken))
+        .send({ groupIds: [String(group._id)] });
+      expect(added.status).toBe(200);
+
+      const existingMember = await request(app)
+        .get(`/api/community/groups/${mentorGroupId}/posts`)
+        .set(getAuthHeader(token));
+      expect(existingMember.status).toBe(200);
+
+      const futureMember = await createTestUser2({
+        phone: nextPhone(),
+        subscriptionPlan: 'pro',
+        subscriptionStatus: 'active',
+      });
+      await createTestDeviceSession(futureMember._id);
       const { GroupMember } = await import('../models/community.models.js');
       await GroupMember.create({
         groupId: group._id,
-        userId: mentor._id,
-        role: 'mentor',
+        userId: futureMember._id,
+        role: 'member',
         isActive: true,
       });
-      await MentorProfile.create({
-        userId: mentor._id,
-        headline: 'Wellness mentor',
-        groupIds: [group._id],
+
+      const futureRes = await request(app)
+        .get(`/api/community/groups/${mentorGroupId}/posts`)
+        .set(getAuthHeader(generateUserToken(futureMember._id)));
+      expect(futureRes.status).toBe(200);
+
+      const inherited = await GroupMember.findOne({
+        groupId: mentorGroupId,
+        userId: futureMember._id,
         isActive: true,
-        isVerified: true,
-      });
-      await createPointEvent({
-        userId: mentor._id,
-        points: 100,
-        dedupeKey: 'test:mentor:excluded',
-      });
-
-      const res = await request(app)
-        .get('/api/community/leaderboard?period=all')
-        .set(getAuthHeader(token));
-
-      expect(res.status).toBe(200);
-      expect(res.body.leaderboard.some((entry) => entry.userId === String(mentor._id))).toBe(false);
+      }).lean();
+      expect(inherited).toBeTruthy();
+      expect(String(inherited.sourceGroupId)).toBe(String(group._id));
     });
 
-    it('should filter weekly points', async () => {
-      await createPointEvent({
-        userId: user._id,
-        points: 25,
-        dedupeKey: 'test:weekly:current',
-      });
-      await createPointEvent({
-        userId: user._id,
-        points: 100,
-        weekKey: '2020-W01',
-        monthKey: '2020-01',
-        dedupeKey: 'test:weekly:old',
-      });
+    it('should revoke inherited access when the source community membership ends', async () => {
+      const mentor = await createVerifiedMentor();
+      const created = await createMentorGroup(mentor.mentorToken);
+      const mentorGroupId = created.body.group._id;
+      const { GroupMember } = await import('../models/community.models.js');
+
+      await request(app)
+        .post(`/api/community/groups/${mentorGroupId}/members`)
+        .set(getAuthHeader(mentor.mentorToken))
+        .send({ groupIds: [String(group._id)] });
+
+      await GroupMember.updateOne(
+        { groupId: group._id, userId: user._id },
+        { $set: { isActive: false } }
+      );
 
       const res = await request(app)
-        .get('/api/community/leaderboard?period=weekly')
+        .get(`/api/community/groups/${mentorGroupId}/posts`)
         .set(getAuthHeader(token));
-
-      expect(res.status).toBe(200);
-      expect(res.body.leaderboard[0].points).toBe(25);
+      expect(res.status).toBe(403);
     });
 
-    it('should expose admin leaderboard and point events', async () => {
-      await createPointEvent({
-        userId: user._id,
-        points: 15,
-        dedupeKey: 'test:admin:leaderboard',
-      });
+    it('should keep directly-added members after their source community ends', async () => {
+      const mentor = await createVerifiedMentor();
+      const created = await createMentorGroup(mentor.mentorToken);
+      const mentorGroupId = created.body.group._id;
+      const { GroupMember } = await import('../models/community.models.js');
 
-      const leaderboardRes = await request(app)
-        .get('/api/community/admin/leaderboard?period=all')
-        .set(getAdminApiKeyHeader());
-      expect(leaderboardRes.status).toBe(200);
-      expect(leaderboardRes.body.leaderboard[0].points).toBe(15);
+      const added = await request(app)
+        .post(`/api/community/groups/${mentorGroupId}/members`)
+        .set(getAuthHeader(mentor.mentorToken))
+        .send({ userIds: [String(user._id)] });
+      expect(added.status).toBe(200);
 
-      const eventsRes = await request(app)
-        .get('/api/community/admin/leaderboard/events?period=all')
-        .set(getAdminApiKeyHeader());
-      expect(eventsRes.status).toBe(200);
-      expect(Array.isArray(eventsRes.body.events)).toBe(true);
-      expect(eventsRes.body.events.length).toBeGreaterThan(0);
+      await GroupMember.updateOne(
+        { groupId: group._id, userId: user._id },
+        { $set: { isActive: false } }
+      );
+
+      const res = await request(app)
+        .get(`/api/community/groups/${mentorGroupId}/posts`)
+        .set(getAuthHeader(token));
+      expect(res.status).toBe(200);
+    });
+
+    it('should restrict mentor posts to mentors and expose them only in mentor feeds', async () => {
+      const mentor = await createVerifiedMentor();
+      const created = await createMentorGroup(mentor.mentorToken);
+      const mentorGroupId = created.body.group._id;
+
+      await request(app)
+        .post(`/api/community/groups/${mentorGroupId}/members`)
+        .set(getAuthHeader(mentor.mentorToken))
+        .send({ groupIds: [String(group._id)] });
+
+      const memberAttempt = await request(app)
+        .post(`/api/community/groups/${mentorGroupId}/posts`)
+        .set(getAuthHeader(token))
+        .send({ postType: 'mentor', content: 'Member should not post this.' });
+      expect(memberAttempt.status).toBe(403);
+      expect(memberAttempt.body.code).toBe('MENTOR_ONLY');
+
+      const mentorPost = await request(app)
+        .post(`/api/community/groups/${mentorGroupId}/posts`)
+        .set(getAuthHeader(mentor.mentorToken))
+        .send({ postType: 'mentor', content: 'A private mentor update.' });
+      expect(mentorPost.status).toBe(201);
+
+      const mentorFeed = await request(app)
+        .get(`/api/community/feed?postType=mentor`)
+        .set(getAuthHeader(mentor.mentorToken));
+      expect(mentorFeed.status).toBe(200);
+      expect(mentorFeed.body.posts.some((post) => post._id === mentorPost.body.post._id)).toBe(true);
+
+      const discussionFeed = await request(app)
+        .get(`/api/community/feed?postType=discussion`)
+        .set(getAuthHeader(mentor.mentorToken));
+      expect(discussionFeed.body.posts.some((post) => post._id === mentorPost.body.post._id)).toBe(false);
+    });
+
+    it('should scope the mentor directory to an accessible group', async () => {
+      const mentor = await createVerifiedMentor();
+      const created = await createMentorGroup(mentor.mentorToken);
+
+      await request(app)
+        .post(`/api/community/groups/${created.body.group._id}/members`)
+        .set(getAuthHeader(mentor.mentorToken))
+        .send({ groupIds: [String(group._id)] });
+
+      const res = await request(app)
+        .get(`/api/community/mentors?groupId=${created.body.group._id}`)
+        .set(getAuthHeader(token));
+      expect(res.status).toBe(200);
+      expect(res.body.mentors.some((entry) => entry.userId === String(mentor.mentorUser._id))).toBe(true);
+    });
+
+    it('should not expose leaderboard routes', async () => {
+      const res = await request(app)
+        .get('/api/community/leaderboard')
+        .set(getAuthHeader(token));
+      expect(res.status).toBe(404);
     });
   });
 

@@ -24,7 +24,6 @@ const KNOWN_PATHS = new Set([
   '/(home)/mentor-corner',
   '/(home)/mentor-questions',
   '/(home)/mentor-profile',
-  '/(home)/leaderboard',
   '/(home)/live-sessions',
   '/(home)/podcasts',
   '/(home)/offers',
