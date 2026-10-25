@@ -844,6 +844,12 @@ export default function CheckoutScreen() {
                                 <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{usePoints * pointValue}</Text>
                             </View>
                         )}
+                        {(cart.tax ?? 0) > 0 && (
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Tax (GST)</Text>
+                                <Text style={styles.summaryValue}>+₹{Number(cart.tax).toFixed(2)}</Text>
+                            </View>
+                        )}
                         <View style={styles.divider} />
                         <View style={styles.summaryRow}>
                             <Text style={styles.totalLabel}>Total Amount</Text>

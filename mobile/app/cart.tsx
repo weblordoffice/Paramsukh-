@@ -571,6 +571,12 @@ export default function CartScreen() {
                         <Text style={styles.summaryLabel}>Discount</Text>
                         <Text style={[styles.summaryValue, { color: colors.success }]}>-₹{cart.discount}</Text>
                     </View>
+                    {(cart.tax ?? 0) > 0 && (
+                        <View style={styles.summaryRow}>
+                            <Text style={styles.summaryLabel}>Tax (GST)</Text>
+                            <Text style={styles.summaryValue}>+₹{Number(cart.tax).toFixed(2)}</Text>
+                        </View>
+                    )}
                     {(cart.shippingCharge ?? cart.shippingCost ?? 0) > 0 && (
                         <View style={styles.summaryRow}>
                             <Text style={styles.summaryLabel}>Shipping</Text>

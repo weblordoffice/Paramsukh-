@@ -355,6 +355,12 @@ export default function OrderDetailScreen() {
                             </Text>
                             <Text style={styles.summaryValue}>-₹{currentOrder.pricing?.discount ?? 0}</Text>
                         </View>
+                        {(currentOrder.pricing?.tax ?? 0) > 0 && (
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Tax (GST)</Text>
+                                <Text style={styles.summaryValue}>+₹{Number(currentOrder.pricing?.tax ?? 0).toFixed(2)}</Text>
+                            </View>
+                        )}
                         <View style={styles.divider} />
                         <View style={styles.summaryRow}>
                             <Text style={styles.totalLabel}>Total Paid</Text>

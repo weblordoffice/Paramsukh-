@@ -127,6 +127,8 @@ describe('Shop promotions - offers and coupon restrictions', () => {
     expect(cartRes.status).toBe(200);
     expect(cartRes.body.data.cart.discount).toBe(80);
     expect(cartRes.body.data.cart.offer.title).toBe('20% Wellness Offer');
+    expect(cartRes.body.data.cart.tax).toBeCloseTo(57.6, 2);
+    expect(cartRes.body.data.cart.total).toBeCloseTo(377.6, 2);
 
     await Coupon.create({
       code: 'TENOFF',
@@ -148,6 +150,8 @@ describe('Shop promotions - offers and coupon restrictions', () => {
     expect(couponRes.body.data.cart.coupon.code).toBe('TENOFF');
     expect(couponRes.body.data.cart.discount).toBe(40);
     expect(couponRes.body.data.cart.offer).toBeFalsy();
+    expect(couponRes.body.data.cart.tax).toBeCloseTo(64.8, 2);
+    expect(couponRes.body.data.cart.total).toBeCloseTo(424.8, 2);
 
     const updated = await request(app)
       .patch(`/api/admin/offers/${offerRes.body.offer._id}`)
