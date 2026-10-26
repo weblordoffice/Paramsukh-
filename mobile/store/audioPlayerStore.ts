@@ -1,6 +1,11 @@
 import { create } from 'zustand';
-import { Audio } from 'expo-av';
-import type { AVPlaybackStatus } from 'expo-av';
+import { AppState, Platform } from 'react-native';
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  type AudioPlayer,
+  type AudioStatus,
+} from 'expo-audio';
 import apiClient from '../utils/apiClient';
 import { API_URL } from '../config/api';
 
@@ -17,6 +22,7 @@ export interface PodcastTrack {
 }
 
 let lastAudioReportAt = 0;
+let statusSubscription: { remove: () => void } | null = null;
 
 interface AudioPlayerState {
     currentTrack: PodcastTrack | null;
@@ -25,25 +31,55 @@ interface AudioPlayerState {
     isBuffering: boolean;
     playbackPosition: number;
     playbackDuration: number;
-    sound: Audio.Sound | null;
+    sound: AudioPlayer | null;
 
     loadAndPlay: (track: PodcastTrack) => Promise<void>;
     togglePlayPause: () => Promise<void>;
     seek: (ms: number) => Promise<void>;
     stop: () => Promise<void>;
-    setSound: (sound: Audio.Sound | null) => void;
-    updatePlaybackStatus: (status: AVPlaybackStatus) => void;
+    syncPlaybackState: () => void;
 }
 
 async function configureAudioMode() {
-    await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
+    await setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
+        interruptionMode: 'doNotMix',
     });
 }
+
+const applyStatus = (track: PodcastTrack | null, status: AudioStatus) => {
+    if (!status.isLoaded) return;
+
+    useAudioPlayerStore.setState({
+        isPlaying: status.playing,
+        isBuffering: status.isBuffering,
+        playbackPosition: Math.round((status.currentTime || 0) * 1000),
+        playbackDuration: Math.round((status.duration || 0) * 1000),
+        isLoaded: true,
+    });
+
+    if (track?.courseId && track?.audioId && status.duration > 0) {
+        const now = Date.now();
+        if (now - lastAudioReportAt >= 10000 || !status.playing) {
+            lastAudioReportAt = now;
+            apiClient.patch(
+                `${API_URL}/enrollments/course/${track.courseId}/audio/${track.audioId}/position`,
+                {
+                    positionSeconds: Math.floor(status.currentTime || 0),
+                    durationSeconds: Math.floor(status.duration),
+                }
+            ).catch(() => {});
+        }
+    }
+};
+
+const lockScreenMetadata = (track: PodcastTrack) => ({
+    title: track.title,
+    artist: track.host,
+    albumTitle: 'Paramsukh Online Gurukul',
+    ...(track.thumbnailUrl?.startsWith('http') ? { artworkUrl: track.thumbnailUrl } : {}),
+});
 
 export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
     currentTrack: null,
@@ -57,48 +93,42 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
     loadAndPlay: async (track: PodcastTrack) => {
         const { sound: currentSound } = get();
 
+        statusSubscription?.remove();
+        statusSubscription = null;
+
         if (currentSound) {
-            await currentSound.unloadAsync().catch(() => {});
+            try {
+                currentSound.clearLockScreenControls();
+                currentSound.remove();
+            } catch {
+                // Player may already be released.
+            }
         }
 
         await configureAudioMode();
 
-        const { sound: newSound } = await Audio.Sound.createAsync(
+        const player = createAudioPlayer(
             { uri: track.audioUrl },
-            { shouldPlay: true, progressUpdateIntervalMillis: 500 },
-            (status) => {
-                if (status.isLoaded) {
-                    set({
-                        isPlaying: status.isPlaying,
-                        isBuffering: status.isBuffering,
-                        playbackPosition: status.positionMillis,
-                        playbackDuration: status.durationMillis || 0,
-                        isLoaded: true,
-                    });
-
-                    if (track.courseId && track.audioId && status.durationMillis) {
-                        const now = Date.now();
-                        if (now - lastAudioReportAt >= 10000 || !status.isPlaying) {
-                            lastAudioReportAt = now;
-                            apiClient.patch(
-                                `${API_URL}/enrollments/course/${track.courseId}/audio/${track.audioId}/position`,
-                                {
-                                    positionSeconds: Math.floor((status.positionMillis || 0) / 1000),
-                                    durationSeconds: Math.floor(status.durationMillis / 1000),
-                                }
-                            ).catch(() => {});
-                        }
-                    }
-                }
-            }
+            { updateInterval: 500 }
         );
+
+        statusSubscription = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+            applyStatus(track, status);
+        });
+
+        player.setActiveForLockScreen(
+            true,
+            lockScreenMetadata(track),
+            { showSeekBackward: true, showSeekForward: true }
+        );
+        player.play();
 
         set({
             currentTrack: track,
-            sound: newSound,
+            sound: player,
             isPlaying: true,
-            isLoaded: true,
-            isBuffering: false,
+            isLoaded: false,
+            isBuffering: true,
             playbackPosition: 0,
             playbackDuration: 0,
         });
@@ -108,29 +138,34 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
         const { sound, isPlaying } = get();
         if (!sound) return;
 
-        if (isPlaying) {
-            await sound.pauseAsync();
+        if (sound.playing || isPlaying) {
+            sound.pause();
+            set({ isPlaying: false });
         } else {
-            await sound.playAsync();
+            sound.play();
+            set({ isPlaying: true });
         }
     },
 
     seek: async (ms: number) => {
         const { sound } = get();
         if (!sound) return;
-
-        const status = await sound.getStatusAsync();
-        if (status.isLoaded) {
-            await sound.setPositionAsync(ms);
-        }
+        await sound.seekTo(ms / 1000);
     },
 
     stop: async () => {
         const { sound } = get();
 
+        statusSubscription?.remove();
+        statusSubscription = null;
+
         if (sound) {
-            await sound.stopAsync().catch(() => {});
-            await sound.unloadAsync().catch(() => {});
+            try {
+                sound.clearLockScreenControls();
+                sound.remove();
+            } catch {
+                // Player may already be released.
+            }
         }
 
         set({
@@ -144,17 +179,17 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => ({
         });
     },
 
-    setSound: (sound) => set({ sound }),
-
-    updatePlaybackStatus: (status) => {
-        if (status.isLoaded) {
-            set({
-                isPlaying: status.isPlaying,
-                isBuffering: status.isBuffering,
-                playbackPosition: status.positionMillis,
-                playbackDuration: status.durationMillis || 0,
-                isLoaded: true,
-            });
-        }
+    syncPlaybackState: () => {
+        const { sound } = get();
+        if (!sound?.isLoaded) return;
+        applyStatus(get().currentTrack, sound.currentStatus);
     },
 }));
+
+if (Platform.OS !== 'web') {
+    AppState.addEventListener('change', (state) => {
+        if (state === 'active') {
+            useAudioPlayerStore.getState().syncPlaybackState();
+        }
+    });
+}

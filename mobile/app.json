@@ -2,14 +2,14 @@
   "expo": {
     "name": "Paramsukh Online Gurukul",
     "slug": "paramsukh-online-gurukul",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "paramsukh",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "buildNumber": "8",
+      "buildNumber": "9",
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"
@@ -26,7 +26,7 @@
     },
     "android": {
       "package": "com.paramsukh.onlinegurukul",
-      "versionCode": 8,
+      "versionCode": 9,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#A070B0",
@@ -63,7 +63,8 @@
           "defaultChannel": "default",
           "sounds": []
         }
-      ]
+      ],
+      "expo-audio"
     ],
     "experiments": {
       "typedRoutes": true
@@ -78,9 +79,7 @@
       }
     },
     "owner": "webvision",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.9",
     "updates": {
       "url": "https://u.expo.dev/d49ac848-8a56-4fe6-bfb3-7b4ad8a7a570"
     }
