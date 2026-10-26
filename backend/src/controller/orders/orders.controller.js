@@ -224,8 +224,8 @@ export const createOrder = async (req, res) => {
         tax: cart.tax,
         total: adjustedTotal
       },
-      coupon: cart.coupon,
-      offer: cart.offer,
+      coupon: cart.coupon?.code ? cart.coupon : undefined,
+      offer: cart.offer?.offerId ? cart.offer : undefined,
       referralPoints: referralPointsRedeemed > 0 ? {
         points: referralPointsRedeemed,
         discount: referralPointsDiscount
