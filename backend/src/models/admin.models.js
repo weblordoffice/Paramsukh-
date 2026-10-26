@@ -1,6 +1,17 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
+const permissionScopeSchema = new mongoose.Schema({
+    mode: {
+        type: String,
+        enum: ['all', 'selected'],
+        default: 'all'
+    },
+    ids: [{
+        type: mongoose.Schema.Types.ObjectId
+    }]
+}, { _id: false });
+
 const adminSchema = new mongoose.Schema({
     name: {
         type: String,
@@ -40,6 +51,14 @@ const adminSchema = new mongoose.Schema({
             'view_analytics'
         ]
     }],
+    // Optional resource-level scope for permissions that support it.
+    // Missing or mode 'all' means unrestricted. Existing admins stay unrestricted.
+    permissionScopes: {
+        manage_courses: { type: permissionScopeSchema, default: undefined },
+        manage_events: { type: permissionScopeSchema, default: undefined },
+        manage_community: { type: permissionScopeSchema, default: undefined },
+        manage_mentor_groups: { type: permissionScopeSchema, default: undefined }
+    },
     isActive: {
         type: Boolean,
         default: true

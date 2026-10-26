@@ -1,6 +1,11 @@
 import express from 'express';
 import { adminAuth } from '../../middleware/adminAuth.js';
 import { requirePermission } from '../../middleware/requirePermission.js';
+import {
+  requireResourceScope,
+  requireAssessmentAttemptScope,
+  requireVivaScope,
+} from '../../middleware/permissionScope.js';
 import { validateMongoIdParams } from '../../middleware/validators.js';
 import {
   getAdminCourseAssessment,
@@ -23,6 +28,7 @@ router.get(
   adminAuth,
   requirePermission('manage_courses'),
   validateMongoIdParams('courseId'),
+  requireResourceScope('manage_courses', 'courseId'),
   getAdminCourseAssessment
 );
 router.put(
@@ -30,6 +36,7 @@ router.put(
   adminAuth,
   requirePermission('manage_courses'),
   validateMongoIdParams('courseId'),
+  requireResourceScope('manage_courses', 'courseId'),
   upsertAdminCourseAssessment
 );
 
@@ -38,6 +45,7 @@ router.get(
   adminAuth,
   requirePermission('manage_courses'),
   validateMongoIdParams('courseId'),
+  requireResourceScope('manage_courses', 'courseId'),
   listAdminAssessmentAttempts
 );
 router.get(
@@ -45,6 +53,7 @@ router.get(
   adminAuth,
   requirePermission('manage_courses'),
   validateMongoIdParams('attemptId'),
+  requireAssessmentAttemptScope,
   getAdminAssessmentAttempt
 );
 router.patch(
@@ -52,6 +61,7 @@ router.patch(
   adminAuth,
   requirePermission('manage_courses'),
   validateMongoIdParams('attemptId'),
+  requireAssessmentAttemptScope,
   gradeAdminAssessmentAttempt
 );
 
@@ -66,6 +76,7 @@ router.get(
   adminAuth,
   requirePermission('manage_courses'),
   validateMongoIdParams('vivaId'),
+  requireVivaScope,
   getAdminVivaApplication
 );
 router.patch(
@@ -73,6 +84,7 @@ router.patch(
   adminAuth,
   requirePermission('manage_courses'),
   validateMongoIdParams('vivaId'),
+  requireVivaScope,
   updateAdminVivaStatus
 );
 

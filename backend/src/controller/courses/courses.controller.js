@@ -4,6 +4,7 @@ import { MembershipPlan } from '../../models/membershipPlan.models.js';
 import mongoose from 'mongoose';
 
 import { getAdminFromRequest, isValidAdminApiKey } from '../../middleware/adminAuth.js';
+import { getScopedIds } from '../../middleware/permissionScope.js';
 import { notifyNewCourse } from '../../services/notificationAutomation.service.js';
 import { buildCourseViewerPayload } from '../../services/courseMedia.service.js';
 import { evaluateCourseEnrollmentAccess } from '../../services/entitlement.service.js';
@@ -11,9 +12,14 @@ import { evaluateCourseEnrollmentAccess } from '../../services/entitlement.servi
 const normalizePlanIdentifier = (value) => String(value || '').trim();
 const normalizeText = (value) => String(value || '').trim();
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const isAdminRequest = async (req) => {
-    if (isValidAdminApiKey(req)) return true;
-    return Boolean(await getAdminFromRequest(req));
+const resolveAdminViewer = async (req) => {
+    if (isValidAdminApiKey(req)) return { adminView: true, admin: null };
+    const admin = await getAdminFromRequest(req);
+    return { adminView: Boolean(admin), admin };
+};
+const isCourseInScope = (admin, courseId) => {
+    const scopedIds = getScopedIds(admin, 'manage_courses');
+    return scopedIds === null || scopedIds.includes(String(courseId));
 };
 const slugify = (value) =>
     normalizeText(value)
@@ -377,8 +383,13 @@ export const updateCourse = async (req, res) => {
 
 export const getAllCourses = async (req, res) => {
     try {
-        const adminView = await isAdminRequest(req);
+        const { adminView, admin } = await resolveAdminViewer(req);
         const query = adminView ? {} : { status: 'published' };
+
+        const scopedCourseIds = getScopedIds(admin, 'manage_courses');
+        if (scopedCourseIds !== null) {
+            query._id = { $in: scopedCourseIds };
+        }
 
         const page = Math.max(1, Number(req.query.page) || 1);
         const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
@@ -452,7 +463,13 @@ export const getCourseById = async (req, res) => {
                 message: "Course not found"
             })
         }
-        const adminView = await isAdminRequest(req);
+        const { adminView, admin } = await resolveAdminViewer(req);
+        if (adminView && !isCourseInScope(admin, course._id)) {
+            return res.status(403).json({
+                success: false,
+                message: "You do not have access to this course"
+            });
+        }
         if (!adminView && course.status !== 'published') {
             return res.status(404).json({
                 success: false,
@@ -493,7 +510,13 @@ export const getCourseBySlug = async (req, res) => {
                 message: "Course not found"
             })
         }
-        const adminView = await isAdminRequest(req);
+        const { adminView, admin } = await resolveAdminViewer(req);
+        if (adminView && !isCourseInScope(admin, course._id)) {
+            return res.status(403).json({
+                success: false,
+                message: "You do not have access to this course"
+            });
+        }
         if (!adminView && course.status !== 'published') {
             return res.status(404).json({
                 success: false,

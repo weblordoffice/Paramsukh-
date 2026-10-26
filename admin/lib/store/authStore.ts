@@ -3,12 +3,18 @@ import { persist } from 'zustand/middleware';
 import axios from 'axios';
 import { API_BASE_URL } from '@/lib/api/config';
 
+interface PermissionScope {
+    mode: 'all' | 'selected';
+    ids: string[];
+}
+
 interface AdminUser {
     _id: string;
     name: string;
     email: string;
     role: 'super_admin' | 'admin';
     permissions: string[];
+    permissionScopes?: Record<string, PermissionScope>;
 }
 
 interface AuthState {

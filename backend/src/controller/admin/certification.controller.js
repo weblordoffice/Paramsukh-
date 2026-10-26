@@ -5,6 +5,7 @@ import { AssessmentAttempt } from '../../models/assessmentAttempt.models.js';
 import { VivaApplication } from '../../models/vivaApplication.models.js';
 import { Certificate } from '../../models/certificate.models.js';
 import Notification from '../../models/notification.models.js';
+import { getScopedIds } from '../../middleware/permissionScope.js';
 import { sendPushToUser } from '../../services/pushService.js';
 import {
   getAssessmentMetaForAdmin,
@@ -290,6 +291,17 @@ export const listAdminVivaApplications = async (req, res) => {
     const query = {};
     if (req.query.status) query.status = req.query.status;
     if (req.query.courseId) query.course = req.query.courseId;
+
+    const scopedCourseIds = getScopedIds(req.admin, 'manage_courses');
+    if (scopedCourseIds !== null) {
+      if (req.query.courseId) {
+        if (!scopedCourseIds.includes(String(req.query.courseId))) {
+          return res.status(403).json({ success: false, message: 'You do not have access to this course' });
+        }
+      } else {
+        query.course = { $in: scopedCourseIds };
+      }
+    }
 
     const [applications, total] = await Promise.all([
       VivaApplication.find(query)

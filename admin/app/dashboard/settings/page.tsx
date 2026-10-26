@@ -311,11 +311,17 @@ export default function SettingsPage() {
                                                 <span className="text-xs text-gray-500">All access</span>
                                             ) : admin.permissions?.length ? (
                                                 <div className="flex flex-wrap gap-1">
-                                                    {(admin.permissions as string[]).map((p) => (
-                                                        <span key={p} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
-                                                            {permissionLabel(p)}
-                                                        </span>
-                                                    ))}
+                                                    {(admin.permissions as string[]).map((p) => {
+                                                        const scope = admin.permissionScopes?.[p];
+                                                        const scopeLabel = scope?.mode === 'selected'
+                                                            ? ` (${scope.ids?.length || 0})`
+                                                            : '';
+                                                        return (
+                                                            <span key={p} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
+                                                                {permissionLabel(p)}{scopeLabel}
+                                                            </span>
+                                                        );
+                                                    })}
                                                 </div>
                                             ) : (
                                                 <span className="text-xs text-gray-400">None</span>

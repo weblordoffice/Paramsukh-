@@ -3,6 +3,7 @@ import { Group, MentorProfile } from '../../models/community.models.js';
 import { User } from '../../models/user.models.js';
 import Notification from '../../models/notification.models.js';
 import { sendPushToUser } from '../../services/pushService.js';
+import { getScopedIds } from '../../middleware/permissionScope.js';
 import {
   addMentorGroupMembers,
   archiveMentorGroup,
@@ -83,7 +84,13 @@ const notifyAddedUsers = async (userIds, group) => {
 
 export const listMentorGroupsAdmin = async (req, res) => {
   try {
-    const groups = await Group.find({ groupType: 'mentor', isActive: true })
+    const query = { groupType: 'mentor', isActive: true };
+    const scopedGroupIds = getScopedIds(req.admin, 'manage_mentor_groups');
+    if (scopedGroupIds !== null) {
+      query._id = { $in: scopedGroupIds };
+    }
+
+    const groups = await Group.find(query)
       .populate('ownerId', 'displayName email photoURL')
       .populate('linkedGroupIds', 'name groupType')
       .sort({ createdAt: -1 })

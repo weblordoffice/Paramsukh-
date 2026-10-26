@@ -1,6 +1,8 @@
 import { Event } from '../../models/event.models.js';
 import { EventRegistration } from '../../models/eventRegistration.models.js';
 import { escapeRegex } from '../../utils/sanitizeUtils.js';
+import { getAdminFromRequest, isValidAdminApiKey } from '../../middleware/adminAuth.js';
+import { getScopedIds } from '../../middleware/permissionScope.js';
 import { notifyNewEvent } from '../../services/notificationAutomation.service.js';
 import { sendNotification } from '../notifications/notifications.controller.js';
 import { cancelRegistrationWithSideEffects } from '../../services/eventRegistration.service.js';
@@ -253,6 +255,12 @@ export const getAllEvents = async (req, res) => {
 
     // Build query
     const query = { isActive: true };
+
+    const admin = isValidAdminApiKey(req) ? null : await getAdminFromRequest(req);
+    const scopedEventIds = getScopedIds(admin, 'manage_events');
+    if (scopedEventIds !== null) {
+      query._id = { $in: scopedEventIds };
+    }
 
     // Filter by upcoming/past/status
     const isUpcoming = upcoming === 'true' || status === 'upcoming';

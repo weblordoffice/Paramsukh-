@@ -1,6 +1,45 @@
 import Admin from '../../models/admin.models.js';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
 import { OAuth2Client } from 'google-auth-library';
+
+const SCOPED_PERMISSIONS = [
+    'manage_courses',
+    'manage_events',
+    'manage_community',
+    'manage_mentor_groups',
+];
+
+const normalizePermissionScopes = (input, permissions = []) => {
+    if (!input || typeof input !== 'object') return {};
+
+    const normalized = {};
+    for (const permission of SCOPED_PERMISSIONS) {
+        if (!permissions.includes(permission)) continue;
+
+        const scope = input[permission];
+        if (!scope || typeof scope !== 'object') continue;
+
+        const mode = scope.mode === 'selected' ? 'selected' : 'all';
+        const ids = mode === 'selected' && Array.isArray(scope.ids)
+            ? [...new Set(scope.ids.map((id) => String(id || '').trim()).filter((id) => mongoose.Types.ObjectId.isValid(id)))]
+            : [];
+
+        normalized[permission] = { mode, ids };
+    }
+
+    return normalized;
+};
+
+const adminResponsePayload = (admin) => ({
+    _id: admin._id,
+    name: admin.name,
+    email: admin.email,
+    role: admin.role,
+    permissions: admin.permissions || [],
+    permissionScopes: admin.permissionScopes || {},
+    isActive: admin.isActive,
+});
 
 // Export generateAdminToken for use in refresh endpoint
 export { generateAdminToken };
@@ -53,13 +92,7 @@ export const loginAdmin = async (req, res) => {
                 token,
                 refreshToken,
                 expiresIn: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
-                admin: {
-                    _id: admin._id,
-                    name: admin.name,
-                    email: admin.email,
-                    role: admin.role,
-                    permissions: admin.permissions,
-                },
+                admin: adminResponsePayload(admin),
             });
         } else {
             res.status(401).json({ success: false, message: 'Invalid email or password' });
@@ -136,13 +169,7 @@ export const verifyGoogleAndIssueToken = async (req, res) => {
             token,
             refreshToken,
             expiresIn: 24 * 60 * 60 * 1000, // 24 hours in milliseconds
-            admin: {
-                _id: admin._id,
-                name: admin.name,
-                email: admin.email,
-                role: admin.role,
-                permissions: admin.permissions || [],
-            },
+            admin: adminResponsePayload(admin),
         });
     } catch (error) {
         console.error('Google admin auth error:', error);
@@ -157,7 +184,7 @@ export const verifyGoogleAndIssueToken = async (req, res) => {
 // @route   POST /api/admin/users
 // @access  Private (Super Admin)
 export const createAdmin = async (req, res) => {
-    const { name, email, password, role, permissions } = req.body;
+    const { name, email, password, role, permissions, permissionScopes } = req.body;
 
     try {
         const adminExists = await Admin.findOne({ email });
@@ -166,11 +193,13 @@ export const createAdmin = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Admin already exists with this email' });
         }
 
+        const nextPermissions = permissions || [];
         const createPayload = {
             name: name || email?.split('@')[0] || 'Admin',
             email,
             role: role || 'admin',
-            permissions: permissions || [],
+            permissions: nextPermissions,
+            permissionScopes: normalizePermissionScopes(permissionScopes, nextPermissions),
         };
         if (password && String(password).trim()) {
             createPayload.password = password;
@@ -182,13 +211,7 @@ export const createAdmin = async (req, res) => {
             res.status(201).json({
                 success: true,
                 message: 'Admin created successfully',
-                admin: {
-                    _id: admin._id,
-                    name: admin.name,
-                    email: admin.email,
-                    role: admin.role,
-                    permissions: admin.permissions,
-                },
+                admin: adminResponsePayload(admin),
             });
         } else {
             res.status(400).json({ success: false, message: 'Invalid admin data' });
@@ -214,7 +237,7 @@ export const getAllAdmins = async (req, res) => {
 // @route   PUT /api/admin/users/:id
 // @access  Private (Super Admin)
 export const updateAdmin = async (req, res) => {
-    const { name, email, role, permissions, isActive } = req.body;
+    const { name, email, role, permissions, isActive, permissionScopes } = req.body;
 
     try {
         const admin = await Admin.findById(req.params.id);
@@ -229,6 +252,9 @@ export const updateAdmin = async (req, res) => {
                 admin.role = role;
             }
             if (permissions) admin.permissions = permissions;
+            if (typeof permissionScopes !== 'undefined') {
+                admin.permissionScopes = normalizePermissionScopes(permissionScopes, admin.permissions || []);
+            }
             if (typeof isActive !== 'undefined') admin.isActive = isActive;
 
             // Only allow updating password if provided explicitly? Maybe separate route.
@@ -238,14 +264,7 @@ export const updateAdmin = async (req, res) => {
             res.json({
                 success: true,
                 message: 'Admin updated successfully',
-                admin: {
-                    _id: updatedAdmin._id,
-                    name: updatedAdmin.name,
-                    email: updatedAdmin.email,
-                    role: updatedAdmin.role,
-                    permissions: updatedAdmin.permissions,
-                    isActive: updatedAdmin.isActive,
-                },
+                admin: adminResponsePayload(updatedAdmin),
             });
         } else {
             res.status(404).json({ success: false, message: 'Admin not found' });
@@ -333,13 +352,7 @@ export const refreshTokenAdmin = async (req, res) => {
             token,
             refreshToken: newRefreshToken,
             expiresIn: 24 * 60 * 60 * 1000,
-            admin: {
-                _id: admin._id,
-                name: admin.name,
-                email: admin.email,
-                role: admin.role,
-                permissions: admin.permissions,
-            },
+            admin: adminResponsePayload(admin),
         });
     } catch (error) {
         if (error.name === 'TokenExpiredError') {

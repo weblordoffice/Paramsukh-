@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import apiClient from '@/lib/api/client';
 import toast from 'react-hot-toast';
 import { X, User, Mail, Lock, Shield, CheckSquare } from 'lucide-react';
+import PermissionScopePicker from './PermissionScopePicker';
 
 const PERMISSION_OPTIONS: { value: string; label: string }[] = [
     { value: 'manage_users', label: 'Manage Users' },
@@ -18,12 +19,40 @@ const PERMISSION_OPTIONS: { value: string; label: string }[] = [
     { value: 'view_analytics', label: 'View Analytics' },
 ];
 
+type ScopePermission = 'manage_courses' | 'manage_events' | 'manage_community' | 'manage_mentor_groups';
+type PermissionScope = { mode: 'all' | 'selected'; ids: string[] };
+
+const SCOPABLE: Record<ScopePermission, { allLabel: string; selectedLabel: string }> = {
+    manage_courses: { allLabel: 'All courses', selectedLabel: 'Selected courses' },
+    manage_events: { allLabel: 'All events', selectedLabel: 'Selected events' },
+    manage_community: { allLabel: 'All communities', selectedLabel: 'Selected communities' },
+    manage_mentor_groups: { allLabel: 'All mentor groups', selectedLabel: 'Selected mentor groups' },
+};
+
+const isScopable = (permission: string): permission is ScopePermission =>
+    Object.prototype.hasOwnProperty.call(SCOPABLE, permission);
+
+const emptyScope = (): PermissionScope => ({ mode: 'all', ids: [] });
+
+const buildScopes = (admin: AdminUser | null | undefined, permissions: string[]) => {
+    const scopes: Record<string, PermissionScope> = {};
+    for (const permission of permissions) {
+        if (!isScopable(permission)) continue;
+        const current = admin?.permissionScopes?.[permission];
+        scopes[permission] = current
+            ? { mode: current.mode === 'selected' ? 'selected' : 'all', ids: (current.ids || []).map(String) }
+            : emptyScope();
+    }
+    return scopes;
+};
+
 export interface AdminUser {
     _id: string;
     name: string;
     email: string;
     role: 'super_admin' | 'admin';
     permissions: string[];
+    permissionScopes?: Record<string, PermissionScope>;
     isActive?: boolean;
 }
 
@@ -41,18 +70,22 @@ export default function AdminModal({ isOpen, onClose, admin, onSuccess }: AdminM
         password: '',
         role: 'admin' as 'super_admin' | 'admin',
         permissions: [] as string[],
+        permissionScopes: {} as Record<string, PermissionScope>,
         isActive: true,
     });
     const [loading, setLoading] = useState(false);
+    const [pickerPermission, setPickerPermission] = useState<ScopePermission | null>(null);
 
     useEffect(() => {
         if (admin) {
+            const permissions = admin.permissions || [];
             setFormData({
                 name: admin.name || '',
                 email: admin.email || '',
                 password: '',
                 role: admin.role || 'admin',
-                permissions: admin.permissions || [],
+                permissions,
+                permissionScopes: buildScopes(admin, permissions),
                 isActive: admin.isActive ?? true,
             });
         } else {
@@ -62,21 +95,41 @@ export default function AdminModal({ isOpen, onClose, admin, onSuccess }: AdminM
                 password: '',
                 role: 'admin',
                 permissions: [],
+                permissionScopes: {},
                 isActive: true,
             });
         }
+        setPickerPermission(null);
     }, [admin, isOpen]);
 
     if (!isOpen) return null;
 
     const togglePermission = (perm: string) => {
+        setFormData((prev) => {
+            const isRemoving = prev.permissions.includes(perm);
+            const permissions = isRemoving
+                ? prev.permissions.filter((p) => p !== perm)
+                : [...prev.permissions, perm];
+            const permissionScopes = { ...prev.permissionScopes };
+
+            if (isRemoving) {
+                delete permissionScopes[perm];
+            } else if (isScopable(perm)) {
+                permissionScopes[perm] = permissionScopes[perm] || emptyScope();
+            }
+
+            return { ...prev, permissions, permissionScopes };
+        });
+    };
+
+    const updateScope = (permission: ScopePermission, next: PermissionScope) => {
         setFormData((prev) => ({
             ...prev,
-            permissions: prev.permissions.includes(perm)
-                ? prev.permissions.filter((p) => p !== perm)
-                : [...prev.permissions, perm],
+            permissionScopes: { ...prev.permissionScopes, [permission]: next },
         }));
     };
+
+    const getScope = (permission: string) => formData.permissionScopes[permission] || emptyScope();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -88,6 +141,7 @@ export default function AdminModal({ isOpen, onClose, admin, onSuccess }: AdminM
                     email: formData.email,
                     role: formData.role,
                     permissions: formData.permissions,
+                    permissionScopes: formData.permissionScopes,
                     isActive: formData.isActive,
                 });
                 toast.success('Admin updated successfully');
@@ -98,6 +152,7 @@ export default function AdminModal({ isOpen, onClose, admin, onSuccess }: AdminM
                     ...(formData.password?.trim() ? { password: formData.password } : {}),
                     role: formData.role,
                     permissions: formData.permissions,
+                    permissionScopes: formData.permissionScopes,
                 });
                 toast.success('Admin added. They can sign in with Google using this email.');
             }
@@ -192,18 +247,55 @@ export default function AdminModal({ isOpen, onClose, admin, onSuccess }: AdminM
                                 <CheckSquare className="w-4 h-4" />
                                 Permissions
                             </label>
-                            <div className="grid grid-cols-1 gap-2 p-3 bg-gray-50 rounded-lg border max-h-48 overflow-y-auto">
-                                {PERMISSION_OPTIONS.map((opt) => (
-                                    <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm">
-                                        <input
-                                            type="checkbox"
-                                            checked={formData.permissions.includes(opt.value)}
-                                            onChange={() => togglePermission(opt.value)}
-                                            className="rounded border-gray-300 text-primary focus:ring-primary"
-                                        />
-                                        <span className="text-gray-700">{opt.label}</span>
-                                    </label>
-                                ))}
+                            <div className="space-y-2 p-3 bg-gray-50 rounded-lg border max-h-64 overflow-y-auto">
+                                {PERMISSION_OPTIONS.map((opt) => {
+                                    const checked = formData.permissions.includes(opt.value);
+                                    const scopePermission = isScopable(opt.value) ? opt.value : null;
+                                    const scope = scopePermission ? getScope(scopePermission) : null;
+
+                                    return (
+                                        <div key={opt.value} className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                                            <label className="flex items-center gap-2 cursor-pointer text-sm">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={checked}
+                                                    onChange={() => togglePermission(opt.value)}
+                                                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                                                />
+                                                <span className="text-gray-700">{opt.label}</span>
+                                            </label>
+
+                                            {checked && scope && scopePermission ? (
+                                                <div className="mt-2 ml-6 flex flex-wrap items-center gap-2">
+                                                    <select
+                                                        value={scope.mode}
+                                                        onChange={(event) => updateScope(scopePermission, {
+                                                            ...scope,
+                                                            mode: event.target.value as 'all' | 'selected',
+                                                        })}
+                                                        className="rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 outline-none focus:border-primary"
+                                                    >
+                                                        <option value="all">{SCOPABLE[scopePermission].allLabel}</option>
+                                                        <option value="selected">{SCOPABLE[scopePermission].selectedLabel}</option>
+                                                    </select>
+
+                                                    {scope.mode === 'selected' ? (
+                                                        <>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setPickerPermission(scopePermission)}
+                                                                className="rounded-md border border-primary/30 bg-primary/5 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+                                                            >
+                                                                {scope.ids.length > 0 ? `${scope.ids.length} selected` : 'Choose'}
+                                                            </button>
+                                                            <span className="text-[11px] text-gray-500">Existing items only</span>
+                                                        </>
+                                                    ) : null}
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
@@ -248,6 +340,18 @@ export default function AdminModal({ isOpen, onClose, admin, onSuccess }: AdminM
                     </div>
                 </form>
             </div>
+
+            <PermissionScopePicker
+                isOpen={Boolean(pickerPermission)}
+                permission={pickerPermission}
+                selectedIds={pickerPermission ? getScope(pickerPermission).ids : []}
+                onClose={() => setPickerPermission(null)}
+                onSave={(ids) => {
+                    if (pickerPermission) {
+                        updateScope(pickerPermission, { mode: 'selected', ids });
+                    }
+                }}
+            />
         </div>
     );
 }

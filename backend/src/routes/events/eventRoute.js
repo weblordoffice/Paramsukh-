@@ -35,9 +35,15 @@ import {
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
 import { requirePermission } from '../../middleware/requirePermission.js';
+import { requireResourceScope, requireAllPermissionScope } from '../../middleware/permissionScope.js';
 import { validateCreateEvent, validateUpdateEvent } from '../../middleware/validators.js';
 
 const router = express.Router();
+const requireEventScope = requireResourceScope(
+  'manage_events',
+  'id',
+  (req) => req.params.eventId || req.params.id
+);
 
 // ========================================
 // Event CRUD Routes
@@ -45,7 +51,7 @@ const router = express.Router();
 
 // Create new event
 // POST /api/events/create
-router.post('/create', adminAuth, requirePermission('manage_events'), validateCreateEvent, createEvent);
+router.post('/create', adminAuth, requirePermission('manage_events'), requireAllPermissionScope('manage_events'), validateCreateEvent, createEvent);
 
 // Get all events with filters
 // GET /api/events/all
@@ -66,7 +72,7 @@ router.get('/slug/:slug', getEventBySlug);
 
 // Get a full event for the admin editor (must be before /:id)
 // GET /api/events/admin/:id
-router.get('/admin/:id', adminAuth, requirePermission('manage_events'), getEventByIdAdmin);
+router.get('/admin/:id', adminAuth, requirePermission('manage_events'), requireEventScope, getEventByIdAdmin);
 
 // Get user's event registrations (must be before /:id)
 // GET /api/events/my-registrations
@@ -81,11 +87,11 @@ router.get('/:id', getEventById);
 
 // Update event
 // PUT /api/events/:id
-router.put('/:id', adminAuth, requirePermission('manage_events'), validateUpdateEvent, updateEvent);
+router.put('/:id', adminAuth, requirePermission('manage_events'), requireEventScope, validateUpdateEvent, updateEvent);
 
 // Delete event
 // DELETE /api/events/:id
-router.delete('/:id', adminAuth, requirePermission('manage_events'), deleteEvent);
+router.delete('/:id', adminAuth, requirePermission('manage_events'), requireEventScope, deleteEvent);
 
 // ========================================
 // Event Actions
@@ -93,23 +99,23 @@ router.delete('/:id', adminAuth, requirePermission('manage_events'), deleteEvent
 
 // Cancel event (soft delete - sets status to 'cancelled')
 // PATCH /api/events/:id/cancel
-router.patch('/:id/cancel', adminAuth, requirePermission('manage_events'), cancelEvent);
+router.patch('/:id/cancel', adminAuth, requirePermission('manage_events'), requireEventScope, cancelEvent);
 
 // Add images to event (for past events gallery)
 // POST /api/events/:id/images
-router.post('/:id/images', adminAuth, requirePermission('manage_events'), addEventImages);
+router.post('/:id/images', adminAuth, requirePermission('manage_events'), requireEventScope, addEventImages);
 
 // Add YouTube video to event (for recordings)
 // POST /api/events/:id/videos
-router.post('/:id/videos', adminAuth, requirePermission('manage_events'), addEventVideo);
+router.post('/:id/videos', adminAuth, requirePermission('manage_events'), requireEventScope, addEventVideo);
 
 // Delete single image from event (by url or _id)
 // DELETE /api/events/:id/images
-router.delete('/:id/images', adminAuth, requirePermission('manage_events'), deleteEventImage);
+router.delete('/:id/images', adminAuth, requirePermission('manage_events'), requireEventScope, deleteEventImage);
 
 // Delete single video from event (by url or _id)
 // DELETE /api/events/:id/videos
-router.delete('/:id/videos', adminAuth, requirePermission('manage_events'), deleteEventVideo);
+router.delete('/:id/videos', adminAuth, requirePermission('manage_events'), requireEventScope, deleteEventVideo);
 
 // ========================================
 // Event Registration Routes (Protected)
@@ -145,23 +151,23 @@ router.get('/:eventId/meeting-link', protectedRoutes, getMeetingLink);
 
 // Get all registrations for an event (admin only)
 // GET /api/events/:eventId/registrations
-router.get('/:eventId/registrations', adminAuth, requirePermission('manage_events'), getEventRegistrations);
+router.get('/:eventId/registrations', adminAuth, requirePermission('manage_events'), requireEventScope, getEventRegistrations);
 
 // Check-in user at event (or mark no-show with { status: 'no-show' })
 // PATCH /api/events/:eventId/registrations/:registrationId/checkin
-router.patch('/:eventId/registrations/:registrationId/checkin', adminAuth, requirePermission('manage_events'), checkInUser);
+router.patch('/:eventId/registrations/:registrationId/checkin', adminAuth, requirePermission('manage_events'), requireEventScope, checkInUser);
 
 // Refund a paid registration (admin)
 // POST /api/events/:eventId/registrations/:registrationId/refund
-router.post('/:eventId/registrations/:registrationId/refund', adminAuth, requirePermission('manage_events'), refundRegistrationAdmin);
+router.post('/:eventId/registrations/:registrationId/refund', adminAuth, requirePermission('manage_events'), requireEventScope, refundRegistrationAdmin);
 
 // Cancel a registration (admin)
 // DELETE /api/events/:eventId/registrations/:registrationId
-router.delete('/:eventId/registrations/:registrationId', adminAuth, requirePermission('manage_events'), cancelRegistrationAdmin);
+router.delete('/:eventId/registrations/:registrationId', adminAuth, requirePermission('manage_events'), requireEventScope, cancelRegistrationAdmin);
 
 // Update payment status
 // PATCH /api/events/:eventId/registrations/:registrationId/payment
-router.patch('/:eventId/registrations/:registrationId/payment', adminAuth, requirePermission('manage_events'), updatePaymentStatus);
+router.patch('/:eventId/registrations/:registrationId/payment', adminAuth, requirePermission('manage_events'), requireEventScope, updatePaymentStatus);
 
 export default router;
 

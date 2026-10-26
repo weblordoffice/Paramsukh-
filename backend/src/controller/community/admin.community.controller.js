@@ -4,6 +4,7 @@ import { User } from '../../models/user.models.js';
 import Notification from '../../models/notification.models.js';
 import { sendPushToUser } from '../../services/pushService.js';
 import { ensureGeneralGroup, assignMentorToGroup, removeMentorFromGroup } from '../../services/community.service.js';
+import { getScopedIds, canAccessScopedId } from '../../middleware/permissionScope.js';
 import {
     awardCommunityPoints,
     revokeCommunityPointsForRef,
@@ -33,6 +34,17 @@ export const getAllPosts = async (req, res) => {
         if (status === 'resolved') query.isResolved = true;
 
         if (groupId) query.groupId = groupId;
+
+        const scopedGroupIds = getScopedIds(req.admin, 'manage_community');
+        if (scopedGroupIds !== null) {
+            if (groupId && !scopedGroupIds.includes(String(groupId))) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'You do not have access to this community',
+                });
+            }
+            query.groupId = { $in: scopedGroupIds };
+        }
 
         if (search) {
             // Escape regex-special characters to prevent ReDoS attacks
@@ -258,6 +270,17 @@ export const createPostAdmin = async (req, res) => {
         const groups = await Group.find({ _id: { $in: targetGroupIds }, isActive: true }).select('_id').lean();
         const validGroupIds = groups.map((g) => String(g._id));
 
+        const scopedGroupIds = getScopedIds(req.admin, 'manage_community');
+        if (scopedGroupIds !== null) {
+            const outsideScope = validGroupIds.filter((id) => !scopedGroupIds.includes(id));
+            if (outsideScope.length > 0) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'You cannot post in communities outside your assigned scope',
+                });
+            }
+        }
+
         if (validGroupIds.length === 0) {
             return res.status(404).json({
                 success: false,
@@ -305,7 +328,13 @@ export const createPostAdmin = async (req, res) => {
 // @access  Admin
 export const getAdminGroups = async (req, res) => {
     try {
-        const groups = await Group.find({ isActive: true })
+        const query = { isActive: true };
+        const scopedGroupIds = getScopedIds(req.admin, 'manage_community');
+        if (scopedGroupIds !== null) {
+            query._id = { $in: scopedGroupIds };
+        }
+
+        const groups = await Group.find(query)
             .select('name groupType description memberCount isPublic ownerId linkedGroupIds')
             .sort({ name: 1 })
             .lean();
@@ -583,7 +612,13 @@ const notifyMentorAssigned = async (userId, groupCount = 0) => {
 // @access  Admin
 export const getAdminMentors = async (req, res) => {
     try {
-        const mentors = await MentorProfile.find({})
+        const query = {};
+        const scopedGroupIds = getScopedIds(req.admin, 'manage_community');
+        if (scopedGroupIds !== null) {
+            query.groupIds = { $in: scopedGroupIds };
+        }
+
+        const mentors = await MentorProfile.find(query)
             .populate('userId', 'displayName email phone photoURL subscriptionPlan')
             .populate('groupIds', 'name groupType category planSlug isActive')
             .sort({ createdAt: -1 })
@@ -621,6 +656,13 @@ export const createMentorAdmin = async (req, res) => {
         }
 
         const groupIds = await resolveMentorGroupIds(req.body.groupIds);
+        const scopedGroupIds = getScopedIds(req.admin, 'manage_community');
+        if (scopedGroupIds !== null && groupIds.some((id) => !scopedGroupIds.includes(String(id)))) {
+            return res.status(403).json({
+                success: false,
+                message: 'You can assign mentors only to communities in your scope',
+            });
+        }
         const profile = await MentorProfile.create({
             userId,
             headline: String(req.body.headline || '').trim(),
@@ -672,6 +714,19 @@ export const updateMentorAdmin = async (req, res) => {
         const nextGroupIds = req.body.groupIds === undefined
             ? oldGroupIds
             : await resolveMentorGroupIds(req.body.groupIds);
+
+        const scopedGroupIds = getScopedIds(req.admin, 'manage_community');
+        if (scopedGroupIds !== null) {
+            const touchesOutsideScope = [...new Set([...oldGroupIds, ...nextGroupIds])]
+                .some((id) => !scopedGroupIds.includes(String(id)));
+            if (touchesOutsideScope) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'This mentor belongs to communities outside your scope',
+                });
+            }
+        }
+
         const nextActive = req.body.isActive === undefined
             ? profile.isActive !== false
             : req.body.isActive === true;
@@ -743,6 +798,19 @@ export const deactivateMentorAdmin = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Mentor not found' });
         }
 
+        const scopedGroupIds = getScopedIds(req.admin, 'manage_community');
+        if (scopedGroupIds !== null) {
+            const outsideScope = (profile.groupIds || [])
+                .map(String)
+                .some((id) => !scopedGroupIds.includes(id));
+            if (outsideScope) {
+                return res.status(403).json({
+                    success: false,
+                    message: 'This mentor belongs to communities outside your scope',
+                });
+            }
+        }
+
         for (const groupId of profile.groupIds || []) {
             await removeMentorFromGroup(profile.userId, groupId);
         }
@@ -783,6 +851,9 @@ const formatGeneralGroup = (group) => ({
 export const getGeneralGroup = async (req, res) => {
     try {
         const group = await ensureGeneralGroup();
+        if (!canAccessScopedId(req.admin, 'manage_community', group._id)) {
+            return res.status(403).json({ success: false, message: 'You do not have access to this community' });
+        }
         res.status(200).json({ success: true, data: formatGeneralGroup(group) });
     } catch (error) {
         console.error('Get General Group Error:', error);
@@ -827,6 +898,9 @@ export const updateGeneralGroup = async (req, res) => {
         }
 
         const group = await ensureGeneralGroup();
+        if (!canAccessScopedId(req.admin, 'manage_community', group._id)) {
+            return res.status(403).json({ success: false, message: 'You do not have access to this community' });
+        }
         const updated = await Group.findByIdAndUpdate(group._id, { $set: update }, { new: true });
 
         res.status(200).json({

@@ -49,66 +49,72 @@ import {
 import { protectedRoutes } from '../../middleware/protectedRoutes.js';
 import { adminAuth } from '../../middleware/adminAuth.js';
 import { requirePermission } from '../../middleware/requirePermission.js';
+import { requireResourceScope, requireAllPermissionScope } from '../../middleware/permissionScope.js';
 import { progressLimiter } from '../../middleware/rateLimiter.js';
 import { validateMongoIdParams } from '../../middleware/validators.js';
 import { requireCourseAccess } from '../../middleware/courseAccess.js';
 import { optionalAuth } from '../../middleware/optionalAuth.js';
 
 const router = express.Router();
+const requireCourseScope = requireResourceScope(
+  'manage_courses',
+  'id',
+  (req) => req.params.courseId || req.params.id
+);
 
-router.post('/create', adminAuth, requirePermission('manage_courses'), createCourse);
-router.delete('/delete/:id', adminAuth, requirePermission('manage_courses'), validateMongoIdParams('id'), deleteCourse);
-router.put('/update/:id', adminAuth, requirePermission('manage_courses'), validateMongoIdParams('id'), updateCourse);
+router.post('/create', adminAuth, requirePermission('manage_courses'), requireAllPermissionScope('manage_courses'), createCourse);
+router.delete('/delete/:id', adminAuth, requirePermission('manage_courses'), requireCourseScope, validateMongoIdParams('id'), deleteCourse);
+router.put('/update/:id', adminAuth, requirePermission('manage_courses'), requireCourseScope, validateMongoIdParams('id'), updateCourse);
 router.get('/all', getAllCourses);
 router.get('/slug/:slug', optionalAuth, getCourseBySlug);
 router.get('/:id', optionalAuth, validateMongoIdParams('id'), getCourseById);
 
 
-router.post('/:courseId/videos', adminAuth, requirePermission('manage_courses'), addVideoToCourse);
+router.post('/:courseId/videos', adminAuth, requirePermission('manage_courses'), requireCourseScope, addVideoToCourse);
 router.get('/:courseId/videos', protectedRoutes, requireCourseAccess, getCourseVideos);
 router.get('/:courseId/videos/:videoId', protectedRoutes, requireCourseAccess, getVideoById);
-router.put('/:courseId/videos/:videoId', adminAuth, requirePermission('manage_courses'), updateVideo);
-router.delete('/:courseId/videos/:videoId', adminAuth, requirePermission('manage_courses'), deleteVideo);
+router.put('/:courseId/videos/:videoId', adminAuth, requirePermission('manage_courses'), requireCourseScope, updateVideo);
+router.delete('/:courseId/videos/:videoId', adminAuth, requirePermission('manage_courses'), requireCourseScope, deleteVideo);
 
 //pdf routes
-router.post('/:courseId/pdfs', adminAuth, requirePermission('manage_courses'), addPdfToCourse);
+router.post('/:courseId/pdfs', adminAuth, requirePermission('manage_courses'), requireCourseScope, addPdfToCourse);
 router.get('/:courseId/pdfs', protectedRoutes, requireCourseAccess, getCoursePdfs);
 router.get('/:courseId/pdfs/:pdfId', protectedRoutes, requireCourseAccess, getPdfById);
-router.put('/:courseId/pdfs/:pdfId', adminAuth, requirePermission('manage_courses'), updatePdf);
-router.delete('/:courseId/pdfs/:pdfId', adminAuth, requirePermission('manage_courses'), deletePdf);
+router.put('/:courseId/pdfs/:pdfId', adminAuth, requirePermission('manage_courses'), requireCourseScope, updatePdf);
+router.delete('/:courseId/pdfs/:pdfId', adminAuth, requirePermission('manage_courses'), requireCourseScope, deletePdf);
 
 // livesession routes
-router.post('/:courseId/livesessions', adminAuth, requirePermission('manage_courses'), addLiveSessionToCourse);
+router.post('/:courseId/livesessions', adminAuth, requirePermission('manage_courses'), requireCourseScope, addLiveSessionToCourse);
 router.get('/:courseId/livesessions', protectedRoutes, requireCourseAccess, getCourseLiveSessions);
 router.get('/:courseId/livesessions/:liveSessionId', protectedRoutes, requireCourseAccess, getLiveSessionById);
-router.put('/:courseId/livesessions/:liveSessionId', adminAuth, requirePermission('manage_courses'), updateLiveSession);
-router.delete('/:courseId/livesessions/:liveSessionId', adminAuth, requirePermission('manage_courses'), deleteLiveSession);
-router.patch('/:courseId/livesessions/:liveSessionId/recording', adminAuth, requirePermission('manage_courses'), addSessionRecording);
+router.put('/:courseId/livesessions/:liveSessionId', adminAuth, requirePermission('manage_courses'), requireCourseScope, updateLiveSession);
+router.delete('/:courseId/livesessions/:liveSessionId', adminAuth, requirePermission('manage_courses'), requireCourseScope, deleteLiveSession);
+router.patch('/:courseId/livesessions/:liveSessionId/recording', adminAuth, requirePermission('manage_courses'), requireCourseScope, addSessionRecording);
 
 // assignment routes
-router.post('/:courseId/assignments', adminAuth, requirePermission('manage_courses'), addAssignment);
+router.post('/:courseId/assignments', adminAuth, requirePermission('manage_courses'), requireCourseScope, addAssignment);
 router.get('/:courseId/assignments', protectedRoutes, requireCourseAccess, getCourseAssignments);
 router.get('/:courseId/videos/:videoId/assignments', protectedRoutes, requireCourseAccess, getVideoAssignments);
-router.put('/:courseId/assignments/:assignmentId', adminAuth, requirePermission('manage_courses'), updateAssignment);
-router.delete('/:courseId/assignments/:assignmentId', adminAuth, requirePermission('manage_courses'), deleteAssignment);
+router.put('/:courseId/assignments/:assignmentId', adminAuth, requirePermission('manage_courses'), requireCourseScope, updateAssignment);
+router.delete('/:courseId/assignments/:assignmentId', adminAuth, requirePermission('manage_courses'), requireCourseScope, deleteAssignment);
 
 // Audio lesson routes
-router.post('/:courseId/audio-lessons', adminAuth, requirePermission('manage_courses'), addAudioLesson);
+router.post('/:courseId/audio-lessons', adminAuth, requirePermission('manage_courses'), requireCourseScope, addAudioLesson);
 router.get('/:courseId/audio-lessons', protectedRoutes, requireCourseAccess, getCourseAudioLessons);
-router.put('/:courseId/audio-lessons/:audioId', adminAuth, requirePermission('manage_courses'), updateAudioLesson);
-router.delete('/:courseId/audio-lessons/:audioId', adminAuth, requirePermission('manage_courses'), deleteAudioLesson);
+router.put('/:courseId/audio-lessons/:audioId', adminAuth, requirePermission('manage_courses'), requireCourseScope, updateAudioLesson);
+router.delete('/:courseId/audio-lessons/:audioId', adminAuth, requirePermission('manage_courses'), requireCourseScope, deleteAudioLesson);
 
 // Reflection routes
-router.post('/:courseId/reflections', adminAuth, requirePermission('manage_courses'), addReflection);
+router.post('/:courseId/reflections', adminAuth, requirePermission('manage_courses'), requireCourseScope, addReflection);
 router.get('/:courseId/reflections', protectedRoutes, requireCourseAccess, getCourseReflections);
-router.get('/:courseId/reflections/submissions/admin', adminAuth, requirePermission('manage_courses'), getReflectionSubmissionsAdmin);
-router.put('/:courseId/reflections/:reflectionId', adminAuth, requirePermission('manage_courses'), updateReflection);
-router.delete('/:courseId/reflections/:reflectionId', adminAuth, requirePermission('manage_courses'), deleteReflection);
+router.get('/:courseId/reflections/submissions/admin', adminAuth, requirePermission('manage_courses'), requireCourseScope, getReflectionSubmissionsAdmin);
+router.put('/:courseId/reflections/:reflectionId', adminAuth, requirePermission('manage_courses'), requireCourseScope, updateReflection);
+router.delete('/:courseId/reflections/:reflectionId', adminAuth, requirePermission('manage_courses'), requireCourseScope, deleteReflection);
 router.post('/:courseId/reflections/:reflectionId/submit', protectedRoutes, requireCourseAccess, submitReflection);
 
 // Quiz attempt routes
 router.get('/:courseId/assignments/:assignmentId/attempts', protectedRoutes, requireCourseAccess, getAssignmentAttempts);
-router.get('/:courseId/assignments/:assignmentId/submissions/admin', adminAuth, requirePermission('manage_courses'), getAssignmentSubmissionsAdmin);
+router.get('/:courseId/assignments/:assignmentId/submissions/admin', adminAuth, requirePermission('manage_courses'), requireCourseScope, getAssignmentSubmissionsAdmin);
 router.post('/:courseId/assignments/:assignmentId/submit', protectedRoutes, requireCourseAccess, submitAssignment);
 
 // Progress tracking routes (require authentication + rate limiting)
