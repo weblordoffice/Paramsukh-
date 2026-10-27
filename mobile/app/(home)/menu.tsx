@@ -12,6 +12,7 @@ import { useBlogStore } from '../../store/blogStore';
 import { useRecommendationStore } from '../../store/recommendationStore';
 import apiClient from '../../utils/apiClient';
 import { useTheme } from '../../hooks/useTheme';
+import { useAuthStore } from '../../store/authStore';
 const makeStyles = (colors: any) => StyleSheet.create({
   container: {
     flex: 1,
@@ -69,7 +70,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   heroGreeting: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: colors.textSecondary,
     marginBottom: 3,
   },
@@ -84,7 +85,30 @@ const makeStyles = (colors: any) => StyleSheet.create({
     fontWeight: '500',
     color: colors.textSecondary,
     lineHeight: 22,
-    marginBottom: 22,
+    marginBottom: 16,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  heroMetaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(241, 132, 45, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(241, 132, 45, 0.2)',
+  },
+  heroMetaText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
   heroButton: {
     flexDirection: 'row',
@@ -892,6 +916,16 @@ export default function HomeTab() {
   const router = useRouter();
   const { blogs, fetchBlogs } = useBlogStore();
   const { recommendations, loading: loadingRecs, fetchRecommendations } = useRecommendationStore();
+  const user = useAuthStore((state) => state.user);
+
+  const firstName = String(user?.displayName || '').trim().split(/\s+/)[0] || '';
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const todayLabel = new Date().toLocaleDateString('en-IN', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
 
   useEffect(() => {
     void fetchBlogs();
@@ -1001,7 +1035,9 @@ export default function HomeTab() {
                 <Ionicons name="sparkles" size={32} color={colors.primary} />
               </View>
               <View style={styles.heroTextContainer}>
-                <Text style={styles.heroGreeting}>Welcome to</Text>
+                <Text style={styles.heroGreeting}>
+                  {greeting}{firstName ? `, ${firstName}` : ''}
+                </Text>
                 <Text style={styles.heroTitle}>ParamSukh Gurukul</Text>
               </View>
             </View>
@@ -1009,6 +1045,17 @@ export default function HomeTab() {
             <Text style={styles.heroDescription}>
               Your Lifetime Companion for Life Education, Life Skills, Lifelong Guidance, Mentorship and Handholding
             </Text>
+
+            <View style={styles.heroMetaRow}>
+              <View style={styles.heroMetaPill}>
+                <Ionicons name="calendar-outline" size={13} color="#F1842D" />
+                <Text style={styles.heroMetaText}>{todayLabel}</Text>
+              </View>
+              <View style={styles.heroMetaPill}>
+                <Ionicons name="leaf-outline" size={13} color="#F1842D" />
+                <Text style={styles.heroMetaText}>Daily wellness</Text>
+              </View>
+            </View>
 
             <TouchableOpacity
               style={styles.heroButton}
