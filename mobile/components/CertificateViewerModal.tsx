@@ -12,6 +12,7 @@ interface CertificateData {
   planName?: string;
   issuedAt: string;
   viewUrl?: string;
+  downloadUrl?: string;
   verificationUrl?: string;
 }
 
@@ -305,10 +306,13 @@ export default function CertificateViewerModal({
 
           {/* Action Buttons */}
           <View style={styles.actions}>
-            {!!certificate.viewUrl && (
-              <TouchableOpacity style={styles.downloadBtn} onPress={() => openLink(certificate.viewUrl)}>
+            {(certificate.downloadUrl || certificate.viewUrl) && (
+              <TouchableOpacity
+                style={styles.downloadBtn}
+                onPress={() => openLink(certificate.downloadUrl || certificate.viewUrl)}
+              >
                 <Ionicons name="download-outline" size={20} color="#FFFFFF" />
-                <Text style={styles.downloadText}>Download / Print</Text>
+                <Text style={styles.downloadText}>Download Certificate</Text>
               </TouchableOpacity>
             )}
 

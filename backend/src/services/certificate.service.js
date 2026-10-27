@@ -11,6 +11,7 @@ import {
   getMembershipIssuanceKey,
   isPaidMembershipForCertificate,
 } from './certificationEligibility.service.js';
+import { attachTemplateToCertificate } from './certificatePdf.service.js';
 
 const generateCertificateId = () => {
   const randomHex = crypto.randomBytes(8).toString('hex').toUpperCase();
@@ -95,6 +96,7 @@ export const issueParticipationCertificate = async (userId, courseId) => {
   });
 
   if (legacyCertificate) {
+    await attachTemplateToCertificate(legacyCertificate);
     return reviveCertificate(legacyCertificate);
   }
 
@@ -112,6 +114,7 @@ export const issueParticipationCertificate = async (userId, courseId) => {
   });
 
   if (created) {
+    await attachTemplateToCertificate(created);
     console.log(`Certificate issued: ${created.certificateId} for user ${user.displayName}`);
   }
 
@@ -145,6 +148,7 @@ export const issueMembershipCertificate = async (userId, membershipInput) => {
   const issuanceKey = getMembershipIssuanceKey(membership);
   const existing = await Certificate.findOne({ issuanceKey });
   if (existing) {
+    await attachTemplateToCertificate(existing);
     return { issued: false, reason: null, certificate: existing };
   }
 
@@ -170,6 +174,7 @@ export const issueMembershipCertificate = async (userId, membershipInput) => {
     auditTrail: [buildAuditEntry('issued', { actorType: 'system' })],
   });
 
+  await attachTemplateToCertificate(certificate);
   return { issued: Boolean(certificate), reason: null, certificate };
 };
 
@@ -227,6 +232,7 @@ export const issueAssessmentCertificate = async ({
   const existing = await Certificate.findOne({ issuanceKey });
 
   if (existing && existing.status === 'issued' && !existing.isRevoked) {
+    await attachTemplateToCertificate(existing);
     return existing;
   }
 
@@ -246,6 +252,7 @@ export const issueAssessmentCertificate = async ({
       actor: adminId || null,
     }));
     await existing.save();
+    await attachTemplateToCertificate(existing);
     return existing;
   }
 
@@ -274,6 +281,7 @@ export const issueAssessmentCertificate = async ({
     );
   }
 
+  await attachTemplateToCertificate(certificate);
   return certificate;
 };
 

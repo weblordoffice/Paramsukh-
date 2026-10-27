@@ -10,6 +10,7 @@ import {
   uploadSingleAudio,
   uploadSinglePdf,
   uploadProfilePhoto as uploadProfilePhotoMiddleware,
+  uploadCertificateTemplateBackground,
   handleMulterError
 } from '../../middleware/uploadMiddleware.js';
 import {
@@ -22,6 +23,7 @@ import {
   uploadPdfFile,
   uploadProductImages,
   uploadCourseMedia,
+  uploadCertificateTemplate,
   deleteUploadedFile,
   getUploadStatus
 } from '../../controller/upload/upload.controller.js';
@@ -152,6 +154,15 @@ router.post('/pdf',
   uploadSinglePdf,
   handleMulterError,
   uploadPdfFile
+);
+
+// Upload a certificate background image or PDF
+router.post('/certificate-template',
+  adminAuth,
+  requirePermission('manage_users'),
+  uploadCertificateTemplateBackground,
+  handleMulterError,
+  uploadCertificateTemplate
 );
 
 // ========================================

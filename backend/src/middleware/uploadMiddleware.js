@@ -116,6 +116,26 @@ const mediaFilter = (req, file, cb) => {
   }
 };
 
+// File filter for certificate template backgrounds (image or PDF)
+const certificateTemplateFilter = (req, file, cb) => {
+  const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+
+  if (allowedMimes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Upload a PNG, JPG, or PDF certificate template.'), false);
+  }
+};
+
+// Single certificate template background (max 20MB)
+export const uploadCertificateTemplateBackground = multer({
+  storage: storage,
+  fileFilter: certificateTemplateFilter,
+  limits: {
+    fileSize: 20 * 1024 * 1024
+  }
+}).single('file');
+
 // Single image upload (max 5MB)
 export const uploadSingleImage = multer({
   storage: storage,
@@ -237,5 +257,6 @@ export default {
   uploadSinglePdf,
   uploadSingleSpreadsheet,
   uploadMixedMedia,
+  uploadCertificateTemplateBackground,
   handleMulterError
 };

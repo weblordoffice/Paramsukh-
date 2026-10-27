@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import apiClient from '@/lib/api/client';
 import { API_BASE_URL } from '@/lib/api/config';
 import toast from 'react-hot-toast';
-import { Award, Ban, ExternalLink, RefreshCw, X } from 'lucide-react';
+import { Award, Ban, ExternalLink, FileText, RefreshCw, X } from 'lucide-react';
 
 interface Certificate {
     _id: string;
@@ -109,6 +110,12 @@ export default function CertificatesPage() {
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                        href="/dashboard/certificates/templates"
+                        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+                    >
+                        <FileText size={16} /> Templates
+                    </Link>
                     <select
                         value={typeFilter}
                         onChange={(event) => {

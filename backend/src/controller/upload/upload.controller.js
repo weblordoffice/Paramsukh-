@@ -1,10 +1,11 @@
-import { 
-  uploadImage, 
+import {
+  uploadImage,
   uploadMultipleImages,
   uploadRawFile,
   deleteFile,
-  isTestMode 
+  isTestMode
 } from '../../services/cloudinaryService.js';
+import { PDFDocument } from 'pdf-lib';
 import { uploadVideo, deleteVideo, extractKeyFromUrl, getPresignedUploadUrl } from '../../services/r2Service.js';
 import crypto from 'node:crypto';
 import fs from 'fs/promises';
@@ -551,6 +552,83 @@ export const getVideoPresignedUrl = async (req, res) => {
   }
 };
 
+/**
+ * Upload a certificate background (PNG/JPG/PDF).
+ * POST /api/upload/certificate-template
+ */
+export const uploadCertificateTemplate = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded' });
+    }
+
+    const isPdf = req.file.mimetype === 'application/pdf';
+    const folder = 'certificates/templates';
+    let pageWidth = 842;
+    let pageHeight = 595;
+    let pageCount = 1;
+    let upload;
+
+    if (isPdf) {
+      let source;
+      try {
+        source = await PDFDocument.load(req.file.buffer);
+      } catch {
+        return res.status(400).json({
+          success: false,
+          message: 'This PDF could not be read. Upload an unlocked PDF template.',
+        });
+      }
+
+      pageCount = source.getPageCount();
+      if (pageCount < 1) {
+        return res.status(400).json({ success: false, message: 'The PDF has no pages' });
+      }
+      const firstPage = source.getPage(0);
+      pageWidth = firstPage.getWidth();
+      pageHeight = firstPage.getHeight();
+      upload = await uploadRawFile(
+        req.file.buffer,
+        folder,
+        req.file.originalname || 'certificate-template.pdf'
+      );
+    } else {
+      const imageDoc = await PDFDocument.create();
+      const image = req.file.mimetype === 'image/png'
+        ? await imageDoc.embedPng(req.file.buffer)
+        : await imageDoc.embedJpg(req.file.buffer);
+      pageWidth = image.width;
+      pageHeight = image.height;
+      upload = await uploadImage(
+        req.file.buffer,
+        folder,
+        req.file.originalname || 'certificate-template.png'
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        backgroundType: isPdf ? 'pdf' : 'image',
+        url: upload.url,
+        publicId: upload.publicId,
+        pageWidth,
+        pageHeight,
+        pageCount,
+        filename: req.file.originalname,
+        size: req.file.size,
+      },
+    });
+  } catch (error) {
+    console.error('Certificate template upload error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to upload certificate template',
+      error: error.message,
+    });
+  }
+};
+
 export default {
   uploadSingleImage,
   uploadImages,
@@ -561,5 +639,6 @@ export default {
   uploadProductImages,
   uploadCourseMedia,
   deleteUploadedFile,
-  getUploadStatus
+  getUploadStatus,
+  uploadCertificateTemplate
 };

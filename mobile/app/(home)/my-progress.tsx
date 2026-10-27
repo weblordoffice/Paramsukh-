@@ -110,6 +110,7 @@ type CertificateItem = {
   issuedTo: string;
   issuedAt: string;
   viewUrl?: string;
+  downloadUrl?: string;
   verificationUrl?: string;
 };
 
@@ -683,7 +684,7 @@ export default function MyProgressScreen() {
                   <TouchableOpacity style={s.iconBtn} onPress={() => openCertificate(cert)}>
                     <Ionicons name="eye-outline" size={17} color={colors.primary} />
                   </TouchableOpacity>
-                  <TouchableOpacity style={s.iconBtn} onPress={() => openUrl(cert.viewUrl)}>
+                  <TouchableOpacity style={s.iconBtn} onPress={() => openUrl(cert.downloadUrl || cert.viewUrl)}>
                     <Ionicons name="download-outline" size={17} color={colors.primary} />
                   </TouchableOpacity>
                 </View>

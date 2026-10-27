@@ -20,6 +20,13 @@ import {
   issueAdminAssessmentCertificate,
   revokeAdminCertificate,
 } from '../../controller/admin/certification.controller.js';
+import {
+  listCertificateTemplatesAdmin,
+  getCertificateTemplateAdmin,
+  createCertificateTemplateAdmin,
+  updateCertificateTemplateAdmin,
+  deactivateCertificateTemplateAdmin,
+} from '../../controller/admin/certificateTemplate.controller.js';
 
 const router = express.Router();
 
@@ -105,6 +112,40 @@ router.post(
   adminAuth,
   requirePermission('manage_users'),
   revokeAdminCertificate
+);
+
+router.get(
+  '/certificate-templates',
+  adminAuth,
+  requirePermission('manage_users'),
+  listCertificateTemplatesAdmin
+);
+router.get(
+  '/certificate-templates/:id',
+  adminAuth,
+  requirePermission('manage_users'),
+  validateMongoIdParams('id'),
+  getCertificateTemplateAdmin
+);
+router.post(
+  '/certificate-templates',
+  adminAuth,
+  requirePermission('manage_users'),
+  createCertificateTemplateAdmin
+);
+router.put(
+  '/certificate-templates/:id',
+  adminAuth,
+  requirePermission('manage_users'),
+  validateMongoIdParams('id'),
+  updateCertificateTemplateAdmin
+);
+router.delete(
+  '/certificate-templates/:id',
+  adminAuth,
+  requirePermission('manage_users'),
+  validateMongoIdParams('id'),
+  deactivateCertificateTemplateAdmin
 );
 
 export default router;

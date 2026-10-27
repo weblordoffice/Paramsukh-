@@ -2,6 +2,7 @@ import QRCode from 'qrcode';
 import { Certificate } from '../../models/certificate.models.js';
 import { Enrollment } from '../../models/enrollment.models.js';
 import { generateCertificateRecord } from '../../services/certificate.service.js';
+import { buildCertificatePdfBuffer } from '../../services/certificatePdf.service.js';
 
 const getPublicBaseUrl = (req) => {
   const configured = String(
@@ -20,6 +21,7 @@ const buildCertificateLinks = (req, certificate) => {
   return {
     verificationUrl: `${baseUrl}/api/certificates/verify/${certificate.certificateId}`,
     viewUrl: `${baseUrl}/api/certificates/${certificate.certificateId}/view`,
+    downloadUrl: `${baseUrl}/api/certificates/${certificate.certificateId}/download`,
   };
 };
 
@@ -245,5 +247,44 @@ export const renderCertificateView = async (req, res) => {
   } catch (error) {
     console.error('Render Certificate Error:', error);
     return res.status(500).send('<!doctype html><html><body style="font-family:sans-serif;padding:40px"><h2>Unable to load certificate</h2><p>Please try again later.</p></body></html>');
+  }
+};
+
+/**
+ * Download the generated PDF certificate.
+ * GET /api/certificates/:certificateId/download
+ */
+export const downloadCertificate = async (req, res) => {
+  try {
+    const { certificateId } = req.params;
+    const certificate = await Certificate.findOne({
+      certificateId,
+      isRevoked: false,
+      status: 'issued',
+    });
+
+    if (!certificate) {
+      return res.status(404).json({
+        success: false,
+        message: 'Certificate not found or has been revoked',
+      });
+    }
+
+    const links = buildCertificateLinks(req, certificate);
+    const pdf = await buildCertificatePdfBuffer(certificate, links.verificationUrl);
+    const safeId = String(certificate.certificateId || 'certificate').replace(/[^a-zA-Z0-9_-]/g, '');
+    const filename = `ParamSukh-Certificate-${safeId}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', pdf.length);
+    res.setHeader('Cache-Control', 'private, no-store');
+    return res.status(200).send(pdf);
+  } catch (error) {
+    console.error('Download Certificate Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Unable to generate certificate PDF',
+    });
   }
 };
